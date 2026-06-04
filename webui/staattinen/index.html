@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>kyberESR</title>
+  <link rel="stylesheet" href="/staattinen/tyyli.css">
+</head>
+<body>
+  <header>
+    <h1>kyberESR</h1>
+    <nav id="valilehdet">
+      <button data-valilehti="korkeakoulut" class="aktiivinen">Korkeakoulut</button>
+      <button data-valilehti="kurssit">Kurssit</button>
+      <button data-valilehti="arvioinnit">Arvioinnit</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="korkeakoulut" class="nakyma aktiivinen">
+      <h2>Korkeakoulut</h2>
+      <table>
+        <thead>
+          <tr><th>Nimi</th><th>OPS-tyyppi</th><th>Opinto-oppaan osoite</th></tr>
+        </thead>
+        <tbody id="korkeakoulut-rungot"></tbody>
+      </table>
+    </section>
+
+    <section id="kurssit" class="nakyma">
+      <h2>Kurssit</h2>
+      <p class="tulossa">Tulossa myöhemmin.</p>
+    </section>
+
+    <section id="arvioinnit" class="nakyma">
+      <h2>Arvioinnit</h2>
+      <p class="tulossa">Tulossa myöhemmin.</p>
+    </section>
+  </main>
+
+  <script src="/staattinen/sovellus.js"></script>
+</body>
+</html>

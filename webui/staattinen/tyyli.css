@@ -1,0 +1,53 @@
+* { box-sizing: border-box; }
+
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0;
+  color: #1a1a2e;
+  background: #f4f4f8;
+}
+
+header {
+  background: #16213e;
+  color: #fff;
+  padding: 1rem 1.5rem;
+}
+
+header h1 { margin: 0 0 0.75rem; font-size: 1.4rem; }
+
+#valilehdet button {
+  background: transparent;
+  border: none;
+  color: #aab;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+#valilehdet button.aktiivinen {
+  color: #fff;
+  border-bottom-color: #e94560;
+}
+
+main { padding: 1.5rem; }
+
+.nakyma { display: none; }
+.nakyma.aktiivinen { display: block; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+th, td {
+  text-align: left;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid #e0e0ec;
+}
+
+th { background: #ececf4; }
+
+.tulossa { color: #888; font-style: italic; }
