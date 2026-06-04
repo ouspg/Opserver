@@ -42,6 +42,15 @@ class TestKorkeakoulu:
         assert len(tulos) == 1
         assert tulos[0]["KouluNimi"] == "Tampereen yliopisto"
 
+    def test_paivita_korkeakoulu_kutsuu_update(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.paivita_korkeakoulu(1, "Uusi nimi", "https://uusi.fi", "Sisu")
+        kursori.execute.assert_called_once()
+        sql, params = kursori.execute.call_args[0]
+        assert "UPDATE" in sql.upper()
+        assert "Korkeakoulu" in sql
+        assert 1 in params
+
     def test_poista_korkeakoulu_kutsuu_delete(self, mock_yhteys):
         yht, kursori = mock_yhteys
         mallit.poista_korkeakoulu(1)

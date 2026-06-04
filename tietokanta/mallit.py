@@ -33,6 +33,15 @@ def hae_korkeakoulut() -> list[dict]:
             return _rivit_dikteina(kursori)
 
 
+def paivita_korkeakoulu(kkid: int, koulu_nimi: str, ops_osoite: str, ops_tyyppi: str) -> None:
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                "UPDATE Korkeakoulu SET KouluNimi = %s, OpsOsoite = %s, OpsTyyppi = %s WHERE KKID = %s",
+                (koulu_nimi, ops_osoite, ops_tyyppi, kkid),
+            )
+
+
 def poista_korkeakoulu(kkid: int) -> None:
     with yhteys() as yht:
         with yht.cursor() as kursori:
