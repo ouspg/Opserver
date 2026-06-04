@@ -1,88 +1,89 @@
-# kyberESR — Automated Course Research Pipeline
+# kyberESR — Automaattinen kurssitutkimusputki
 
-## Project purpose
+## Projektin tarkoitus
 
-Automated pipeline to survey Finnish university study guides and assess which courses are relevant to a given research topic (initially: cybersecurity / ESR context). Produces a structured report with human-in-the-loop validation at two checkpoints.
+Automaattinen pipeline suomalaisten yliopistojen opinto-oppaiden läpikäymiseen ja relevanttien kurssien tunnistamiseen annetun tutkimusaiheen suhteen (aluksi: kyberturvallisuus / ESR-konteksti). Tuottaa jäsennellyn raportin, jossa on kaksi ihminen-silmukassa -tarkistuspistettä.
 
-## Pipeline overview
+## Pipelinen vaiheet
 
 ```
-1. Crawl      → Filter courses from study guides by faculty / course level
-                 (general | basic | intermediate | advanced)
-                 → store raw course data in local SQLite DB
+1. Haku       → Suodata kurssit opinto-oppaista tiedekunnan / kurssin tason mukaan
+                 (yleinen | perus | keskitaso | edistynyt)
+                 → tallennetaan raakadata paikalliseen SQLite-tietokantaan
 
-2. Screen     → Send each course description to LLM
-                 → LLM answers a fixed question set to decide include/exclude
-                 → produces: included course list + rationale per course
+2. Seulonta   → Lähetetään kurssin kuvaus LLM:lle
+                 → LLM vastaa kiinteään kysymyssarjaan: mukaan vai pois?
+                 → tuottaa: mukaan otettujen kurssien lista + perustelu per kurssi
 
-3. Evaluate   → For included courses, LLM answers a deeper question set
-                 → produces: per-course structured evaluations
+3. Arviointi  → Mukaan otetuille kursseille LLM vastaa syvempään kysymyssarjaan
+                 → tuottaa: per-kurssi jäsennellyt arviot
 
-4. Report     → Generate final report from evaluations
+4. Raportti   → Loppuraportti generoidaan tietokannan tilasta
 
-5. HITL-A     → Human reviews the included/excluded course list
-                 Two root causes for errors:
-                   a) Silent knowledge — course guide lacked info → noted in report,
-                      add human-curated answer + % stat on insufficient guides
-                   b) LLM failure     → refine prompts → redo from step 2
+5. HITL-A     → Ihminen tarkistaa mukaan otettujen / pois jätettyjen kurssien listan
+                 Virheiden kaksi juurisyytä:
+                   a) Hiljainen tieto — opinto-opas ei sisältänyt tietoa → kirjataan raporttiin,
+                      ihminen täydentää vastauksen + tilasto riittämättömistä oppaista
+                   b) LLM:n virhe → paranna promptia → aja vaihe 2 uudelleen
 
-6. HITL-B     → Human reviews the per-course evaluations
-                 Same two root causes and remedies as HITL-A
+6. HITL-B     → Ihminen tarkistaa per-kurssi arviot
+                 Samat juurisyyt ja korjaustoimenpiteet kuin HITL-A:ssa
 ```
 
-## Key data flows
+## Tietovirrat
 
-- **Input:** university study guide URLs + filter config (faculty, level, topic)
-- **Storage:** local SQLite — raw course records, LLM answers, include/exclude decisions
-- **LLM calls:** screening question set (step 2), evaluation question set (step 3)
-- **Output:** structured report + statistics on guide quality
+- **Syöte:** opinto-oppaiden URL:t + suodatusasetukset (tiedekunta, taso, aihe)
+- **Tallennus:** paikallinen SQLite — kurssitiedot, LLM-vastaukset, mukaan/pois-päätökset
+- **LLM-kutsut:** seulontakysymyssarja (vaihe 2), arviointikysymyssarja (vaihe 3)
+- **Tuloste:** jäsennelty raportti + tilastot oppaiden laadusta
 
-## Error taxonomy (critical for prompt design)
+## Virhetaksonomia (kriittinen promptien suunnittelulle)
 
-| Root cause | Signal | Remedy |
+| Juurisyy | Signaali | Korjaustoimenpide |
 |---|---|---|
-| Insufficient study guide | Correct answer not derivable from text | Note in report; human supplies answer; track % |
-| LLM misunderstanding | Answer derivable but wrong | Refine prompt; rerun affected step |
+| Riittämätön opinto-opas | Oikea vastaus ei ole johdettavissa tekstistä | Kirjataan raporttiin; ihminen täydentää vastauksen; seurataan %-osuutta |
+| LLM:n väärinymmärrys | Vastaus on johdettavissa, mutta on väärä | Paranna promptia; aja vaihe uudelleen |
 
-## Development conventions
+## Käyttöliittymät
 
-- Python project; keep dependencies minimal and explicit in `requirements.txt`
-- SQLite for all local persistence — no external DB required
-- LLM calls go through a single thin wrapper so the model/provider can be swapped
-- Prompts live in dedicated files (not buried in code) so they can be iterated without touching logic
-- Crawlers must be polite: respect `robots.txt`, add delays, do not hammer servers
-- All pipeline steps are idempotent — rerunning a step should be safe
-- DRY — no duplicated logic; shared utilities go in a common module, not copied across files
-- File size limit: every file must be small enough for Claude to read in one shot (~500 lines is a practical ceiling); split earlier if a file is growing large
+**Curses-UI** — operaattorille tarkoitettu terminaalikäyttöliittymä pipelinen ajamiseen ja seurantaan. Käytetään paikallisesti prosessia ohjaavan henkilön toimesta.
 
-## Git workflow
+**Web-UI** — localhost-verkkopalvelin tulosten esittämiseen yleisölle yhteisen WiFi-verkon kautta. Yleisön jäsenet liittyvät omilla laitteillaan paikallisverkon osoitteen kautta. Suunniteltu yhteisöllisiin HITL-annotointisessioihin:
+- Näyttää kurssilistat ja per-kurssi arviot
+- Useat käyttäjät voivat annotoida ja korjata tekoälyn päätöksiä reaaliajassa
+- Annotoinnit päivittyvät raporttiin (ks. HITL-A / HITL-B -vaiheet)
 
-- **Feature branches** for every non-trivial change — never commit directly to `main`
-- **Small, focused commits** — each commit should represent one understandable unit of work
-- All tests must pass before merging a branch
+Käyttöliittymät ovat toisistaan riippumattomia: curses-UI ohjaa pipelinen suoritusta; web-UI on vain tulosten ja annotointien luku/kirjoitusliittymä.
 
-## Testing
+## Kehityskäytännöt
 
-- **Test-driven development:** write the test first, then implement until it passes
-- Tests live alongside the code they cover (e.g. `tests/test_crawler.py` for `crawler.py`)
-- Run the full test suite after every non-trivial change; no merge with failing tests
-- Tests should be fast and not require network access — mock external calls (HTTP, LLM API)
+- Python-projekti; pidä riippuvuudet minimissä ja kirjaa ne `requirements.txt`-tiedostoon
+- SQLite kaikelle paikalliselle tallennukselle — ei ulkoista tietokantaa tarvita
+- LLM-kutsut kulkevat yhden ohuen kääreen kautta, jotta malli/palveluntarjoaja voidaan vaihtaa
+- Promptit sijaitsevat omissa tiedostoissaan (ei koodin sisällä), jotta niitä voi iteroida koskematta logiikkaan
+- Hakurobottien täytyy olla kohteliaita: noudata `robots.txt`:ää, lisää viiveet, älä kuormita palvelimia
+- Kaikki pipeline-vaiheet ovat idempotenteja — vaiheen uudelleenajo on aina turvallista
+- DRY — ei kopioitua logiikkaa; yhteiset apufunktiot yhteiseen moduuliin
+- Tiedostokoko: jokaisen tiedoston täytyy olla niin pieni, että Claude pystyy lukemaan sen kerralla (käytännön raja ~500 riviä); jaa tiedosto ajoissa jos se kasvaa liian suureksi
+- **Funktioiden ja muuttujien nimet kirjoitetaan suomeksi** — ainoat poikkeukset ovat kirjastojen vaatimat rajapinnat ja yleisesti vakiintuneet lyhenteet (esim. `db`, `url`, `id`)
 
-## User interfaces
+## Git-käytännöt
 
-**Curses UI** — operator-facing terminal interface for running and monitoring the pipeline. Used by the person driving the process locally.
+- **Feature-haarat** jokaiselle ei-triviaalille muutokselle — älä commitoi suoraan `main`-haaraan
+- **Pienet, selkeät commitit** — jokainen commit edustaa yhtä ymmärrettävää muutosyksikköä
+- Kaikkien testien täytyy mennä läpi ennen haaran yhdistämistä
 
-**Web UI** — localhost web server for presenting results to an audience over a shared WiFi network. Audience members connect via the local network address in their own browser. Designed for collaborative HITL annotation sessions:
-- Display course list and per-course evaluations
-- Allow multiple audience members to annotate and correct AI decisions in real time
-- Annotations feed back into the report (see HITL-A / HITL-B steps)
+## Testaus
 
-The two UIs are independent: the curses UI controls pipeline execution; the web UI is read/write for results and annotations only.
+- **Testilähtöinen kehitys (TDD):** kirjoita testi ensin, sitten toteuta kunnes testi menee läpi
+- Testit sijaitsevat testattavan koodin rinnalla (esim. `tests/test_hakija.py` tiedostolle `hakija.py`)
+- Aja koko testijoukko jokaisen ei-triviaalin muutoksen jälkeen; ei yhdistämistä epäonnistuneiden testien kanssa
+- Testien täytyy olla nopeita eivätkä ne saa vaatia verkkoyhteyttä — mock-ita ulkoiset kutsut (HTTP, LLM API)
 
-## What "done" looks like for each step
+## Vaiheiden valmistumiskriteerit
 
-1. **Crawl:** DB contains course rows with title, description, faculty, level, source URL
-2. **Screen:** Every crawled course has an include/exclude decision + per-question LLM answers stored
-3. **Evaluate:** Every included course has structured evaluation answers stored
-4. **Report:** Human-readable report generated from DB state; includes % of guides flagged as insufficient
-5. **HITL loops:** CLI or simple UI lets human mark errors and choose root cause; triggers re-run or annotation accordingly
+1. **Haku:** Tietokannassa on kurssirivit otsikolla, kuvauksella, tiedekunnalla, tasolla ja lähde-URL:lla
+2. **Seulonta:** Jokaisella haussa löydetyllä kurssilla on mukaan/pois-päätös ja per-kysymys LLM-vastaukset tallennettuna
+3. **Arviointi:** Jokaisella mukaan otetulla kurssilla on jäsennellyt arviointivastaukset tallennettuna
+4. **Raportti:** Ihmisluettava raportti generoitu tietokannan tilasta; sisältää %-osuuden riittämättömiksi merkityistä oppaista
+5. **HITL-silmukat:** Käyttöliittymä antaa ihmisen merkitä virheet ja valita juurisyyn; käynnistää uudelleenajon tai annotoinnin
