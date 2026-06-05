@@ -60,11 +60,29 @@ class TestKorkeakoulu:
 
 
 class TestKurssi:
-    def test_lisaa_kurssi_palauttaa_id(self, mock_yhteys):
+    def test_tallenna_kurssi_palauttaa_id(self, mock_yhteys):
         yht, kursori = mock_yhteys
         kursori.lastrowid = 7
-        tulos = mallit.lisaa_kurssi(1, "Tietoturvan perusteet", "perus", "Tietojenkäsittely", 5.0, "Kuvaus tässä")
+        tulos = mallit.tallenna_kurssi(
+            kkid=1, lahde_id="45690", koodi="IC00AU61",
+            kurssi_nimi="Kyberturvallisuuden perusteet", taso="aine",
+            oppiaine="Tietotekniikka", opintopisteet=5.0,
+            opetusvuosi="2025-2026", ops_kuvaus='{"id":"45690"}',
+        )
         assert tulos == 7
+
+    def test_tallenna_kurssi_tekee_upsert(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.lastrowid = 7
+        mallit.tallenna_kurssi(
+            kkid=1, lahde_id="45690", koodi="IC00AU61",
+            kurssi_nimi="Kyberturvallisuuden perusteet", taso="aine",
+            oppiaine="Tietotekniikka", opintopisteet=5.0,
+            opetusvuosi="2025-2026", ops_kuvaus='{}',
+        )
+        sql = kursori.execute.call_args[0][0]
+        assert "INSERT" in sql.upper()
+        assert "DUPLICATE" in sql.upper()
 
     def test_hae_kurssit_suodattaa_kkid_perusteella(self, mock_yhteys):
         yht, kursori = mock_yhteys

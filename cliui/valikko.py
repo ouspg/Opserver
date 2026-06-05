@@ -2,7 +2,7 @@
 import curses
 
 from cliui.apurit import valitse_listasta, piirra_otsikko, nayta_viesti
-from cliui import korkeakoulunaytto
+from cliui import korkeakoulunaytto, hakunaytto
 
 VALIKKO = [
     "1) Muokkaa korkeakouluja",
@@ -22,7 +22,7 @@ def paavalikko(stdscr) -> None:
     curses.curs_set(0)
     kasittelijat = {
         0: korkeakoulunaytto.nayta,
-        1: _ei_toteutettu,
+        1: hakunaytto.nayta,
         2: _ei_toteutettu,
         3: _ei_toteutettu,
         4: _ei_toteutettu,

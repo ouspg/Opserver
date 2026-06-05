@@ -11,13 +11,14 @@ class OpsLukija(ABC):
         self.korkeakoulu = korkeakoulu
         self.viive = float(os.getenv("CRAWL_DELAY_SECONDS", 2))
 
-    def _hae_json(self, url: str):
-        """Kohtelias HTTP GET: odottaa viiveen ja palauttaa JSON-vastauksen."""
-        time.sleep(self.viive)
+    def _hae_json(self, url: str, viive: bool = True):
+        """Kohtelias HTTP GET: odottaa viiveen (oletuksena) ja palauttaa JSON-vastauksen."""
+        if viive:
+            time.sleep(self.viive)
         vastaus = requests.get(url, timeout=30)
         vastaus.raise_for_status()
         return vastaus.json()
 
     @abstractmethod
-    def hae_kurssit(self) -> list[dict]:
-        """Hakee kaikki kurssit korkeakoulun opinto-oppaasta."""
+    def hae_kurssit(self, kausi: str) -> int:
+        """Hakee kaikki kurssit opinto-oppaasta ja tallentaa tietokantaan."""

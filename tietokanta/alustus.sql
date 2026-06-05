@@ -8,12 +8,16 @@ CREATE TABLE IF NOT EXISTS Korkeakoulu (
 CREATE TABLE IF NOT EXISTS Kurssi (
     KID           INT AUTO_INCREMENT PRIMARY KEY,
     KKID          INT NOT NULL,
+    LahdeId       VARCHAR(50),
+    Koodi         VARCHAR(50),
     KurssiNimi    VARCHAR(255) NOT NULL,
     Taso          ENUM('yleis', 'perus', 'aine', 'syventävä'),
     Oppiaine      VARCHAR(255),
     Opintopisteet FLOAT,
-    OpsKuvaus     TEXT,
-    FOREIGN KEY (KKID) REFERENCES Korkeakoulu(KKID) ON DELETE CASCADE
+    Opetusvuosi   VARCHAR(20) NOT NULL,
+    OpsKuvaus     MEDIUMTEXT,
+    FOREIGN KEY (KKID) REFERENCES Korkeakoulu(KKID) ON DELETE CASCADE,
+    UNIQUE KEY uniikki_lahde_vuosi (KKID, LahdeId, Opetusvuosi)
 );
 
 CREATE TABLE IF NOT EXISTS Tutkimus (

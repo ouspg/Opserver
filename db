@@ -1,0 +1,69 @@
+#!/usr/bin/env .venv/bin/python3
+"""Tietokantakyselytyökalu — lukee kirjautumistiedot .env-tiedostosta.
+
+Käyttö:
+  ./db "SELECT * FROM Kurssi LIMIT 5"
+  ./db "SHOW TABLES"
+"""
+import os
+import sys
+from pathlib import Path
+import mysql.connector
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent / ".env")
+
+
+def _yhdista():
+    return mysql.connector.connect(
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", 21212)),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        database=os.getenv("DB_NAME"),
+        charset="utf8mb4",
+    )
+
+
+def _tulosta(kursori) -> None:
+    if not kursori.description:
+        print(f"OK — {kursori.rowcount} riviä muutettu")
+        return
+    sarakkeet = [s[0] for s in kursori.description]
+    rivit = kursori.fetchall()
+    if not rivit:
+        print("(tyhjä tulos)")
+        return
+    leveydet = [len(s) for s in sarakkeet]
+    for rivi in rivit:
+        for i, solu in enumerate(rivi):
+            leveydet[i] = max(leveydet[i], len(str(solu) if solu is not None else "NULL"))
+    muoto = " | ".join(f"{{:<{l}}}" for l in leveydet)
+    print(muoto.format(*sarakkeet))
+    print("-+-".join("-" * l for l in leveydet))
+    for rivi in rivit:
+        print(muoto.format(*[str(s) if s is not None else "NULL" for s in rivi]))
+    print(f"\n({len(rivit)} rivi{'ä' if len(rivit) != 1 else ''})")
+
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+    sql = " ".join(sys.argv[1:])
+    yht = _yhdista()
+    kursori = yht.cursor()
+    try:
+        kursori.execute(sql)
+        _tulosta(kursori)
+        yht.commit()
+    except mysql.connector.Error as e:
+        print(f"Virhe: {e}", file=sys.stderr)
+        sys.exit(1)
+    finally:
+        kursori.close()
+        yht.close()
+
+
+if __name__ == "__main__":
+    main()

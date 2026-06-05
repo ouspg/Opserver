@@ -1,0 +1,43 @@
+[
+ {
+  "id": "46262",
+  "type": "PROGRAMME",
+  "name": {
+   "valueFi": "Testiohjelma",
+   "valueEn": "",
+   "valueSv": ""
+  },
+  "maxCredits": 0,
+  "minCredits": 0,
+  "optionality": null,
+  "children": [
+   {
+    "id": "99999",
+    "type": "STUDY_MODULE",
+    "name": {
+     "valueFi": "Testikokonaisuus",
+     "valueEn": "",
+     "valueSv": ""
+    },
+    "maxCredits": 0,
+    "minCredits": 0,
+    "optionality": null,
+    "children": [
+     {
+      "id": "45690",
+      "type": "COURSE_UNIT",
+      "name": {
+       "valueFi": "Kyberturvallisuuden perusteet",
+       "valueEn": "",
+       "valueSv": ""
+      },
+      "maxCredits": 5,
+      "minCredits": 5,
+      "optionality": null,
+      "children": []
+     }
+    ]
+   }
+  ]
+ }
+]

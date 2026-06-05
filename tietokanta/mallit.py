@@ -50,12 +50,20 @@ def poista_korkeakoulu(kkid: int) -> None:
 
 # --- Kurssi ---
 
-def lisaa_kurssi(kkid: int, kurssi_nimi: str, taso: str, oppiaine: str, opintopisteet: float, ops_kuvaus: str) -> int:
+def tallenna_kurssi(kkid: int, lahde_id: str, koodi: str, kurssi_nimi: str,
+                    taso: str | None, oppiaine: str, opintopisteet: float,
+                    opetusvuosi: str, ops_kuvaus: str) -> int:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                "INSERT INTO Kurssi (KKID, KurssiNimi, Taso, Oppiaine, Opintopisteet, OpsKuvaus) VALUES (%s, %s, %s, %s, %s, %s)",
-                (kkid, kurssi_nimi, taso, oppiaine, opintopisteet, ops_kuvaus),
+                """INSERT INTO Kurssi
+                       (KKID, LahdeId, Koodi, KurssiNimi, Taso, Oppiaine, Opintopisteet, Opetusvuosi, OpsKuvaus)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   ON DUPLICATE KEY UPDATE
+                       Koodi = VALUES(Koodi), KurssiNimi = VALUES(KurssiNimi),
+                       Taso = VALUES(Taso), Oppiaine = VALUES(Oppiaine),
+                       Opintopisteet = VALUES(Opintopisteet), OpsKuvaus = VALUES(OpsKuvaus)""",
+                (kkid, lahde_id, koodi, kurssi_nimi, taso, oppiaine, opintopisteet, opetusvuosi, ops_kuvaus),
             )
             return kursori.lastrowid
 
