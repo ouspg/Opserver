@@ -8,8 +8,8 @@ Automaattinen pipeline suomalaisten yliopistojen opinto-oppaiden läpikäymiseen
 
 ```
 1. Haku       → Suodata kurssit opinto-oppaista tiedekunnan / kurssin tason mukaan
-                 (yleinen | perus | keskitaso | edistynyt)
-                 → tallennetaan raakadata paikalliseen SQLite-tietokantaan
+                 (yleis | perus | aine | syventävä)
+                 → tallennetaan raakadata MySQL-tietokantaan (Docker, portti 21212)
 
 2. Seulonta   → Lähetetään kurssin kuvaus LLM:lle
                  → LLM vastaa kiinteään kysymyssarjaan: mukaan vai pois?
@@ -33,7 +33,7 @@ Automaattinen pipeline suomalaisten yliopistojen opinto-oppaiden läpikäymiseen
 ## Tietovirrat
 
 - **Syöte:** opinto-oppaiden URL:t + suodatusasetukset (tiedekunta, taso, aihe)
-- **Tallennus:** paikallinen SQLite — kurssitiedot, LLM-vastaukset, mukaan/pois-päätökset
+- **Tallennus:** MySQL Docker-kontti (portti 21212) — kurssitiedot, LLM-vastaukset, mukaan/pois-päätökset
 - **LLM-kutsut:** seulontakysymyssarja (vaihe 2), arviointikysymyssarja (vaihe 3)
 - **Tuloste:** jäsennelty raportti + tilastot oppaiden laadusta
 
@@ -58,7 +58,7 @@ Käyttöliittymät ovat toisistaan riippumattomia: curses-UI ohjaa pipelinen suo
 ## Kehityskäytännöt
 
 - Python-projekti; pidä riippuvuudet minimissä ja kirjaa ne `requirements.txt`-tiedostoon
-- SQLite kaikelle paikalliselle tallennukselle — ei ulkoista tietokantaa tarvita
+- MySQL Docker-kontissa (portti 21212) kaikelle pysyvyydelle; WebUI Docker-kontissa (portti 12121)
 - LLM-kutsut kulkevat yhden ohuen kääreen kautta, jotta malli/palveluntarjoaja voidaan vaihtaa
 - Promptit sijaitsevat omissa tiedostoissaan (ei koodin sisällä), jotta niitä voi iteroida koskematta logiikkaan
 - Hakurobottien täytyy olla kohteliaita: noudata `robots.txt`:ää, lisää viiveet, älä kuormita palvelimia
@@ -79,6 +79,14 @@ Käyttöliittymät ovat toisistaan riippumattomia: curses-UI ohjaa pipelinen suo
 - Testit sijaitsevat testattavan koodin rinnalla (esim. `tests/test_hakija.py` tiedostolle `hakija.py`)
 - Aja koko testijoukko jokaisen ei-triviaalin muutoksen jälkeen; ei yhdistämistä epäonnistuneiden testien kanssa
 - Testien täytyy olla nopeita eivätkä ne saa vaatia verkkoyhteyttä — mock-ita ulkoiset kutsut (HTTP, LLM API)
+
+## Kehitystyökalut
+
+- **`./run`** — käynnistää Curses-UI:n (`.venv/bin/python -m cliui.valikko`)
+- **`./db "SQL"`** — ajaa tietokantakyselyn lukien kirjautumistiedot `.env`:stä
+- **`docker compose up -d`** — käynnistää MySQL + WebUI kontit
+- **`docker compose build webui && docker compose up -d webui`** — pakollinen webui-koodimuutosten jälkeen
+- **WebUI JS/CSS versiointi:** kun muutat `sovellus.js` tai `tyyli.css`, kasvata `?v=N`-numeroa `index.html`:ssä
 
 ## Vaiheiden valmistumiskriteerit
 
