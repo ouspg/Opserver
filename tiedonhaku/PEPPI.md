@@ -84,16 +84,27 @@ ennen `/api/course/{id}` -kutsuja (säästää pyyntöjä ja on idempotenttia).
 | `Taso`          | ei suoraan rajapinnassa — ks. avoin kysymys alla               |
 | `KKID`          | meidän tietokannasta (Oulun yliopisto)                          |
 
-## Avoimet kysymykset
+## Kausilista — miten se selvitetään
 
-- **Taso** (yleis/perus/aine/syventävä): ei suoraan `course`-vastauksessa. Kurssikoodin
-  loppukirjain on perinteinen vihje (Oulussa esim. `Y`=yleisopinnot, `P`=perus, `A`=aine,
-  `S`=syventävä). Varmistettava ennen suodatuksen (kohta 6) toteutusta.
-- **Oppiaine / tiedekunta:** EDUCATION/PROGRAMME-solmun nimestä tai koodista johdettavissa,
-  mutta suora tiedekunta→ohjelma-mappaus ei tullut esiin. `/api/organisation` listaa
-  tiedekunnat (id + nimi), mutta `/api/organisation/{id}` palauttaa vain solmun metatiedot.
-- **Kausi:** kovakoodataanko `2025-2026` vai luetaanko ohjelmallisesti? (Frontend lukee sen
-  jostain konfiguraatiosta; ei vielä löydetty erillistä period-listausendpointtia.)
+Peppi-sivulla on `<ul class="term-selection">` -elementti jolla käyttäjä selaa kausia nuolilla.
+**Erillistä API-endpointtia kausilistaukselle ei ole.** Lista generoidaan puhtaasti
+kolmesta Angular-ympäristömuuttujasta, jotka on kovakoodattu JS-bundleen:
+
+| Muuttuja | Oulu (2026) | Merkitys |
+|---|---|---|
+| `firstSchoolYear` | 2020 | Vanhin selattava kausi |
+| `currentPeriodStartYear` | 2026 | Uusin kausi |
+| `curriculumPeriod` | 1 | Kauden pituus vuosina (voi olla 1–4) |
+
+Nuolipainikkeen logiikka: vasen pois käytöstä kun `selectedSchoolYear <= firstSchoolYear`,
+oikea pois käytöstä kun `selectedSchoolYear >= currentPeriodStartYear`.
+
+**Toteutus koodissa (`peppilukija._lue_kausiconfig_js_bundlesta`):**
+1. Hae `index.html` → parsii `main.{hash}.js` URL:n
+2. Hae JS-bundle → regex kolmelle arvolle
+3. Generoi kausilistat: `firstSchoolYear` → `currentPeriodStartYear` askelella `curriculumPeriod`
+
+Esimerkki Oulun yliopistolle: `2020-2021, 2021-2022, ..., 2026-2027` (7 kautta à 1 vuosi)
 
 ## Hyödylliset lisäendpointit (eivät pakollisia perushaussa)
 

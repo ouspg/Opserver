@@ -3,7 +3,9 @@
 Rajapinnan rakenne dokumentoitu tiedostossa tiedonhaku/PEPPI.md.
 """
 import json
-import time
+import re
+
+import requests
 
 from tietokanta import mallit
 from tiedonhaku.opslukija import OpsLukija
@@ -28,11 +30,6 @@ KUVAUS_OSIOT = [
     "Lisätiedot",
 ]
 
-# Kandidaattikausia jotka kokeillaan automaattisessa kaudenetsinnässä.
-# Muoto: (alkuvuosi, vuosia). Generoidaan dynaamisesti _kausi_kandidaatit():ssa.
-_HAKU_ALKUVUOSI = 2022
-_HAKU_LOPPUVUOSI = 2027
-
 
 def _fi(monikielinen: dict | None) -> str:
     if not monikielinen:
@@ -53,14 +50,40 @@ def _kokoa_kuvaus(sisalto: dict) -> str:
     return "\n\n".join(osat)
 
 
-def _kausi_kandidaatit() -> list[str]:
-    """Generoi testattavat OPS-kausimerkkijonot (esim. '2024-2025', '2022-2024')."""
+def _lue_kausiconfig_js_bundlesta(ops_osoite: str) -> tuple[int, int, int]:
+    """Lukee kausikonfiguraation Peppi-etusivun JS-bundlesta.
+
+    Palauttaa (ensimmainen_vuosi, viimeinen_vuosi, kauden_pituus).
+    Peppi renderöi kausilistan pelkästään näistä kolmesta arvosta —
+    erillistä API-endpointtia ei ole.
+    """
+    pohja = ops_osoite.rstrip("/")
+    html = requests.get(pohja, timeout=30).text
+    osuma = re.search(r'src="(main\.[a-f0-9]+\.js)"', html)
+    if not osuma:
+        raise ValueError(f"Ei löydy main.js URL:ia sivulta {pohja}")
+    js_url = f"{pohja}/{osuma.group(1)}"
+    js = requests.get(js_url, timeout=60).text
+
+    def etsi_int(kaava: str) -> int:
+        o = re.search(kaava, js)
+        if not o:
+            raise ValueError(f"Ei löydy kaavaa '{kaava}' JS-bundlesta")
+        return int(o.group(1))
+
+    ensimmainen = etsi_int(r'firstSchoolYear:(\d{4})')
+    viimeinen = etsi_int(r'currentPeriodStartYear:(\d{4})')
+    pituus = etsi_int(r'curriculumPeriod:(\d+)')
+    return ensimmainen, viimeinen, pituus
+
+
+def generoi_kaudet(ensimmainen: int, viimeinen: int, pituus: int) -> list[str]:
+    """Generoi kausilistat config-arvoista (testattavissa ilman verkkoa)."""
     kaudet = []
-    for alku in range(_HAKU_ALKUVUOSI, _HAKU_LOPPUVUOSI + 1):
-        for pituus in range(1, 5):
-            loppu = alku + pituus
-            if loppu <= _HAKU_LOPPUVUOSI + 1:
-                kaudet.append(f"{alku}-{loppu}")
+    vuosi = ensimmainen
+    while vuosi <= viimeinen:
+        kaudet.append(f"{vuosi}-{vuosi + pituus}")
+        vuosi += pituus
     return kaudet
 
 
@@ -72,25 +95,14 @@ class PeppiLukija(OpsLukija):
         return self._jasenna_kurssi(self._hae_json(url))
 
     def hae_saatavilla_kaudet(self) -> list[str]:
-        """Palauttaa OPS-kaudet, joille löytyy dataa tässä Peppi-instanssissa.
+        """Lukee saatavilla olevat OPS-kaudet suoraan Peppi-etusivun JS-bundlesta.
 
-        Kokeilee eri kausiforemaatteja navigaation ensimmäistä kategoriaa vasten.
-        Ohittaa crawl-viiveen (metadata-kutsu, ei kurssisivuja).
+        Peppi laskee kausilistan kolmesta JS-konfiguraatioarvosta:
+        firstSchoolYear, currentPeriodStartYear, curriculumPeriod.
         """
-        nav = self._hae_json(f"{BACKEND}/navigation", viive=False)
-        if not nav:
-            return []
-        ensimmainen_id = nav[0]["id"]
-        saatavilla = []
-        for kausi in _kausi_kandidaatit():
-            time.sleep(0.2)
-            data = self._hae_json(
-                f"{BACKEND}/education/{ensimmainen_id}/education-type?period={kausi}",
-                viive=False,
-            )
-            if data:
-                saatavilla.append(kausi)
-        return saatavilla
+        ops_osoite = self.korkeakoulu["OpsOsoite"]
+        ensimmainen, viimeinen, pituus = _lue_kausiconfig_js_bundlesta(ops_osoite)
+        return generoi_kaudet(ensimmainen, viimeinen, pituus)
 
     def hae_kurssit(self, kausi: str, edistyminen_cb=None) -> int:
         """Käy läpi koko opinto-oppaan ja tallentaa kaikki kurssit tietokantaan.

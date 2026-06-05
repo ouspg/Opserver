@@ -1,7 +1,7 @@
 import json
 import os
 from unittest.mock import patch, MagicMock, call
-from tiedonhaku.peppilukija import PeppiLukija, paattele_taso
+from tiedonhaku.peppilukija import PeppiLukija, paattele_taso, generoi_kaudet, _lue_kausiconfig_js_bundlesta
 
 DIR = os.path.dirname(__file__)
 
@@ -45,6 +45,34 @@ def test_hae_kurssi_rakentaa_oikean_urlin():
     assert "opasbe.peppi.oulu.fi/api/course/45690" in url
     assert "period=2025-2026" in url
 
+
+# --- kausilista JS-bundlesta ---
+
+def test_generoi_kaudet_yhden_vuoden_jakso():
+    kaudet = generoi_kaudet(ensimmainen=2020, viimeinen=2026, pituus=1)
+    assert kaudet == ["2020-2021","2021-2022","2022-2023","2023-2024","2024-2025","2025-2026","2026-2027"]
+
+def test_generoi_kaudet_kahden_vuoden_jakso():
+    kaudet = generoi_kaudet(ensimmainen=2022, viimeinen=2026, pituus=2)
+    assert kaudet == ["2022-2024","2024-2026","2026-2028"]
+
+def test_hae_saatavilla_kaudet_parsii_js_bundlen():
+    with patch("tiedonhaku.peppilukija._lue_kausiconfig_js_bundlesta", return_value=(2020, 2026, 1)):
+        kaudet = _lukija().hae_saatavilla_kaudet()
+    assert "2025-2026" in kaudet
+    assert "2020-2021" in kaudet
+    assert len(kaudet) == 7
+
+def test_lue_kausiconfig_parsii_arvot():
+    fake_html = '<script src="main.abc123.js"></script>'
+    fake_js = "firstSchoolYear:2020,currentPeriodStartYear:2026,curriculumPeriod:1,showTags:!1"
+    with patch("requests.get") as mock_get:
+        mock_get.side_effect = [
+            type("R", (), {"text": fake_html})(),
+            type("R", (), {"text": fake_js})(),
+        ]
+        tulos = _lue_kausiconfig_js_bundlesta("https://opas.peppi.oulu.fi")
+    assert tulos == (2020, 2026, 1)
 
 # --- taso-kartta ---
 
