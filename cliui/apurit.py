@@ -3,10 +3,11 @@ import curses
 
 
 def alusta_varit() -> None:
-    """Asettaa mustan taustan, jotta iTerm2:n oma väritys ei häiriinny."""
+    """Käyttää terminaalin omaa taustaväriä (-1 = läpinäkyvä).
+    Näin iTerm2:n oma väritys ja korostus toimivat oikein."""
     curses.start_color()
     curses.use_default_colors()
-    curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK)
+    curses.init_pair(1, curses.COLOR_WHITE, -1)
 
 
 def piirra_otsikko(stdscr, teksti: str) -> None:
