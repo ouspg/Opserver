@@ -29,7 +29,26 @@
 
     <section id="kurssit" class="nakyma">
       <h2>Kurssit</h2>
-      <p class="tulossa">Tulossa myöhemmin.</p>
+      <div class="suodattimet">
+        <select id="suodatin-koulu"><option value="">Kaikki yliopistot</option></select>
+        <select id="suodatin-taso">
+          <option value="">Kaikki tasot</option>
+          <option value="yleis">Yleisopinnot</option>
+          <option value="perus">Perusopinnot</option>
+          <option value="aine">Aineopinnot</option>
+          <option value="syventävä">Syventävät opinnot</option>
+        </select>
+        <span id="kurssit-lkm" class="lkm"></span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Nimi</th><th>Koodi</th><th>Taso</th>
+            <th>Oppiaine</th><th>op</th><th>Vuosi</th>
+          </tr>
+        </thead>
+        <tbody id="kurssit-rungot"></tbody>
+      </table>
     </section>
 
     <section id="arvioinnit" class="nakyma">
@@ -37,6 +56,14 @@
       <p class="tulossa">Tulossa myöhemmin.</p>
     </section>
   </main>
+
+  <div id="modaali" class="modaali piilotettu">
+    <div class="modaali-sisalto">
+      <button class="modaali-sulje" id="modaali-sulje">✕</button>
+      <h2 id="modaali-otsikko"></h2>
+      <div id="modaali-teksti"></div>
+    </div>
+  </div>
 
   <script src="/staattinen/sovellus.js"></script>
 </body>

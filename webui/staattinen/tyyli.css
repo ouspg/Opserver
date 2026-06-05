@@ -35,6 +35,26 @@ main { padding: 1.5rem; }
 .nakyma { display: none; }
 .nakyma.aktiivinen { display: block; }
 
+/* Suodattimet */
+.suodattimet {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.suodattimet select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  background: #fff;
+}
+
+.lkm { color: #666; font-size: 0.9rem; }
+
+/* Taulukot */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -49,5 +69,53 @@ th, td {
 }
 
 th { background: #ececf4; }
+
+td.koodi { font-family: monospace; color: #555; }
+td.op { text-align: right; }
+
+.kurssi-rivi { cursor: pointer; }
+.kurssi-rivi:hover { background: #f0f0ff; }
+
+/* Modaali */
+.modaali {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.modaali.piilotettu { display: none; }
+
+.modaali-sisalto {
+  background: #fff;
+  border-radius: 6px;
+  padding: 1.5rem;
+  max-width: 720px;
+  width: 100%;
+  position: relative;
+}
+
+.modaali-sulje {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #666;
+}
+
+.modaali-meta { width: auto; margin-bottom: 1rem; box-shadow: none; }
+.modaali-meta th { background: none; color: #555; font-weight: 600; padding: 0.3rem 1rem 0.3rem 0; }
+.modaali-meta td { padding: 0.3rem 0; border: none; }
+
+.ops-kuvaus { line-height: 1.6; font-size: 0.95rem; }
+.ops-kuvaus hr { border: none; border-top: 1px solid #eee; margin: 1rem 0; }
 
 .tulossa { color: #888; font-style: italic; }

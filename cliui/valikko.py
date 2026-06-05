@@ -1,7 +1,7 @@
 """kyberESR CLI-käyttöliittymän päävalikko."""
 import curses
 
-from cliui.apurit import valitse_listasta, piirra_otsikko, nayta_viesti
+from cliui.apurit import valitse_listasta, piirra_otsikko, nayta_viesti, alusta_varit
 from cliui import korkeakoulunaytto, hakunaytto
 
 VALIKKO = [
@@ -19,6 +19,8 @@ def _ei_toteutettu(stdscr) -> None:
 
 
 def paavalikko(stdscr) -> None:
+    alusta_varit()
+    stdscr.bkgd(" ", curses.color_pair(1))
     curses.curs_set(0)
     kasittelijat = {
         0: korkeakoulunaytto.nayta,
