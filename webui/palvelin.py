@@ -35,8 +35,12 @@ def api_kurssi(kid: int) -> dict:
 
 
 @sovellus.get("/")
-def juuri() -> FileResponse:
-    return FileResponse(os.path.join(STAATTINEN, "index.html"))
+def juuri():
+    # no-store: selain ei välimuistita sivua, hakee aina tuoreen version
+    return FileResponse(
+        os.path.join(STAATTINEN, "index.html"),
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 sovellus.mount("/staattinen", StaticFiles(directory=STAATTINEN), name="staattinen")
