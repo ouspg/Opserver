@@ -1,13 +1,14 @@
 """kyberESR CLI-käyttöliittymän päävalikko."""
 import curses
+import locale
 
 from cliui.apurit import valitse_listasta, piirra_otsikko, nayta_viesti, alusta_varit
-from cliui import korkeakoulunaytto, hakunaytto
+from cliui import korkeakoulunaytto, hakunaytto, tutkimusnaytto, luokittelunaytto
 
 VALIKKO = [
     "1) Muokkaa korkeakouluja",
     "2) Hae kurssit opinto-oppaista",
-    "3) Muokkaa luokitteluja",
+    "3) Määrittele tutkimuksia",
     "4) Luokittele",
     "5) Arvioi",
 ]
@@ -25,8 +26,8 @@ def paavalikko(stdscr) -> None:
     kasittelijat = {
         0: korkeakoulunaytto.nayta,
         1: hakunaytto.nayta,
-        2: _ei_toteutettu,
-        3: _ei_toteutettu,
+        2: tutkimusnaytto.nayta,
+        3: luokittelunaytto.nayta,
         4: _ei_toteutettu,
     }
     while True:
@@ -37,6 +38,7 @@ def paavalikko(stdscr) -> None:
 
 
 def main() -> None:
+    locale.setlocale(locale.LC_ALL, "")
     curses.wrapper(paavalikko)
 
 
