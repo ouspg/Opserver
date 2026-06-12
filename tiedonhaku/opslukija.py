@@ -20,5 +20,8 @@ class OpsLukija(ABC):
         return vastaus.json()
 
     @abstractmethod
-    def hae_kurssit(self, kausi: str) -> int:
-        """Hakee kaikki kurssit opinto-oppaasta ja tallentaa tietokantaan."""
+    def hae_kurssit(self, kausi: str) -> tuple[int, int]:
+        """Hakee kaikki kurssit opinto-oppaasta ja tallentaa tietokantaan.
+
+        Palauttaa (tallennettu, ohitettu) -tuplen.
+        """

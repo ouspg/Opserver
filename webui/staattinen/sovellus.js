@@ -1,19 +1,54 @@
 "use strict";
 
-// --- Välilehtien vaihto ---
+// --- Reititys ---
 
-function vaihdaValilehti(nimi) {
-  document.querySelectorAll("#valilehdet button").forEach((nappi) => {
-    nappi.classList.toggle("aktiivinen", nappi.dataset.valilehti === nimi);
-  });
-  document.querySelectorAll(".nakyma").forEach((nakyma) => {
-    nakyma.classList.toggle("aktiivinen", nakyma.id === nimi);
-  });
-  if (nimi === "kurssit") lataaKurssit();
+function navigoi(polku) {
+  history.pushState({}, "", polku);
+  renderoi();
 }
 
-document.querySelectorAll("#valilehdet button").forEach((nappi) => {
-  nappi.addEventListener("click", () => vaihdaValilehti(nappi.dataset.valilehti));
+window.addEventListener("popstate", renderoi);
+
+function jaaPolku() {
+  const osat = location.pathname.replace(/^\//, "").split("/").filter(Boolean);
+  if (osat[0] === "tutkimukset" && osat[1]) {
+    return { sivu: "tutkimukset", slug: osat[1], alasivu: osat[2] || "tiedot" };
+  }
+  return { sivu: osat[0] || "korkeakoulut", slug: null, alasivu: null };
+}
+
+async function renderoi() {
+  const r = jaaPolku();
+
+  // Päänav aktiivinen kohta
+  document.querySelectorAll("#paanav button").forEach((b) => {
+    const kohde = b.dataset.polku.replace("/", "");
+    b.classList.toggle("aktiivinen", kohde === r.sivu || (r.sivu === "tutkimukset" && kohde === "tutkimukset"));
+  });
+
+  // Kaikki osiot piilotetaan
+  document.querySelectorAll(".nakyma").forEach((s) => s.classList.remove("aktiivinen"));
+
+  if (r.sivu === "tutkimukset" && r.slug) {
+    await renderTutkimusKonteksti(r.slug, r.alasivu);
+  } else {
+    document.getElementById("tutkimus-nav").classList.add("piilotettu");
+    if (r.sivu === "korkeakoulut") {
+      document.getElementById("s-korkeakoulut").classList.add("aktiivinen");
+    } else if (r.sivu === "kurssit") {
+      document.getElementById("s-kurssit").classList.add("aktiivinen");
+      lataaKurssit();
+    } else if (r.sivu === "tutkimukset") {
+      document.getElementById("s-tutkimukset").classList.add("aktiivinen");
+      laataaTutkimukset();
+    }
+  }
+}
+
+// --- Päänav klikki ---
+
+document.querySelectorAll("#paanav button").forEach((b) => {
+  b.addEventListener("click", () => navigoi(b.dataset.polku));
 });
 
 // --- Korkeakoulut ---
@@ -31,15 +66,14 @@ async function lataaKorkeakoulut() {
     rivi.innerHTML = `<td>${k.KouluNimi}</td><td>${k.OpsTyyppi}</td><td>${k.OpsOsoite}</td>`;
     runko.appendChild(rivi);
   }
-
-  // Täytä myös kurssien yliopisto-suodatin
+  // Täytä kurssien yliopisto-suodatin
   const suodatin = document.getElementById("suodatin-koulu");
   suodatin.innerHTML = '<option value="">Kaikki yliopistot</option>';
   for (const k of koulut) {
-    const vaihtoehto = document.createElement("option");
-    vaihtoehto.value = k.KKID;
-    vaihtoehto.textContent = k.KouluNimi;
-    suodatin.appendChild(vaihtoehto);
+    const opt = document.createElement("option");
+    opt.value = k.KKID;
+    opt.textContent = k.KouluNimi;
+    suodatin.appendChild(opt);
   }
 }
 
@@ -52,6 +86,19 @@ const TASO_SUOMI = {
 
 let kaikki_kurssit = [];
 
+function ryhmitaKurssit(kurssit) {
+  const ryhmat = {};
+  for (const k of kurssit) {
+    const avain = k.Koodi || k.KurssiNimi;
+    if (!ryhmat[avain]) ryhmat[avain] = [];
+    ryhmat[avain].push(k);
+  }
+  for (const avain of Object.keys(ryhmat)) {
+    ryhmat[avain].sort((a, b) => b.Opetusvuosi.localeCompare(a.Opetusvuosi));
+  }
+  return ryhmat;
+}
+
 async function lataaKurssit() {
   const kkid = document.getElementById("suodatin-koulu").value;
   const url = kkid ? `/api/kurssit?kkid=${kkid}` : "/api/kurssit";
@@ -62,24 +109,38 @@ async function lataaKurssit() {
 function renderKurssit() {
   const taso = document.getElementById("suodatin-taso").value;
   const suodatettu = taso ? kaikki_kurssit.filter((k) => k.Taso === taso) : kaikki_kurssit;
+  const ryhmat = ryhmitaKurssit(suodatettu);
   const runko = document.getElementById("kurssit-rungot");
-  document.getElementById("kurssit-lkm").textContent = `${suodatettu.length} kurssia`;
+  const lkm = Object.keys(ryhmat).length;
+  document.getElementById("kurssit-lkm").textContent = `${lkm} kurssia`;
   runko.innerHTML = "";
-  if (suodatettu.length === 0) {
+  if (lkm === 0) {
     runko.innerHTML = '<tr><td colspan="6">Ei kursseja.</td></tr>';
     return;
   }
-  for (const k of suodatettu) {
+  for (const versiot of Object.values(ryhmat)) {
+    const uusin = versiot[0];
     const rivi = document.createElement("tr");
     rivi.className = "kurssi-rivi";
+    let vuosiSolmu;
+    if (versiot.length > 1) {
+      const valinnat = versiot.map((v) => `<option value="${v.KID}">${v.Opetusvuosi}</option>`).join("");
+      vuosiSolmu = `<select class="vuosivalinta" onclick="event.stopPropagation()">${valinnat}</select>`;
+    } else {
+      vuosiSolmu = uusin.Opetusvuosi;
+    }
     rivi.innerHTML = `
-      <td>${k.KurssiNimi}</td>
-      <td class="koodi">${k.Koodi || ""}</td>
-      <td>${k.Taso ? TASO_SUOMI[k.Taso] || k.Taso : "—"}</td>
-      <td>${k.Oppiaine || "—"}</td>
-      <td class="op">${k.Opintopisteet ?? "—"}</td>
-      <td>${k.Opetusvuosi}</td>`;
-    rivi.addEventListener("click", () => avaaModaali(k.KID));
+      <td>${uusin.KurssiNimi}</td>
+      <td class="koodi">${uusin.Koodi || ""}</td>
+      <td>${uusin.Taso ? TASO_SUOMI[uusin.Taso] || uusin.Taso : "—"}</td>
+      <td>${uusin.Oppiaine || "—"}</td>
+      <td class="op">${uusin.Opintopisteet ?? "—"}</td>
+      <td>${vuosiSolmu}</td>`;
+    rivi.addEventListener("click", () => {
+      const select = rivi.querySelector(".vuosivalinta");
+      const kid = select ? parseInt(select.value) : uusin.KID;
+      avaaModaali(kid);
+    });
     runko.appendChild(rivi);
   }
 }
@@ -126,6 +187,141 @@ document.getElementById("modaali").addEventListener("click", (e) => {
     document.getElementById("modaali").classList.add("piilotettu");
 });
 
+// --- Tutkimukset ---
+
+let tutkimukset_lista = [];
+
+async function laataaTutkimukset() {
+  const runko = document.getElementById("tutkimukset-rungot");
+  tutkimukset_lista = await fetch("/api/tutkimukset").then((r) => r.json());
+  runko.innerHTML = "";
+  if (tutkimukset_lista.length === 0) {
+    runko.innerHTML = '<tr><td colspan="4">Ei tutkimuksia.</td></tr>';
+    return;
+  }
+  for (const t of tutkimukset_lista) {
+    const rivi = document.createElement("tr");
+    const lkm = t.MukanaLkm ?? 0;
+    rivi.innerHTML = `
+      <td class="kurssi-rivi tutkimus-nimi-solu">${t.LuokittelunNimi}</td>
+      <td>${t.Tasorajaus || "—"}</td>
+      <td>${t.Oppiainerajaus || "—"}</td>
+      <td class="tutkimus-toiminnot">
+        <button class="nappi-pieni" data-slug="${t.Slug}" data-alasivu="kurssit">Valitut kurssit (${lkm})</button>
+        <button class="nappi-pieni" data-slug="${t.Slug}" data-alasivu="arvioinnit">Arvioinnit</button>
+        <button class="nappi-pieni" data-slug="${t.Slug}" data-alasivu="raportti">Raportti</button>
+      </td>`;
+    rivi.querySelector(".tutkimus-nimi-solu").addEventListener("click", () =>
+      navigoi(`/tutkimukset/${t.Slug}`)
+    );
+    rivi.querySelectorAll(".nappi-pieni").forEach((b) =>
+      b.addEventListener("click", () => navigoi(`/tutkimukset/${b.dataset.slug}/${b.dataset.alasivu}`))
+    );
+    runko.appendChild(rivi);
+  }
+}
+
+// --- Tutkimus-konteksti (alinav + sisältö) ---
+
+let aktiivinen_tutkimus = null;
+
+async function renderTutkimusKonteksti(slug, alasivu) {
+  if (!aktiivinen_tutkimus || aktiivinen_tutkimus.Slug !== slug) {
+    aktiivinen_tutkimus = await fetch(`/api/tutkimukset/${slug}`).then((r) => {
+      if (!r.ok) return null;
+      return r.json();
+    });
+  }
+  if (!aktiivinen_tutkimus) {
+    document.getElementById("tutkimus-nav").classList.add("piilotettu");
+    return;
+  }
+
+  // Päivitä alinav
+  const nav = document.getElementById("tutkimus-nav");
+  nav.classList.remove("piilotettu");
+  document.getElementById("tutkimus-nav-nimi").textContent = aktiivinen_tutkimus.LuokittelunNimi;
+
+  nav.querySelectorAll("button").forEach((b) => {
+    b.classList.toggle("aktiivinen", b.dataset.tutkimusAlasivu === alasivu);
+  });
+  nav.querySelectorAll("button[data-tutkimus-alasivu]").forEach((b) => {
+    b.onclick = () => navigoi(`/tutkimukset/${slug}/${b.dataset.tutkimusAlasivu}`);
+  });
+
+  if (alasivu === "tiedot") {
+    renderTutkimusTiedot(aktiivinen_tutkimus);
+    document.getElementById("s-tutkimus-tiedot").classList.add("aktiivinen");
+  } else if (alasivu === "kurssit") {
+    await renderTutkimusKurssit(slug, aktiivinen_tutkimus.LuokittelunNimi);
+    document.getElementById("s-tutkimus-kurssit").classList.add("aktiivinen");
+  } else if (alasivu === "arvioinnit") {
+    document.getElementById("s-tutkimus-arvioinnit").classList.add("aktiivinen");
+  } else if (alasivu === "raportti") {
+    document.getElementById("s-tutkimus-raportti").classList.add("aktiivinen");
+  }
+}
+
+function renderTutkimusTiedot(t) {
+  document.getElementById("tutkimus-tiedot-sisalto").innerHTML = `
+    <h2>${t.LuokittelunNimi}</h2>
+    <table class="modaali-meta">
+      <tr><th>Slug</th><td>${t.Slug}</td></tr>
+      <tr><th>Tasorajaus</th><td>${t.Tasorajaus || "—"}</td></tr>
+      <tr><th>Oppiainerajaus</th><td>${t.Oppiainerajaus || "—"}</td></tr>
+    </table>
+    <h3>Valintakehote</h3>
+    <pre class="kehote-teksti">${t.Luokittelukehote}</pre>
+    <h3>Arviointikehote</h3>
+    <pre class="kehote-teksti">${t.Arviointikehote}</pre>`;
+}
+
+let tutkimus_luokitukset = [];
+let aktiivinen_tila = "mukana";
+
+async function renderTutkimusKurssit(slug, nimi) {
+  document.getElementById("tutkimus-kurssit-otsikko").textContent = `${nimi} — kurssit`;
+  tutkimus_luokitukset = await fetch(`/api/tutkimukset/${slug}/luokitukset`).then((r) => r.json());
+  renderTutkimusKurssitTila();
+}
+
+function renderTutkimusKurssitTila() {
+  const suodatettu = tutkimus_luokitukset.filter((k) => {
+    if (aktiivinen_tila === "mukana")  return k.Mukana === true  || k.Mukana === 1;
+    if (aktiivinen_tila === "hylätty") return k.Mukana === false || k.Mukana === 0;
+    if (aktiivinen_tila === "odottaa") return k.Mukana === null;
+    return true;
+  });
+  document.getElementById("tutkimus-kurssit-lkm").textContent = `${suodatettu.length} kurssia`;
+  const runko = document.getElementById("tutkimus-kurssit-rungot");
+  runko.innerHTML = "";
+  if (suodatettu.length === 0) {
+    runko.innerHTML = `<tr><td colspan="6">Ei kursseja tässä kategoriassa.</td></tr>`;
+    return;
+  }
+  for (const k of suodatettu) {
+    const rivi = document.createElement("tr");
+    rivi.innerHTML = `
+      <td>${k.KurssiNimi}</td>
+      <td class="koodi">${k.Koodi || ""}</td>
+      <td>${k.Taso ? TASO_SUOMI[k.Taso] || k.Taso : "—"}</td>
+      <td>${k.Oppiaine || "—"}</td>
+      <td class="op">${k.Opintopisteet ?? "—"}</td>
+      <td class="perustelu">${k.Luokitteluperuste || ""}</td>`;
+    runko.appendChild(rivi);
+  }
+}
+
+document.querySelectorAll(".tila-nappi").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".tila-nappi").forEach((x) => x.classList.remove("aktiivinen"));
+    b.classList.add("aktiivinen");
+    aktiivinen_tila = b.dataset.tila;
+    renderTutkimusKurssitTila();
+  });
+});
+
 // --- Käynnistys ---
 
 lataaKorkeakoulut();
+renderoi();

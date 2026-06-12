@@ -10,6 +10,8 @@ from tietokanta import mallit
 sovellus = FastAPI(title="kyberESR")
 
 STAATTINEN = os.path.join(os.path.dirname(__file__), "staattinen")
+_INDEX = os.path.join(STAATTINEN, "index.html")
+_NO_STORE = {"Cache-Control": "no-store"}
 
 # Kentät jotka jätetään pois kurssilistasta (suuri JSON-kenttä)
 _KURSSI_LISTA_KENTAT = {"OpsKuvaus"}
@@ -34,13 +36,46 @@ def api_kurssi(kid: int) -> dict:
     return kurssi
 
 
+@sovellus.get("/api/tutkimukset")
+def api_tutkimukset() -> list[dict]:
+    return mallit.hae_tutkimukset_yhteenvedolla()
+
+
+@sovellus.get("/api/tutkimukset/{slug}/kurssit")
+def api_tutkimus_kurssit(slug: str) -> list[dict]:
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    rivit = mallit.hae_valitut_kurssit(tutkimus["TID"])
+    return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
+
+
+@sovellus.get("/api/tutkimukset/{slug}/luokitukset")
+def api_tutkimus_luokitukset(slug: str) -> list[dict]:
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    rivit = mallit.hae_kurssit_luokituksilla(tutkimus["TID"])
+    return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
+
+
+@sovellus.get("/api/tutkimukset/{slug}")
+def api_tutkimus(slug: str) -> dict:
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    return tutkimus
+
+
 @sovellus.get("/")
 def juuri():
-    # no-store: selain ei välimuistita sivua, hakee aina tuoreen version
-    return FileResponse(
-        os.path.join(STAATTINEN, "index.html"),
-        headers={"Cache-Control": "no-store"},
-    )
+    return FileResponse(_INDEX, headers=_NO_STORE)
 
 
 sovellus.mount("/staattinen", StaticFiles(directory=STAATTINEN), name="staattinen")
+
+
+# Catch-all: SPA-reititys — palautetaan index.html kaikille ei-API -poluille
+@sovellus.get("/{polku:path}")
+def spa_reitti(polku: str):
+    return FileResponse(_INDEX, headers=_NO_STORE)

@@ -105,22 +105,75 @@ class TestTutkimus:
     def test_lisaa_tutkimus_palauttaa_id(self, mock_yhteys):
         yht, kursori = mock_yhteys
         kursori.lastrowid = 3
-        tulos = mallit.lisaa_tutkimus("Kyber-tutkimus", "luokittelukehote", "perus,aine", "Tietojenkäsittely", "arviointikehote")
+        tulos = mallit.lisaa_tutkimus("Kyber-tutkimus", "kyber-2025", "luokittelukehote", "perus,aine", "Tietojenkäsittely", "arviointikehote")
         assert tulos == 3
 
     def test_hae_tutkimukset_palauttaa_listan(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = [(1, "Kyber", "kehote", "perus", "aine", "arviointikehote")]
-        kursori.description = [("TID",), ("LuokittelunNimi",), ("Luokittelukehote",), ("Tasorajaus",), ("Oppiainerajaus",), ("Arviointikehote",)]
+        kursori.fetchall.return_value = [(1, "Kyber", "kyber", "kehote", "perus", "aine", "arviointikehote")]
+        kursori.description = [("TID",), ("LuokittelunNimi",), ("Slug",), ("Luokittelukehote",), ("Tasorajaus",), ("Oppiainerajaus",), ("Arviointikehote",)]
         tulos = mallit.hae_tutkimukset()
         assert len(tulos) == 1
 
     def test_hae_tutkimus_palauttaa_yhden(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.fetchone.return_value = (1, "Kyber", "kehote", "perus", "aine", "arviointikehote")
-        kursori.description = [("TID",), ("LuokittelunNimi",), ("Luokittelukehote",), ("Tasorajaus",), ("Oppiainerajaus",), ("Arviointikehote",)]
+        kursori.fetchone.return_value = (1, "Kyber", "kyber", "kehote", "perus", "aine", "arviointikehote")
+        kursori.description = [("TID",), ("LuokittelunNimi",), ("Slug",), ("Luokittelukehote",), ("Tasorajaus",), ("Oppiainerajaus",), ("Arviointikehote",)]
         tulos = mallit.hae_tutkimus(1)
         assert tulos["LuokittelunNimi"] == "Kyber"
+
+    def test_hae_tutkimus_slugilla_palauttaa_yhden(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchone.return_value = (1, "Kyber", "kyber", "kehote", "perus", "aine", "arviointi")
+        kursori.description = [("TID",), ("LuokittelunNimi",), ("Slug",), ("Luokittelukehote",), ("Tasorajaus",), ("Oppiainerajaus",), ("Arviointikehote",)]
+        tulos = mallit.hae_tutkimus_slugilla("kyber")
+        assert tulos["Slug"] == "kyber"
+
+    def test_paivita_tutkimus_tekee_update(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.paivita_tutkimus(1, "Uusi", "uusi-slug", "uusi kehote", "perus", "aine", "uusi arviointi")
+        sql = kursori.execute.call_args[0][0]
+        assert "UPDATE" in sql.upper()
+
+    def test_poista_tutkimus_tekee_delete(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.poista_tutkimus(1)
+        sql = kursori.execute.call_args[0][0]
+        assert "DELETE" in sql.upper()
+
+
+class TestKysymykset:
+    def test_lisaa_kysymys_palauttaa_id(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.lastrowid = 7
+        tulos = mallit.lisaa_kysymys(tid=1, kysymys="Onko kurssi pakollinen?")
+        assert tulos == 7
+
+    def test_hae_kysymykset_palauttaa_listan(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = [(1, 1, "Onko pakollinen?"), (2, 1, "Mikä taso?")]
+        kursori.description = [("KysID",), ("TID",), ("Kysymys",)]
+        tulos = mallit.hae_kysymykset(1)
+        assert len(tulos) == 2
+        assert tulos[0]["Kysymys"] == "Onko pakollinen?"
+
+    def test_paivita_kysymys_tekee_update(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.paivita_kysymys(kysid=1, kysymys="Uusi kysymys")
+        sql = kursori.execute.call_args[0][0]
+        assert "UPDATE" in sql.upper()
+
+    def test_poista_kysymys_tekee_delete(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.poista_kysymys(kysid=1)
+        sql = kursori.execute.call_args[0][0]
+        assert "DELETE" in sql.upper()
+
+    def test_aseta_vastaus_tekee_insert(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.aseta_vastaus(kysid=1, kid=7, vastaus="Kyllä")
+        sql = kursori.execute.call_args[0][0]
+        assert "INSERT" in sql.upper()
 
 
 class TestKurssiluokitus:

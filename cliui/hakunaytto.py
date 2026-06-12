@@ -1,11 +1,11 @@
 """Kurssien hakeminen opinto-oppaista — CLIUI-näkymä."""
 from tietokanta import mallit
-from tiedonhaku.peppilukija import PeppiLukija
 from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta
 
 
 def _tee_lukija(koulu: dict):
     if koulu["OpsTyyppi"] == "Peppi":
+        from tiedonhaku.peppilukija import PeppiLukija
         return PeppiLukija(koulu)
     return None
 
@@ -47,11 +47,17 @@ def nayta(stdscr) -> None:
     stdscr.addstr(3, 0, "Haetaan kursseja... (tämä voi kestää useita minuutteja)")
     stdscr.refresh()
 
-    def paivita_edistyminen(n: int, yhteensa: int) -> None:
+    def paivita_edistyminen(n: int, yhteensa: int, kurssi_nimi: str = "") -> None:
         stdscr.addstr(4, 0, f"  {n}/{yhteensa} kurssia tallennettu")
+        stdscr.clrtoeol()
+        stdscr.addstr(5, 0, f"  {kurssi_nimi}")
+        stdscr.clrtoeol()
         stdscr.refresh()
 
-    maara = lukija.hae_kurssit(kausi, edistyminen_cb=paivita_edistyminen)
+    tallennettu, ohitettu = lukija.hae_kurssit(kausi, edistyminen_cb=paivita_edistyminen)
 
     piirra_otsikko(stdscr, "Hae kurssit — valmis")
-    nayta_viesti(stdscr, f"Tallennettu {maara} kurssia ({koulu['KouluNimi']}, {kausi}).")
+    viesti = f"Tallennettu {tallennettu} uutta kurssia ({koulu['KouluNimi']}, {kausi})."
+    if ohitettu:
+        viesti += f" Ohitettu {ohitettu} (verkkovirhe)."
+    nayta_viesti(stdscr, viesti)

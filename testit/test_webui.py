@@ -53,3 +53,36 @@ def test_juuri_palauttaa_html():
     vastaus = asiakas.get("/")
     assert vastaus.status_code == 200
     assert "text/html" in vastaus.headers["content-type"]
+
+
+def test_spa_reitti_palauttaa_html():
+    vastaus = asiakas.get("/tutkimukset/kyber-2025")
+    assert vastaus.status_code == 200
+    assert "text/html" in vastaus.headers["content-type"]
+
+
+TUTKIMUS = {
+    "TID": 1, "LuokittelunNimi": "Kyber 2025", "Slug": "kyber-2025",
+    "Luokittelukehote": "valintakehote", "Tasorajaus": "aine",
+    "Oppiainerajaus": None, "Arviointikehote": "arviointikehote",
+}
+
+
+def test_api_tutkimukset_palauttaa_listan():
+    with patch("webui.palvelin.mallit.hae_tutkimukset_yhteenvedolla", return_value=[{**TUTKIMUS, "MukanaLkm": 0}]):
+        vastaus = asiakas.get("/api/tutkimukset")
+    assert vastaus.status_code == 200
+    assert vastaus.json()[0]["Slug"] == "kyber-2025"
+
+
+def test_api_tutkimus_slugilla_palauttaa_yhden():
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS):
+        vastaus = asiakas.get("/api/tutkimukset/kyber-2025")
+    assert vastaus.status_code == 200
+    assert vastaus.json()["LuokittelunNimi"] == "Kyber 2025"
+
+
+def test_api_tutkimus_404_kun_ei_loydy():
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=None):
+        vastaus = asiakas.get("/api/tutkimukset/ei-ole")
+    assert vastaus.status_code == 404

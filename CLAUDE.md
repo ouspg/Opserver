@@ -59,7 +59,7 @@ Käyttöliittymät ovat toisistaan riippumattomia: curses-UI ohjaa pipelinen suo
 
 - Python-projekti; pidä riippuvuudet minimissä ja kirjaa ne `requirements.txt`-tiedostoon
 - MySQL Docker-kontissa (portti 21212) kaikelle pysyvyydelle; WebUI Docker-kontissa (portti 12121)
-- LLM-kutsut kulkevat yhden ohuen kääreen kautta, jotta malli/palveluntarjoaja voidaan vaihtaa
+- LLM-kutsut kulkevat yhden ohuen kääreen kautta (`llm/kutsu.py`), jotta malli/palveluntarjoaja voidaan vaihtaa — OpenAI-yhteensopiva rajapinta, konfiguraatio `.env`:ssä (`LLM_PROVIDER` = perus-URL, `LLM_API_KEY`, `LLM_MODEL`)
 - Promptit sijaitsevat omissa tiedostoissaan (ei koodin sisällä), jotta niitä voi iteroida koskematta logiikkaan
 - Hakurobottien täytyy olla kohteliaita: noudata `robots.txt`:ää, lisää viiveet, älä kuormita palvelimia
 - Kaikki pipeline-vaiheet ovat idempotenteja — vaiheen uudelleenajo on aina turvallista

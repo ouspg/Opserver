@@ -1,7 +1,8 @@
 import json
 import os
 from unittest.mock import patch, MagicMock, call
-from tiedonhaku.peppilukija import PeppiLukija, paattele_taso, generoi_kaudet, _lue_kausiconfig_js_bundlesta
+import requests
+from tiedonhaku.peppilukija import PeppiLukija, paattele_taso, generoi_kaudet, _lue_kausiconfig_js_bundlesta, _turvallinen_float
 
 DIR = os.path.dirname(__file__)
 
@@ -22,14 +23,14 @@ def test_hae_kurssi_jasentaa_perustiedot():
         kurssi = _lukija().hae_kurssi("45690")
     assert kurssi["kurssi_nimi"] == "Kyberturvallisuuden perusteet"
     assert kurssi["koodi"] == "IC00AU61"
-    assert kurssi["opintopisteet"] == 5.0
+    assert kurssi["opintopisteet"] == "5.0"
     assert kurssi["lahde_id"] == "45690"
 
 
-def test_hae_kurssi_paattelee_tason_kuvauksesta():
+def test_hae_kurssi_tallentaa_tason_raakana():
     with patch.object(PeppiLukija, "_hae_json", return_value=_fixture("peppi_kurssi_45690.json")):
         kurssi = _lukija().hae_kurssi("45690")
-    assert kurssi["taso"] == "aine"
+    assert kurssi["taso"] == "Aineopinnot"
 
 
 def test_hae_kurssi_lukee_oppiaineen():
@@ -84,6 +85,19 @@ def test_taso_kartta_kattaa_kaikki_tasot():
     assert paattele_taso("") is None
 
 
+def test_paattele_taso_palauttaa_none_tuntemattomalle():
+    assert paattele_taso("Muut opinnot") is None
+    assert paattele_taso(None) is None
+
+
+def test_turvallinen_float():
+    assert _turvallinen_float(5) == 5.0
+    assert _turvallinen_float("3.5") == 3.5
+    assert _turvallinen_float(None) is None
+    assert _turvallinen_float("5-10") is None
+    assert _turvallinen_float("") is None
+
+
 # --- hae_kurssit ---
 
 def test_hae_kurssit_kayttaa_oikeita_endpointteja():
@@ -107,10 +121,12 @@ def test_hae_kurssit_kayttaa_oikeita_endpointteja():
         return []
 
     with patch.object(PeppiLukija, "_hae_json", side_effect=fake_hae_json), \
-         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1) as mock_tallenna:
-        maara = _lukija().hae_kurssit("2025-2026")
+         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1) as mock_tallenna, \
+         patch("tiedonhaku.peppilukija.mallit.hae_tallennetut_lahde_idt", return_value=set()):
+        tallennettu, ohitettu = _lukija().hae_kurssit("2025-2026")
 
-    assert maara >= 1
+    assert tallennettu >= 1
+    assert ohitettu == 0
     mock_tallenna.assert_called()
     kutsu = mock_tallenna.call_args
     assert kutsu.kwargs["opetusvuosi"] == "2025-2026"
@@ -136,9 +152,66 @@ def test_hae_kurssit_deduplikoi_kurssit():
         return []
 
     with patch.object(PeppiLukija, "_hae_json", side_effect=fake_hae_json), \
-         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1) as mock_tallenna:
+         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1) as mock_tallenna, \
+         patch("tiedonhaku.peppilukija.mallit.hae_tallennetut_lahde_idt", return_value=set()):
         _lukija().hae_kurssit("2025-2026")
 
     # Kurssi 45690 esiintyy molemmissa ohjelmissa mutta tallennetaan vain kerran
     kurssi_idt = [k.kwargs["lahde_id"] for k in mock_tallenna.call_args_list]
     assert kurssi_idt.count("45690") == 1
+
+
+def test_hae_kurssit_ohittaa_verkkovirheet():
+    """Mikä tahansa verkkovirhe yksittäisessä kurssissa ei kaada koko hakua."""
+    nav = _fixture("peppi_navigaatio.json")[:1]
+    edu = [{"id": "11738", "type": "EDUCATION", "name": {"valueFi": "Testi", "valueEn": "", "valueSv": ""},
+            "children": [{"id": "1", "type": "PROGRAMME"}]}]
+    plan = _fixture("peppi_accomplishment_plan_mini.json")  # sisältää id 45690
+
+    def fake_hae_json(url, viive=True):
+        if "/navigation" in url and "/navigation/" not in url:
+            return nav
+        if "/education-type" in url:
+            return edu
+        if "/accomplishment-plan/" in url:
+            return plan
+        if "/course/" in url:
+            raise requests.exceptions.ConnectionError("yhteys katkesi")
+        return []
+
+    with patch.object(PeppiLukija, "_hae_json", side_effect=fake_hae_json), \
+         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1) as mock_tallenna, \
+         patch("tiedonhaku.peppilukija.mallit.hae_tallennetut_lahde_idt", return_value=set()):
+        tallennettu, ohitettu = _lukija().hae_kurssit("2025-2026")
+
+    assert tallennettu == 0
+    assert ohitettu >= 1
+    mock_tallenna.assert_not_called()
+
+
+def test_hae_kurssit_ohittaa_jo_kannassa_olevat():
+    """Kurssit, joiden LahdeId on jo tietokannassa, haetaan uudelleen."""
+    nav = _fixture("peppi_navigaatio.json")[:1]
+    edu = [{"id": "11738", "type": "EDUCATION", "name": {"valueFi": "Testi", "valueEn": "", "valueSv": ""},
+            "children": [{"id": "1", "type": "PROGRAMME"}]}]
+    plan = _fixture("peppi_accomplishment_plan_mini.json")  # sisältää id 45690
+
+    def fake_hae_json(url, viive=True):
+        if "/navigation" in url and "/navigation/" not in url:
+            return nav
+        if "/education-type" in url:
+            return edu
+        if "/accomplishment-plan/" in url:
+            return plan
+        if "/course/" in url:
+            return _fixture("peppi_kurssi_45690.json")
+        return []
+
+    with patch.object(PeppiLukija, "_hae_json", side_effect=fake_hae_json), \
+         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1) as mock_tallenna, \
+         patch("tiedonhaku.peppilukija.mallit.hae_tallennetut_lahde_idt", return_value={"45690"}):
+        tallennettu, ohitettu = _lukija().hae_kurssit("2025-2026")
+
+    assert tallennettu == 0
+    assert ohitettu == 0
+    mock_tallenna.assert_not_called()

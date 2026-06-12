@@ -13,21 +13,33 @@ header {
   padding: 1rem 1.5rem;
 }
 
-header h1 { margin: 0 0 0.75rem; font-size: 1.4rem; }
+header h1 { margin: 0 0 0.5rem; font-size: 1.4rem; }
 
-#valilehdet button {
+#paanav button, #tutkimus-nav button {
   background: transparent;
   border: none;
   color: #aab;
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 0.9rem;
   font-size: 1rem;
   cursor: pointer;
   border-bottom: 2px solid transparent;
 }
 
-#valilehdet button.aktiivinen {
+#paanav button.aktiivinen, #tutkimus-nav button.aktiivinen {
   color: #fff;
   border-bottom-color: #e94560;
+}
+
+#tutkimus-nav {
+  margin-top: 0.25rem;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  padding-top: 0.25rem;
+}
+
+#tutkimus-nav #tutkimus-nav-nimi {
+  color: #fff;
+  font-weight: 600;
+  margin-right: 0.5rem;
 }
 
 main { padding: 1.5rem; }
@@ -89,7 +101,7 @@ td.op { text-align: right; }
   z-index: 100;
 }
 
-.modaali.piilotettu { display: none; }
+.piilotettu { display: none; }
 
 .modaali-sisalto {
   background: #fff;
@@ -119,3 +131,60 @@ td.op { text-align: right; }
 .ops-kuvaus hr { border: none; border-top: 1px solid #eee; margin: 1rem 0; }
 
 .tulossa { color: #888; font-style: italic; }
+
+.tutkimus-toiminnot { white-space: nowrap; }
+
+.nappi-pieni {
+  background: #ececf4;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  margin-right: 0.25rem;
+}
+
+.nappi-pieni:hover { background: #dde; }
+
+.tila-nappi {
+  background: #ececf4;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.tila-nappi.aktiivinen {
+  background: #16213e;
+  color: #fff;
+  border-color: #16213e;
+}
+
+td.perustelu {
+  font-size: 0.82rem;
+  color: #555;
+  max-width: 280px;
+  word-break: break-word;
+}
+
+.tutkimus-nimi-solu { cursor: pointer; }
+.tutkimus-nimi-solu:hover { text-decoration: underline; color: #16213e; }
+
+.vuosivalinta {
+  padding: 0.1rem 0.3rem;
+  font-size: 0.85rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+
+.kehote-teksti {
+  background: #f4f4f8;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  font-size: 0.88rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0.5rem 0 1rem;
+}

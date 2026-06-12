@@ -37,8 +37,21 @@ def _fi(monikielinen: dict | None) -> str:
     return (monikielinen.get("valueFi") or monikielinen.get("valueEn") or "").strip()
 
 
+_VALIDI_TASOT = set(TASO_KARTTA.values())
+
+
 def paattele_taso(taso_teksti: str) -> str | None:
-    return TASO_KARTTA.get(taso_teksti.strip().lower())
+    taso = TASO_KARTTA.get((taso_teksti or "").strip().lower())
+    return taso if taso in _VALIDI_TASOT else None
+
+
+def _turvallinen_float(arvo) -> float | None:
+    if arvo is None:
+        return None
+    try:
+        return float(arvo)
+    except (ValueError, TypeError):
+        return None
 
 
 def _kokoa_kuvaus(sisalto: dict) -> str:
@@ -112,10 +125,17 @@ class PeppiLukija(OpsLukija):
         """
         ohjelma_idt = self._hae_ohjelma_idt(kausi)
         kurssi_idt = self._keraa_kurssi_idt_ohjelmista(ohjelma_idt, kausi)
+        jo_kannassa = mallit.hae_tallennetut_lahde_idt(self.korkeakoulu["KKID"], kausi)
+        kurssi_idt = [kid for kid in kurssi_idt if str(kid) not in jo_kannassa]
         yhteensa = len(kurssi_idt)
         tallennettu = 0
+        ohitettu = 0
         for kurssi_id in kurssi_idt:
-            kurssi_json = self._hae_json(f"{BACKEND}/course/{kurssi_id}?period={kausi}")
+            try:
+                kurssi_json = self._hae_json(f"{BACKEND}/course/{kurssi_id}?period={kausi}")
+            except requests.exceptions.RequestException:
+                ohitettu += 1
+                continue
             kurssi = self._jasenna_kurssi(kurssi_json)
             mallit.tallenna_kurssi(
                 kkid=self.korkeakoulu["KKID"],
@@ -130,8 +150,8 @@ class PeppiLukija(OpsLukija):
             )
             tallennettu += 1
             if edistyminen_cb:
-                edistyminen_cb(tallennettu, yhteensa)
-        return tallennettu
+                edistyminen_cb(tallennettu, yhteensa, kurssi["kurssi_nimi"])
+        return tallennettu, ohitettu
 
     # --- Yksityiset apumetodit ---
 
@@ -173,12 +193,13 @@ class PeppiLukija(OpsLukija):
             _fi(osio.get("title")): (osio.get("content") or {}).get("valueFi", "") or ""
             for osio in data.get("contentList", [])
         }
+        credits = data.get("credits")
         return {
-            "kurssi_nimi": _fi(data.get("name")),
+            "kurssi_nimi": _fi(data.get("name"))[:255],
             "koodi": data.get("code"),
-            "taso": paattele_taso(sisalto.get("Taso", "")),
-            "oppiaine": (sisalto.get("Oppiaine") or "").strip(),
-            "opintopisteet": data.get("credits"),
+            "taso": (sisalto.get("Taso") or "").strip()[:30] or None,
+            "oppiaine": (sisalto.get("Oppiaine") or "").strip()[:500],
+            "opintopisteet": str(credits)[:30] if credits is not None else None,
             "ops_kuvaus": _kokoa_kuvaus(sisalto),
             "lahde_id": data.get("id"),
         }
