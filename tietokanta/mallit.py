@@ -237,15 +237,14 @@ def hae_vastaukset(tid: int) -> list[dict]:
 # --- Luokittelun apufunktiot ---
 
 def hae_luokittelemattomat(tid: int) -> list[dict]:
-    """Kurssit, joille ei vielä ole Kurssiluokitus-riviä tässä tutkimuksessa."""
+    """Kurssit, jotka odottavat LLM-seulontaa (ei riviä tai Mukana IS NULL)."""
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute("""
                 SELECT k.*
                 FROM Kurssi k
-                WHERE k.KID NOT IN (
-                    SELECT KID FROM Kurssiluokitus WHERE TID = %s
-                )
+                LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
+                WHERE kl.KID IS NULL OR kl.Mukana IS NULL
                 ORDER BY k.KurssiNimi
             """, (tid,))
             return _rivit_dikteina(kursori)
