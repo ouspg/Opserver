@@ -3,7 +3,7 @@ import curses
 import locale
 
 from cliui.apurit import valitse_listasta, piirra_otsikko, nayta_viesti, alusta_varit
-from cliui import korkeakoulunaytto, hakunaytto, tutkimusnaytto, luokittelunaytto
+from cliui import korkeakoulunaytto, hakunaytto, tutkimusnaytto, luokittelunaytto, arviointinaytto
 
 VALIKKO = [
     "1) Muokkaa korkeakouluja",
@@ -28,7 +28,7 @@ def paavalikko(stdscr) -> None:
         1: hakunaytto.nayta,
         2: tutkimusnaytto.nayta,
         3: luokittelunaytto.nayta,
-        4: _ei_toteutettu,
+        4: arviointinaytto.nayta,
     }
     while True:
         valinta = valitse_listasta(stdscr, "kyberESR — päävalikko", VALIKKO)
