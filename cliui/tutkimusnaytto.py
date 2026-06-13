@@ -7,12 +7,13 @@ from cliui.apurit import piirra_otsikko, nayta_viesti, lue_teksti, valitse_lista
 
 _SLUG_KAAVA = re.compile(r'^[a-z0-9][a-z0-9_-]*$')
 
-TASOT = ["Yleisopinnot", "Perusopinnot", "Aineopinnot", "Syventävät opinnot"]
-
 
 def _valitse_tasot(stdscr, oletus: str = "") -> str:
-    valitut = [t for t in oletus.split(",") if t.strip() in TASOT] if oletus else []
-    tulos = valitse_monivalinta(stdscr, "Valitse sallitut tasot (tyhjä = kaikki)", TASOT, valitut)
+    tasot = mallit.hae_tasot()
+    if not tasot:
+        return oletus
+    valitut = [t for t in oletus.split(",") if t.strip() in tasot] if oletus else []
+    tulos = valitse_monivalinta(stdscr, "Valitse sallitut tasot (tyhjä = kaikki)", tasot, valitut)
     if tulos is None:
         return oletus
     return ",".join(tulos)

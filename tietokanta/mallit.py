@@ -78,6 +78,18 @@ def hae_kurssit(kkid: int | None = None) -> list[dict]:
             return _rivit_dikteina(kursori)
 
 
+def hae_tasot() -> list[str]:
+    """Palauttaa kaikki aineistossa esiintyvät Taso-arvot, yleisimmät ensin."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute("""
+                SELECT Taso FROM Kurssi
+                WHERE Taso IS NOT NULL AND Taso != ''
+                GROUP BY Taso ORDER BY COUNT(*) DESC
+            """)
+            return [r[0] for r in kursori.fetchall()]
+
+
 def hae_tallennetut_lahde_idt(kkid: int, opetusvuosi: str) -> set[str]:
     with yhteys() as yht:
         with yht.cursor() as kursori:

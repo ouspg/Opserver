@@ -15,9 +15,9 @@ def test_korkeakoulunaytto_ops_tyypit():
     assert korkeakoulunaytto.OPS_TYYPIT == ["Peppi", "Sisu"]
 
 
-def test_tutkimusnaytto_tasot():
+def test_tutkimusnaytto_ei_hardkoodattuja_tasoja():
     from cliui import tutkimusnaytto
-    assert tutkimusnaytto.TASOT == ["Yleisopinnot", "Perusopinnot", "Aineopinnot", "Syventävät opinnot"]
+    assert not hasattr(tutkimusnaytto, "TASOT"), "TASOT ei saa olla hardkoodattu — haetaan tietokannasta"
 
 
 def test_valitse_monivalinta_on_olemassa():
