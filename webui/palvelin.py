@@ -59,6 +59,41 @@ def api_tutkimus_luokitukset(slug: str) -> list[dict]:
     return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
 
 
+@sovellus.get("/api/tutkimukset/{slug}/arvioinnit")
+def api_tutkimus_arvioinnit(slug: str) -> dict:
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    tid = tutkimus["TID"]
+    kysymykset = mallit.hae_kysymykset(tid)
+    kurssit = mallit.hae_valitut_kurssit(tid)
+    vastaukset_lista = mallit.hae_vastaukset(tid)
+
+    vastaus_kartta: dict[int, dict[int, str]] = {}
+    for v in vastaukset_lista:
+        kid = v["KID"]
+        if kid not in vastaus_kartta:
+            vastaus_kartta[kid] = {}
+        vastaus_kartta[kid][v["KysID"]] = v["Vastaus"]
+
+    kys_idt = [k["KysID"] for k in kysymykset]
+    return {
+        "kysymykset": [{"KysID": k["KysID"], "Kysymys": k["Kysymys"]} for k in kysymykset],
+        "kurssit": [
+            {
+                "KID": k["KID"],
+                "KurssiNimi": k["KurssiNimi"],
+                "Koodi": k.get("Koodi") or "",
+                "Taso": k.get("Taso") or "",
+                "Oppiaine": k.get("Oppiaine") or "",
+                "Opintopisteet": k.get("Opintopisteet"),
+                "vastaukset": [vastaus_kartta.get(k["KID"], {}).get(kys_id, "") for kys_id in kys_idt],
+            }
+            for k in kurssit
+        ],
+    }
+
+
 @sovellus.get("/api/tutkimukset/{slug}")
 def api_tutkimus(slug: str) -> dict:
     tutkimus = mallit.hae_tutkimus_slugilla(slug)

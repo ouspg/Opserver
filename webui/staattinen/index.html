@@ -4,11 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>kyberESR</title>
-  <link rel="stylesheet" href="/staattinen/tyyli.css?v=6">
+  <link rel="stylesheet" href="/staattinen/tyyli.css?v=8">
 </head>
 <body>
   <header>
     <h1>kyberESR</h1>
+    <span id="paivitysaika" class="paivitysaika"></span>
     <nav id="paanav">
       <button data-polku="/korkeakoulut">Korkeakoulut</button>
       <button data-polku="/kurssit">Kurssit</button>
@@ -88,7 +89,9 @@
     </section>
 
     <section id="s-tutkimus-arvioinnit" class="nakyma">
-      <p class="tulossa">Arvioinnit — tulossa myöhemmin.</p>
+      <h2 id="tutkimus-arvioinnit-otsikko"></h2>
+      <p id="tutkimus-arvioinnit-lkm" class="lkm"></p>
+      <div id="tutkimus-arvioinnit-sisalto"></div>
     </section>
 
     <section id="s-tutkimus-raportti" class="nakyma">
@@ -104,6 +107,6 @@
     </div>
   </div>
 
-  <script src="/staattinen/sovellus.js?v=5"></script>
+  <script src="/staattinen/sovellus.js?v=7"></script>
 </body>
 </html>

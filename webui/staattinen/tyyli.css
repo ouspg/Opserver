@@ -15,6 +15,13 @@ header {
 
 header h1 { margin: 0 0 0.5rem; font-size: 1.4rem; }
 
+.paivitysaika {
+  float: right;
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.45);
+  line-height: 1.4rem;
+}
+
 #paanav button, #tutkimus-nav button {
   background: transparent;
   border: none;
@@ -176,6 +183,22 @@ td.perustelu {
   font-size: 0.85rem;
   border: 1px solid #ccc;
   border-radius: 3px;
+}
+
+th.kysymys-sarake {
+  max-width: 180px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: help;
+  font-size: 0.82rem;
+}
+
+td.arviointi-vastaus {
+  font-size: 0.85rem;
+  color: #333;
+  max-width: 220px;
+  word-break: break-word;
 }
 
 .kehote-teksti {

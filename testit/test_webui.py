@@ -86,3 +86,46 @@ def test_api_tutkimus_404_kun_ei_loydy():
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=None):
         vastaus = asiakas.get("/api/tutkimukset/ei-ole")
     assert vastaus.status_code == 404
+
+
+KURSSI_MUKANA = {
+    "KID": 1, "KKID": 1, "LahdeId": "45690", "Koodi": "IC00AU61",
+    "KurssiNimi": "Kyberturvallisuuden perusteet", "Taso": "aine",
+    "Oppiaine": "Tietotekniikka", "Opintopisteet": "5",
+    "Opetusvuosi": "2025-2026", "OpsKuvaus": None,
+}
+
+KYSYMYS = {"KysID": 10, "TID": 1, "Kysymys": "Liittyykö kurssi kyberturvallisuuteen?"}
+
+
+def test_api_tutkimus_arvioinnit_palauttaa_rakenteen():
+    vastaus_rivi = {"VasID": 1, "KysID": 10, "KID": 1, "Vastaus": "Kyllä"}
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_kysymykset", return_value=[KYSYMYS]), \
+         patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[KURSSI_MUKANA]), \
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[vastaus_rivi]):
+        vastaus = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit")
+    assert vastaus.status_code == 200
+    data = vastaus.json()
+    assert "kysymykset" in data
+    assert "kurssit" in data
+    assert data["kysymykset"][0]["Kysymys"] == KYSYMYS["Kysymys"]
+    assert data["kurssit"][0]["vastaukset"] == ["Kyllä"]
+    assert "OpsKuvaus" not in data["kurssit"][0]
+
+
+def test_api_tutkimus_arvioinnit_tyhjat_vastaukset():
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_kysymykset", return_value=[KYSYMYS]), \
+         patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[KURSSI_MUKANA]), \
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[]):
+        vastaus = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit")
+    assert vastaus.status_code == 200
+    data = vastaus.json()
+    assert data["kurssit"][0]["vastaukset"] == [""]
+
+
+def test_api_tutkimus_arvioinnit_404_kun_ei_loydy():
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=None):
+        vastaus = asiakas.get("/api/tutkimukset/ei-ole/arvioinnit")
+    assert vastaus.status_code == 404

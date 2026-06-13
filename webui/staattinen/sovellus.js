@@ -43,6 +43,7 @@ async function renderoi() {
       laataaTutkimukset();
     }
   }
+  merkitsePaivitetty();
 }
 
 // --- Päänav klikki ---
@@ -256,6 +257,7 @@ async function renderTutkimusKonteksti(slug, alasivu) {
     await renderTutkimusKurssit(slug, aktiivinen_tutkimus.LuokittelunNimi);
     document.getElementById("s-tutkimus-kurssit").classList.add("aktiivinen");
   } else if (alasivu === "arvioinnit") {
+    await renderTutkimusArvioinnit(slug, aktiivinen_tutkimus.LuokittelunNimi);
     document.getElementById("s-tutkimus-arvioinnit").classList.add("aktiivinen");
   } else if (alasivu === "raportti") {
     document.getElementById("s-tutkimus-raportti").classList.add("aktiivinen");
@@ -320,6 +322,98 @@ document.querySelectorAll(".tila-nappi").forEach((b) => {
     renderTutkimusKurssitTila();
   });
 });
+
+// --- Tutkimus-arvioinnit ---
+
+async function renderTutkimusArvioinnit(slug, nimi) {
+  document.getElementById("tutkimus-arvioinnit-otsikko").textContent = `${nimi} — arvioinnit`;
+  const data = await fetch(`/api/tutkimukset/${slug}/arvioinnit`).then((r) => r.json());
+  const { kysymykset, kurssit } = data;
+  const sisalto = document.getElementById("tutkimus-arvioinnit-sisalto");
+  const lkm = document.getElementById("tutkimus-arvioinnit-lkm");
+
+  if (!kysymykset.length) {
+    lkm.textContent = "";
+    sisalto.innerHTML = '<p class="tulossa">Ei arviointikysymyksiä — lisää kysymyksiä tutkimukselle.</p>';
+    return;
+  }
+
+  const arvioitu = kurssit.filter((k) => k.vastaukset.some((v) => v)).length;
+  lkm.textContent = `${arvioitu} / ${kurssit.length} kurssia arvioitu`;
+
+  if (!kurssit.length) {
+    sisalto.innerHTML = '<p class="tulossa">Ei mukaan otettuja kursseja.</p>';
+    return;
+  }
+
+  const taulu = document.createElement("table");
+
+  const thead = taulu.createTHead();
+  const otsikkorivi = thead.insertRow();
+  for (const teksti of ["Nimi", "Taso", "op"]) {
+    const th = document.createElement("th");
+    th.textContent = teksti;
+    otsikkorivi.appendChild(th);
+  }
+  for (const k of kysymykset) {
+    const th = document.createElement("th");
+    th.className = "kysymys-sarake";
+    th.textContent = k.Kysymys.length > 50 ? k.Kysymys.slice(0, 47) + "…" : k.Kysymys;
+    th.title = k.Kysymys;
+    otsikkorivi.appendChild(th);
+  }
+
+  const tbody = taulu.createTBody();
+  for (const k of kurssit) {
+    const rivi = tbody.insertRow();
+    const taso = k.Taso ? (TASO_SUOMI[k.Taso] || k.Taso) : "—";
+    rivi.innerHTML = `
+      <td>${k.KurssiNimi}</td>
+      <td>${taso}</td>
+      <td class="op">${k.Opintopisteet ?? "—"}</td>`;
+    for (const vastaus of k.vastaukset) {
+      const td = rivi.insertCell();
+      td.className = "arviointi-vastaus";
+      td.textContent = vastaus || "—";
+    }
+  }
+
+  sisalto.innerHTML = "";
+  sisalto.appendChild(taulu);
+}
+
+// --- Automaattinen päivitys ---
+
+const PAIVITYSVALI_MS = 15 * 1000;
+
+function merkitsePaivitetty() {
+  const aika = new Date().toLocaleTimeString("fi-FI");
+  const el = document.getElementById("paivitysaika");
+  if (el) el.textContent = `Päivitetty ${aika}`;
+}
+
+async function paivitaNakyma() {
+  if (document.visibilityState !== "visible") return;
+  const r = jaaPolku();
+  try {
+    if (r.sivu === "tutkimukset" && r.slug && aktiivinen_tutkimus) {
+      if (r.alasivu === "kurssit") {
+        await renderTutkimusKurssit(r.slug, aktiivinen_tutkimus.LuokittelunNimi);
+      } else if (r.alasivu === "arvioinnit") {
+        await renderTutkimusArvioinnit(r.slug, aktiivinen_tutkimus.LuokittelunNimi);
+      } else if (r.alasivu === "tiedot") {
+        // tiedot-näkymä on staattinen, ei tarvitse päivittää
+      }
+    } else if (r.sivu === "tutkimukset") {
+      await laataaTutkimukset();
+    }
+    merkitsePaivitetty();
+  } catch (_) {
+    // Verkkohäiriö — ei keskeytä silmukkaa
+  }
+}
+
+setInterval(paivitaNakyma, PAIVITYSVALI_MS);
 
 // --- Käynnistys ---
 
