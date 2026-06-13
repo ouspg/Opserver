@@ -7,7 +7,7 @@ from cliui.apurit import piirra_otsikko, nayta_viesti, lue_teksti, valitse_lista
 
 _SLUG_KAAVA = re.compile(r'^[a-z0-9][a-z0-9_-]*$')
 
-TASOT = ["yleis", "perus", "aine", "syventävä"]
+TASOT = ["Yleisopinnot", "Perusopinnot", "Aineopinnot", "Syventävät opinnot"]
 
 
 def _valitse_tasot(stdscr, oletus: str = "") -> str:
@@ -73,7 +73,7 @@ def _lisaa(stdscr) -> None:
     if not arviointikehote:
         nayta_viesti(stdscr, "Peruutettu (arviointikehote pakollinen).")
         return
-    oppiainerajaus = lue_teksti(stdscr, "Oppiainerajaus (tyhjä = kaikki)", 7)
+    oppiainerajaus = lue_teksti(stdscr, "Oppiainerajaus, pilkulla eroteltu (tyhjä = kaikki)", 7)
     tasorajaus = _valitse_tasot(stdscr)
     mallit.lisaa_tutkimus(nimi, slug, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote)
     piirra_otsikko(stdscr, "Lisää tutkimus")
@@ -92,7 +92,7 @@ def _muokkaa(stdscr) -> None:
         return
     luokittelukehote = lue_teksti(stdscr, "Valintakehote", 5, tutkimus["Luokittelukehote"])
     arviointikehote = lue_teksti(stdscr, "Arviointikehote", 6, tutkimus["Arviointikehote"])
-    oppiainerajaus = lue_teksti(stdscr, "Oppiainerajaus", 7, tutkimus["Oppiainerajaus"] or "")
+    oppiainerajaus = lue_teksti(stdscr, "Oppiainerajaus, pilkulla eroteltu (tyhjä = kaikki)", 7, tutkimus["Oppiainerajaus"] or "")
     tasorajaus = _valitse_tasot(stdscr, tutkimus["Tasorajaus"] or "")
     mallit.paivita_tutkimus(tutkimus["TID"], nimi, slug, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote)
     piirra_otsikko(stdscr, "Muokkaa tutkimusta")

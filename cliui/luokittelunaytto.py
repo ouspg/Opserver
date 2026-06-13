@@ -39,8 +39,8 @@ def _aja_meta(stdscr, tutkimus: dict) -> None:
     stdscr.addstr(3, 0, "Suodatetaan...")
     stdscr.refresh()
 
-    def edistyminen(n, yht):
-        stdscr.addstr(4, 0, f"  {n}/{yht} kurssia")
+    def edistyminen(n, yht, hyvaksytty):
+        stdscr.addstr(4, 0, f"  {n}/{yht} kurssia  |  hyväksytty: {hyvaksytty}")
         stdscr.refresh()
 
     lapaisseet, yhteensa = metasuodatus.aja(tutkimus, edistyminen)

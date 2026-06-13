@@ -17,7 +17,7 @@ def test_korkeakoulunaytto_ops_tyypit():
 
 def test_tutkimusnaytto_tasot():
     from cliui import tutkimusnaytto
-    assert tutkimusnaytto.TASOT == ["yleis", "perus", "aine", "syventävä"]
+    assert tutkimusnaytto.TASOT == ["Yleisopinnot", "Perusopinnot", "Aineopinnot", "Syventävät opinnot"]
 
 
 def test_valitse_monivalinta_on_olemassa():

@@ -5,8 +5,8 @@ from tietokanta import mallit
 def _taso_ok(kurssi: dict, tasorajaus: str | None) -> bool:
     if not tasorajaus:
         return True
-    sallitut = {t.strip() for t in tasorajaus.split(",") if t.strip()}
-    return kurssi.get("Taso") in sallitut
+    kurssi_taso = (kurssi.get("Taso") or "").lower()
+    return any(t.strip().lower() in kurssi_taso for t in tasorajaus.split(",") if t.strip())
 
 
 def _oppiaine_ok(kurssi: dict, oppiainerajaus: str | None) -> bool:
@@ -43,6 +43,6 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int]:
             mallit.aseta_luokitus(tid, kurssi["KID"], False, "meta: " + "; ".join(syyt))
 
         if edistyminen_cb:
-            edistyminen_cb(i + 1, len(kurssit))
+            edistyminen_cb(i + 1, len(kurssit), lapaisseet)
 
     return lapaisseet, len(kurssit)
