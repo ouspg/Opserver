@@ -87,6 +87,7 @@ Käyttöliittymät ovat toisistaan riippumattomia: curses-UI ohjaa pipelinen suo
 - **`docker compose up -d`** — käynnistää MySQL + WebUI kontit
 - **`docker compose build webui && docker compose up -d webui`** — pakollinen webui-koodimuutosten jälkeen
 - **WebUI JS/CSS versiointi:** kun muutat `sovellus.js` tai `tyyli.css`, kasvata `?v=N`-numeroa `index.html`:ssä
+- **`./testit/savutesti.sh`** — savutesti: varmistaa, että MySQL + WebUI-kontit vastaavat oikein (olettaa konttien olevan käynnissä)
 
 ## Vaiheiden valmistumiskriteerit
 
