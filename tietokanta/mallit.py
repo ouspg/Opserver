@@ -210,14 +210,14 @@ def poista_kysymys(kysid: int) -> None:
 
 # --- Vastaukset ---
 
-def aseta_vastaus(kysid: int, kid: int, vastaus: str) -> None:
+def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "") -> None:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                """INSERT INTO Vastaukset (KysID, KID, Vastaus)
-                   VALUES (%s, %s, %s)
-                   ON DUPLICATE KEY UPDATE Vastaus = VALUES(Vastaus)""",
-                (kysid, kid, vastaus),
+                """INSERT INTO Vastaukset (KysID, KID, Vastaus, Malli)
+                   VALUES (%s, %s, %s, %s)
+                   ON DUPLICATE KEY UPDATE Vastaus = VALUES(Vastaus), Malli = VALUES(Malli)""",
+                (kysid, kid, vastaus, malli),
             )
 
 
@@ -268,14 +268,15 @@ def hae_kurssit_luokituksilla(tid: int) -> list[dict]:
 
 # --- Kurssiluokitus ---
 
-def aseta_luokitus(tid: int, kid: int, mukana: bool | None, perustelu: str) -> None:
+def aseta_luokitus(tid: int, kid: int, mukana: bool | None, perustelu: str, malli: str = "") -> None:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                """INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste)
-                   VALUES (%s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE Mukana = VALUES(Mukana), Luokitteluperuste = VALUES(Luokitteluperuste)""",
-                (tid, kid, mukana, perustelu),
+                """INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste, Malli)
+                   VALUES (%s, %s, %s, %s, %s)
+                   ON DUPLICATE KEY UPDATE Mukana = VALUES(Mukana),
+                       Luokitteluperuste = VALUES(Luokitteluperuste), Malli = VALUES(Malli)""",
+                (tid, kid, mukana, perustelu, malli),
             )
 
 
@@ -286,6 +287,24 @@ def hae_luokitukset(tid: int, mukana: bool | None = None) -> list[dict]:
                 kursori.execute("SELECT * FROM Kurssiluokitus WHERE TID = %s", (tid,))
             else:
                 kursori.execute("SELECT * FROM Kurssiluokitus WHERE TID = %s AND Mukana = %s", (tid, mukana))
+            return _rivit_dikteina(kursori)
+
+
+def hae_arvioimattomat(tid: int) -> list[dict]:
+    """Mukaan otetut kurssit, joille ei vielä ole kaikkia vastauksia tässä tutkimuksessa."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute("""
+                SELECT k.*
+                FROM Kurssi k
+                JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s AND kl.Mukana = 1
+                WHERE (
+                    SELECT COUNT(*) FROM Vastaukset v
+                    JOIN Kysymykset ky ON v.KysID = ky.KysID
+                    WHERE ky.TID = %s AND v.KID = k.KID
+                ) < (SELECT COUNT(*) FROM Kysymykset WHERE TID = %s)
+                ORDER BY k.KurssiNimi
+            """, (tid, tid, tid))
             return _rivit_dikteina(kursori)
 
 

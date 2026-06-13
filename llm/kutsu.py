@@ -21,8 +21,17 @@ _MAX_YRITYKSET = 8
 _viive_s = 0.0
 
 
-def kysy(viesti: str, jarjestelma: str = "") -> str:
-    """Lähettää viestin LLM:lle ja palauttaa vastauksen tekstinä."""
+def hae_malli() -> str:
+    """Palauttaa käytössä olevan LLM-mallin nimen."""
+    return os.environ.get("LLM_MODEL", "")
+
+
+def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False) -> str:
+    """Lähettää viestin LLM:lle ja palauttaa vastauksen tekstinä.
+
+    json_muoto=True lisää response_format: json_object pyyntöön, jolloin
+    malli pakotetaan API-tasolla palauttamaan kelvollinen JSON-objekti.
+    """
     global _viive_s
     perus_url = os.environ.get("LLM_PROVIDER")
     api_avain = os.environ.get("LLM_API_KEY")
@@ -34,17 +43,20 @@ def kysy(viesti: str, jarjestelma: str = "") -> str:
     for _ in range(_MAX_YRITYKSET):
         if _viive_s:
             time.sleep(_viive_s)
+        runko = {
+            "model": malli,
+            "max_tokens": _MAX_TOKENIT,
+            "messages": [
+                {"role": "system", "content": jarjestelma or "Olet tarkka ja analyyttinen apuri."},
+                {"role": "user", "content": viesti},
+            ],
+        }
+        if json_muoto:
+            runko["response_format"] = {"type": "json_object"}
         vastaus = requests.post(
             f"{perus_url.rstrip('/')}/chat/completions",
             headers={"Authorization": f"Bearer {api_avain}"},
-            json={
-                "model": malli,
-                "max_tokens": _MAX_TOKENIT,
-                "messages": [
-                    {"role": "system", "content": jarjestelma or "Olet tarkka ja analyyttinen apuri."},
-                    {"role": "user", "content": viesti},
-                ],
-            },
+            json=runko,
             timeout=_AIKAKATKAISU_S,
         )
         if vastaus.status_code == 429:

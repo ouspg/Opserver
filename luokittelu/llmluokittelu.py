@@ -82,6 +82,7 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int]:
     if not kandidaatit:
         return 0, 0
 
+    malli = kutsu.hae_malli()
     erat = [kandidaatit[i : i + ERÄKOKO] for i in range(0, len(kandidaatit), ERÄKOKO)]
     mukana = 0
     hylätty = 0
@@ -93,7 +94,7 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int]:
             kid = tulos["id"]
             on_mukana = bool(tulos.get("mukana"))
             perustelu = tulos.get("perustelu", "")
-            mallit.aseta_luokitus(tid, kid, on_mukana, perustelu)
+            mallit.aseta_luokitus(tid, kid, on_mukana, perustelu, malli)
             if on_mukana:
                 mukana += 1
             else:
