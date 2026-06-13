@@ -34,6 +34,7 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int]:
 
         if taso_ok and oa_ok:
             lapaisseet += 1
+            mallit.aseta_luokitus(tid, kurssi["KID"], True, "meta: läpäissyt")
         else:
             syyt = []
             if not taso_ok:

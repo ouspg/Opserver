@@ -26,21 +26,25 @@ class TestMetasuodatus:
         assert metasuodatus._oppiaine_ok({"Oppiaine": "Fysiikka"}, "Tieto,Fysi") is True
         assert metasuodatus._oppiaine_ok({"Oppiaine": "Matematiikka"}, "Tieto,Fysi") is False
 
-    def test_aja_kirjoittaa_hylatyt(self):
+    def test_aja_kirjoittaa_hyvaksytyt_ja_hylatyt(self):
         with patch("luokittelu.metasuodatus.mallit.hae_kurssit", return_value=self.KURSSIT), \
              patch("luokittelu.metasuodatus.mallit.aseta_luokitus") as mock_aseta:
             lapaisseet, yht = metasuodatus.aja(self.TUTKIMUS)
         assert yht == 3
         assert lapaisseet == 1  # vain Tietoverkot läpäisee molemmat
-        assert mock_aseta.call_count == 2  # Ohjelmointi1 (taso) + Kvanttimekaniikka (oppiaine)
+        assert mock_aseta.call_count == 3  # kaikki 3 kurssia kirjataan (1 mukana + 2 hylätty)
+        # Tietoverkot (KID=3) kirjataan hyväksyttynä
+        mock_aseta.assert_any_call(1, 3, True, "meta: läpäissyt")
 
-    def test_aja_ilman_rajausta_ei_hylatä_mitään(self):
+    def test_aja_ilman_rajausta_kaikki_hyvaksytaan(self):
         tutkimus = {"TID": 1, "Tasorajaus": None, "Oppiainerajaus": None}
         with patch("luokittelu.metasuodatus.mallit.hae_kurssit", return_value=self.KURSSIT), \
              patch("luokittelu.metasuodatus.mallit.aseta_luokitus") as mock_aseta:
             lapaisseet, yht = metasuodatus.aja(tutkimus)
         assert lapaisseet == yht == 3
-        mock_aseta.assert_not_called()
+        assert mock_aseta.call_count == 3  # kaikki kirjataan Mukana=True
+        for call in mock_aseta.call_args_list:
+            assert call.args[2] is True
 
 
 # --- llmluokittelu ---
