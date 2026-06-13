@@ -71,6 +71,7 @@ Käyttöliittymät ovat toisistaan riippumattomia: curses-UI ohjaa pipelinen suo
 
 - **Feature-haarat** jokaiselle ei-triviaalille muutokselle — älä commitoi suoraan `main`-haaraan
 - **Pienet, selkeät commitit** — jokainen commit edustaa yhtä ymmärrettävää muutosyksikköä
+- **Commitoi jokaisen loogisen kokonaisuuden jälkeen** — älä odota session loppuun; kun yksi itsenäinen muutos on valmis ja testattu, commitoi se heti
 - Kaikkien testien täytyy mennä läpi ennen haaran yhdistämistä
 
 ## Testaus
