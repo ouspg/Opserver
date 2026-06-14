@@ -8,8 +8,8 @@ Automaattinen pipeline suomalaisten yliopistojen opinto-oppaiden läpikäymiseen
 
 ```
 1. Haku       → Suodata kurssit opinto-oppaista tiedekunnan / kurssin tason mukaan
-                 (yleinen | perus | keskitaso | edistynyt)
-                 → tallennetaan raakadata paikalliseen SQLite-tietokantaan
+                 (yleis | perus | aine | syventävä)
+                 → tallennetaan raakadata MySQL-tietokantaan (Docker, portti 21212)
 
 2. Seulonta   → Lähetetään kurssin kuvaus LLM:lle
                  → LLM vastaa kiinteään kysymyssarjaan: mukaan vai pois?
@@ -33,7 +33,7 @@ Automaattinen pipeline suomalaisten yliopistojen opinto-oppaiden läpikäymiseen
 ## Tietovirrat
 
 - **Syöte:** opinto-oppaiden URL:t + suodatusasetukset (tiedekunta, taso, aihe)
-- **Tallennus:** paikallinen SQLite — kurssitiedot, LLM-vastaukset, mukaan/pois-päätökset
+- **Tallennus:** MySQL Docker-kontti (portti 21212) — kurssitiedot, LLM-vastaukset, mukaan/pois-päätökset
 - **LLM-kutsut:** seulontakysymyssarja (vaihe 2), arviointikysymyssarja (vaihe 3)
 - **Tuloste:** jäsennelty raportti + tilastot oppaiden laadusta
 
@@ -49,7 +49,7 @@ Automaattinen pipeline suomalaisten yliopistojen opinto-oppaiden läpikäymiseen
 **Curses-UI** — operaattorille tarkoitettu terminaalikäyttöliittymä pipelinen ajamiseen ja seurantaan. Käytetään paikallisesti prosessia ohjaavan henkilön toimesta.
 
 **Web-UI** — localhost-verkkopalvelin tulosten esittämiseen yleisölle yhteisen WiFi-verkon kautta. Yleisön jäsenet liittyvät omilla laitteillaan paikallisverkon osoitteen kautta. Suunniteltu yhteisöllisiin HITL-annotointisessioihin:
-- Näyttää kurssilistat ja per-kurssi arviot
+- Näyttää kurssilistat ja per-kurssi arviot; kurssin nimi linkittää suoraan Peppi-opinto-oppaaseen
 - Useat käyttäjät voivat annotoida ja korjata tekoälyn päätöksiä reaaliajassa
 - Annotoinnit päivittyvät raporttiin (ks. HITL-A / HITL-B -vaiheet)
 
@@ -58,8 +58,8 @@ Käyttöliittymät ovat toisistaan riippumattomia: curses-UI ohjaa pipelinen suo
 ## Kehityskäytännöt
 
 - Python-projekti; pidä riippuvuudet minimissä ja kirjaa ne `requirements.txt`-tiedostoon
-- SQLite kaikelle paikalliselle tallennukselle — ei ulkoista tietokantaa tarvita
-- LLM-kutsut kulkevat yhden ohuen kääreen kautta, jotta malli/palveluntarjoaja voidaan vaihtaa
+- MySQL Docker-kontissa (portti 21212) kaikelle pysyvyydelle; WebUI Docker-kontissa (portti 12121)
+- LLM-kutsut kulkevat yhden ohuen kääreen kautta (`llm/kutsu.py`), jotta malli/palveluntarjoaja voidaan vaihtaa — OpenAI-yhteensopiva rajapinta, konfiguraatio `.env`:ssä (`LLM_PROVIDER` = perus-URL, `LLM_API_KEY`, `LLM_MODEL`)
 - Promptit sijaitsevat omissa tiedostoissaan (ei koodin sisällä), jotta niitä voi iteroida koskematta logiikkaan
 - Hakurobottien täytyy olla kohteliaita: noudata `robots.txt`:ää, lisää viiveet, älä kuormita palvelimia
 - Kaikki pipeline-vaiheet ovat idempotenteja — vaiheen uudelleenajo on aina turvallista
@@ -70,7 +70,9 @@ Käyttöliittymät ovat toisistaan riippumattomia: curses-UI ohjaa pipelinen suo
 ## Git-käytännöt
 
 - **Feature-haarat** jokaiselle ei-triviaalille muutokselle — älä commitoi suoraan `main`-haaraan
+- **Haara-nimeämiskäytäntö:** `feature/kuvaus` uusille ominaisuuksille, `fix/kuvaus` bugikorjauksille, `claude/kuvaus` dokumentaatio- ja konfiguraatiomuutoksille
 - **Pienet, selkeät commitit** — jokainen commit edustaa yhtä ymmärrettävää muutosyksikköä
+- **Commitoi jokaisen loogisen kokonaisuuden jälkeen** — älä odota session loppuun; kun yksi itsenäinen muutos on valmis ja testattu, commitoi se heti
 - Kaikkien testien täytyy mennä läpi ennen haaran yhdistämistä
 
 ## Testaus
@@ -79,6 +81,15 @@ Käyttöliittymät ovat toisistaan riippumattomia: curses-UI ohjaa pipelinen suo
 - Testit sijaitsevat testattavan koodin rinnalla (esim. `tests/test_hakija.py` tiedostolle `hakija.py`)
 - Aja koko testijoukko jokaisen ei-triviaalin muutoksen jälkeen; ei yhdistämistä epäonnistuneiden testien kanssa
 - Testien täytyy olla nopeita eivätkä ne saa vaatia verkkoyhteyttä — mock-ita ulkoiset kutsut (HTTP, LLM API)
+
+## Kehitystyökalut
+
+- **`./run`** — käynnistää Curses-UI:n (`.venv/bin/python -m cliui.valikko`)
+- **`./db "SQL"`** — ajaa tietokantakyselyn lukien kirjautumistiedot `.env`:stä
+- **`docker compose up -d`** — käynnistää MySQL + WebUI kontit
+- **`docker compose build webui && docker compose up -d webui`** — pakollinen webui-koodimuutosten jälkeen
+- **WebUI JS/CSS versiointi:** kun muutat `sovellus.js` tai `tyyli.css`, kasvata `?v=N`-numeroa `index.html`:ssä
+- **`./testit/savutesti.sh`** — savutesti: varmistaa, että MySQL + WebUI-kontit vastaavat oikein (olettaa konttien olevan käynnissä)
 
 ## Vaiheiden valmistumiskriteerit
 
