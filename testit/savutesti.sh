@@ -40,38 +40,23 @@ tarkista_kontti() {
 }
 
 tarkista_kuva_tuoreus() {
-    local kontti_id
-    kontti_id=$(docker compose ps -q webui 2>/dev/null | head -1)
+    local kontti_id kontti_kuva uusin_kuva
+    kontti_id=$(docker compose ps -q webui 2>/dev/null | head -1) || kontti_id=""
     if [[ -z "$kontti_id" ]]; then
         fail "WebUI-kuvan tuoreus — konttia ei löydy"
         return
     fi
 
-    local kuva_sha kuva_aika_iso kuva_aika_trunc kuva_epoch lahde_epoch
-    kuva_sha=$(docker inspect "$kontti_id" --format '{{.Image}}' 2>/dev/null)
-    kuva_aika_iso=$(docker inspect "$kuva_sha" --format '{{.Created}}' 2>/dev/null)
-    # "2024-06-13T10:23:45.123Z" → "2024-06-13T10:23:45"
-    kuva_aika_trunc="${kuva_aika_iso%%.*}"
-    kuva_epoch=$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$kuva_aika_trunc" "+%s" 2>/dev/null)
+    kontti_kuva=$(docker inspect "$kontti_id" --format '{{.Image}}' 2>/dev/null) || kontti_kuva=""
+    uusin_kuva=$(docker inspect kyberesr-webui --format '{{.Id}}' 2>/dev/null) || uusin_kuva=""
 
-    if [[ -z "$kuva_epoch" ]]; then
-        fail "WebUI-kuvan tuoreus — ei saatu image-aikaa"
+    if [[ -z "$kontti_kuva" || -z "$uusin_kuva" ]]; then
+        fail "WebUI-kuvan tuoreus — ei saatu image-tietoja"
         return
     fi
 
-    lahde_epoch=$(
-        { find "$PROJO_JUURI/webui" "$PROJO_JUURI/tietokanta" -type f 2>/dev/null
-          [[ -f "$PROJO_JUURI/requirements.txt" ]] && echo "$PROJO_JUURI/requirements.txt"
-        } | xargs stat -f '%m' 2>/dev/null | sort -rn | head -1
-    )
-
-    if [[ -z "$lahde_epoch" ]]; then
-        fail "WebUI-kuvan tuoreus — lähdetiedostoja ei löydy"
-        return
-    fi
-
-    if [[ "$lahde_epoch" -gt "$kuva_epoch" ]]; then
-        fail "WebUI-kuva on vanhentunut — aja: docker compose build webui && docker compose up -d webui"
+    if [[ "$kontti_kuva" != "$uusin_kuva" ]]; then
+        fail "WebUI-kuva on vanhentunut — aja: docker compose up -d webui"
     else
         ok "WebUI-kuva ajan tasalla"
     fi
