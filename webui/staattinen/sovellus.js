@@ -263,7 +263,7 @@ async function renderTutkimusKonteksti(slug, alasivu) {
   nav.classList.remove("piilotettu");
   document.getElementById("tutkimus-nav-nimi").textContent = aktiivinen_tutkimus.LuokittelunNimi;
 
-  nav.querySelectorAll("button").forEach((b) => {
+  nav.querySelectorAll("[data-tutkimus-alasivu]").forEach((b) => {
     b.classList.toggle("aktiivinen", b.dataset.tutkimusAlasivu === alasivu);
   });
   nav.querySelectorAll("button[data-tutkimus-alasivu]").forEach((b) => {
@@ -387,6 +387,9 @@ async function renderTutkimusKurssit(slug, nimi) {
 }
 
 function renderTutkimusKurssitTila() {
+  document.querySelectorAll(".tila-nappi, .tila-nappi-nav").forEach((b) => {
+    b.classList.toggle("aktiivinen", b.dataset.tila === aktiivinen_tila);
+  });
   const suodatettu = tutkimus_luokitukset.filter((k) => {
     if (aktiivinen_tila === "mukana")  return k.Mukana === true  || k.Mukana === 1;
     if (aktiivinen_tila === "hylätty") return k.Mukana === false || k.Mukana === 0;
@@ -444,9 +447,6 @@ function renderTutkimusKurssitTila() {
 
 function asetaTila(tila) {
   aktiivinen_tila = tila;
-  document.querySelectorAll(".tila-nappi, .tila-nappi-nav").forEach((b) => {
-    b.classList.toggle("aktiivinen", b.dataset.tila === tila);
-  });
   renderTutkimusKurssitTila();
 }
 
