@@ -270,6 +270,9 @@ async function renderTutkimusKonteksti(slug, alasivu) {
     b.onclick = () => navigoi(`/tutkimukset/${slug}/${b.dataset.tutkimusAlasivu}`);
   });
 
+  const navTila = document.getElementById("tutkimus-nav-tila");
+  navTila.classList.toggle("piilotettu", alasivu !== "kurssit");
+
   if (alasivu === "tiedot") {
     renderTutkimusTiedot(aktiivinen_tutkimus);
     document.getElementById("s-tutkimus-tiedot").classList.add("aktiivinen");
@@ -439,13 +442,16 @@ function renderTutkimusKurssitTila() {
   });
 }
 
-document.querySelectorAll(".tila-nappi").forEach((b) => {
-  b.addEventListener("click", () => {
-    document.querySelectorAll(".tila-nappi").forEach((x) => x.classList.remove("aktiivinen"));
-    b.classList.add("aktiivinen");
-    aktiivinen_tila = b.dataset.tila;
-    renderTutkimusKurssitTila();
+function asetaTila(tila) {
+  aktiivinen_tila = tila;
+  document.querySelectorAll(".tila-nappi, .tila-nappi-nav").forEach((b) => {
+    b.classList.toggle("aktiivinen", b.dataset.tila === tila);
   });
+  renderTutkimusKurssitTila();
+}
+
+document.querySelectorAll(".tila-nappi, .tila-nappi-nav").forEach((b) => {
+  b.addEventListener("click", () => asetaTila(b.dataset.tila));
 });
 
 // --- Tutkimus-arvioinnit ---

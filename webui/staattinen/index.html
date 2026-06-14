@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>kyberESR</title>
-  <link rel="stylesheet" href="/staattinen/tyyli.css?v=11">
+  <link rel="stylesheet" href="/staattinen/tyyli.css?v=13">
 </head>
 <body>
   <header>
@@ -20,6 +20,12 @@
       <button data-tutkimus-alasivu="kurssit" id="tutkimus-nav-kurssit">Valitut kurssit</button>
       <button data-tutkimus-alasivu="arvioinnit">Arvioinnit</button>
       <button data-tutkimus-alasivu="raportti">Raportti</button>
+      <span id="tutkimus-nav-tila" class="piilotettu">
+        <span class="nav-erotin">|</span>
+        <button class="tila-nappi-nav aktiivinen" data-tila="mukana">Mukana</button>
+        <button class="tila-nappi-nav" data-tila="odottaa">Odottaa</button>
+        <button class="tila-nappi-nav" data-tila="hylätty">Hylätty</button>
+      </span>
     </nav>
   </header>
 
@@ -130,6 +136,6 @@
     </div>
   </div>
 
-  <script src="/staattinen/sovellus.js?v=11"></script>
+  <script src="/staattinen/sovellus.js?v=12"></script>
 </body>
 </html>

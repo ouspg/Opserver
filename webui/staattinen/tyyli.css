@@ -11,6 +11,9 @@ header {
   background: #16213e;
   color: #fff;
   padding: 1rem 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 header h1 { margin: 0 0 0.5rem; font-size: 1.4rem; }
@@ -41,7 +44,34 @@ header h1 { margin: 0 0 0.5rem; font-size: 1.4rem; }
   margin-top: 0.25rem;
   border-top: 1px solid rgba(255,255,255,0.1);
   padding-top: 0.25rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
 }
+
+.nav-erotin {
+  color: rgba(255,255,255,0.2);
+  margin: 0 0.4rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.tila-nappi-nav {
+  background: transparent;
+  border: none;
+  color: #aab;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tila-nappi-nav.aktiivinen {
+  color: #fff;
+  border-bottom-color: #e94560;
+}
+
+.tila-nappi-nav:hover { color: #ddf; }
 
 #tutkimus-nav #tutkimus-nav-nimi {
   color: #fff;
