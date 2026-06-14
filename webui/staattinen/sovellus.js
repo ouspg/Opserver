@@ -308,6 +308,7 @@ function renderTutkimusTiedot(t) {
 
 let tutkimus_luokitukset = [];
 let aktiivinen_tila = "mukana";
+const scroll_muistit = { mukana: 0, odottaa: 0, "hylätty": 0 };
 
 // --- HITL ---
 
@@ -446,8 +447,10 @@ function renderTutkimusKurssitTila() {
 }
 
 function asetaTila(tila) {
+  scroll_muistit[aktiivinen_tila] = window.scrollY;
   aktiivinen_tila = tila;
   renderTutkimusKurssitTila();
+  window.scrollTo(0, scroll_muistit[tila]);
 }
 
 document.querySelectorAll(".tila-nappi, .tila-nappi-nav").forEach((b) => {
