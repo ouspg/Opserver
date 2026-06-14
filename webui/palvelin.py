@@ -102,6 +102,7 @@ def api_tutkimus(slug: str) -> dict:
     tutkimus = mallit.hae_tutkimus_slugilla(slug)
     if tutkimus is None:
         raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    tutkimus["Kysymykset"] = mallit.hae_kysymykset(tutkimus["TID"])
     return tutkimus
 
 

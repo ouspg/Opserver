@@ -285,6 +285,9 @@ async function renderTutkimusKonteksti(slug, alasivu) {
 }
 
 function renderTutkimusTiedot(t) {
+  const kysymysLista = (t.Kysymykset && t.Kysymykset.length > 0)
+    ? `<ol>${t.Kysymykset.map((k) => `<li>${k.Kysymys}</li>`).join("")}</ol>`
+    : `<p class="tulossa">Ei arviointikysymyksiä.</p>`;
   document.getElementById("tutkimus-tiedot-sisalto").innerHTML = `
     <h2>${t.LuokittelunNimi}</h2>
     <table class="modaali-meta">
@@ -295,7 +298,9 @@ function renderTutkimusTiedot(t) {
     <h3>Valintakehote</h3>
     <pre class="kehote-teksti">${t.Luokittelukehote}</pre>
     <h3>Arviointikehote</h3>
-    <pre class="kehote-teksti">${t.Arviointikehote}</pre>`;
+    <pre class="kehote-teksti">${t.Arviointikehote}</pre>
+    <h3>Arviointikysymykset</h3>
+    ${kysymysLista}`;
 }
 
 let tutkimus_luokitukset = [];
