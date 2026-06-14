@@ -125,6 +125,27 @@ def test_api_tutkimus_arvioinnit_tyhjat_vastaukset():
     assert data["kurssit"][0]["vastaukset"] == [""]
 
 
+def test_api_hitl_korjaus_tallentaa():
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.tallenna_hitl_korjaus") as mock_tallenna:
+        vastaus = asiakas.post(
+            "/api/tutkimukset/kyber-2025/kurssit/7/hitl",
+            json={"uusi_tila": False, "perustelu": "Epärelevant", "nimi": "Matti", "sahkoposti": "m@esim.fi"},
+        )
+    assert vastaus.status_code == 200
+    assert vastaus.json()["ok"] is True
+    mock_tallenna.assert_called_once_with(1, 7, False, "Epärelevant", "Matti", "m@esim.fi")
+
+
+def test_api_hitl_korjaus_404_kun_tutkimusta_ei_loydy():
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=None):
+        vastaus = asiakas.post(
+            "/api/tutkimukset/ei-ole/kurssit/7/hitl",
+            json={"uusi_tila": False, "perustelu": "Perustelu", "nimi": "Matti", "sahkoposti": "m@esim.fi"},
+        )
+    assert vastaus.status_code == 404
+
+
 def test_api_tutkimus_arvioinnit_404_kun_ei_loydy():
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=None):
         vastaus = asiakas.get("/api/tutkimukset/ei-ole/arvioinnit")

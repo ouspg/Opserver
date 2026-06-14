@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>kyberESR</title>
-  <link rel="stylesheet" href="/staattinen/tyyli.css?v=10">
+  <link rel="stylesheet" href="/staattinen/tyyli.css?v=11">
 </head>
 <body>
   <header>
@@ -82,7 +82,7 @@
       </div>
       <table>
         <thead>
-          <tr><th>Nimi</th><th>Koodi</th><th>Taso</th><th>Oppiaine</th><th>op</th><th>Perustelu</th></tr>
+          <tr><th>Nimi</th><th>Koodi</th><th>Taso</th><th>Oppiaine</th><th>op</th><th>Perustelu</th><th></th></tr>
         </thead>
         <tbody id="tutkimus-kurssit-rungot"></tbody>
       </table>
@@ -99,6 +99,29 @@
     </section>
   </main>
 
+  <div id="hitl-modaali" class="modaali piilotettu">
+    <div class="modaali-sisalto">
+      <button class="modaali-sulje" id="hitl-modaali-sulje">&#x2715;</button>
+      <h2 id="hitl-otsikko"></h2>
+      <div id="hitl-ai-perustelu-osio" class="hitl-ai-perustelu"></div>
+      <form id="hitl-lomake">
+        <div class="lomake-kentta">
+          <label for="hitl-nimi">Nimesi</label>
+          <input type="text" id="hitl-nimi" autocomplete="name" required>
+        </div>
+        <div class="lomake-kentta">
+          <label for="hitl-sahkoposti">Sähköposti</label>
+          <input type="email" id="hitl-sahkoposti" autocomplete="email" required>
+        </div>
+        <div class="lomake-kentta">
+          <label for="hitl-perustelu">Perustelu poiketa tekoälyn näkemyksestä</label>
+          <textarea id="hitl-perustelu" rows="4" required></textarea>
+        </div>
+        <button type="submit" id="hitl-laheta" class="nappi-toiminto">Vahvista</button>
+      </form>
+    </div>
+  </div>
+
   <div id="modaali" class="modaali piilotettu">
     <div class="modaali-sisalto">
       <button class="modaali-sulje" id="modaali-sulje">✕</button>
@@ -107,6 +130,6 @@
     </div>
   </div>
 
-  <script src="/staattinen/sovellus.js?v=10"></script>
+  <script src="/staattinen/sovellus.js?v=11"></script>
 </body>
 </html>

@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from tietokanta import mallit
 
@@ -95,6 +96,25 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
             for k in kurssit
         ],
     }
+
+
+class HitlPyynto(BaseModel):
+    uusi_tila: bool
+    perustelu: str
+    nimi: str
+    sahkoposti: str
+
+
+@sovellus.post("/api/tutkimukset/{slug}/kurssit/{kid}/hitl")
+def api_hitl_korjaus(slug: str, kid: int, pyynto: HitlPyynto) -> dict:
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    mallit.tallenna_hitl_korjaus(
+        tutkimus["TID"], kid, pyynto.uusi_tila,
+        pyynto.perustelu, pyynto.nimi, pyynto.sahkoposti,
+    )
+    return {"ok": True}
 
 
 @sovellus.get("/api/tutkimukset/{slug}")

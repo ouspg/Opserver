@@ -306,6 +306,77 @@ function renderTutkimusTiedot(t) {
 let tutkimus_luokitukset = [];
 let aktiivinen_tila = "mukana";
 
+// --- HITL ---
+
+let hitl_kid = null;
+let hitl_uusi_tila = null;
+let hitl_nimi = localStorage.getItem("hitl_nimi") || "";
+let hitl_sahkoposti = localStorage.getItem("hitl_sahkoposti") || "";
+
+function avaaHitlModaali(kid, kurssiniimi, ai_perustelu, uusi_tila) {
+  hitl_kid = kid;
+  hitl_uusi_tila = uusi_tila;
+  const toiminto = uusi_tila ? "Sisällytä tutkimukseen" : "Poista tutkimuksesta";
+  document.getElementById("hitl-otsikko").textContent = `${toiminto}: ${kurssiniimi}`;
+  const aiOsio = document.getElementById("hitl-ai-perustelu-osio");
+  if (ai_perustelu) {
+    aiOsio.innerHTML = `<strong>Tekoälyn perustelu:</strong> ${ai_perustelu}`;
+  } else {
+    aiOsio.textContent = "";
+  }
+  document.getElementById("hitl-nimi").value = hitl_nimi;
+  document.getElementById("hitl-sahkoposti").value = hitl_sahkoposti;
+  document.getElementById("hitl-perustelu").value = "";
+  document.getElementById("hitl-laheta").textContent = toiminto;
+  document.getElementById("hitl-modaali").classList.remove("piilotettu");
+}
+
+document.getElementById("hitl-modaali-sulje").addEventListener("click", () => {
+  document.getElementById("hitl-modaali").classList.add("piilotettu");
+});
+document.getElementById("hitl-modaali").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget)
+    document.getElementById("hitl-modaali").classList.add("piilotettu");
+});
+
+document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const nimi = document.getElementById("hitl-nimi").value.trim();
+  const sahkoposti = document.getElementById("hitl-sahkoposti").value.trim();
+  const perustelu = document.getElementById("hitl-perustelu").value.trim();
+  if (!nimi || !sahkoposti || !perustelu) return;
+
+  hitl_nimi = nimi;
+  hitl_sahkoposti = sahkoposti;
+  localStorage.setItem("hitl_nimi", nimi);
+  localStorage.setItem("hitl_sahkoposti", sahkoposti);
+
+  const nappi = document.getElementById("hitl-laheta");
+  const alkuperainenTeksti = nappi.textContent;
+  nappi.disabled = true;
+  nappi.textContent = "Tallennetaan...";
+
+  try {
+    const vastaus = await fetch(
+      `/api/tutkimukset/${aktiivinen_tutkimus.Slug}/kurssit/${hitl_kid}/hitl`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uusi_tila: hitl_uusi_tila, perustelu, nimi, sahkoposti }),
+      }
+    );
+    if (!vastaus.ok) throw new Error("Virhe tallennuksessa");
+    document.getElementById("hitl-modaali").classList.add("piilotettu");
+    await renderTutkimusKurssit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi);
+  } catch (_) {
+    nappi.textContent = "Virhe — yritä uudelleen";
+    nappi.disabled = false;
+    return;
+  }
+  nappi.textContent = alkuperainenTeksti;
+  nappi.disabled = false;
+});
+
 async function renderTutkimusKurssit(slug, nimi) {
   document.getElementById("tutkimus-kurssit-otsikko").textContent = `${nimi} — kurssit`;
   tutkimus_luokitukset = await fetch(`/api/tutkimukset/${slug}/luokitukset`).then((r) => r.json());
@@ -323,10 +394,26 @@ function renderTutkimusKurssitTila() {
   const runko = document.getElementById("tutkimus-kurssit-rungot");
   runko.innerHTML = "";
   if (suodatettu.length === 0) {
-    runko.innerHTML = `<tr><td colspan="6">Ei kursseja tässä kategoriassa.</td></tr>`;
+    runko.innerHTML = `<tr><td colspan="7">Ei kursseja tässä kategoriassa.</td></tr>`;
     return;
   }
   for (const k of suodatettu) {
+    let perusteluHtml = k.Luokitteluperuste || "";
+    if (k.HitlPerustelu) {
+      const aiOsa = k.Luokitteluperuste
+        ? `<span class="ai-perustelu">Tekoäly: ${k.Luokitteluperuste}</span>`
+        : "";
+      const nimiOsa = k.HitlNimi ? ` (${k.HitlNimi})` : "";
+      perusteluHtml = `${aiOsa}<span class="hitl-perustelu">Ihminen: ${k.HitlPerustelu}${nimiOsa}</span>`;
+    }
+
+    let toimintoHtml = "";
+    if (aktiivinen_tila === "mukana") {
+      toimintoHtml = `<button class="nappi-pieni nappi-vaara hitl-nappi" data-kid="${k.KID}" data-nimi="${k.KurssiNimi.replace(/"/g, "&quot;")}" data-perustelu="${(k.Luokitteluperuste || "").replace(/"/g, "&quot;")}" data-tila="0">Poista tutkimuksesta</button>`;
+    } else if (aktiivinen_tila === "hylätty") {
+      toimintoHtml = `<button class="nappi-pieni nappi-hyva hitl-nappi" data-kid="${k.KID}" data-nimi="${k.KurssiNimi.replace(/"/g, "&quot;")}" data-perustelu="${(k.Luokitteluperuste || "").replace(/"/g, "&quot;")}" data-tila="1">Sisällytä tutkimukseen</button>`;
+    }
+
     const rivi = document.createElement("tr");
     rivi.innerHTML = `
       <td>${kurssiLinkki(k)}</td>
@@ -334,9 +421,22 @@ function renderTutkimusKurssitTila() {
       <td>${k.Taso ? TASO_SUOMI[k.Taso] || k.Taso : "—"}</td>
       <td>${k.Oppiaine || "—"}</td>
       <td class="op">${k.Opintopisteet ?? "—"}</td>
-      <td class="perustelu">${k.Luokitteluperuste || ""}</td>`;
+      <td class="perustelu">${perusteluHtml}</td>
+      <td class="toiminto">${toimintoHtml}</td>`;
     runko.appendChild(rivi);
   }
+
+  runko.querySelectorAll(".hitl-nappi").forEach((nappi) => {
+    nappi.addEventListener("click", (e) => {
+      e.stopPropagation();
+      avaaHitlModaali(
+        parseInt(nappi.dataset.kid),
+        nappi.dataset.nimi,
+        nappi.dataset.perustelu,
+        nappi.dataset.tila === "1",
+      );
+    });
+  });
 }
 
 document.querySelectorAll(".tila-nappi").forEach((b) => {

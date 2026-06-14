@@ -194,6 +194,33 @@ class TestKurssiluokitus:
         assert "Mukana" in sql
 
 
+class TestHitlKorjaus:
+    def test_tallenna_hitl_korjaus_tekee_insert_ja_update(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.tallenna_hitl_korjaus(
+            tid=1, kid=7, uusi_tila=False,
+            perustelu="Ei kuulu aiheeseen", nimi="Matti", sahkoposti="matti@esim.fi",
+        )
+        assert kursori.execute.call_count == 2
+        insert_sql = kursori.execute.call_args_list[0][0][0]
+        update_sql = kursori.execute.call_args_list[1][0][0]
+        assert "INSERT" in insert_sql.upper()
+        assert "HitlKorjaus" in insert_sql
+        assert "UPDATE" in update_sql.upper()
+        assert "Kurssiluokitus" in update_sql
+
+    def test_tallenna_hitl_korjaus_valittaa_oikeat_parametrit(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.tallenna_hitl_korjaus(
+            tid=2, kid=9, uusi_tila=True,
+            perustelu="Sopii hyvin", nimi="Liisa", sahkoposti="liisa@esim.fi",
+        )
+        insert_params = kursori.execute.call_args_list[0][0][1]
+        assert insert_params == (2, 9, True, "Sopii hyvin", "Liisa", "liisa@esim.fi")
+        update_params = kursori.execute.call_args_list[1][0][1]
+        assert update_params == (True, 2, 9)
+
+
 class TestKurssiarviointi:
     def test_aseta_arviointi_tekee_insert(self, mock_yhteys):
         yht, kursori = mock_yhteys

@@ -263,17 +263,24 @@ def hae_luokittelemattomat(tid: int) -> list[dict]:
 
 
 def hae_kurssit_luokituksilla(tid: int) -> list[dict]:
-    """Kaikki kurssit ja niiden luokitustila tässä tutkimuksessa."""
+    """Kaikki kurssit ja niiden luokitustila tässä tutkimuksessa, ml. viimeisin HITL-korjaus."""
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute("""
                 SELECT k.KID, k.KKID, k.LahdeId, k.KurssiNimi, k.Koodi, k.Taso, k.Oppiaine,
                        k.Opintopisteet, k.Opetusvuosi,
-                       kl.Mukana, kl.Luokitteluperuste
+                       kl.Mukana, kl.Luokitteluperuste,
+                       hk.Perustelu AS HitlPerustelu,
+                       hk.KayttajaNimi AS HitlNimi,
+                       hk.Aikaleima AS HitlAikaleima
                 FROM Kurssi k
                 LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
+                LEFT JOIN HitlKorjaus hk ON hk.HID = (
+                    SELECT MAX(HID) FROM HitlKorjaus
+                    WHERE KID = k.KID AND TID = %s
+                )
                 ORDER BY k.KurssiNimi
-            """, (tid,))
+            """, (tid, tid))
             return _rivit_dikteina(kursori)
 
 
@@ -317,6 +324,24 @@ def hae_arvioimattomat(tid: int) -> list[dict]:
                 ORDER BY k.KurssiNimi
             """, (tid, tid, tid))
             return _rivit_dikteina(kursori)
+
+
+# --- HITL-korjaukset ---
+
+def tallenna_hitl_korjaus(tid: int, kid: int, uusi_tila: bool, perustelu: str,
+                          nimi: str, sahkoposti: str) -> None:
+    """Tallentaa ihmisen tekemän luokittelun ohituksen ja päivittää Kurssiluokitus.Mukana."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                """INSERT INTO HitlKorjaus (TID, KID, UusiTila, Perustelu, KayttajaNimi, Sahkoposti)
+                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                (tid, kid, uusi_tila, perustelu, nimi, sahkoposti),
+            )
+            kursori.execute(
+                "UPDATE Kurssiluokitus SET Mukana = %s WHERE TID = %s AND KID = %s",
+                (uusi_tila, tid, kid),
+            )
 
 
 # --- Kurssiarviointi ---
