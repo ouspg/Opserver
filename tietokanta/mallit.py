@@ -267,7 +267,7 @@ def hae_kurssit_luokituksilla(tid: int) -> list[dict]:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute("""
-                SELECT k.KID, k.KurssiNimi, k.Koodi, k.Taso, k.Oppiaine,
+                SELECT k.KID, k.KKID, k.LahdeId, k.KurssiNimi, k.Koodi, k.Taso, k.Oppiaine,
                        k.Opintopisteet, k.Opetusvuosi,
                        kl.Mukana, kl.Luokitteluperuste
                 FROM Kurssi k

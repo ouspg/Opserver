@@ -57,6 +57,7 @@ document.querySelectorAll("#paanav button").forEach((b) => {
 async function lataaKorkeakoulut() {
   const runko = document.getElementById("korkeakoulut-rungot");
   const koulut = await fetch("/api/korkeakoulut").then((r) => r.json());
+  kaikki_koulut = koulut;
   runko.innerHTML = "";
   if (koulut.length === 0) {
     runko.innerHTML = '<tr><td colspan="3">Ei korkeakouluja.</td></tr>';
@@ -86,6 +87,20 @@ const TASO_SUOMI = {
 };
 
 let kaikki_kurssit = [];
+let kaikki_koulut = [];
+
+function kurssiUrl(kurssi) {
+  const koulu = kaikki_koulut.find((k) => k.KKID === kurssi.KKID);
+  if (!koulu || !kurssi.LahdeId || !kurssi.Koodi) return null;
+  return `${koulu.OpsOsoite}/fi/opintojakso/${kurssi.Koodi}/${kurssi.LahdeId}?period=${kurssi.Opetusvuosi}`;
+}
+
+function kurssiLinkki(kurssi) {
+  const url = kurssiUrl(kurssi);
+  return url
+    ? `<a href="${url}" target="_blank" rel="noopener">${kurssi.KurssiNimi}</a>`
+    : kurssi.KurssiNimi;
+}
 
 function ryhmitaKurssit(kurssit) {
   const ryhmat = {};
@@ -131,12 +146,13 @@ function renderKurssit() {
       vuosiSolmu = uusin.Opetusvuosi;
     }
     rivi.innerHTML = `
-      <td>${uusin.KurssiNimi}</td>
+      <td>${kurssiLinkki(uusin)}</td>
       <td class="koodi">${uusin.Koodi || ""}</td>
       <td>${uusin.Taso ? TASO_SUOMI[uusin.Taso] || uusin.Taso : "—"}</td>
       <td>${uusin.Oppiaine || "—"}</td>
       <td class="op">${uusin.Opintopisteet ?? "—"}</td>
       <td>${vuosiSolmu}</td>`;
+    rivi.querySelector("a")?.addEventListener("click", (e) => e.stopPropagation());
     rivi.addEventListener("click", () => {
       const select = rivi.querySelector(".vuosivalinta");
       const kid = select ? parseInt(select.value) : uusin.KID;
@@ -153,8 +169,12 @@ document.getElementById("suodatin-taso").addEventListener("change", renderKurssi
 
 async function avaaModaali(kid) {
   const kurssi = await fetch(`/api/kurssit/${kid}`).then((r) => r.json());
-  document.getElementById("modaali-otsikko").textContent =
-    `${kurssi.KurssiNimi} (${kurssi.Koodi || "—"})`;
+  const opsUrl = kurssiUrl(kurssi);
+  const nimiHtml = opsUrl
+    ? `<a href="${opsUrl}" target="_blank" rel="noopener">${kurssi.KurssiNimi}</a>`
+    : kurssi.KurssiNimi;
+  document.getElementById("modaali-otsikko").innerHTML =
+    `${nimiHtml} (${kurssi.Koodi || "—"})`;
 
   let kuvaus = "—";
   if (kurssi.OpsKuvaus) {
@@ -304,7 +324,7 @@ function renderTutkimusKurssitTila() {
   for (const k of suodatettu) {
     const rivi = document.createElement("tr");
     rivi.innerHTML = `
-      <td>${k.KurssiNimi}</td>
+      <td>${kurssiLinkki(k)}</td>
       <td class="koodi">${k.Koodi || ""}</td>
       <td>${k.Taso ? TASO_SUOMI[k.Taso] || k.Taso : "—"}</td>
       <td>${k.Oppiaine || "—"}</td>
@@ -368,7 +388,7 @@ async function renderTutkimusArvioinnit(slug, nimi) {
     const rivi = tbody.insertRow();
     const taso = k.Taso ? (TASO_SUOMI[k.Taso] || k.Taso) : "—";
     rivi.innerHTML = `
-      <td>${k.KurssiNimi}</td>
+      <td>${kurssiLinkki(k)}</td>
       <td>${taso}</td>
       <td class="op">${k.Opintopisteet ?? "—"}</td>`;
     for (const vastaus of k.vastaukset) {

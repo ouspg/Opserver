@@ -82,8 +82,11 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
         "kurssit": [
             {
                 "KID": k["KID"],
+                "KKID": k.get("KKID"),
+                "LahdeId": k.get("LahdeId") or "",
                 "KurssiNimi": k["KurssiNimi"],
                 "Koodi": k.get("Koodi") or "",
+                "Opetusvuosi": k.get("Opetusvuosi") or "",
                 "Taso": k.get("Taso") or "",
                 "Oppiaine": k.get("Oppiaine") or "",
                 "Opintopisteet": k.get("Opintopisteet"),

@@ -89,6 +89,9 @@ th, td {
 
 th { background: #ececf4; }
 
+td a { color: #16213e; text-underline-offset: 2px; }
+td a:hover { color: #e94560; }
+
 td.koodi { font-family: monospace; color: #555; }
 td.op { text-align: right; }
 
