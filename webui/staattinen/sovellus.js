@@ -314,12 +314,14 @@ const scroll_muistit = { mukana: 0, odottaa: 0, "hylätty": 0 };
 
 let hitl_kid = null;
 let hitl_uusi_tila = null;
+let hitl_kurssiniimi = "";
 let hitl_nimi = localStorage.getItem("hitl_nimi") || "";
 let hitl_sahkoposti = localStorage.getItem("hitl_sahkoposti") || "";
 
 function avaaHitlModaali(kid, kurssiniimi, ai_perustelu, uusi_tila) {
   hitl_kid = kid;
   hitl_uusi_tila = uusi_tila;
+  hitl_kurssiniimi = kurssiniimi;
   const toiminto = uusi_tila ? "Sisällytä tutkimukseen" : "Poista tutkimuksesta";
   document.getElementById("hitl-otsikko").textContent = `${toiminto}: ${kurssiniimi}`;
   const aiOsio = document.getElementById("hitl-ai-perustelu-osio");
@@ -371,6 +373,9 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
     );
     if (!vastaus.ok) throw new Error("Virhe tallennuksessa");
     document.getElementById("hitl-modaali").classList.add("piilotettu");
+    const toiminto = hitl_uusi_tila ? "sisällytti" : "poisti";
+    const tutkimusNimi = aktiivinen_tutkimus?.LuokittelunNimi || aktiivinen_tutkimus?.Slug || "";
+    window.lahetaUutinen?.(`${window.omaNimimerkki?.()} ${toiminto} kurssin "${hitl_kurssiniimi}" tutkimuksesta ${tutkimusNimi}`);
     await renderTutkimusKurssit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi);
   } catch (_) {
     nappi.textContent = "Virhe — yritä uudelleen";
@@ -405,13 +410,21 @@ function renderTutkimusKurssitTila() {
     return;
   }
   for (const k of suodatettu) {
-    let perusteluHtml = k.Luokitteluperuste || "";
-    if (k.HitlPerustelu) {
+    let perusteluHtml = "";
+    const korjaukset = k.HitlKorjaukset || [];
+    if (korjaukset.length > 0) {
+      const aiTila = k.AiMukana ? "mukana" : "hylkäys";
       const aiOsa = k.Luokitteluperuste
-        ? `<span class="ai-perustelu">Tekoäly: ${k.Luokitteluperuste}</span>`
+        ? `<span class="ai-perustelu">Tekoäly (${aiTila}): ${k.Luokitteluperuste}</span>`
         : "";
-      const nimiOsa = k.HitlNimi ? ` (${k.HitlNimi})` : "";
-      perusteluHtml = `${aiOsa}<span class="hitl-perustelu">Ihminen: ${k.HitlPerustelu}${nimiOsa}</span>`;
+      const korjausOsat = korjaukset.map((h) => {
+        const tila = h.UusiTila ? "mukana" : "hylkäys";
+        const nimi = h.KayttajaNimi ? ` (${h.KayttajaNimi})` : "";
+        return `<span class="hitl-perustelu">Ihminen (${tila}): ${h.Perustelu}${nimi}</span>`;
+      }).join("");
+      perusteluHtml = aiOsa + korjausOsat;
+    } else {
+      perusteluHtml = k.Luokitteluperuste || "";
     }
 
     let toimintoHtml = "";
@@ -497,6 +510,7 @@ async function renderTutkimusArvioinnit(slug, nimi) {
     otsikkorivi.appendChild(th);
   }
 
+  const tid = aktiivinen_tutkimus?.TID;
   const tbody = taulu.createTBody();
   for (const k of kurssit) {
     const rivi = tbody.insertRow();
@@ -505,11 +519,19 @@ async function renderTutkimusArvioinnit(slug, nimi) {
       <td>${kurssiLinkki(k)}</td>
       <td>${taso}</td>
       <td class="op">${k.Opintopisteet ?? "—"}</td>`;
-    for (const vastaus of k.vastaukset) {
+    kysymykset.forEach((kys, i) => {
+      const vastaus = k.vastaukset[i] || "";
+      const kommentti = k.kommentit?.[kys.KysID] || "";
       const td = rivi.insertCell();
       td.className = "arviointi-vastaus";
-      td.textContent = vastaus || "—";
-    }
+      const korjaaId = `korjaa-${k.KID}-${kys.KysID}`;
+      td.innerHTML = `<span class="arvio-teksti">${vastaus || "—"}</span>` +
+        (kommentti ? `<div class="arvio-kommentti">${kommentti}</div>` : "") +
+        `<button class="arvio-korjaa-nappi" id="${korjaaId}">Korjaa</button>`;
+      td.querySelector(".arvio-korjaa-nappi").addEventListener("click", () => {
+        window.avaaArviointiMuokkaus?.(tid, k.KID, kys.KysID, kys.Kysymys, vastaus, kommentti);
+      });
+    });
   }
 
   sisalto.innerHTML = "";

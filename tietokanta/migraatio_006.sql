@@ -1,0 +1,13 @@
+-- Migraatio 006: Ihmiskommentit arviointikysymysten vastauksille.
+CREATE TABLE IF NOT EXISTS ArvioKommentti (
+    KomID     INT AUTO_INCREMENT PRIMARY KEY,
+    TID       INT NOT NULL,
+    KID       INT NOT NULL,
+    KysID     INT NOT NULL,
+    Kommentti TEXT NOT NULL,
+    Aikaleima DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (TID)   REFERENCES Tutkimus(TID)    ON DELETE CASCADE,
+    FOREIGN KEY (KID)   REFERENCES Kurssi(KID)      ON DELETE CASCADE,
+    FOREIGN KEY (KysID) REFERENCES Kysymykset(KysID) ON DELETE CASCADE,
+    UNIQUE KEY uniikki_tid_kid_kysid (TID, KID, KysID)
+);

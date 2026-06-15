@@ -18,12 +18,7 @@ header {
 
 header h1 { margin: 0 0 0.5rem; font-size: 1.4rem; }
 
-.paivitysaika {
-  float: right;
-  font-size: 0.78rem;
-  color: rgba(255,255,255,0.45);
-  line-height: 1.4rem;
-}
+.paivitysaika { display: none; }
 
 #paanav button, #tutkimus-nav button {
   background: transparent;
@@ -319,11 +314,14 @@ td.toiminto { text-align: right; white-space: nowrap; }
 /* --- Yhteistyö: nimimerkki + profiili --- */
 
 #yhteistyo-alue {
+  position: absolute;
+  top: 1rem;
+  right: 1.5rem;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.4rem;
-  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  flex-wrap: nowrap;
 }
 
 #muut-ympyrat {
@@ -478,4 +476,153 @@ td.toiminto { text-align: right; white-space: nowrap; }
 .vieras-kursori canvas {
   display: block;
   border-radius: 50%;
+}
+
+/* Uutispalkki */
+
+#uutispalkki {
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  font-size: 0.76rem;
+  color: rgba(255,255,255,0.55);
+  padding: 0.1rem 0 0.2rem;
+  min-height: 1.3rem;
+}
+
+#uutispalkki:empty { display: none; }
+#uutispalkki::-webkit-scrollbar { display: none; }
+
+.uutinen-item { flex-shrink: 0; white-space: nowrap; }
+
+.uutinen-item + .uutinen-item::before {
+  content: "·";
+  color: rgba(255,255,255,0.22);
+  padding: 0 0.55rem;
+}
+
+.uutinen-aika {
+  color: rgba(255,255,255,0.28);
+  margin-right: 0.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nav-indikaattorit */
+
+#nav-indikaattorit {
+  position: relative;
+  height: 12px;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* Tooltip */
+
+#nimis-tooltip {
+  position: fixed;
+  background: rgba(0,0,0,0.78);
+  color: #fff;
+  font-size: 0.78rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 999;
+  white-space: nowrap;
+}
+
+/* Arviointi-taulukko */
+
+.arvio-teksti { display: block; }
+
+.arvio-kommentti {
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  color: #1a5c4a;
+  background: #e8f5f0;
+  border-left: 3px solid #27ae60;
+  padding: 0.2rem 0.4rem;
+  border-radius: 2px;
+}
+
+.arvio-korjaa-nappi {
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  padding: 0.1rem 0.45rem;
+  background: #eef2ff;
+  border: 1px solid #b0bfff;
+  border-radius: 3px;
+  color: #2c3e90;
+  cursor: pointer;
+}
+
+.arvio-korjaa-nappi:hover { background: #d9e2ff; }
+
+/* Arviointimuokkaus-modaali */
+
+.arviointimuokkaus-sisalto {
+  max-width: 640px;
+  width: 95vw;
+}
+
+.arviointimuokkaus-ai {
+  background: #f7f8fa;
+  border-left: 3px solid #193764;
+  padding: 0.6rem 0.8rem;
+  border-radius: 3px;
+  font-size: 0.88rem;
+  margin-bottom: 1rem;
+  max-height: 10rem;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+.arviointimuokkaus-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.arviointimuokkaus-kommentti-alue { margin-bottom: 1rem; }
+
+#arviointimuokkaus-tekstialue {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  border: 1px solid #c0cce0;
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  display: block;
+}
+
+#arviointimuokkaus-kursorit {
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+#arviointimuokkaus-muokkaajat {
+  font-size: 0.78rem;
+  color: #555;
+  margin-top: 0.3rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.muokkaaja-rivi {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.modaali-napit {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
 }

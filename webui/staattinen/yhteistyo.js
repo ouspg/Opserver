@@ -146,7 +146,21 @@ function luoHeaderElementit() {
       <input type="text" id="nimimerkki-kentta" autocomplete="off" spellcheck="false" maxlength="40">
       <button id="nollaa-nimimerkki" title="Arvo uusi nimimerkki">↺ Nollaa</button>
     </div>`;
-  h1.insertAdjacentElement("afterend", alue);
+  document.querySelector("header").appendChild(alue);
+
+  const uutispalkki = document.createElement("div");
+  uutispalkki.id = "uutispalkki";
+  const paanav = document.getElementById("paanav");
+  paanav.parentNode.insertBefore(uutispalkki, paanav);
+
+  const tooltip = document.createElement("div");
+  tooltip.id = "nimis-tooltip";
+  tooltip.className = "piilotettu";
+  document.body.appendChild(tooltip);
+
+  const indikaattorit = document.createElement("div");
+  indikaattorit.id = "nav-indikaattorit";
+  document.getElementById("paanav").appendChild(indikaattorit);
 
   const muokkaus = document.createElement("div");
   muokkaus.id = "profiili-muokkaus";
@@ -278,6 +292,138 @@ function alustaHeaderTapahtumat() {
       suljeProfiiliMuokkaus();
     }
   });
+
+  const muutDiv = document.getElementById("muut-ympyrat");
+  const tt = document.getElementById("nimis-tooltip");
+  muutDiv.addEventListener("mouseover", (e) => {
+    const el = e.target.closest("canvas");
+    if (el && el.title) { tt.textContent = el.title; tt.classList.remove("piilotettu"); }
+  });
+  muutDiv.addEventListener("mousemove", (e) => {
+    tt.style.left = (e.clientX + 10) + "px";
+    tt.style.top = (e.clientY - 30) + "px";
+  });
+  muutDiv.addEventListener("mouseout", (e) => {
+    if (!e.relatedTarget || !muutDiv.contains(e.relatedTarget)) tt.classList.add("piilotettu");
+  });
+}
+
+// --- Uutispalkki ---
+
+const uutiset = [];
+const UUTINEN_MAX = 40;
+
+function lisaaUutinen(teksti, aika) {
+  uutiset.unshift({ teksti, aika });
+  if (uutiset.length > UUTINEN_MAX) uutiset.length = UUTINEN_MAX;
+  const palkki = document.getElementById("uutispalkki");
+  if (!palkki) return;
+  const item = document.createElement("span");
+  item.className = "uutinen-item";
+  item.innerHTML = `<span class="uutinen-aika">${aika}</span>${teksti}`;
+  palkki.insertBefore(item, palkki.firstChild);
+  palkki.scrollLeft = 0;
+}
+
+function lahetaUutinen(teksti) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ tyyppi: "uutinen", teksti }));
+}
+
+window.lahetaUutinen = lahetaUutinen;
+window.omaNimimerkki = () => omaProfiili?.nimimerkki || "Anonyymi";
+window.piirraYmpyra = piirraYmpyra;
+
+window.liityMuokkausSessioon = function (tid, kid, kysid) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ tyyppi: "muokkaus-liity", tid, kid, kysid }));
+};
+
+window.poistuMuokkausSessiosta = function (tid, kid, kysid) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ tyyppi: "muokkaus-poistu", tid, kid, kysid }));
+};
+
+window.lahetaMuokkausTeksti = function (tid, kid, kysid, teksti, kursori) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ tyyppi: "muokkaus-teksti", tid, kid, kysid, teksti, kursori }));
+};
+
+window.tallennaMuokkausKommentti = function (tid, kid, kysid, teksti) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ tyyppi: "muokkaus-tallenna", tid, kid, kysid, teksti }));
+};
+
+// --- Nav-indikaattorit ---
+
+function sivuNavPolku(sivu) {
+  if (!sivu) return null;
+  if (sivu === "/" || sivu.startsWith("/korkeakoulut")) return "/korkeakoulut";
+  if (sivu.startsWith("/kurssit")) return "/kurssit";
+  if (sivu.startsWith("/tutkimukset")) return "/tutkimukset";
+  return null;
+}
+
+const navindikaattorit = {};
+const NAV_KOKO = 8;
+const NAV_VALI = 2;
+
+function paivitaNavIndikaattorit() {
+  const sailyo = document.getElementById("nav-indikaattorit");
+  const nav = document.getElementById("paanav");
+  if (!sailyo || !nav) return;
+
+  const sailyoRect = sailyo.getBoundingClientRect();
+  const nappiKeskukset = {};
+  for (const nap of nav.querySelectorAll("button[data-polku]")) {
+    const r = nap.getBoundingClientRect();
+    nappiKeskukset[nap.dataset.polku] = r.left - sailyoRect.left + r.width / 2;
+  }
+
+  const nytIdt = new Set(muutKayttajat.map((k) => k.id));
+  for (const id of Object.keys(navindikaattorit)) {
+    if (!nytIdt.has(id)) {
+      navindikaattorit[id].remove();
+      delete navindikaattorit[id];
+    }
+  }
+
+  // Ryhmittele käyttäjät nav-napin mukaan
+  const perPolku = {};
+  for (const k of muutKayttajat) {
+    if (!k.profiili) continue;
+    const polku = sivuNavPolku(k.sivu);
+    if (!polku || nappiKeskukset[polku] === undefined) continue;
+    if (!perPolku[polku]) perPolku[polku] = [];
+    perPolku[polku].push(k);
+  }
+
+  for (const [polku, kayttajat] of Object.entries(perPolku)) {
+    const centerX = nappiKeskukset[polku];
+    const yhtLeveys = kayttajat.length * NAV_KOKO + Math.max(0, kayttajat.length - 1) * NAV_VALI;
+    let x = centerX - yhtLeveys / 2;
+
+    for (const k of kayttajat) {
+      let canvas = navindikaattorit[k.id];
+      if (!canvas) {
+        canvas = document.createElement("canvas");
+        canvas.width = NAV_KOKO;
+        canvas.height = NAV_KOKO;
+        canvas.style.cssText = `position:absolute;top:1px;left:${x}px;border-radius:50%;`;
+        sailyo.appendChild(canvas);
+        navindikaattorit[k.id] = canvas;
+        // Lisää siirtymä vasta ensimmäisen piirron jälkeen (ei teleporttaa sisään)
+        requestAnimationFrame(() => {
+          canvas.style.transition = "left 0.5s cubic-bezier(0.34,1.56,0.64,1)";
+        });
+      } else {
+        canvas.style.left = `${x}px`;
+      }
+      piirraYmpyra(canvas, k.profiili, !k.aktiivinen);
+      canvas.title = k.nimimerkki || "?";
+      x += NAV_KOKO + NAV_VALI;
+    }
+  }
 }
 
 // --- WebSocket ---
@@ -327,11 +473,17 @@ function yhdista() {
     const viesti = JSON.parse(e.data);
     if (viesti.tyyppi === "oma-id") {
       omaId = viesti.id;
+      window._omaId = omaId;
       lahetaTila();
+    } else if (viesti.tyyppi === "uutinen") {
+      lisaaUutinen(viesti.teksti, viesti.aika);
     } else if (viesti.tyyppi === "kayttajat") {
       muutKayttajat = viesti.data.filter((k) => k.id !== omaId);
       paivitaMuutYmpyrat();
       paivitaKursorit();
+      paivitaNavIndikaattorit();
+    } else if (viesti.tyyppi === "muokkaus-sessio") {
+      window.muokkausKuuntelija?.(viesti);
     }
   });
 
@@ -365,7 +517,8 @@ function paivitaKursorit() {
   const kerros = document.getElementById("kursori-kerros");
   if (!kerros) return;
 
-  const nytIdt = new Set(muutKayttajat.map((k) => k.id));
+  const samallaSimulla = muutKayttajat.filter((k) => k.sivu === location.pathname);
+  const nytIdt = new Set(samallaSimulla.map((k) => k.id));
   for (const id of Object.keys(kursorielementit)) {
     if (!nytIdt.has(id)) {
       kerros.removeChild(kursorielementit[id]);
@@ -373,7 +526,7 @@ function paivitaKursorit() {
     }
   }
 
-  for (const k of muutKayttajat) {
+  for (const k of samallaSimulla) {
     if (!k.profiili || !k.sijainti) continue;
 
     let el = kursorielementit[k.id];
@@ -390,15 +543,17 @@ function paivitaKursorit() {
 
     piirraYmpyra(el.querySelector("canvas"), k.profiili, !k.aktiivinen);
     el.title = k.nimimerkki || "?";
-    el.style.left = `${k.sijainti.x * window.innerWidth}px`;
-    el.style.top = `${k.sijainti.y * window.innerHeight}px`;
+    el.style.left = `${k.sijainti.x - window.scrollX}px`;
+    el.style.top = `${k.sijainti.y - window.scrollY}px`;
   }
 }
 
 // --- Syötetapahtumat ---
 
+document.addEventListener("scroll", () => paivitaKursorit(), { passive: true });
+
 document.addEventListener("mousemove", (e) => {
-  hiiri = { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight };
+  hiiri = { x: e.pageX, y: e.pageY };
   merkitseAktiiviseksi();
   if (!lahetysAjastin) {
     lahetysAjastin = setTimeout(() => {
@@ -411,7 +566,7 @@ document.addEventListener("mousemove", (e) => {
 document.addEventListener("keydown", merkitseAktiiviseksi);
 document.addEventListener("click", merkitseAktiiviseksi);
 
-setInterval(() => { lahetaTila(); paivitaKursorit(); }, SYDANLYONTI_VALI_MS);
+setInterval(() => { lahetaTila(); paivitaKursorit(); paivitaNavIndikaattorit(); }, SYDANLYONTI_VALI_MS);
 
 // --- Käynnistys ---
 

@@ -263,24 +263,29 @@ def hae_luokittelemattomat(tid: int) -> list[dict]:
 
 
 def hae_kurssit_luokituksilla(tid: int) -> list[dict]:
-    """Kaikki kurssit ja niiden luokitustila tässä tutkimuksessa, ml. viimeisin HITL-korjaus."""
+    """Kaikki kurssit ja niiden luokitustila tässä tutkimuksessa."""
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute("""
                 SELECT k.KID, k.KKID, k.LahdeId, k.KurssiNimi, k.Koodi, k.Taso, k.Oppiaine,
                        k.Opintopisteet, k.Opetusvuosi,
-                       kl.Mukana, kl.Luokitteluperuste,
-                       hk.Perustelu AS HitlPerustelu,
-                       hk.KayttajaNimi AS HitlNimi,
-                       hk.Aikaleima AS HitlAikaleima
+                       kl.Mukana, kl.Luokitteluperuste
                 FROM Kurssi k
                 LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
-                LEFT JOIN HitlKorjaus hk ON hk.HID = (
-                    SELECT MAX(HID) FROM HitlKorjaus
-                    WHERE KID = k.KID AND TID = %s
-                )
                 ORDER BY k.KurssiNimi
-            """, (tid, tid))
+            """, (tid,))
+            return _rivit_dikteina(kursori)
+
+
+def hae_hitl_historia(tid: int) -> list[dict]:
+    """Kaikki HITL-korjaukset tälle tutkimukselle vanhimmasta uusimpaan."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                """SELECT KID, UusiTila, Perustelu, KayttajaNimi, Aikaleima
+                   FROM HitlKorjaus WHERE TID = %s ORDER BY HID ASC""",
+                (tid,),
+            )
             return _rivit_dikteina(kursori)
 
 
@@ -309,7 +314,7 @@ def hae_luokitukset(tid: int, mukana: bool | None = None) -> list[dict]:
 
 
 def hae_arvioimattomat(tid: int) -> list[dict]:
-    """Mukaan otetut kurssit, joille ei vielä ole kaikkia vastauksia tässä tutkimuksessa."""
+    """Mukaan otetut kurssit, joille ei vielä ole kaikkia ei-tyhjiä vastauksia tässä tutkimuksessa."""
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute("""
@@ -319,7 +324,7 @@ def hae_arvioimattomat(tid: int) -> list[dict]:
                 WHERE (
                     SELECT COUNT(*) FROM Vastaukset v
                     JOIN Kysymykset ky ON v.KysID = ky.KysID
-                    WHERE ky.TID = %s AND v.KID = k.KID
+                    WHERE ky.TID = %s AND v.KID = k.KID AND v.Vastaus != ''
                 ) < (SELECT COUNT(*) FROM Kysymykset WHERE TID = %s)
                 ORDER BY k.KurssiNimi
             """, (tid, tid, tid))
@@ -341,6 +346,41 @@ def tallenna_hitl_korjaus(tid: int, kid: int, uusi_tila: bool, perustelu: str,
             kursori.execute(
                 "UPDATE Kurssiluokitus SET Mukana = %s WHERE TID = %s AND KID = %s",
                 (uusi_tila, tid, kid),
+            )
+
+
+# --- Arviokommentit ---
+
+def hae_arviokommentit_kaikki(tid: int) -> list[dict]:
+    """Kaikki ihmiskommentit tälle tutkimukselle."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                "SELECT KID, KysID, Kommentti FROM ArvioKommentti WHERE TID = %s",
+                (tid,),
+            )
+            return _rivit_dikteina(kursori)
+
+
+def hae_arviokommentti(tid: int, kid: int, kysid: int) -> str:
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                "SELECT Kommentti FROM ArvioKommentti WHERE TID=%s AND KID=%s AND KysID=%s",
+                (tid, kid, kysid),
+            )
+            rivi = kursori.fetchone()
+            return rivi[0] if rivi else ""
+
+
+def aseta_arviokommentti(tid: int, kid: int, kysid: int, kommentti: str) -> None:
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                """INSERT INTO ArvioKommentti (TID, KID, KysID, Kommentti)
+                   VALUES (%s, %s, %s, %s)
+                   ON DUPLICATE KEY UPDATE Kommentti = VALUES(Kommentti)""",
+                (tid, kid, kysid, kommentti),
             )
 
 

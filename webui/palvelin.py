@@ -2,6 +2,7 @@
 import json
 import os
 import uuid
+from datetime import datetime
 from typing import Optional
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
@@ -12,9 +13,33 @@ from tietokanta import mallit
 
 sovellus = FastAPI(title="kyberESR")
 
-# --- Reaaliaikainen läsnäolo (WebSocket) ---
+# --- Reaaliaikainen läsnäolo ja muokkaussessiot (WebSocket) ---
 
 _yhteydet: dict[str, tuple[WebSocket, dict]] = {}
+
+# avain = (tid, kid, kysid) → {uid: {nimimerkki, profiili, kursori}}
+_muokkaussessiot: dict[tuple, dict[str, dict]] = {}
+# avain = (tid, kid, kysid) → nykyinen tekstisisältö sessiossa
+_muokkaus_teksti: dict[tuple, str] = {}
+
+
+async def _laheta_muokkaussessio(avain: tuple) -> None:
+    if avain not in _muokkaussessiot:
+        return
+    tid, kid, kysid = avain
+    muokkaajat = [{"id": uid, **tiedot} for uid, tiedot in _muokkaussessiot[avain].items()]
+    viesti = json.dumps({
+        "tyyppi": "muokkaus-sessio",
+        "tid": tid, "kid": kid, "kysid": kysid,
+        "teksti": _muokkaus_teksti.get(avain, ""),
+        "muokkaajat": muokkaajat,
+    })
+    for uid in list(_muokkaussessiot[avain].keys()):
+        if uid in _yhteydet:
+            try:
+                await _yhteydet[uid][0].send_text(viesti)
+            except Exception:
+                pass
 
 
 async def _laheta_kaikille() -> None:
@@ -39,10 +64,64 @@ async def ws_kayttajat(ws: WebSocket) -> None:
         await ws.send_text(json.dumps({"tyyppi": "oma-id", "id": uid}))
         while True:
             data = await ws.receive_json()
-            _yhteydet[uid] = (ws, data)
-            await _laheta_kaikille()
+            tyyppi = data.get("tyyppi")
+            if tyyppi == "uutinen":
+                aika = datetime.now().strftime("%H:%M")
+                viesti = json.dumps({"tyyppi": "uutinen", "teksti": data.get("teksti", ""), "aika": aika})
+                katkaistut = []
+                for u, (ws2, _) in list(_yhteydet.items()):
+                    try:
+                        await ws2.send_text(viesti)
+                    except Exception:
+                        katkaistut.append(u)
+                for u in katkaistut:
+                    _yhteydet.pop(u, None)
+            elif tyyppi == "muokkaus-liity":
+                avain = (data.get("tid"), data.get("kid"), data.get("kysid"))
+                if avain not in _muokkaussessiot:
+                    _muokkaussessiot[avain] = {}
+                    _muokkaus_teksti[avain] = mallit.hae_arviokommentti(*avain)
+                kayttaja = _yhteydet.get(uid, (None, {}))[1]
+                _muokkaussessiot[avain][uid] = {
+                    "nimimerkki": kayttaja.get("nimimerkki", "?"),
+                    "profiili": kayttaja.get("profiili", {}),
+                    "kursori": 0,
+                }
+                await _laheta_muokkaussessio(avain)
+            elif tyyppi == "muokkaus-teksti":
+                avain = (data.get("tid"), data.get("kid"), data.get("kysid"))
+                if avain in _muokkaussessiot:
+                    _muokkaus_teksti[avain] = data.get("teksti", "")
+                    if uid in _muokkaussessiot[avain]:
+                        _muokkaussessiot[avain][uid]["kursori"] = data.get("kursori", 0)
+                    await _laheta_muokkaussessio(avain)
+            elif tyyppi == "muokkaus-poistu":
+                avain = (data.get("tid"), data.get("kid"), data.get("kysid"))
+                if avain in _muokkaussessiot:
+                    _muokkaussessiot[avain].pop(uid, None)
+                    if not _muokkaussessiot[avain]:
+                        del _muokkaussessiot[avain]
+                        _muokkaus_teksti.pop(avain, None)
+                    else:
+                        await _laheta_muokkaussessio(avain)
+            elif tyyppi == "muokkaus-tallenna":
+                avain = (data.get("tid"), data.get("kid"), data.get("kysid"))
+                teksti = data.get("teksti", "")
+                if avain[0] and avain[1] and avain[2]:
+                    mallit.aseta_arviokommentti(*avain, teksti)
+                    if avain in _muokkaus_teksti:
+                        _muokkaus_teksti[avain] = teksti
+            else:
+                _yhteydet[uid] = (ws, data)
+                await _laheta_kaikille()
     except WebSocketDisconnect:
         _yhteydet.pop(uid, None)
+        for avain in list(_muokkaussessiot.keys()):
+            if uid in _muokkaussessiot[avain]:
+                del _muokkaussessiot[avain][uid]
+                if not _muokkaussessiot[avain]:
+                    del _muokkaussessiot[avain]
+                    _muokkaus_teksti.pop(avain, None)
         await _laheta_kaikille()
 
 STAATTINEN = os.path.join(os.path.dirname(__file__), "staattinen")
@@ -91,8 +170,31 @@ def api_tutkimus_luokitukset(slug: str) -> list[dict]:
     tutkimus = mallit.hae_tutkimus_slugilla(slug)
     if tutkimus is None:
         raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
-    rivit = mallit.hae_kurssit_luokituksilla(tutkimus["TID"])
-    return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
+    tid = tutkimus["TID"]
+    rivit = mallit.hae_kurssit_luokituksilla(tid)
+
+    # Ryhmittele HITL-historia kursseittain (vanhimmasta uusimpaan)
+    historia: dict[int, list[dict]] = {}
+    for h in mallit.hae_hitl_historia(tid):
+        kid = h["KID"]
+        if kid not in historia:
+            historia[kid] = []
+        historia[kid].append({
+            "UusiTila": bool(h["UusiTila"]),
+            "Perustelu": h["Perustelu"],
+            "KayttajaNimi": h["KayttajaNimi"],
+        })
+
+    tulos = []
+    for r in rivit:
+        d = {k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT}
+        kid = d["KID"]
+        korjaukset = historia.get(kid, [])
+        d["HitlKorjaukset"] = korjaukset
+        # Tekoälyn alkuperäinen tila: ensimmäisen korjauksen käänteinen
+        d["AiMukana"] = (not korjaukset[0]["UusiTila"]) if korjaukset else d.get("Mukana")
+        tulos.append(d)
+    return tulos
 
 
 @sovellus.get("/api/tutkimukset/{slug}/arvioinnit")
@@ -104,6 +206,7 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
     kysymykset = mallit.hae_kysymykset(tid)
     kurssit = mallit.hae_valitut_kurssit(tid)
     vastaukset_lista = mallit.hae_vastaukset(tid)
+    kommentit_lista = mallit.hae_arviokommentit_kaikki(tid)
 
     vastaus_kartta: dict[int, dict[int, str]] = {}
     for v in vastaukset_lista:
@@ -111,6 +214,13 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
         if kid not in vastaus_kartta:
             vastaus_kartta[kid] = {}
         vastaus_kartta[kid][v["KysID"]] = v["Vastaus"]
+
+    kommentti_kartta: dict[int, dict[int, str]] = {}
+    for k in kommentit_lista:
+        kid = k["KID"]
+        if kid not in kommentti_kartta:
+            kommentti_kartta[kid] = {}
+        kommentti_kartta[kid][k["KysID"]] = k["Kommentti"]
 
     kys_idt = [k["KysID"] for k in kysymykset]
     return {
@@ -127,6 +237,7 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
                 "Oppiaine": k.get("Oppiaine") or "",
                 "Opintopisteet": k.get("Opintopisteet"),
                 "vastaukset": [vastaus_kartta.get(k["KID"], {}).get(kys_id, "") for kys_id in kys_idt],
+                "kommentit": {kys_id: kommentti_kartta.get(k["KID"], {}).get(kys_id, "") for kys_id in kys_idt},
             }
             for k in kurssit
         ],
