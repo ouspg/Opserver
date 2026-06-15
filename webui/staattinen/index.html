@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>kyberESR</title>
   <link rel="icon" href="/staattinen/favicon.ico" sizes="any">
-  <link rel="stylesheet" href="/staattinen/tyyli.css?v=17">
+  <link rel="stylesheet" href="/staattinen/tyyli.css?v=18">
 </head>
 <body>
   <header>
@@ -102,7 +102,10 @@
     </section>
 
     <section id="s-tutkimus-raportti" class="nakyma">
-      <p class="tulossa">Raportti — tulossa myöhemmin.</p>
+      <div class="raportti-toiminnot">
+        <button id="raportti-pdf-nappi" class="nappi-toiminto">Lataa PDF-tiedostona</button>
+      </div>
+      <div id="raportti-sisalto"></div>
     </section>
   </main>
 
@@ -137,8 +140,9 @@
     </div>
   </div>
 
-  <script src="/staattinen/sovellus.js?v=16"></script>
+  <script src="/staattinen/sovellus.js?v=17"></script>
   <script src="/staattinen/yhteistyo.js?v=5"></script>
   <script src="/staattinen/arviointimuokkaus.js?v=3"></script>
+  <script src="/staattinen/raporttimuokkaus.js?v=1"></script>
 </body>
 </html>

@@ -5,9 +5,9 @@ def test_moduulit_latautuvat():
     from cliui import valikko, korkeakoulunaytto, tutkimusnaytto, luokittelunaytto, apurit  # noqa: F401
 
 
-def test_paavalikossa_viisi_kohtaa():
+def test_paavalikossa_kuusi_kohtaa():
     from cliui import valikko
-    assert len(valikko.VALIKKO) == 5
+    assert len(valikko.VALIKKO) == 6
 
 
 def test_korkeakoulunaytto_ops_tyypit():

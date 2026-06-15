@@ -3,7 +3,7 @@ import curses
 import locale
 
 from cliui.apurit import valitse_listasta, piirra_otsikko, nayta_viesti, alusta_varit
-from cliui import korkeakoulunaytto, hakunaytto, tutkimusnaytto, luokittelunaytto, arviointinaytto
+from cliui import korkeakoulunaytto, hakunaytto, tutkimusnaytto, luokittelunaytto, arviointinaytto, raporttinaytto
 
 VALIKKO = [
     "1) Muokkaa korkeakouluja",
@@ -11,12 +11,8 @@ VALIKKO = [
     "3) Määrittele tutkimuksia",
     "4) Luokittele",
     "5) Arvioi",
+    "6) Tee raportti",
 ]
-
-
-def _ei_toteutettu(stdscr) -> None:
-    piirra_otsikko(stdscr, "kyberESR")
-    nayta_viesti(stdscr, "Tätä toimintoa ei ole vielä toteutettu.")
 
 
 def paavalikko(stdscr) -> None:
@@ -29,6 +25,7 @@ def paavalikko(stdscr) -> None:
         2: tutkimusnaytto.nayta,
         3: luokittelunaytto.nayta,
         4: arviointinaytto.nayta,
+        5: raporttinaytto.nayta,
     }
     while True:
         valinta = valitse_listasta(stdscr, "kyberESR — päävalikko", VALIKKO)

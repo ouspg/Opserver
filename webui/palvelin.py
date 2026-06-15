@@ -22,6 +22,11 @@ _muokkaussessiot: dict[tuple, dict[str, dict]] = {}
 # avain = (tid, kid, kysid) → nykyinen tekstisisältö sessiossa
 _muokkaus_teksti: dict[tuple, str] = {}
 
+# avain = (tid, avain_str) → {uid: {nimimerkki, profiili, kursori}}
+_raportti_sessiot: dict[tuple, dict[str, dict]] = {}
+# avain = (tid, avain_str) → nykyinen tekstisisältö sessiossa
+_raportti_teksti: dict[tuple, str] = {}
+
 
 async def _laheta_muokkaussessio(avain: tuple) -> None:
     if avain not in _muokkaussessiot:
@@ -35,6 +40,25 @@ async def _laheta_muokkaussessio(avain: tuple) -> None:
         "muokkaajat": muokkaajat,
     })
     for uid in list(_muokkaussessiot[avain].keys()):
+        if uid in _yhteydet:
+            try:
+                await _yhteydet[uid][0].send_text(viesti)
+            except Exception:
+                pass
+
+
+async def _laheta_raportti_sessio(avain: tuple) -> None:
+    if avain not in _raportti_sessiot:
+        return
+    tid, osio_avain = avain
+    muokkaajat = [{"id": uid, **tiedot} for uid, tiedot in _raportti_sessiot[avain].items()]
+    viesti = json.dumps({
+        "tyyppi": "raportti-sessio",
+        "tid": tid, "avain": osio_avain,
+        "teksti": _raportti_teksti.get(avain, ""),
+        "muokkaajat": muokkaajat,
+    })
+    for uid in list(_raportti_sessiot[avain].keys()):
         if uid in _yhteydet:
             try:
                 await _yhteydet[uid][0].send_text(viesti)
@@ -111,6 +135,41 @@ async def ws_kayttajat(ws: WebSocket) -> None:
                     mallit.aseta_arviokommentti(*avain, teksti)
                     if avain in _muokkaus_teksti:
                         _muokkaus_teksti[avain] = teksti
+            elif tyyppi == "raportti-liity":
+                avain = (data.get("tid"), data.get("avain"))
+                if avain not in _raportti_sessiot:
+                    _raportti_sessiot[avain] = {}
+                    _raportti_teksti[avain] = mallit.hae_raportti_osio(*avain)
+                kayttaja = _yhteydet.get(uid, (None, {}))[1]
+                _raportti_sessiot[avain][uid] = {
+                    "nimimerkki": kayttaja.get("nimimerkki", "?"),
+                    "profiili": kayttaja.get("profiili", {}),
+                    "kursori": 0,
+                }
+                await _laheta_raportti_sessio(avain)
+            elif tyyppi == "raportti-teksti":
+                avain = (data.get("tid"), data.get("avain"))
+                if avain in _raportti_sessiot:
+                    _raportti_teksti[avain] = data.get("teksti", "")
+                    if uid in _raportti_sessiot[avain]:
+                        _raportti_sessiot[avain][uid]["kursori"] = data.get("kursori", 0)
+                    await _laheta_raportti_sessio(avain)
+            elif tyyppi == "raportti-poistu":
+                avain = (data.get("tid"), data.get("avain"))
+                if avain in _raportti_sessiot:
+                    _raportti_sessiot[avain].pop(uid, None)
+                    if not _raportti_sessiot[avain]:
+                        del _raportti_sessiot[avain]
+                        _raportti_teksti.pop(avain, None)
+                    else:
+                        await _laheta_raportti_sessio(avain)
+            elif tyyppi == "raportti-tallenna":
+                avain = (data.get("tid"), data.get("avain"))
+                teksti = data.get("teksti", "")
+                if avain[0] and avain[1]:
+                    mallit.aseta_raportti_osio(*avain, teksti)
+                    if avain in _raportti_teksti:
+                        _raportti_teksti[avain] = teksti
             else:
                 _yhteydet[uid] = (ws, data)
                 await _laheta_kaikille()
@@ -122,6 +181,12 @@ async def ws_kayttajat(ws: WebSocket) -> None:
                 if not _muokkaussessiot[avain]:
                     del _muokkaussessiot[avain]
                     _muokkaus_teksti.pop(avain, None)
+        for avain in list(_raportti_sessiot.keys()):
+            if uid in _raportti_sessiot[avain]:
+                del _raportti_sessiot[avain][uid]
+                if not _raportti_sessiot[avain]:
+                    del _raportti_sessiot[avain]
+                    _raportti_teksti.pop(avain, None)
         await _laheta_kaikille()
 
 STAATTINEN = os.path.join(os.path.dirname(__file__), "staattinen")
@@ -261,6 +326,15 @@ def api_hitl_korjaus(slug: str, kid: int, pyynto: HitlPyynto) -> dict:
         pyynto.perustelu, pyynto.nimi, pyynto.sahkoposti,
     )
     return {"ok": True}
+
+
+@sovellus.get("/api/tutkimukset/{slug}/raportti")
+def api_raportti(slug: str) -> dict:
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    osiot = mallit.hae_raportti_osiot(tutkimus["TID"])
+    return {"tid": tutkimus["TID"], "osiot": osiot}
 
 
 @sovellus.get("/api/tutkimukset/{slug}")

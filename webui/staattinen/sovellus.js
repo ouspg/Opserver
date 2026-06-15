@@ -283,6 +283,7 @@ async function renderTutkimusKonteksti(slug, alasivu) {
     await renderTutkimusArvioinnit(slug, aktiivinen_tutkimus.LuokittelunNimi);
     document.getElementById("s-tutkimus-arvioinnit").classList.add("aktiivinen");
   } else if (alasivu === "raportti") {
+    await renderTutkimusRaportti(slug, aktiivinen_tutkimus);
     document.getElementById("s-tutkimus-raportti").classList.add("aktiivinen");
   }
 }
@@ -302,6 +303,8 @@ function renderTutkimusTiedot(t) {
     <pre class="kehote-teksti">${t.Luokittelukehote}</pre>
     <h3>Arviointikehote</h3>
     <pre class="kehote-teksti">${t.Arviointikehote}</pre>
+    <h3>Raportointikehote</h3>
+    <pre class="kehote-teksti">${t.Raportointikehote || "—"}</pre>
     <h3>Arviointikysymykset</h3>
     ${kysymysLista}`;
 }
@@ -538,6 +541,81 @@ async function renderTutkimusArvioinnit(slug, nimi) {
   sisalto.appendChild(taulu);
 }
 
+// --- Tutkimus-raportti ---
+
+const RAPORTTI_OSIOT = [
+  { avain: "johdanto",   otsikko: "1. Johdanto" },
+  { avain: "kurssit",    otsikko: "2. Tutkittavat kurssit" },
+  { avain: "arvioinnit", otsikko: "3. Arvioinnit" },
+];
+
+async function renderTutkimusRaportti(slug, tutkimus) {
+  const sisalto = document.getElementById("raportti-sisalto");
+  const pdfNappi = document.getElementById("raportti-pdf-nappi");
+  sisalto.innerHTML = "";
+
+  let data;
+  try {
+    data = await fetch(`/api/tutkimukset/${slug}/raportti`).then((r) => r.json());
+  } catch (_) {
+    sisalto.innerHTML = '<p class="tulossa">Raportin lataaminen epäonnistui.</p>';
+    return;
+  }
+
+  const { tid, osiot } = data;
+  const onRaportti = Object.keys(osiot).length > 0;
+
+  pdfNappi.style.display = onRaportti ? "" : "none";
+
+  if (!onRaportti) {
+    sisalto.innerHTML = '<p class="tulossa">Raporttia ei ole vielä koostettu.</p>';
+    return;
+  }
+
+  pdfNappi.onclick = () => avaaRaporttiTulostus(slug, tutkimus, osiot);
+
+  for (const { avain, otsikko } of RAPORTTI_OSIOT) {
+    const teksti = osiot[avain] || "";
+    const div = document.createElement("div");
+    div.className = "raportti-osio";
+    div.dataset.avain = avain;
+    div.innerHTML = `
+      <div class="raportti-osio-otsikkorivi">
+        <h2 class="raportti-osio-otsikko">${otsikko}</h2>
+        <button class="arvio-korjaa-nappi raportti-muokkaa-nappi" data-avain="${avain}">Muokkaa</button>
+      </div>
+      <div class="raportti-osio-teksti">${teksti ? teksti.replace(/\n/g, "<br>") : '<em class="tulossa">Tämä osio puuttuu raportista.</em>'}</div>
+      <div class="raportti-muokkaajat" id="raportti-muokkaajat-${avain}"></div>`;
+    div.querySelector(".raportti-muokkaa-nappi").addEventListener("click", () => {
+      window.avaaRaporttiMuokkaus?.(tid, avain, otsikko, teksti);
+    });
+    sisalto.appendChild(div);
+  }
+}
+
+function avaaRaporttiTulostus(slug, tutkimus, osiot) {
+  const nimi = tutkimus?.LuokittelunNimi || slug;
+  let html = `<!DOCTYPE html><html lang="fi"><head><meta charset="utf-8">
+    <title>${nimi} — raportti</title>
+    <style>
+      body { font-family: Georgia, serif; max-width: 800px; margin: 2rem auto; color: #111; }
+      h1 { font-size: 1.6rem; margin-bottom: 0.5rem; }
+      h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #ccc; padding-bottom: 0.3rem; }
+      p { line-height: 1.7; margin: 0.5rem 0; }
+    </style></head><body>
+    <h1>${nimi}</h1>`;
+  for (const { avain, otsikko } of RAPORTTI_OSIOT) {
+    const teksti = osiot[avain] || "";
+    html += `<h2>${otsikko}</h2><p>${teksti.replace(/\n/g, "</p><p>")}</p>`;
+  }
+  html += `<script>window.print();<\/script></body></html>`;
+  const ikkuna = window.open("", "_blank");
+  if (ikkuna) {
+    ikkuna.document.write(html);
+    ikkuna.document.close();
+  }
+}
+
 // --- Automaattinen päivitys ---
 
 const PAIVITYSVALI_MS = 15 * 1000;
@@ -557,6 +635,8 @@ async function paivitaNakyma() {
         await renderTutkimusKurssit(r.slug, aktiivinen_tutkimus.LuokittelunNimi);
       } else if (r.alasivu === "arvioinnit") {
         await renderTutkimusArvioinnit(r.slug, aktiivinen_tutkimus.LuokittelunNimi);
+      } else if (r.alasivu === "raportti") {
+        await renderTutkimusRaportti(r.slug, aktiivinen_tutkimus);
       } else if (r.alasivu === "tiedot") {
         // tiedot-näkymä on staattinen, ei tarvitse päivittää
       }

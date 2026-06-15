@@ -74,9 +74,10 @@ def _lisaa(stdscr) -> None:
     if not arviointikehote:
         nayta_viesti(stdscr, "Peruutettu (arviointikehote pakollinen).")
         return
-    oppiainerajaus = lue_teksti(stdscr, "Oppiainerajaus, pilkulla eroteltu (tyhjä = kaikki)", 7)
+    raportointikehote = lue_teksti(stdscr, "Raportointikehote (tyhjä = ei)", 7)
+    oppiainerajaus = lue_teksti(stdscr, "Oppiainerajaus, pilkulla eroteltu (tyhjä = kaikki)", 8)
     tasorajaus = _valitse_tasot(stdscr)
-    mallit.lisaa_tutkimus(nimi, slug, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote)
+    mallit.lisaa_tutkimus(nimi, slug, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote)
     piirra_otsikko(stdscr, "Lisää tutkimus")
     nayta_viesti(stdscr, f"Lisätty: {nimi} ({slug})")
 
@@ -93,9 +94,10 @@ def _muokkaa(stdscr) -> None:
         return
     luokittelukehote = lue_teksti(stdscr, "Valintakehote", 5, tutkimus["Luokittelukehote"])
     arviointikehote = lue_teksti(stdscr, "Arviointikehote", 6, tutkimus["Arviointikehote"])
-    oppiainerajaus = lue_teksti(stdscr, "Oppiainerajaus, pilkulla eroteltu (tyhjä = kaikki)", 7, tutkimus["Oppiainerajaus"] or "")
+    raportointikehote = lue_teksti(stdscr, "Raportointikehote", 7, tutkimus.get("Raportointikehote") or "")
+    oppiainerajaus = lue_teksti(stdscr, "Oppiainerajaus, pilkulla eroteltu (tyhjä = kaikki)", 8, tutkimus["Oppiainerajaus"] or "")
     tasorajaus = _valitse_tasot(stdscr, tutkimus["Tasorajaus"] or "")
-    mallit.paivita_tutkimus(tutkimus["TID"], nimi, slug, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote)
+    mallit.paivita_tutkimus(tutkimus["TID"], nimi, slug, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote)
     piirra_otsikko(stdscr, "Muokkaa tutkimusta")
     nayta_viesti(stdscr, f"Päivitetty: {nimi}")
 

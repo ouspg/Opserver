@@ -354,6 +354,26 @@ window.tallennaMuokkausKommentti = function (tid, kid, kysid, teksti) {
   ws.send(JSON.stringify({ tyyppi: "muokkaus-tallenna", tid, kid, kysid, teksti }));
 };
 
+window.liityRaporttiSessioon = function (tid, avain) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ tyyppi: "raportti-liity", tid, avain }));
+};
+
+window.poistuRaporttiSessiosta = function (tid, avain) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ tyyppi: "raportti-poistu", tid, avain }));
+};
+
+window.lahetaRaporttiTeksti = function (tid, avain, teksti, kursori) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ tyyppi: "raportti-teksti", tid, avain, teksti, kursori }));
+};
+
+window.tallennRaporttiOsio = function (tid, avain, teksti) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ tyyppi: "raportti-tallenna", tid, avain, teksti }));
+};
+
 // --- Nav-indikaattorit ---
 
 function sivuNavPolku(sivu) {
@@ -484,6 +504,8 @@ function yhdista() {
       paivitaNavIndikaattorit();
     } else if (viesti.tyyppi === "muokkaus-sessio") {
       window.muokkausKuuntelija?.(viesti);
+    } else if (viesti.tyyppi === "raportti-sessio") {
+      window.raporttisessioKuuntelija?.(viesti);
     }
   });
 

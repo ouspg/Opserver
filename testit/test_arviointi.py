@@ -100,5 +100,7 @@ class TestAja:
              patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value="system"):
             llmarviointi.aja(TUTKIMUS, edistyminen)
 
-        assert len(tapahtumat) == 1
-        assert tapahtumat[0] == (2, 2, 1, 1)
+        # Pre-batch (0 käsitelty) ja post-batch (2 käsitelty) — yhteensä 2 tapahtumaa
+        assert len(tapahtumat) == 2
+        assert tapahtumat[0] == (0, 2, 1, 1)
+        assert tapahtumat[1] == (2, 2, 1, 1)

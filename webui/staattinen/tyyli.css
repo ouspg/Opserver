@@ -626,3 +626,86 @@ td.toiminto { text-align: right; white-space: nowrap; }
   justify-content: flex-end;
   margin-top: 0.5rem;
 }
+
+/* --- Raportti --- */
+
+.raportti-toiminnot {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1.5rem;
+}
+
+.raportti-osio {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.raportti-osio-otsikkorivi {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.raportti-osio-otsikko {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #16213e;
+}
+
+.raportti-muokkaa-nappi {
+  flex-shrink: 0;
+}
+
+.raportti-osio-teksti {
+  line-height: 1.75;
+  color: #2a2a3a;
+  font-size: 0.95rem;
+}
+
+.raportti-muokkaajat {
+  font-size: 0.78rem;
+  color: #555;
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+#raporttimuokkaus-tekstialue {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  border: 1px solid #c0cce0;
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  display: block;
+}
+
+#raporttimuokkaus-kursorit {
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+#raporttimuokkaus-muokkaajat {
+  font-size: 0.78rem;
+  color: #555;
+  margin-top: 0.3rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+@media print {
+  header, #hitl-modaali, #modaali, #arviointimuokkaus-modaali,
+  #raporttimuokkaus-modaali, .raportti-toiminnot, .raportti-muokkaa-nappi,
+  .raportti-muokkaajat { display: none !important; }
+  .raportti-osio { box-shadow: none; border: none; padding: 0; }
+}
