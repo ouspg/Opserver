@@ -4,7 +4,7 @@
 
 let _tid = null, _kid = null, _kysid = null;
 let _lahetysAjastin = null;
-const LAHETYS_VALI_MS = 60;
+const MUOKKAUS_LAHETYS_VALI_MS = 60;
 
 function luoMuokkausModaali() {
   if (document.getElementById("arviointimuokkaus-modaali")) return;
@@ -53,7 +53,7 @@ function lahetaTeksti(ta) {
   clearTimeout(_lahetysAjastin);
   _lahetysAjastin = setTimeout(() => {
     window.lahetaMuokkausTeksti?.(_tid, _kid, _kysid, ta.value, ta.selectionStart);
-  }, LAHETYS_VALI_MS);
+  }, MUOKKAUS_LAHETYS_VALI_MS);
 }
 
 function tallenna() {
