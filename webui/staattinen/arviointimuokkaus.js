@@ -73,12 +73,13 @@ function suljeArviointiMuokkaus() {
 }
 
 function kursorinPikseli(ta, sijainti) {
-  // Luo peiliElementti textarea:n tekstitilanteen laskemiseksi
   const tyyli = window.getComputedStyle(ta);
   const peili = document.createElement("div");
+  // Sijoita peili pois näkyvistä mutta renderöi samanlaisena kuin textarea
   peili.style.cssText = `
-    position:absolute;visibility:hidden;white-space:pre-wrap;word-wrap:break-word;
-    width:${ta.clientWidth}px;
+    position:absolute;top:-9999px;left:-9999px;visibility:hidden;
+    white-space:pre-wrap;word-wrap:break-word;overflow:hidden;
+    width:${ta.offsetWidth}px;
     font:${tyyli.font};
     padding:${tyyli.padding};
     border:${tyyli.border};
@@ -91,12 +92,13 @@ function kursorinPikseli(ta, sijainti) {
   span.textContent = "|";
   peili.appendChild(span);
   document.body.appendChild(peili);
-  const rect = span.getBoundingClientRect();
-  const taRect = ta.getBoundingClientRect();
+  const peiliRect = peili.getBoundingClientRect();
+  const spanRect = span.getBoundingClientRect();
   document.body.removeChild(peili);
+  // Koordinaatit suhteessa peilin vasempaan yläkulmaan = suhteessa textarea:n sisältöön
   return {
-    x: rect.left - taRect.left + ta.scrollLeft,
-    y: rect.top - taRect.top + ta.scrollTop,
+    x: spanRect.left - peiliRect.left,
+    y: spanRect.top - peiliRect.top + ta.scrollTop,
   };
 }
 
@@ -105,8 +107,11 @@ function piirraKursorit(muokkaajat) {
   const canvas = document.getElementById("arviointimuokkaus-kursorit");
   if (!ta || !canvas) return;
 
+  // Aseta canvas textarean päälle täsmälleen
   canvas.width = ta.offsetWidth;
   canvas.height = ta.offsetHeight;
+  canvas.style.top = ta.offsetTop + "px";
+  canvas.style.left = ta.offsetLeft + "px";
 
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
