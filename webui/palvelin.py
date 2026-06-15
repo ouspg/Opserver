@@ -1,7 +1,9 @@
 """kyberESR web-käyttöliittymän FastAPI-palvelin."""
+import json
 import os
+import uuid
 from typing import Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -9,6 +11,39 @@ from pydantic import BaseModel
 from tietokanta import mallit
 
 sovellus = FastAPI(title="kyberESR")
+
+# --- Reaaliaikainen läsnäolo (WebSocket) ---
+
+_yhteydet: dict[str, tuple[WebSocket, dict]] = {}
+
+
+async def _laheta_kaikille() -> None:
+    kayttajat = [{"id": uid, **data} for uid, (_, data) in _yhteydet.items() if data]
+    viesti = json.dumps({"tyyppi": "kayttajat", "data": kayttajat})
+    katkaistut = []
+    for uid, (ws, _) in list(_yhteydet.items()):
+        try:
+            await ws.send_text(viesti)
+        except Exception:
+            katkaistut.append(uid)
+    for uid in katkaistut:
+        _yhteydet.pop(uid, None)
+
+
+@sovellus.websocket("/ws")
+async def ws_kayttajat(ws: WebSocket) -> None:
+    await ws.accept()
+    uid = str(uuid.uuid4())[:8]
+    _yhteydet[uid] = (ws, {})
+    try:
+        await ws.send_text(json.dumps({"tyyppi": "oma-id", "id": uid}))
+        while True:
+            data = await ws.receive_json()
+            _yhteydet[uid] = (ws, data)
+            await _laheta_kaikille()
+    except WebSocketDisconnect:
+        _yhteydet.pop(uid, None)
+        await _laheta_kaikille()
 
 STAATTINEN = os.path.join(os.path.dirname(__file__), "staattinen")
 _INDEX = os.path.join(STAATTINEN, "index.html")

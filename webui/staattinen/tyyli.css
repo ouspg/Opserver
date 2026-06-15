@@ -315,3 +315,167 @@ td.toiminto { text-align: right; white-space: nowrap; }
   word-break: break-word;
   margin: 0.5rem 0 1rem;
 }
+
+/* --- Yhteistyö: nimimerkki + profiili --- */
+
+#yhteistyo-alue {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+  flex-wrap: wrap;
+}
+
+#muut-ympyrat {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.vieras-ympyra-pieni {
+  border-radius: 50%;
+  display: block;
+  flex-shrink: 0;
+}
+
+#oma-alue {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+#oma-ympyra {
+  border-radius: 50%;
+  cursor: pointer;
+  display: block;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+#oma-ympyra:hover { opacity: 0.85; }
+
+.nimimerkki-ohje {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.55);
+  white-space: nowrap;
+}
+
+#nimimerkki-kentta {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  color: #fff;
+  padding: 0.22rem 0.5rem;
+  font-size: 0.88rem;
+  width: 200px;
+}
+
+#nimimerkki-kentta:focus {
+  outline: none;
+  border-color: rgba(255,255,255,0.45);
+  background: rgba(255,255,255,0.15);
+}
+
+#nollaa-nimimerkki {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  color: rgba(255,255,255,0.65);
+  padding: 0.2rem 0.5rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#nollaa-nimimerkki:hover {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}
+
+/* Profiilimuokkaus-popup */
+
+#profiili-muokkaus {
+  position: fixed;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  padding: 0.9rem 1rem;
+  z-index: 200;
+  min-width: 220px;
+}
+
+.profiili-esikatselu-rivi {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.7rem;
+}
+
+#profiili-esikatselu {
+  border-radius: 50%;
+  display: block;
+}
+
+.vari-otsikko {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.3rem;
+}
+
+.vari-ruudukko {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 0.65rem;
+}
+
+.vari-nappula {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.vari-nappula:hover { opacity: 0.8; }
+.vari-nappula.valittu { border-color: #333; }
+
+.profiili-napit {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.profiili-napit button {
+  flex: 1;
+  background: #ececf4;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.profiili-napit button:hover { background: #dde; }
+
+/* Leijuvat kursorit */
+
+#kursori-kerros {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  overflow: hidden;
+}
+
+.vieras-kursori {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  transition: left 0.15s ease-out, top 0.15s ease-out;
+}
+
+.vieras-kursori canvas {
+  display: block;
+  border-radius: 50%;
+}
