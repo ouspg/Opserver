@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Tulostaa raportin LLM-kehotteet tutkimukselle ilman LLM-kutsua.
+#
+# Käyttö:
+#   ./kehotteet <slug>
+#   ./kehotteet esr_kyber | less
+SKRIPTI="$(cd "$(dirname "$0")" && pwd)"
+cd "$SKRIPTI" && exec .venv/bin/python raportti/_kehotteet.py "$@"
