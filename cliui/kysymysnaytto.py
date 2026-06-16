@@ -3,8 +3,8 @@ from tietokanta import mallit
 from cliui.apurit import piirra_otsikko, nayta_viesti, lue_teksti, valitse_listasta
 
 _KATKAISU = 50
-_TYYPIT = ["vapaa_teksti", "luokittelu", "asteikko"]
-_TYYPPI_LYHENNE = {"vapaa_teksti": "TXT", "luokittelu": "LUO", "asteikko": "AST"}
+_TYYPIT = ["vapaa_teksti", "luokittelu", "asteikko", "lista"]
+_TYYPPI_LYHENNE = {"vapaa_teksti": "TXT", "luokittelu": "LUO", "asteikko": "AST", "lista": "LIS"}
 
 
 def _lyhenna(teksti: str) -> str:
@@ -120,6 +120,7 @@ def _valitse_tyyppi(stdscr) -> str | None:
         "vapaa_teksti — LLM vastaa vapaalla tekstillä",
         "luokittelu — LLM valitsee luokan + antaa perustelun",
         "asteikko — LLM antaa pistemäärän + perustelun",
+        "lista — LLM luettelee erilliset kohdat + antaa perustelun",
     ]
     valinta = valitse_listasta(stdscr, "Valitse kysymystyyppi", vaihtoehdot)
     if valinta is None:
@@ -132,7 +133,22 @@ def _muokkaa_maarittely(stdscr, tyyppi: str, nykyinen: dict | None) -> dict | No
         return _muokkaa_luokittelu(stdscr, nykyinen)
     if tyyppi == "asteikko":
         return _muokkaa_asteikko(stdscr, nykyinen)
+    if tyyppi == "lista":
+        return _muokkaa_lista(stdscr, nykyinen)
     return None
+
+
+def _muokkaa_lista(stdscr, nykyinen: dict | None) -> dict | None:
+    """Valinnainen yläraja luettelon kohtien määrälle (tyhjä = ei rajaa)."""
+    piirra_otsikko(stdscr, "Lista — kohtien yläraja")
+    nykyinen_max = str(nykyinen.get("max_kohdat")) if nykyinen and nykyinen.get("max_kohdat") else ""
+    max_str = lue_teksti(stdscr, "Kohtien yläraja (kokonaisluku, tyhjä = ei rajaa)", 3, nykyinen_max)
+    if not max_str.strip():
+        return {}
+    try:
+        return {"max_kohdat": int(max_str)}
+    except ValueError:
+        return {}
 
 
 def _muokkaa_luokittelu(stdscr, nykyinen: dict | None) -> dict | None:

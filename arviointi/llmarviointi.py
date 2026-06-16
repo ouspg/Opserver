@@ -73,6 +73,11 @@ def _rakenna_kysymysteksti(kysymykset: list[dict]) -> str:
             for p in pisteet:
                 rivit.append(f'   - {p["arvo"]}/{maksimi}: {p["kuvaus"]}')
             rivit.append(f'   Palauta objekti: {{"pisteet": <{minimi}-{maksimi}>, "perustelu": "<selitys>"}}')
+        elif luokittelu == "lista":
+            maks = maarittely.get("max_kohdat")
+            raja = f" (enintään {maks} kohtaa)" if maks else ""
+            rivit.append(f'   Luettele asiat erillisinä kohtina{raja}.')
+            rivit.append('   Palauta objekti: {"kohdat": ["<kohta1>", "<kohta2>", …], "perustelu": "<selitys>"}')
     return "\n".join(rivit)
 
 
@@ -85,22 +90,23 @@ def _tallenna_tulokset(tulokset: list[dict], kysymykset: list[dict], malli: str,
             raw = vastaukset_lista[i] if i < len(vastaukset_lista) else ""
             luokittelu = k.get("Luokittelu") or "vapaa_teksti"
 
+            pisteet = luokka = lista = None
             if luokittelu == "luokittelu" and isinstance(raw, dict):
                 vastaus = raw.get("perustelu", "")
                 luokka = raw.get("luokka", "")
-                pisteet = None
             elif luokittelu == "asteikko" and isinstance(raw, dict):
                 vastaus = raw.get("perustelu", "")
                 pisteet = float(raw["pisteet"]) if raw.get("pisteet") is not None else None
-                luokka = None
+            elif luokittelu == "lista" and isinstance(raw, dict):
+                vastaus = raw.get("perustelu", "")
+                kohdat = raw.get("kohdat", [])
+                lista = [str(x) for x in kohdat] if isinstance(kohdat, list) else []
             else:
                 vastaus = str(raw) if raw else ""
-                pisteet = None
-                luokka = None
 
             tiiv = (kys_tiiviste or {}).get(k["KysID"])
             mallit.aseta_vastaus(k["KysID"], kid, vastaus, malli,
-                                 pisteet=pisteet, luokka=luokka, tiiviste=tiiv)
+                                 pisteet=pisteet, luokka=luokka, lista=lista, tiiviste=tiiv)
 
 
 def _arvioi_erä(erä: list[dict], arviointikehote: str, kysymykset: list[dict], jarjestelma: str) -> list[dict]:
