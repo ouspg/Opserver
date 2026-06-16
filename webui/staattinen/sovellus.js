@@ -550,14 +550,20 @@ function _renderArviointiSolu(kys, v) {
   if (typeof v === "string") return v || "—";
   const luokittelu = kys.Luokittelu || "vapaa_teksti";
   const perustelu = v?.vastaus ? `<em class="arvio-perustelu">${v.vastaus}</em>` : "";
+  // Vanhentunut = tekoälyn vastaus on generoitu vanhaan kysymykseen/kehotteeseen
+  const vanha = v?.vanhentunut
+    ? `<span class="vanha-merkki" title="Tämä tekoälyn vastaus on generoitu vanhentuneeseen kysymykseen tai kehotteeseen. Aja LLM-arviointi uudelleen päivittääksesi.">⚠ vanhentunut</span>`
+    : "";
+  let body;
   if (luokittelu === "luokittelu" && v?.luokka) {
-    return `<span class="luokka-badge">${v.luokka}</span>${perustelu}`;
-  }
-  if (luokittelu === "asteikko" && v?.pisteet != null) {
+    body = `<span class="luokka-badge">${v.luokka}</span>${perustelu}`;
+  } else if (luokittelu === "asteikko" && v?.pisteet != null) {
     const max = kys.LuokitteluMaarittely?.maksimi;
-    return `<span class="pisteet-arvo">${v.pisteet}${max ? "/" + max : ""}</span>${perustelu}`;
+    body = `<span class="pisteet-arvo">${v.pisteet}${max ? "/" + max : ""}</span>${perustelu}`;
+  } else {
+    body = v?.vastaus || "—";
   }
-  return v?.vastaus || "—";
+  return vanha + body;
 }
 
 function _vastusTeksti(v) {

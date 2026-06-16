@@ -38,3 +38,8 @@ def kysymys(arviointikehote: str, jarjestelma: str, kysymys_data: dict) -> str:
     """Arviointivastauksen tiiviste: muuttuu kun arviointikehote, järjestelmäkehote
     tai kyseinen kysymys muuttuu — mahdollistaa vain muuttuneen kysymyksen uudelleenajon."""
     return laske(arviointikehote, jarjestelma, _kysymys_kanoninen(kysymys_data))
+
+
+def kysymystiivisteet(arviointikehote: str, jarjestelma: str, kysymykset: list[dict]) -> dict:
+    """{KysID: nykyinen tiiviste} annetuille kysymyksille. Jaettu pipeline + WebUI."""
+    return {k["KysID"]: kysymys(arviointikehote, jarjestelma, k) for k in kysymykset}

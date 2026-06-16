@@ -601,6 +601,19 @@ td.toiminto { text-align: right; white-space: nowrap; }
   margin-top: 0.15rem;
 }
 
+.vanha-merkki {
+  display: inline-block;
+  background: #fff3cd;
+  color: #8a6100;
+  border: 1px solid #ffe08a;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+  margin-bottom: 0.2rem;
+  cursor: help;
+}
+
 .tilastot-osio {
   background: #f4f6fb;
   border: 1px solid #d0d9ee;

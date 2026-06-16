@@ -1,8 +1,7 @@
 """LLM-luokittelu: lähettää meta-suodatuksen läpäisseet kurssit LLM:lle."""
 import json
-import os
 from tietokanta import mallit
-from llm import kutsu, tiiviste
+from llm import kutsu, tiiviste, kehoteet
 
 ERÄKOKO = 20  # kursseja per LLM-kutsu
 
@@ -35,11 +34,7 @@ def _kurssi_json_promptiin(kurssi: dict) -> dict:
 
 
 def _lue_jarjestelma_kehote() -> str:
-    polku = os.path.join(
-        os.path.dirname(__file__), "..", "kehoteet", "luokittelu_jarjestelma.txt"
-    )
-    with open(polku, encoding="utf-8") as f:
-        return f.read().strip()
+    return kehoteet.lue("luokittelu_jarjestelma.txt")
 
 
 def _erittele_json(teksti: str) -> list[dict]:

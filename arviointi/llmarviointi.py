@@ -1,8 +1,7 @@
 """LLM-arviointi: lähettää mukaan otetut kurssit LLM:lle kysymysvastauksiin."""
 import json
-import os
 from tietokanta import mallit
-from llm import kutsu, tiiviste
+from llm import kutsu, tiiviste, kehoteet
 
 ERÄKOKO = 5
 
@@ -35,11 +34,7 @@ def _kurssi_json_promptiin(kurssi: dict) -> dict:
 
 
 def _lue_jarjestelma_kehote() -> str:
-    polku = os.path.join(
-        os.path.dirname(__file__), "..", "kehoteet", "arviointi_jarjestelma.txt"
-    )
-    with open(polku, encoding="utf-8") as f:
-        return f.read().strip()
+    return kehoteet.lue("arviointi_jarjestelma.txt")
 
 
 def _erittele_json(teksti: str) -> list[dict]:
@@ -145,7 +140,7 @@ def _selvita_tyo(tutkimus: dict) -> dict:
                 "arviointikehote": arviointikehote, "kurssi_kartta": {}, "olemassa": {}, "tyo": {}}
 
     jarjestelma = _lue_jarjestelma_kehote()
-    kys_tiiviste = {k["KysID"]: tiiviste.kysymys(arviointikehote, jarjestelma, k) for k in kysymykset}
+    kys_tiiviste = tiiviste.kysymystiivisteet(arviointikehote, jarjestelma, kysymykset)
     kurssit = mallit.hae_valitut_kurssit(tid)
     olemassa = mallit.hae_vastaus_tiivisteet(tid)
 
