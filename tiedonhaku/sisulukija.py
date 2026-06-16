@@ -71,24 +71,28 @@ class SisuLukija(OpsLukija):
 
         group_idt = self._keraa_group_idt(pohja, yliopisto_id, kausi_id, list(organisaatiot.keys()), tila_cb)
         jo_kannassa = mallit.hae_tallennetut_lahde_idt(kkid, kausi)
-        uudet = [gid for gid in group_idt if gid not in jo_kannassa]
 
-        yhteensa = len(uudet)
+        yhteensa = len(group_idt)
         tallennettu = 0
         ohitettu = 0
 
-        for i in range(0, len(uudet), ERAKOKO):
-            era = uudet[i : i + ERAKOKO]
+        for i in range(0, len(group_idt), ERAKOKO):
+            era = group_idt[i : i + ERAKOKO]
             try:
                 kurssit_data = self._hae_kurssierat(pohja, yliopisto_id, era)
             except requests.exceptions.RequestException:
                 ohitettu += len(era)
                 continue
             for kurssi_data in kurssit_data:
+                # Sisulla LahdeId = kurssin yksilöivä UUID (id-kenttä),
+                # ei groupId — groupId ei toimi Sisun SPA-reitityksessä.
+                uuid = kurssi_data.get("id")
+                if uuid in jo_kannassa:
+                    continue
                 kurssi = self._jasenna_kurssi(kurssi_data, organisaatiot)
                 mallit.tallenna_kurssi(
                     kkid=kkid,
-                    lahde_id=kurssi["lahde_id"],
+                    lahde_id=uuid,
                     koodi=kurssi["koodi"],
                     kurssi_nimi=kurssi["kurssi_nimi"],
                     taso=kurssi["taso"],
@@ -204,7 +208,7 @@ class SisuLukija(OpsLukija):
             if teksti:
                 kuvaus_osat.append(teksti)
         return {
-            "lahde_id": data.get("groupId"),
+            "lahde_id": data.get("id"),
             "koodi": data.get("code"),
             "kurssi_nimi": _fi(data.get("name"))[:255],
             "taso": _muunna_taso(data.get("studyLevel")),

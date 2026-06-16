@@ -97,7 +97,7 @@ def test_jasenna_kurssi_perustiedot():
     org_nimet = {"jy-ORG-25": "Informaatioteknologian tiedekunta"}
     kurssi_data = _fixture("sisu_kurssi.json")[0]
     kurssi = lukija._jasenna_kurssi(kurssi_data, org_nimet)
-    assert kurssi["lahde_id"] == "jy-CU-30338"
+    assert kurssi["lahde_id"] == "otm-1e84a2f0-5e70-4e01-937c-60337616cff3"
     assert kurssi["koodi"] == "TJTA237"
     assert kurssi["kurssi_nimi"] == "Informaatio- ja tietotekniikkaoikeus"
     assert kurssi["taso"] == "aine"
@@ -137,7 +137,7 @@ def test_hae_kurssit_tallentaa_uudet_kurssit():
     assert ohitettu == 0
     mock_tallenna.assert_called_once()
     kutsu_kwargs = mock_tallenna.call_args.kwargs
-    assert kutsu_kwargs["lahde_id"] == "jy-CU-30338"
+    assert kutsu_kwargs["lahde_id"] == "otm-1e84a2f0-5e70-4e01-937c-60337616cff3"
     assert kutsu_kwargs["koodi"] == "TJTA237"
     assert kutsu_kwargs["taso"] == "aine"
     assert kutsu_kwargs["opetusvuosi"] == "2025-2026"
@@ -148,7 +148,7 @@ def test_hae_kurssit_ohittaa_jo_kannassa_olevat():
     lukija._yliopisto_id = "jyu-university-root-id"
     with patch.object(SisuLukija, "_hae_json", side_effect=_mock_hae_json), \
          patch("tiedonhaku.sisulukija.mallit.hae_tallennetut_lahde_idt",
-               return_value={"jy-CU-30338", "jy-CU-29395"}), \
+               return_value={"otm-1e84a2f0-5e70-4e01-937c-60337616cff3"}), \
          patch("tiedonhaku.sisulukija.mallit.tallenna_kurssi") as mock_tallenna:
         tallennettu, ohitettu = lukija.hae_kurssit("2025-2026")
     mock_tallenna.assert_not_called()
