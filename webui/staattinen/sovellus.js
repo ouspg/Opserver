@@ -396,6 +396,15 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
 async function renderTutkimusKurssit(slug, nimi) {
   document.getElementById("tutkimus-kurssit-otsikko").textContent = `${nimi} — kurssit`;
   tutkimus_luokitukset = await fetch(`/api/tutkimukset/${slug}/luokitukset`).then((r) => r.json());
+  const lkmt = {
+    mukana:  tutkimus_luokitukset.filter((k) => k.Mukana === true  || k.Mukana === 1).length,
+    odottaa: tutkimus_luokitukset.filter((k) => k.Mukana === null).length,
+    "hylätty": tutkimus_luokitukset.filter((k) => k.Mukana === false || k.Mukana === 0).length,
+  };
+  const nimet = { mukana: "Mukana", odottaa: "Odottaa", "hylätty": "Hylätty" };
+  document.querySelectorAll(".tila-nappi").forEach((b) => {
+    b.textContent = `${nimet[b.dataset.tila]} (${lkmt[b.dataset.tila] ?? 0})`;
+  });
   renderTutkimusKurssitTila();
 }
 
