@@ -2,7 +2,7 @@
 import json
 import os
 from tietokanta import mallit
-from llm import kutsu
+from llm import kutsu, tiiviste
 
 ERÄKOKO = 20  # kursseja per LLM-kutsu
 
@@ -69,6 +69,11 @@ def _luokittele_erä(erä: list[dict], luokittelukehote: str, jarjestelma: str) 
         return _erittele_json(vastaus2)
 
 
+def laske_tiiviste(tutkimus: dict) -> str:
+    """Nykyisen luokittelukehotteen tiiviste (kehote + järjestelmäkehote)."""
+    return tiiviste.luokittelu(tutkimus["Luokittelukehote"], _lue_jarjestelma_kehote())
+
+
 def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int]:
     """Luokittelee meta-suodatuksen läpäisseet kurssit LLM:llä.
 
@@ -77,8 +82,11 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int]:
     tid = tutkimus["TID"]
     luokittelukehote = tutkimus["Luokittelukehote"]
     jarjestelma = _lue_jarjestelma_kehote()
+    tiiv = tiiviste.luokittelu(luokittelukehote, jarjestelma)
 
-    kandidaatit = mallit.hae_luokittelemattomat(tid)
+    # Tiiviste mukana → ajaa myös vanhentuneen kehotteen tulokset uudelleen,
+    # mutta ei jo täsmäävän kehotteen tuloksia (säästää LLM-kuluja).
+    kandidaatit = mallit.hae_luokittelemattomat(tid, tiiv)
     if not kandidaatit:
         return 0, 0
 
@@ -94,7 +102,7 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int]:
             kid = tulos["id"]
             on_mukana = bool(tulos.get("mukana"))
             perustelu = tulos.get("perustelu", "")
-            mallit.aseta_luokitus(tid, kid, on_mukana, perustelu, malli)
+            mallit.aseta_luokitus(tid, kid, on_mukana, perustelu, malli, tiiviste=tiiv)
             if on_mukana:
                 mukana += 1
             else:

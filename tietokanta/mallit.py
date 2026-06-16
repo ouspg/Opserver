@@ -275,17 +275,39 @@ def hae_vastaukset(tid: int) -> list[dict]:
 
 # --- Luokittelun apufunktiot ---
 
-def hae_luokittelemattomat(tid: int) -> list[dict]:
-    """Kurssit, jotka odottavat LLM-seulontaa (ei riviä tai Mukana IS NULL)."""
+def hae_luokittelemattomat(tid: int, tiiviste: str | None = None) -> list[dict]:
+    """Kurssit, jotka odottavat LLM-seulontaa.
+
+    Aina mukana: kurssit joilla ei ole luokitusriviä tai Mukana IS NULL
+    (meta-suodatuksen läpäisseet, jotka odottavat LLM:ää).
+
+    Jos tiiviste annetaan: lisäksi aiemmin LLM-luokitellut kurssit, joiden
+    tallennettu Kehotetiiviste eroaa nykyisestä (kehote on muuttunut) — pois
+    lukien ihmisen HITL-korjaamat, joiden päätös säilytetään.
+    """
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute("""
-                SELECT k.*
-                FROM Kurssi k
-                LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
-                WHERE kl.KID IS NULL OR kl.Mukana IS NULL
-                ORDER BY k.KurssiNimi
-            """, (tid,))
+            if tiiviste is None:
+                kursori.execute("""
+                    SELECT k.*
+                    FROM Kurssi k
+                    LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
+                    WHERE kl.KID IS NULL OR kl.Mukana IS NULL
+                    ORDER BY k.KurssiNimi
+                """, (tid,))
+            else:
+                kursori.execute("""
+                    SELECT k.*
+                    FROM Kurssi k
+                    LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
+                    WHERE kl.KID IS NULL
+                       OR kl.Mukana IS NULL
+                       OR (kl.Kehotetiiviste IS NOT NULL
+                           AND NOT (kl.Kehotetiiviste <=> %s)
+                           AND NOT EXISTS (SELECT 1 FROM HitlKorjaus h
+                                           WHERE h.TID = %s AND h.KID = k.KID))
+                    ORDER BY k.KurssiNimi
+                """, (tid, tiiviste, tid))
             return _rivit_dikteina(kursori)
 
 
@@ -318,15 +340,17 @@ def hae_hitl_historia(tid: int) -> list[dict]:
 
 # --- Kurssiluokitus ---
 
-def aseta_luokitus(tid: int, kid: int, mukana: bool | None, perustelu: str, malli: str = "") -> None:
+def aseta_luokitus(tid: int, kid: int, mukana: bool | None, perustelu: str,
+                   malli: str = "", tiiviste: str | None = None) -> None:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                """INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste, Malli)
-                   VALUES (%s, %s, %s, %s, %s)
+                """INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste, Malli, Kehotetiiviste)
+                   VALUES (%s, %s, %s, %s, %s, %s)
                    ON DUPLICATE KEY UPDATE Mukana = VALUES(Mukana),
-                       Luokitteluperuste = VALUES(Luokitteluperuste), Malli = VALUES(Malli)""",
-                (tid, kid, mukana, perustelu, malli),
+                       Luokitteluperuste = VALUES(Luokitteluperuste), Malli = VALUES(Malli),
+                       Kehotetiiviste = VALUES(Kehotetiiviste)""",
+                (tid, kid, mukana, perustelu, malli, tiiviste),
             )
 
 

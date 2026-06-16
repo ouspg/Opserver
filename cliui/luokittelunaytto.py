@@ -71,10 +71,28 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
     from luokittelu import llmluokittelu
     piirra_otsikko(stdscr, f"LLM-luokittelu — {tutkimus['LuokittelunNimi']}")
 
-    odottavat = mallit.hae_luokittelemattomat(tutkimus["TID"])
-    if not odottavat:
-        nayta_viesti(stdscr, "Kaikki kurssit on jo luokiteltu. Katso tilanne-näkymästä.")
+    tid = tutkimus["TID"]
+    tiiv = llmluokittelu.laske_tiiviste(tutkimus)
+    uudet = len(mallit.hae_luokittelemattomat(tid))            # ei vielä LLM-luokiteltu
+    kaikki = len(mallit.hae_luokittelemattomat(tid, tiiv))     # + vanhentuneen kehotteen tulokset
+    vanhentuneet = kaikki - uudet
+
+    if kaikki == 0:
+        nayta_viesti(stdscr, "Kaikki kurssit on jo luokiteltu nykyisellä kehotteella.")
         return
+
+    # Varoita kustannusvaikutuksesta, jos kehotteen muutos pakottaa uudelleenajon
+    if vanhentuneet > 0:
+        valinta = valitse_listasta(
+            stdscr,
+            "LLM-luokittelu — kehote on muuttunut",
+            [
+                f"Aja LLM: {uudet} uutta + {vanhentuneet} uudelleen (kehote muuttui) — LLM-kuluja",
+                "Peruuta",
+            ],
+        )
+        if valinta != 0:
+            return
 
     stdscr.addstr(3, 0, "Yhdistetään LLM:ään...")
     stdscr.refresh()
