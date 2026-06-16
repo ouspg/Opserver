@@ -46,9 +46,14 @@ class TestErittelleJson:
 
 
 class TestAja:
+    """aja() perustuu nyt hae_valitut_kurssit + hae_vastaus_tiivisteet -tietoihin.
+    olemassa={} → mikään kurssi ei ole vielä arvioitu → kaikki kysymykset kysytään.
+    """
+
     def test_aja_kirjoittaa_vastaukset(self):
-        with patch("arviointi.llmarviointi.mallit.hae_arvioimattomat", return_value=KURSSIT), \
-             patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+        with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+             patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=KURSSIT), \
+             patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value={}), \
              patch("arviointi.llmarviointi.kutsu.kysy", return_value=LLM_VASTAUS), \
              patch("arviointi.llmarviointi.kutsu.hae_malli", return_value="testimalli"), \
              patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta, \
@@ -56,33 +61,79 @@ class TestAja:
             arvioitu = llmarviointi.aja(TUTKIMUS)
 
         assert arvioitu == 2
-        # 2 kurssit × 2 kysymystä = 4 aseta_vastaus-kutsua
+        # 2 kurssit × 2 kysymystä = 4 aseta_vastaus-kutsua, kukin tiivisteellä
         assert mock_aseta.call_count == 4
-        mock_aseta.assert_any_call(10, 1, "Kyllä", "testimalli", pisteet=None, luokka=None)
-        mock_aseta.assert_any_call(11, 1, "Ei", "testimalli", pisteet=None, luokka=None)
-        mock_aseta.assert_any_call(10, 2, "Ei", "testimalli", pisteet=None, luokka=None)
-        mock_aseta.assert_any_call(11, 2, "Kyllä", "testimalli", pisteet=None, luokka=None)
+        for c in mock_aseta.call_args_list:
+            assert c.kwargs["tiiviste"] and len(c.kwargs["tiiviste"]) == 64
+
+    def test_aja_ohittaa_jo_arvioidut_samalla_tiivisteella(self):
+        jarj = "system"
+        t10 = llmarviointi.tiiviste.kysymys(TUTKIMUS["Arviointikehote"], jarj, KYSYMYKSET[0])
+        t11 = llmarviointi.tiiviste.kysymys(TUTKIMUS["Arviointikehote"], jarj, KYSYMYKSET[1])
+        olemassa = {
+            (1, 10): {"tiiviste": t10, "vastattu": True},
+            (1, 11): {"tiiviste": t11, "vastattu": True},
+            (2, 10): {"tiiviste": t10, "vastattu": True},
+            (2, 11): {"tiiviste": t11, "vastattu": True},
+        }
+        with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+             patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=KURSSIT), \
+             patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value=olemassa), \
+             patch("arviointi.llmarviointi.kutsu.kysy") as mock_kysy, \
+             patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta, \
+             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value=jarj):
+            arvioitu = llmarviointi.aja(TUTKIMUS)
+        assert arvioitu == 0
+        mock_kysy.assert_not_called()
+        mock_aseta.assert_not_called()
+
+    def test_aja_kysyy_vain_muuttuneen_kysymyksen(self):
+        jarj = "system"
+        t10 = llmarviointi.tiiviste.kysymys(TUTKIMUS["Arviointikehote"], jarj, KYSYMYKSET[0])
+        olemassa = {
+            (1, 10): {"tiiviste": t10, "vastattu": True},
+            (1, 11): {"tiiviste": "vanha", "vastattu": True},
+            (2, 10): {"tiiviste": t10, "vastattu": True},
+            (2, 11): {"tiiviste": "vanha", "vastattu": True},
+        }
+        vastaus = '{"tulokset": [{"id": 1, "vastaukset": ["Uusi"]}, {"id": 2, "vastaukset": ["Uusi2"]}]}'
+        with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+             patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=KURSSIT), \
+             patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value=olemassa), \
+             patch("arviointi.llmarviointi.kutsu.kysy", return_value=vastaus) as mock_kysy, \
+             patch("arviointi.llmarviointi.kutsu.hae_malli", return_value="m"), \
+             patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta, \
+             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value=jarj):
+            llmarviointi.aja(TUTKIMUS)
+        viesti = mock_kysy.call_args.args[0]
+        assert "Soveltuuko" in viesti          # kysymys 11 mukana
+        assert "Liittyykö" not in viesti        # kysymys 10 ohitettu
+        assert mock_aseta.call_count == 2       # vain KysID 11, 2 kurssille
+        assert all(c.args[0] == 11 for c in mock_aseta.call_args_list)
 
     def test_aja_ilman_kysymyksia_palauttaa_nollan(self):
         with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=[]), \
-             patch("arviointi.llmarviointi.mallit.hae_arvioimattomat", return_value=KURSSIT), \
              patch("arviointi.llmarviointi.kutsu.kysy") as mock_kysy:
             arvioitu = llmarviointi.aja(TUTKIMUS)
         assert arvioitu == 0
         mock_kysy.assert_not_called()
 
-    def test_aja_ilman_arvioimattomia_palauttaa_nollan(self):
+    def test_aja_ilman_valittuja_kursseja_palauttaa_nollan(self):
         with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
-             patch("arviointi.llmarviointi.mallit.hae_arvioimattomat", return_value=[]), \
+             patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=[]), \
+             patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value={}), \
+             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value="system"), \
              patch("arviointi.llmarviointi.kutsu.kysy") as mock_kysy:
             arvioitu = llmarviointi.aja(TUTKIMUS)
         assert arvioitu == 0
         mock_kysy.assert_not_called()
 
     def test_aja_kutsuu_kysy_json_muodolla(self):
-        with patch("arviointi.llmarviointi.mallit.hae_arvioimattomat", return_value=KURSSIT[:1]), \
-             patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+        with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+             patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=KURSSIT[:1]), \
+             patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value={}), \
              patch("arviointi.llmarviointi.kutsu.kysy", return_value=LLM_VASTAUS) as mock_kysy, \
+             patch("arviointi.llmarviointi.kutsu.hae_malli", return_value="m"), \
              patch("arviointi.llmarviointi.mallit.aseta_vastaus"), \
              patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value="system"):
             llmarviointi.aja(TUTKIMUS)
@@ -94,9 +145,11 @@ class TestAja:
         def edistyminen(n, yht, erä, erat):
             tapahtumat.append((n, yht, erä, erat))
 
-        with patch("arviointi.llmarviointi.mallit.hae_arvioimattomat", return_value=KURSSIT), \
-             patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+        with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+             patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=KURSSIT), \
+             patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value={}), \
              patch("arviointi.llmarviointi.kutsu.kysy", return_value=LLM_VASTAUS), \
+             patch("arviointi.llmarviointi.kutsu.hae_malli", return_value="m"), \
              patch("arviointi.llmarviointi.mallit.aseta_vastaus"), \
              patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value="system"):
             llmarviointi.aja(TUTKIMUS, edistyminen)
@@ -105,6 +158,22 @@ class TestAja:
         assert len(tapahtumat) == 2
         assert tapahtumat[0] == (0, 2, 1, 1)
         assert tapahtumat[1] == (2, 2, 1, 1)
+
+    def test_laske_tyomaara_erottaa_uudet_ja_vanhentuneet(self):
+        jarj = "system"
+        t10 = llmarviointi.tiiviste.kysymys(TUTKIMUS["Arviointikehote"], jarj, KYSYMYKSET[0])
+        # Kurssi 1: arvioitu mutta kysymys 11 vanha → vanhentunut. Kurssi 2: ei vastauksia → uusi.
+        olemassa = {
+            (1, 10): {"tiiviste": t10, "vastattu": True},
+            (1, 11): {"tiiviste": "vanha", "vastattu": True},
+        }
+        with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+             patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=KURSSIT), \
+             patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value=olemassa), \
+             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value=jarj):
+            uudet, vanhentuneet = llmarviointi.laske_tyomaara(TUTKIMUS)
+        assert uudet == 1
+        assert vanhentuneet == 1
 
 
 KYSYMYKSET_MONITYYPPI = [
@@ -160,21 +229,21 @@ class TestTallennaTulokset:
             ks = [{"KysID": 10, "Luokittelu": "vapaa_teksti", "LuokitteluMaarittely": None}]
             tulokset = [{"id": 1, "vastaukset": ["Hyvä kurssi"]}]
             llmarviointi._tallenna_tulokset(tulokset, ks, "testimalli")
-        mock_aseta.assert_called_once_with(10, 1, "Hyvä kurssi", "testimalli", pisteet=None, luokka=None)
+        mock_aseta.assert_called_once_with(10, 1, "Hyvä kurssi", "testimalli", pisteet=None, luokka=None, tiiviste=None)
 
     def test_luokittelu_purkaa_luokan_ja_perustelun(self):
         with patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta:
             ks = [{"KysID": 11, "Luokittelu": "luokittelu", "LuokitteluMaarittely": {}}]
             tulokset = [{"id": 1, "vastaukset": [{"luokka": "korkea", "perustelu": "Koska..."}]}]
             llmarviointi._tallenna_tulokset(tulokset, ks, "malli")
-        mock_aseta.assert_called_once_with(11, 1, "Koska...", "malli", pisteet=None, luokka="korkea")
+        mock_aseta.assert_called_once_with(11, 1, "Koska...", "malli", pisteet=None, luokka="korkea", tiiviste=None)
 
     def test_asteikko_purkaa_pisteet_ja_perustelun(self):
         with patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta:
             ks = [{"KysID": 12, "Luokittelu": "asteikko", "LuokitteluMaarittely": {}}]
             tulokset = [{"id": 1, "vastaukset": [{"pisteet": 4, "perustelu": "Erittäin hyvä"}]}]
             llmarviointi._tallenna_tulokset(tulokset, ks, "malli")
-        mock_aseta.assert_called_once_with(12, 1, "Erittäin hyvä", "malli", pisteet=4.0, luokka=None)
+        mock_aseta.assert_called_once_with(12, 1, "Erittäin hyvä", "malli", pisteet=4.0, luokka=None, tiiviste=None)
 
     def test_fallback_merkkijono_strukturoidulle(self):
         """LLM palauttaa merkkijonon vaikka odotettiin objektia — tallennetaan sellaisenaan."""
@@ -182,7 +251,7 @@ class TestTallennaTulokset:
             ks = [{"KysID": 11, "Luokittelu": "luokittelu", "LuokitteluMaarittely": {}}]
             tulokset = [{"id": 1, "vastaukset": ["korkea"]}]
             llmarviointi._tallenna_tulokset(tulokset, ks, "malli")
-        mock_aseta.assert_called_once_with(11, 1, "korkea", "malli", pisteet=None, luokka=None)
+        mock_aseta.assert_called_once_with(11, 1, "korkea", "malli", pisteet=None, luokka=None, tiiviste=None)
 
     def test_useita_kursseja_ja_kysymyksia(self):
         with patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta:

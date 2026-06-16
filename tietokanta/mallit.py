@@ -234,17 +234,45 @@ def poista_kysymys(kysid: int) -> None:
 # --- Vastaukset ---
 
 def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "",
-                  pisteet: float | None = None, luokka: str | None = None) -> None:
+                  pisteet: float | None = None, luokka: str | None = None,
+                  tiiviste: str | None = None) -> None:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                """INSERT INTO Vastaukset (KysID, KID, Vastaus, Malli, Pisteet, Luokka)
-                   VALUES (%s, %s, %s, %s, %s, %s)
+                """INSERT INTO Vastaukset (KysID, KID, Vastaus, Malli, Pisteet, Luokka, Kehotetiiviste)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)
                    ON DUPLICATE KEY UPDATE
                        Vastaus = VALUES(Vastaus), Malli = VALUES(Malli),
-                       Pisteet = VALUES(Pisteet), Luokka = VALUES(Luokka)""",
-                (kysid, kid, vastaus, malli, pisteet, luokka),
+                       Pisteet = VALUES(Pisteet), Luokka = VALUES(Luokka),
+                       Kehotetiiviste = VALUES(Kehotetiiviste)""",
+                (kysid, kid, vastaus, malli, pisteet, luokka, tiiviste),
             )
+
+
+def hae_vastaus_tiivisteet(tid: int) -> dict[tuple[int, int], dict]:
+    """Palauttaa tutkimuksen vastausten tilan: {(KID, KysID): {tiiviste, vastattu}}.
+
+    vastattu = True jos vastauksessa on ei-tyhjä teksti, luokka tai pisteet.
+    Käytetään tunnistamaan mitkä (kurssi, kysymys) -parit tarvitsevat
+    (uudelleen)arvioinnin kehotteen/kysymyksen muututtua.
+    """
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute("""
+                SELECT v.KID, v.KysID, v.Kehotetiiviste,
+                       ((v.Vastaus IS NOT NULL AND v.Vastaus <> '')
+                        OR v.Luokka IS NOT NULL OR v.Pisteet IS NOT NULL) AS Vastattu
+                FROM Vastaukset v
+                JOIN Kysymykset k ON v.KysID = k.KysID
+                WHERE k.TID = %s
+            """, (tid,))
+            return {
+                (r["KID"], r["KysID"]): {
+                    "tiiviste": r["Kehotetiiviste"],
+                    "vastattu": bool(r["Vastattu"]),
+                }
+                for r in _rivit_dikteina(kursori)
+            }
 
 
 def hae_vastausten_lkm(kysid: int) -> int:

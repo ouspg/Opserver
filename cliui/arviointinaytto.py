@@ -35,10 +35,23 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
     from arviointi import llmarviointi
     piirra_otsikko(stdscr, f"LLM-arviointi — {tutkimus['LuokittelunNimi']}")
 
-    odottavat = mallit.hae_arvioimattomat(tutkimus["TID"])
-    if not odottavat:
-        nayta_viesti(stdscr, "Kaikki mukana olevat kurssit on jo arvioitu. Katso tilanne-näkymästä.")
+    uudet, vanhentuneet = llmarviointi.laske_tyomaara(tutkimus)
+    if uudet + vanhentuneet == 0:
+        nayta_viesti(stdscr, "Kaikki mukana olevat kurssit on jo arvioitu nykyisellä kehotteella ja kysymyksillä.")
         return
+
+    # Varoita kustannusvaikutuksesta, jos kehote/kysymys on muuttunut
+    if vanhentuneet > 0:
+        valinta = valitse_listasta(
+            stdscr,
+            "LLM-arviointi — kehote tai kysymys on muuttunut",
+            [
+                f"Aja LLM: {uudet} uutta + {vanhentuneet} uudelleen (muutos) — vain muuttuneet kysymykset",
+                "Peruuta",
+            ],
+        )
+        if valinta != 0:
+            return
 
     stdscr.addstr(3, 0, "Yhdistetään LLM:ään...")
     stdscr.refresh()

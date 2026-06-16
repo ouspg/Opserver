@@ -2,7 +2,7 @@
 import json
 import os
 from tietokanta import mallit
-from llm import kutsu
+from llm import kutsu, tiiviste
 
 ERÄKOKO = 5
 
@@ -81,7 +81,8 @@ def _rakenna_kysymysteksti(kysymykset: list[dict]) -> str:
     return "\n".join(rivit)
 
 
-def _tallenna_tulokset(tulokset: list[dict], kysymykset: list[dict], malli: str) -> None:
+def _tallenna_tulokset(tulokset: list[dict], kysymykset: list[dict], malli: str,
+                       kys_tiiviste: dict | None = None) -> None:
     for tulos in tulokset:
         kid = tulos["id"]
         for i, k in enumerate(kysymykset):
@@ -102,7 +103,9 @@ def _tallenna_tulokset(tulokset: list[dict], kysymykset: list[dict], malli: str)
                 pisteet = None
                 luokka = None
 
-            mallit.aseta_vastaus(k["KysID"], kid, vastaus, malli, pisteet=pisteet, luokka=luokka)
+            tiiv = (kys_tiiviste or {}).get(k["KysID"])
+            mallit.aseta_vastaus(k["KysID"], kid, vastaus, malli,
+                                 pisteet=pisteet, luokka=luokka, tiiviste=tiiv)
 
 
 def _arvioi_erä(erä: list[dict], arviointikehote: str, kysymykset: list[dict], jarjestelma: str) -> list[dict]:
@@ -121,33 +124,107 @@ def _arvioi_erä(erä: list[dict], arviointikehote: str, kysymykset: list[dict],
         return _erittele_json(vastaus2)
 
 
-def aja(tutkimus: dict, edistyminen_cb=None) -> int:
-    """Arvioi mukaan otetut kurssit LLM:llä. Palauttaa arvioitujen kurssien määrän. Idempotentti."""
+def _tarvitsee_ajon(tila: dict | None, nyky_tiiviste: str) -> bool:
+    """True jos (kurssi, kysymys) -vastaus puuttuu, on tyhjä tai tehty vanhalla kehotteella."""
+    if tila is None or not tila["vastattu"]:
+        return True
+    return tila["tiiviste"] != nyky_tiiviste
+
+
+def _selvita_tyo(tutkimus: dict) -> dict:
+    """Selvittää mitkä kysymykset kullekin mukana-kurssille tarvitsevat (uudelleen)arvioinnin.
+
+    Vain muuttunut tai puuttuva (kurssi, kysymys) -pari otetaan työn alle —
+    samalla kehotteella jo arvioituja ei kysytä LLM:ltä uudelleen.
+    """
     tid = tutkimus["TID"]
     arviointikehote = tutkimus["Arviointikehote"]
-
     kysymykset = mallit.hae_kysymykset(tid)
     if not kysymykset:
-        return 0
-
-    kandidaatit = mallit.hae_arvioimattomat(tid)
-    if not kandidaatit:
-        return 0
+        return {"kysymykset": [], "jarjestelma": "", "kys_tiiviste": {},
+                "arviointikehote": arviointikehote, "kurssi_kartta": {}, "olemassa": {}, "tyo": {}}
 
     jarjestelma = _lue_jarjestelma_kehote()
+    kys_tiiviste = {k["KysID"]: tiiviste.kysymys(arviointikehote, jarjestelma, k) for k in kysymykset}
+    kurssit = mallit.hae_valitut_kurssit(tid)
+    olemassa = mallit.hae_vastaus_tiivisteet(tid)
+
+    tyo: dict[int, list[dict]] = {}
+    for kurssi in kurssit:
+        kid = kurssi["KID"]
+        tarvitsee = [
+            k for k in kysymykset
+            if _tarvitsee_ajon(olemassa.get((kid, k["KysID"])), kys_tiiviste[k["KysID"]])
+        ]
+        if tarvitsee:
+            tyo[kid] = tarvitsee
+
+    return {"kysymykset": kysymykset, "jarjestelma": jarjestelma, "kys_tiiviste": kys_tiiviste,
+            "arviointikehote": arviointikehote, "kurssi_kartta": {k["KID"]: k for k in kurssit},
+            "olemassa": olemassa, "tyo": tyo}
+
+
+def laske_tyomaara(tutkimus: dict) -> tuple[int, int]:
+    """(uudet, vanhentuneet) — montako mukana-kurssia arvioidaan: täysin uudet
+    (ei aiempia vastauksia) vs. osin vanhentuneet (kehote/kysymys muuttunut)."""
+    tieto = _selvita_tyo(tutkimus)
+    uudet = vanhentuneet = 0
+    for kid in tieto["tyo"]:
+        oli_vastauksia = any(
+            (s := tieto["olemassa"].get((kid, k["KysID"]))) and s["vastattu"]
+            for k in tieto["kysymykset"]
+        )
+        if oli_vastauksia:
+            vanhentuneet += 1
+        else:
+            uudet += 1
+    return uudet, vanhentuneet
+
+
+def aja(tutkimus: dict, edistyminen_cb=None) -> int:
+    """Arvioi mukaan otetut kurssit LLM:llä. Palauttaa arvioitujen kurssien määrän.
+
+    Idempotentti ja kehotetietoinen: kysyy LLM:ltä vain ne (kurssi, kysymys) -parit,
+    joiden vastaus puuttuu tai joiden kehote/kysymys on muuttunut.
+    """
+    tieto = _selvita_tyo(tutkimus)
+    tyo = tieto["tyo"]
+    if not tyo:
+        return 0
+
+    kysymykset = tieto["kysymykset"]
+    arviointikehote = tieto["arviointikehote"]
+    jarjestelma = tieto["jarjestelma"]
+    kys_tiiviste = tieto["kys_tiiviste"]
+    kurssi_kartta = tieto["kurssi_kartta"]
+
+    # Ryhmittele kurssit tarvittavien kysymysten mukaan, jotta yhdessä erässä
+    # kysytään vain sama (mahdollisesti osittainen) kysymysjoukko.
+    ryhmat: dict[tuple, list[dict]] = {}
+    for kid, kys_lista in tyo.items():
+        avain = tuple(sorted(k["KysID"] for k in kys_lista))
+        ryhmat.setdefault(avain, []).append(kurssi_kartta[kid])
+
+    erat: list[tuple[list[dict], list[dict]]] = []
+    for avain, ryhman_kurssit in ryhmat.items():
+        osa_kysymykset = [k for k in kysymykset if k["KysID"] in avain]
+        for i in range(0, len(ryhman_kurssit), ERÄKOKO):
+            erat.append((osa_kysymykset, ryhman_kurssit[i:i + ERÄKOKO]))
+
     malli = kutsu.hae_malli()
-    erat = [kandidaatit[i:i + ERÄKOKO] for i in range(0, len(kandidaatit), ERÄKOKO)]
-    arvioitu = 0
+    yhteensa = len(tyo)
+    arvioidut: set = set()
     käsitelty = 0
 
-    for erä_nro, erä in enumerate(erat, 1):
+    for erä_nro, (osa_kysymykset, erä) in enumerate(erat, 1):
         if edistyminen_cb:
-            edistyminen_cb(käsitelty, len(kandidaatit), erä_nro, len(erat))
-        tulokset = _arvioi_erä(erä, arviointikehote, kysymykset, jarjestelma)
-        _tallenna_tulokset(tulokset, kysymykset, malli)
-        arvioitu += len(tulokset)
+            edistyminen_cb(käsitelty, yhteensa, erä_nro, len(erat))
+        tulokset = _arvioi_erä(erä, arviointikehote, osa_kysymykset, jarjestelma)
+        _tallenna_tulokset(tulokset, osa_kysymykset, malli, kys_tiiviste)
+        for t in tulokset:
+            arvioidut.add(t.get("id"))
         käsitelty += len(erä)
         if edistyminen_cb:
-            edistyminen_cb(käsitelty, len(kandidaatit), erä_nro, len(erat))
+            edistyminen_cb(käsitelty, yhteensa, erä_nro, len(erat))
 
-    return arvioitu
+    return len(arvioidut)
