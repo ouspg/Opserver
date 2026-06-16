@@ -559,6 +559,83 @@ td.toiminto { text-align: right; white-space: nowrap; }
 
 .arvio-korjaa-nappi:hover { background: #d9e2ff; }
 
+.luokka-badge {
+  display: inline-block;
+  background: #193764;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  margin-bottom: 0.15rem;
+}
+
+.pisteet-arvo {
+  display: inline-block;
+  font-weight: 700;
+  color: #193764;
+  font-size: 1rem;
+  margin-bottom: 0.1rem;
+}
+
+.arvio-perustelu {
+  display: block;
+  font-size: 0.78rem;
+  color: #555;
+  margin-top: 0.15rem;
+}
+
+.tilastot-osio {
+  background: #f4f6fb;
+  border: 1px solid #d0d9ee;
+  border-radius: 4px;
+  padding: 0.8rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.tilastot-osio h3 {
+  margin: 0 0 0.6rem 0;
+  font-size: 0.9rem;
+  color: #193764;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tilasto-kysymys {
+  margin-bottom: 0.8rem;
+  font-size: 0.85rem;
+}
+
+.tilasto-taulu {
+  margin-top: 0.3rem;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.tilasto-taulu th {
+  background: #193764;
+  color: #fff;
+  padding: 0.15rem 0.5rem;
+  text-align: left;
+  font-weight: 600;
+}
+
+.tilasto-taulu td {
+  padding: 0.15rem 0.5rem;
+  border-bottom: 1px solid #dde3f0;
+  vertical-align: top;
+}
+
+.tilasto-pylvas {
+  display: inline-block;
+  height: 8px;
+  background: #193764;
+  border-radius: 2px;
+  margin-right: 0.3rem;
+  vertical-align: middle;
+  min-width: 2px;
+}
+
 /* Arviointimuokkaus-modaali */
 
 .arviointimuokkaus-sisalto {

@@ -60,8 +60,49 @@ def _erittele_json(teksti: str) -> list[dict]:
 def _rakenna_kysymysteksti(kysymykset: list[dict]) -> str:
     rivit = ["Vastaa jokaiselle kurssille seuraaviin kysymyksiin:"]
     for i, k in enumerate(kysymykset, 1):
+        luokittelu = k.get("Luokittelu") or "vapaa_teksti"
+        maarittely = k.get("LuokitteluMaarittely") or {}
         rivit.append(f"{i}. {k['Kysymys']}")
+        if luokittelu == "luokittelu":
+            luokat = maarittely.get("luokat", [])
+            nimet = ", ".join(f'"{l["nimi"]}"' for l in luokat)
+            rivit.append(f'   Valitse yksi luokka: {nimet}')
+            for l in luokat:
+                rivit.append(f'   - {l["nimi"]}: {l["kuvaus"]}')
+            rivit.append('   Palauta objekti: {"luokka": "<valittu>", "perustelu": "<selitys>"}')
+        elif luokittelu == "asteikko":
+            minimi = maarittely.get("minimi", 1)
+            maksimi = maarittely.get("maksimi", 5)
+            pisteet = maarittely.get("pisteet", [])
+            rivit.append(f'   Anna kokonaislukupisteet väliltä {minimi}–{maksimi}:')
+            for p in pisteet:
+                rivit.append(f'   - {p["arvo"]}/{maksimi}: {p["kuvaus"]}')
+            rivit.append(f'   Palauta objekti: {{"pisteet": <{minimi}-{maksimi}>, "perustelu": "<selitys>"}}')
     return "\n".join(rivit)
+
+
+def _tallenna_tulokset(tulokset: list[dict], kysymykset: list[dict], malli: str) -> None:
+    for tulos in tulokset:
+        kid = tulos["id"]
+        for i, k in enumerate(kysymykset):
+            vastaukset_lista = tulos.get("vastaukset", [])
+            raw = vastaukset_lista[i] if i < len(vastaukset_lista) else ""
+            luokittelu = k.get("Luokittelu") or "vapaa_teksti"
+
+            if luokittelu == "luokittelu" and isinstance(raw, dict):
+                vastaus = raw.get("perustelu", "")
+                luokka = raw.get("luokka", "")
+                pisteet = None
+            elif luokittelu == "asteikko" and isinstance(raw, dict):
+                vastaus = raw.get("perustelu", "")
+                pisteet = float(raw["pisteet"]) if raw.get("pisteet") is not None else None
+                luokka = None
+            else:
+                vastaus = str(raw) if raw else ""
+                pisteet = None
+                luokka = None
+
+            mallit.aseta_vastaus(k["KysID"], kid, vastaus, malli, pisteet=pisteet, luokka=luokka)
 
 
 def _arvioi_erä(erä: list[dict], arviointikehote: str, kysymykset: list[dict], jarjestelma: str) -> list[dict]:
@@ -103,13 +144,8 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> int:
         if edistyminen_cb:
             edistyminen_cb(käsitelty, len(kandidaatit), erä_nro, len(erat))
         tulokset = _arvioi_erä(erä, arviointikehote, kysymykset, jarjestelma)
-        for tulos in tulokset:
-            kid = tulos["id"]
-            for i, k in enumerate(kysymykset):
-                vastaukset = tulos.get("vastaukset", [])
-                vastaus = vastaukset[i] if i < len(vastaukset) else ""
-                mallit.aseta_vastaus(k["KysID"], kid, vastaus, malli)
-            arvioitu += 1
+        _tallenna_tulokset(tulokset, kysymykset, malli)
+        arvioitu += len(tulokset)
         käsitelty += len(erä)
         if edistyminen_cb:
             edistyminen_cb(käsitelty, len(kandidaatit), erä_nro, len(erat))

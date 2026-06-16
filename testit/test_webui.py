@@ -95,22 +95,28 @@ KURSSI_MUKANA = {
     "Opetusvuosi": "2025-2026", "OpsKuvaus": None,
 }
 
-KYSYMYS = {"KysID": 10, "TID": 1, "Kysymys": "Liittyykö kurssi kyberturvallisuuteen?"}
+KYSYMYS = {"KysID": 10, "TID": 1, "Kysymys": "Liittyykö kurssi kyberturvallisuuteen?",
+           "Luokittelu": "vapaa_teksti", "LuokitteluMaarittely": None}
 
 
 def test_api_tutkimus_arvioinnit_palauttaa_rakenteen():
-    vastaus_rivi = {"VasID": 1, "KysID": 10, "KID": 1, "Vastaus": "Kyllä"}
+    vastaus_rivi = {"VasID": 1, "KysID": 10, "KID": 1, "Vastaus": "Kyllä", "Pisteet": None, "Luokka": None}
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=[KYSYMYS]), \
          patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[KURSSI_MUKANA]), \
-         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[vastaus_rivi]):
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[vastaus_rivi]), \
+         patch("webui.palvelin.mallit.hae_arviokommentit_kaikki", return_value=[]):
         vastaus = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit")
     assert vastaus.status_code == 200
     data = vastaus.json()
     assert "kysymykset" in data
     assert "kurssit" in data
     assert data["kysymykset"][0]["Kysymys"] == KYSYMYS["Kysymys"]
-    assert data["kurssit"][0]["vastaukset"] == ["Kyllä"]
+    assert data["kysymykset"][0]["Luokittelu"] == "vapaa_teksti"
+    v = data["kurssit"][0]["vastaukset"][0]
+    assert v["vastaus"] == "Kyllä"
+    assert v["luokka"] is None
+    assert v["pisteet"] is None
     assert "OpsKuvaus" not in data["kurssit"][0]
 
 
@@ -118,11 +124,15 @@ def test_api_tutkimus_arvioinnit_tyhjat_vastaukset():
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=[KYSYMYS]), \
          patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[KURSSI_MUKANA]), \
-         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[]):
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[]), \
+         patch("webui.palvelin.mallit.hae_arviokommentit_kaikki", return_value=[]):
         vastaus = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit")
     assert vastaus.status_code == 200
     data = vastaus.json()
-    assert data["kurssit"][0]["vastaukset"] == [""]
+    v = data["kurssit"][0]["vastaukset"][0]
+    assert v["vastaus"] == ""
+    assert v["luokka"] is None
+    assert v["pisteet"] is None
 
 
 def test_api_hitl_korjaus_tallentaa():
@@ -176,4 +186,55 @@ def test_api_raportti_palauttaa_osiot():
 def test_api_raportti_404_kun_tutkimusta_ei_loydy():
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=None):
         vastaus = asiakas.get("/api/tutkimukset/ei-ole/raportti")
+    assert vastaus.status_code == 404
+
+
+def test_api_raportti_tilastot_luokittelu():
+    ks = [{"KysID": 10, "TID": 1, "Kysymys": "Taso?",
+            "Luokittelu": "luokittelu", "LuokitteluMaarittely": None}]
+    vs = [
+        {"KysID": 10, "KID": 1, "Vastaus": "perustelu", "Pisteet": None, "Luokka": "korkea"},
+        {"KysID": 10, "KID": 2, "Vastaus": "perustelu", "Pisteet": None, "Luokka": "matala"},
+        {"KysID": 10, "KID": 3, "Vastaus": "perustelu", "Pisteet": None, "Luokka": "korkea"},
+    ]
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_kysymykset", return_value=ks), \
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=vs):
+        vastaus = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot")
+    assert vastaus.status_code == 200
+    data = vastaus.json()
+    k = data["kysymykset"][0]
+    assert k["luokittelu"] == "luokittelu"
+    assert k["jakauma"]["korkea"] == 2
+    assert k["jakauma"]["matala"] == 1
+    assert k["yhteensa"] == 3
+
+
+def test_api_raportti_tilastot_asteikko():
+    ks = [{"KysID": 11, "TID": 1, "Kysymys": "Pisteet?",
+            "Luokittelu": "asteikko", "LuokitteluMaarittely": None}]
+    vs = [
+        {"KysID": 11, "KID": 1, "Vastaus": "perustelu", "Pisteet": 4.0, "Luokka": None},
+        {"KysID": 11, "KID": 2, "Vastaus": "perustelu", "Pisteet": 2.0, "Luokka": None},
+        {"KysID": 11, "KID": 3, "Vastaus": "perustelu", "Pisteet": 4.0, "Luokka": None},
+    ]
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_kysymykset", return_value=ks), \
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=vs):
+        vastaus = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot")
+    assert vastaus.status_code == 200
+    data = vastaus.json()
+    k = data["kysymykset"][0]
+    assert k["luokittelu"] == "asteikko"
+    assert k["yhteensa"] == 3
+    assert abs(k["keskiarvo"] - 10/3) < 0.01
+    assert k["minimi"] == 2.0
+    assert k["maksimi"] == 4.0
+    assert k["jakauma"]["4"] == 2
+    assert k["jakauma"]["2"] == 1
+
+
+def test_api_raportti_tilastot_404_kun_tutkimusta_ei_loydy():
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=None):
+        vastaus = asiakas.get("/api/tutkimukset/ei-ole/raportti/tilastot")
     assert vastaus.status_code == 404

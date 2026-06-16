@@ -149,6 +149,24 @@ class TestKysymykset:
         tulos = mallit.lisaa_kysymys(tid=1, kysymys="Onko kurssi pakollinen?")
         assert tulos == 7
 
+    def test_lisaa_kysymys_luokittelulla(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.lastrowid = 8
+        maarittely = {"luokat": [{"nimi": "korkea", "kuvaus": "Paljon"}]}
+        mallit.lisaa_kysymys(tid=1, kysymys="Taso?", luokittelu="luokittelu", luokittelu_maarittely=maarittely)
+        sql, params = kursori.execute.call_args[0]
+        assert "LuokitteluMaarittely" in sql
+        import json
+        assert json.loads(params[3]) == maarittely
+
+    def test_lisaa_kysymys_asteikolla(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.lastrowid = 9
+        maarittely = {"minimi": 1, "maksimi": 5, "pisteet": [{"arvo": 1, "kuvaus": "Huono"}]}
+        mallit.lisaa_kysymys(tid=1, kysymys="Pisteet?", luokittelu="asteikko", luokittelu_maarittely=maarittely)
+        _, params = kursori.execute.call_args[0]
+        assert params[2] == "asteikko"
+
     def test_hae_kysymykset_palauttaa_listan(self, mock_yhteys):
         yht, kursori = mock_yhteys
         kursori.fetchall.return_value = [(1, 1, "Onko pakollinen?"), (2, 1, "Mikä taso?")]
@@ -157,11 +175,31 @@ class TestKysymykset:
         assert len(tulos) == 2
         assert tulos[0]["Kysymys"] == "Onko pakollinen?"
 
+    def test_hae_kysymykset_parsii_json_maarittelyt(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        import json
+        maarittely = {"luokat": [{"nimi": "korkea", "kuvaus": "Paljon"}]}
+        kursori.fetchall.return_value = [
+            (1, 1, "Taso?", "luokittelu", json.dumps(maarittely)),
+        ]
+        kursori.description = [("KysID",), ("TID",), ("Kysymys",), ("Luokittelu",), ("LuokitteluMaarittely",)]
+        tulos = mallit.hae_kysymykset(1)
+        assert isinstance(tulos[0]["LuokitteluMaarittely"], dict)
+        assert tulos[0]["LuokitteluMaarittely"]["luokat"][0]["nimi"] == "korkea"
+
     def test_paivita_kysymys_tekee_update(self, mock_yhteys):
         yht, kursori = mock_yhteys
         mallit.paivita_kysymys(kysid=1, kysymys="Uusi kysymys")
         sql = kursori.execute.call_args[0][0]
         assert "UPDATE" in sql.upper()
+
+    def test_paivita_kysymys_tallentaa_luokittelun(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.paivita_kysymys(kysid=1, kysymys="Q", luokittelu="asteikko",
+                               luokittelu_maarittely={"minimi": 1, "maksimi": 3, "pisteet": []})
+        sql, params = kursori.execute.call_args[0]
+        assert "Luokittelu" in sql
+        assert params[1] == "asteikko"
 
     def test_poista_kysymys_tekee_delete(self, mock_yhteys):
         yht, kursori = mock_yhteys
@@ -174,6 +212,30 @@ class TestKysymykset:
         mallit.aseta_vastaus(kysid=1, kid=7, vastaus="Kyllä")
         sql = kursori.execute.call_args[0][0]
         assert "INSERT" in sql.upper()
+
+    def test_aseta_vastaus_pisteet_ja_luokka(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.aseta_vastaus(kysid=1, kid=7, vastaus="Perustelu", pisteet=4.0, luokka="korkea")
+        _, params = kursori.execute.call_args[0]
+        assert 4.0 in params
+        assert "korkea" in params
+
+    def test_hae_vastausten_lkm(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchone.return_value = (5,)
+        tulos = mallit.hae_vastausten_lkm(kysid=1)
+        assert tulos == 5
+        sql, params = kursori.execute.call_args[0]
+        assert "COUNT" in sql.upper()
+        assert 1 in params
+
+    def test_poista_vastaukset_kysymykselta(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.poista_vastaukset_kysymykselta(kysid=3)
+        sql, params = kursori.execute.call_args[0]
+        assert "DELETE" in sql.upper()
+        assert "Vastaukset" in sql
+        assert 3 in params
 
 
 class TestKurssiluokitus:
