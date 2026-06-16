@@ -150,3 +150,30 @@ def test_api_tutkimus_arvioinnit_404_kun_ei_loydy():
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=None):
         vastaus = asiakas.get("/api/tutkimukset/ei-ole/arvioinnit")
     assert vastaus.status_code == 404
+
+
+def test_api_raportti_palauttaa_tyhjat_osiot_kun_ei_generoitu():
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_raportti_osiot", return_value={}):
+        vastaus = asiakas.get("/api/tutkimukset/kyber-2025/raportti")
+    assert vastaus.status_code == 200
+    data = vastaus.json()
+    assert data["tid"] == 1
+    assert data["osiot"] == {}
+
+
+def test_api_raportti_palauttaa_osiot():
+    osiot = {"johdanto": "Tämä on johdanto.", "kurssit": "Kurssit.", "arvioinnit": "Arvioinnit."}
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_raportti_osiot", return_value=osiot):
+        vastaus = asiakas.get("/api/tutkimukset/kyber-2025/raportti")
+    assert vastaus.status_code == 200
+    data = vastaus.json()
+    assert data["osiot"]["johdanto"] == "Tämä on johdanto."
+    assert len(data["osiot"]) == 3
+
+
+def test_api_raportti_404_kun_tutkimusta_ei_loydy():
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=None):
+        vastaus = asiakas.get("/api/tutkimukset/ei-ole/raportti")
+    assert vastaus.status_code == 404

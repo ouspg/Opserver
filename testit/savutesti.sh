@@ -77,6 +77,24 @@ tarkista_http "API /korkeakoulut vastaa"     "$WEBUI/api/korkeakoulut"     ""
 tarkista_http "API /kurssit vastaa"          "$WEBUI/api/kurssit"          ""
 tarkista_http "API /tutkimukset vastaa"      "$WEBUI/api/tutkimukset"      ""
 
+# Raportti-endpoint: tarkistetaan jokaiselle tutkimukselle (jos niitä on)
+tutkimukset_json=$(curl -sf --max-time 5 "$WEBUI/api/tutkimukset" 2>/dev/null) || tutkimukset_json="[]"
+slugit=$(echo "$tutkimukset_json" | python3 -c "import sys,json; [print(t['Slug']) for t in json.load(sys.stdin)]" 2>/dev/null) || slugit=""
+if [[ -z "$slugit" ]]; then
+    ok "API /raportti — ei tutkimuksia tarkistettavana"
+else
+    raportti_ok=true
+    while IFS= read -r slug; do
+        vastaus=$(curl -sf --max-time 5 "$WEBUI/api/tutkimukset/$slug/raportti" 2>/dev/null) || { raportti_ok=false; break; }
+        echo "$vastaus" | python3 -c "import sys,json; d=json.load(sys.stdin); assert 'osiot' in d" 2>/dev/null || { raportti_ok=false; break; }
+    done <<< "$slugit"
+    if $raportti_ok; then
+        ok "API /raportti vastaa oikein (kaikki tutkimukset)"
+    else
+        fail "API /raportti — virheellinen vastaus tutkimukselle '$slug'"
+    fi
+fi
+
 echo ""
 
 # 3. Kuvan tuoreus
