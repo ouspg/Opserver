@@ -50,14 +50,23 @@ def nayta(stdscr) -> None:
     stdscr.addstr(3, 0, "Haetaan kursseja... (tämä voi kestää useita minuutteja)")
     stdscr.refresh()
 
+    def paivita_tila(viesti: str) -> None:
+        stdscr.addstr(4, 0, f"  {viesti}")
+        stdscr.clrtoeol()
+        stdscr.addstr(5, 0, "")
+        stdscr.clrtoeol()
+        stdscr.refresh()
+
     def paivita_edistyminen(n: int, yhteensa: int, kurssi_nimi: str = "") -> None:
-        stdscr.addstr(4, 0, f"  {n}/{yhteensa} kurssia tallennettu")
+        stdscr.addstr(4, 0, f"  Vaihe 2/2: tallennetaan kurssitietoja...  {n}/{yhteensa} kurssia")
         stdscr.clrtoeol()
         stdscr.addstr(5, 0, f"  {kurssi_nimi}")
         stdscr.clrtoeol()
         stdscr.refresh()
 
-    tallennettu, ohitettu = lukija.hae_kurssit(kausi, edistyminen_cb=paivita_edistyminen)
+    tallennettu, ohitettu = lukija.hae_kurssit(
+        kausi, edistyminen_cb=paivita_edistyminen, tila_cb=paivita_tila
+    )
 
     piirra_otsikko(stdscr, "Hae kurssit — valmis")
     viesti = f"Tallennettu {tallennettu} uutta kurssia ({koulu['KouluNimi']}, {kausi})."

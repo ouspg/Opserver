@@ -54,8 +54,12 @@ class SisuLukija(OpsLukija):
         """Palauttaa saatavilla olevat OPS-kaudet laskevassa järjestyksessä."""
         return sorted(self._lataa_kaudet().keys(), reverse=True)
 
-    def hae_kurssit(self, kausi: str, edistyminen_cb=None) -> tuple[int, int]:
-        """Hakee kaikki kurssit annetulle kaudelle ja tallentaa tietokantaan."""
+    def hae_kurssit(self, kausi: str, edistyminen_cb=None, tila_cb=None) -> tuple[int, int]:
+        """Hakee kaikki kurssit annetulle kaudelle ja tallentaa tietokantaan.
+
+        tila_cb(viesti: str) — valinnainen, kutsutaan keräysvaiheessa per org.
+        edistyminen_cb(n, yhteensa, nimi) — kutsutaan tallennusvaiheessa per kurssi.
+        """
         yliopisto_id = self._yliopisto_org_id()
         kaudet = self._lataa_kaudet()
         if kausi not in kaudet:
@@ -65,7 +69,7 @@ class SisuLukija(OpsLukija):
         pohja = self.korkeakoulu["OpsOsoite"].rstrip("/")
         kkid = self.korkeakoulu["KKID"]
 
-        group_idt = self._keraa_group_idt(pohja, yliopisto_id, kausi_id, list(organisaatiot.keys()))
+        group_idt = self._keraa_group_idt(pohja, yliopisto_id, kausi_id, list(organisaatiot.keys()), tila_cb)
         jo_kannassa = mallit.hae_tallennetut_lahde_idt(kkid, kausi)
         uudet = [gid for gid in group_idt if gid not in jo_kannassa]
 
@@ -143,12 +147,13 @@ class SisuLukija(OpsLukija):
         return self._organisaatiot
 
     def _keraa_group_idt(
-        self, pohja: str, yliopisto_id: str, kausi_id: str, org_idt: list[str]
+        self, pohja: str, yliopisto_id: str, kausi_id: str, org_idt: list[str], tila_cb=None
     ) -> list[str]:
         """Kerää kaikki uniikki kurssi-groupId:t paginoiden per organisaatio."""
         nahdyt: set[str] = set()
         järjestetty: list[str] = []
-        for org_id in org_idt:
+        n_orgs = len(org_idt)
+        for org_nro, org_id in enumerate(org_idt, 1):
             start = 0
             limit = 100
             while True:
@@ -167,6 +172,8 @@ class SisuLukija(OpsLukija):
                     if gid and gid not in nahdyt:
                         nahdyt.add(gid)
                         järjestetty.append(gid)
+                if tila_cb:
+                    tila_cb(f"Vaihe 1/2: kerätään kurssilistauksia... org {org_nro}/{n_orgs}, {len(järjestetty)} löydetty")
                 if len(tulokset) < limit or start + limit >= data.get("total", 0):
                     break
                 start += limit
