@@ -286,11 +286,13 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
         kid = v["KID"]
         if kid not in vastaus_kartta:
             vastaus_kartta[kid] = {}
-        on_vastaus = bool((v.get("Vastaus") or "").strip()) or v.get("Luokka") is not None or v.get("Pisteet") is not None
+        on_vastaus = (bool((v.get("Vastaus") or "").strip()) or v.get("Luokka") is not None
+                      or v.get("Pisteet") is not None or v.get("Lista") is not None)
         vastaus_kartta[kid][v["KysID"]] = {
             "vastaus": v.get("Vastaus") or "",
             "luokka": v.get("Luokka"),
             "pisteet": v.get("Pisteet"),
+            "lista": v.get("Lista"),
             "vanhentunut": on_vastaus and v.get("Kehotetiiviste") != nyky_tiiviste.get(v["KysID"]),
         }
 
@@ -302,7 +304,7 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
         kommentti_kartta[kid][k["KysID"]] = k["Kommentti"]
 
     kys_idt = [k["KysID"] for k in kysymykset]
-    tyhjä_vastaus = {"vastaus": "", "luokka": None, "pisteet": None, "vanhentunut": False}
+    tyhjä_vastaus = {"vastaus": "", "luokka": None, "pisteet": None, "lista": None, "vanhentunut": False}
     return {
         "kysymykset": [
             {
@@ -409,6 +411,18 @@ def api_raportti_tilastot(slug: str) -> dict:
                 kohta["keskiarvo"] = None
                 kohta["minimi"] = None
                 kohta["maksimi"] = None
+
+        elif luokittelu == "lista":
+            jakauma_lista: dict[str, int] = {}
+            vastattuja = 0
+            for v in vastaukset:
+                kohdat = v.get("Lista") or []
+                if kohdat:
+                    vastattuja += 1
+                for kohde in kohdat:
+                    jakauma_lista[kohde] = jakauma_lista.get(kohde, 0) + 1
+            kohta["jakauma"] = dict(sorted(jakauma_lista.items(), key=lambda p: -p[1]))
+            kohta["yhteensa"] = vastattuja
 
         else:  # vapaa_teksti
             kohta["yhteensa"] = sum(1 for v in vastaukset if v.get("Vastaus"))
