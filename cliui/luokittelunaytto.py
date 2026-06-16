@@ -54,6 +54,12 @@ def _aja_meta(stdscr, tutkimus: dict) -> None:
 def _aja_llm(stdscr, tutkimus: dict) -> None:
     from luokittelu import llmluokittelu
     piirra_otsikko(stdscr, f"LLM-luokittelu — {tutkimus['LuokittelunNimi']}")
+
+    odottavat = mallit.hae_luokittelemattomat(tutkimus["TID"])
+    if not odottavat:
+        nayta_viesti(stdscr, "Kaikki kurssit on jo luokiteltu. Katso tilanne-näkymästä.")
+        return
+
     stdscr.addstr(3, 0, "Yhdistetään LLM:ään...")
     stdscr.refresh()
 
@@ -74,15 +80,21 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
 
 
 def _nayta_tilanne(stdscr, tutkimus: dict) -> None:
-    luokitukset = mallit.hae_luokitukset(tutkimus["TID"])
+    tid = tutkimus["TID"]
+    luokitukset = mallit.hae_luokitukset(tid)
     kurssit_yht = len(mallit.hae_kurssit())
     mukana = sum(1 for l in luokitukset if l.get("Mukana") == 1)
     hylätty = sum(1 for l in luokitukset if l.get("Mukana") == 0)
     odottaa = kurssit_yht - len(luokitukset)
+    arvioimattomat = len(mallit.hae_arvioimattomat(tid))
+    arvioitu = mukana - arvioimattomat
 
     piirra_otsikko(stdscr, f"Tilanne — {tutkimus['LuokittelunNimi']}")
     stdscr.addstr(3, 0, f"Kursseja yhteensä:  {kurssit_yht}")
     stdscr.addstr(4, 0, f"Mukana (LLM):       {mukana}")
     stdscr.addstr(5, 0, f"Hylätty:            {hylätty}")
     stdscr.addstr(6, 0, f"Odottaa käsittelyä: {odottaa}")
-    nayta_viesti(stdscr, "", 8)
+    stdscr.addstr(7, 0, f"")
+    stdscr.addstr(8, 0, f"LLM-arvioitu:       {arvioitu} / {mukana}")
+    stdscr.addstr(9, 0, f"Odottaa arviointia: {arvioimattomat}")
+    nayta_viesti(stdscr, "", 11)

@@ -64,5 +64,21 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False) -> str:
             continue
         vastaus.raise_for_status()
         _viive_s = _viive_s / 2
-        return vastaus.json()["choices"][0]["message"]["content"]
+        data = vastaus.json()
+        if "error" in data:
+            virhe = data["error"]
+            koodi = virhe.get("code", 0)
+            viesti_teksti = virhe.get("message", str(virhe))
+            if koodi == 429:
+                _viive_s = min(max(_viive_s * 2, _ALKUVIIVE_S), _MAKSIMIVIIVE_S)
+                continue
+            raise RuntimeError(f"OpenRouter-virhe ({koodi}): {viesti_teksti}")
+        valinnat = data.get("choices") or []
+        if not valinnat:
+            raise ValueError("LLM palautti tyhjän choices-listan")
+        sisalto = valinnat[0]["message"]["content"]
+        if sisalto is None:
+            finish = valinnat[0].get("finish_reason", "?")
+            raise ValueError(f"LLM palautti tyhjän vastauksen (finish_reason: {finish})")
+        return sisalto
     raise RuntimeError(f"LLM-pyyntö epäonnistui: {_MAX_YRITYKSET} peräkkäistä 429-vastausta")

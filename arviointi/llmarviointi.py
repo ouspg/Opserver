@@ -4,7 +4,7 @@ import os
 from tietokanta import mallit
 from llm import kutsu
 
-ERÄKOKO = 20
+ERÄKOKO = 5
 
 
 def _kuvaus_tekstina(ops_kuvaus: str | None, max_merkit: int = 800) -> str:
@@ -72,8 +72,12 @@ def _arvioi_erä(erä: list[dict], arviointikehote: str, kysymykset: list[dict],
     )
     kysymysteksti = _rakenna_kysymysteksti(kysymykset)
     viesti = f"{arviointikehote}\n\n{kysymysteksti}\n\nArvioi seuraavat kurssit:\n{kurssit_json}"
-    vastaus = kutsu.kysy(viesti, jarjestelma, json_muoto=True)
-    return _erittele_json(vastaus)
+    try:
+        vastaus = kutsu.kysy(viesti, jarjestelma, json_muoto=True)
+        return _erittele_json(vastaus)
+    except (ValueError, json.JSONDecodeError):
+        vastaus2 = kutsu.kysy(viesti + "\n\nPalauta PELKKÄ JSON-objekti muodossa {\"tulokset\": [...]}.", jarjestelma, json_muoto=True)
+        return _erittele_json(vastaus2)
 
 
 def aja(tutkimus: dict, edistyminen_cb=None) -> int:
@@ -96,6 +100,8 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> int:
     käsitelty = 0
 
     for erä_nro, erä in enumerate(erat, 1):
+        if edistyminen_cb:
+            edistyminen_cb(käsitelty, len(kandidaatit), erä_nro, len(erat))
         tulokset = _arvioi_erä(erä, arviointikehote, kysymykset, jarjestelma)
         for tulos in tulokset:
             kid = tulos["id"]

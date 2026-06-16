@@ -34,11 +34,23 @@ def _arvioi(stdscr, tutkimus: dict) -> None:
 def _aja_llm(stdscr, tutkimus: dict) -> None:
     from arviointi import llmarviointi
     piirra_otsikko(stdscr, f"LLM-arviointi — {tutkimus['LuokittelunNimi']}")
+
+    odottavat = mallit.hae_arvioimattomat(tutkimus["TID"])
+    if not odottavat:
+        nayta_viesti(stdscr, "Kaikki mukana olevat kurssit on jo arvioitu. Katso tilanne-näkymästä.")
+        return
+
     stdscr.addstr(3, 0, "Yhdistetään LLM:ään...")
     stdscr.refresh()
 
+    _odottaa = [True]
+
     def edistyminen(n, yht, erä, erat):
-        stdscr.addstr(4, 0, f"  Erä {erä}/{erat} — {n}/{yht} kurssia käsitelty")
+        if _odottaa[0]:
+            stdscr.addstr(4, 0, f"  Erä {erä}/{erat} — lähettää... ({n}/{yht} käsitelty)  ")
+        else:
+            stdscr.addstr(4, 0, f"  Erä {erä}/{erat} — {n}/{yht} käsitelty               ")
+        _odottaa[0] = not _odottaa[0]
         stdscr.refresh()
 
     try:
