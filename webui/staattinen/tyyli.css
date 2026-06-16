@@ -39,9 +39,12 @@ header h1 { margin: 0 0 0.5rem; font-size: 1.4rem; }
   margin-top: 0.25rem;
   border-top: 1px solid rgba(255,255,255,0.1);
   padding-top: 0.25rem;
-  display: flex;
   align-items: center;
   flex-wrap: wrap;
+}
+
+#tutkimus-nav:not(.piilotettu) {
+  display: flex;
 }
 
 .nav-erotin {
@@ -116,6 +119,19 @@ th { background: #ececf4; }
 
 td a { color: #16213e; text-underline-offset: 2px; }
 td a:hover { color: #e94560; }
+
+.ops-linkki {
+  margin-left: 0.4em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 0.76em;
+  background: #eef2ff;
+  color: #2c4a9a;
+  text-decoration: none;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.ops-linkki:hover { background: #c5d5ff; color: #2c4a9a; }
 
 td.koodi { font-family: monospace; color: #555; }
 td.op { text-align: right; }

@@ -99,11 +99,20 @@ function kurssiUrl(kurssi) {
   return `${koulu.OpsOsoite}/fi/opintojakso/${kurssi.Koodi}/${kurssi.LahdeId}?period=${kurssi.Opetusvuosi}`;
 }
 
+function koulunLyhenne(koulu) {
+  try {
+    const osat = new URL(koulu.OpsOsoite).hostname.split(".");
+    return (koulu.OpsTyyppi === "Sisu" ? osat[1] : osat[osat.length - 2])
+      ?.toUpperCase() || "";
+  } catch { return ""; }
+}
+
 function kurssiLinkki(kurssi) {
   const url = kurssiUrl(kurssi);
-  return url
-    ? `<a href="${url}" target="_blank" rel="noopener">${kurssi.KurssiNimi}</a>`
-    : kurssi.KurssiNimi;
+  if (!url) return kurssi.KurssiNimi;
+  const koulu = kaikki_koulut.find((k) => k.KKID === kurssi.KKID);
+  if (!koulu) return kurssi.KurssiNimi;
+  return `${kurssi.KurssiNimi} <a href="${url}" target="_blank" rel="noopener" class="ops-linkki">🌐 ${koulunLyhenne(koulu)} · ${koulu.OpsTyyppi}</a>`;
 }
 
 function ryhmitaKurssit(kurssit) {
@@ -451,6 +460,7 @@ function renderTutkimusKurssitTila() {
     }
 
     const rivi = document.createElement("tr");
+    rivi.className = "kurssi-rivi";
     rivi.innerHTML = `
       <td>${kurssiLinkki(k)}</td>
       <td class="koodi">${k.Koodi || ""}</td>
@@ -459,6 +469,8 @@ function renderTutkimusKurssitTila() {
       <td class="op">${k.Opintopisteet ?? "—"}</td>
       <td class="perustelu">${perusteluHtml}</td>
       <td class="toiminto">${toimintoHtml}</td>`;
+    rivi.querySelector("a.ops-linkki")?.addEventListener("click", (e) => e.stopPropagation());
+    rivi.addEventListener("click", () => avaaModaali(k.KID));
     runko.appendChild(rivi);
   }
 
@@ -554,11 +566,14 @@ async function renderTutkimusArvioinnit(slug, nimi) {
   const tbody = taulu.createTBody();
   for (const k of kurssit) {
     const rivi = tbody.insertRow();
+    rivi.className = "kurssi-rivi";
     const taso = k.Taso ? (TASO_SUOMI[k.Taso] || k.Taso) : "—";
     rivi.innerHTML = `
       <td>${kurssiLinkki(k)}</td>
       <td>${taso}</td>
       <td class="op">${k.Opintopisteet ?? "—"}</td>`;
+    rivi.querySelector("a.ops-linkki")?.addEventListener("click", (e) => e.stopPropagation());
+    rivi.addEventListener("click", () => avaaModaali(k.KID));
     kysymykset.forEach((kys, i) => {
       const v = k.vastaukset[i];
       const vastausTeksti = _vastusTeksti(v);
@@ -569,7 +584,8 @@ async function renderTutkimusArvioinnit(slug, nimi) {
       td.innerHTML = `<span class="arvio-teksti">${_renderArviointiSolu(kys, v)}</span>` +
         (kommentti ? `<div class="arvio-kommentti">${kommentti}</div>` : "") +
         `<button class="arvio-korjaa-nappi" id="${korjaaId}">Korjaa</button>`;
-      td.querySelector(".arvio-korjaa-nappi").addEventListener("click", () => {
+      td.querySelector(".arvio-korjaa-nappi").addEventListener("click", (e) => {
+        e.stopPropagation();
         window.avaaArviointiMuokkaus?.(tid, k.KID, kys.KysID, kys.Kysymys, vastausTeksti, kommentti);
       });
     });
