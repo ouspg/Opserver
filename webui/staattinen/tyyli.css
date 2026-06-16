@@ -1,0 +1,711 @@
+* { box-sizing: border-box; }
+
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0;
+  color: #1a1a2e;
+  background: #f4f4f8;
+}
+
+header {
+  background: #16213e;
+  color: #fff;
+  padding: 1rem 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+header h1 { margin: 0 0 0.5rem; font-size: 1.4rem; }
+
+.paivitysaika { display: none; }
+
+#paanav button, #tutkimus-nav button {
+  background: transparent;
+  border: none;
+  color: #aab;
+  padding: 0.4rem 0.9rem;
+  font-size: 1rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+#paanav button.aktiivinen, #tutkimus-nav button.aktiivinen {
+  color: #fff;
+  border-bottom-color: #e94560;
+}
+
+#tutkimus-nav {
+  margin-top: 0.25rem;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  padding-top: 0.25rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.nav-erotin {
+  color: rgba(255,255,255,0.2);
+  margin: 0 0.4rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.tila-nappi-nav {
+  background: transparent;
+  border: none;
+  color: #aab;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tila-nappi-nav.aktiivinen {
+  color: #fff;
+  border-bottom-color: #e94560;
+}
+
+.tila-nappi-nav:hover { color: #ddf; }
+
+#tutkimus-nav #tutkimus-nav-nimi {
+  color: #fff;
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+main { padding: 1.5rem; }
+
+.nakyma { display: none; }
+.nakyma.aktiivinen { display: block; }
+
+/* Suodattimet */
+.suodattimet {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.suodattimet select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  background: #fff;
+}
+
+.lkm { color: #666; font-size: 0.9rem; }
+
+/* Taulukot */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+th, td {
+  text-align: left;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid #e0e0ec;
+}
+
+th { background: #ececf4; }
+
+td a { color: #16213e; text-underline-offset: 2px; }
+td a:hover { color: #e94560; }
+
+td.koodi { font-family: monospace; color: #555; }
+td.op { text-align: right; }
+
+.kurssi-rivi { cursor: pointer; }
+.kurssi-rivi:hover { background: #f0f0ff; }
+
+/* Modaali */
+.modaali {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.piilotettu { display: none; }
+
+.modaali-sisalto {
+  background: #fff;
+  border-radius: 6px;
+  padding: 1.5rem;
+  max-width: 720px;
+  width: 100%;
+  position: relative;
+}
+
+.modaali-sulje {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #666;
+}
+
+.modaali-meta { width: auto; margin-bottom: 1rem; box-shadow: none; }
+.modaali-meta th { background: none; color: #555; font-weight: 600; padding: 0.3rem 1rem 0.3rem 0; }
+.modaali-meta td { padding: 0.3rem 0; border: none; }
+
+.ops-kuvaus { line-height: 1.6; font-size: 0.95rem; }
+.ops-kuvaus hr { border: none; border-top: 1px solid #eee; margin: 1rem 0; }
+
+.tulossa { color: #888; font-style: italic; }
+
+.tutkimus-toiminnot { white-space: nowrap; }
+
+.nappi-pieni {
+  background: #ececf4;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  margin-right: 0.25rem;
+}
+
+.nappi-pieni:hover { background: #dde; }
+
+.tila-nappi {
+  background: #ececf4;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.tila-nappi.aktiivinen {
+  background: #16213e;
+  color: #fff;
+  border-color: #16213e;
+}
+
+td.perustelu {
+  font-size: 0.82rem;
+  color: #555;
+  max-width: 280px;
+  word-break: break-word;
+}
+
+.tutkimus-nimi-solu { cursor: pointer; }
+.tutkimus-nimi-solu:hover { text-decoration: underline; color: #16213e; }
+
+.vuosivalinta {
+  padding: 0.1rem 0.3rem;
+  font-size: 0.85rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+
+th.kysymys-sarake {
+  max-width: 180px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: help;
+  font-size: 0.82rem;
+}
+
+td.arviointi-vastaus {
+  font-size: 0.85rem;
+  color: #333;
+  max-width: 220px;
+  word-break: break-word;
+}
+
+/* HITL-lomake */
+.lomake-kentta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+}
+
+.lomake-kentta label { font-size: 0.9rem; font-weight: 600; color: #555; }
+
+.lomake-kentta input, .lomake-kentta textarea {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.lomake-kentta textarea { resize: vertical; }
+
+.nappi-toiminto {
+  background: #e94560;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1.2rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.nappi-toiminto:hover { background: #c73050; }
+.nappi-toiminto:disabled { background: #aaa; cursor: not-allowed; }
+
+.hitl-ai-perustelu {
+  background: #f4f4f8;
+  border-left: 3px solid #ccc;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.88rem;
+  color: #555;
+  border-radius: 0 4px 4px 0;
+}
+
+.ai-perustelu { display: block; color: #555; font-size: 0.82rem; }
+
+.hitl-perustelu {
+  display: block;
+  color: #c73050;
+  font-size: 0.82rem;
+  margin-top: 0.3rem;
+  font-style: italic;
+}
+
+td.toiminto { text-align: right; white-space: nowrap; }
+
+.nappi-vaara {
+  background: #fff0f0;
+  border-color: #e94560;
+  color: #c73050;
+}
+
+.nappi-vaara:hover { background: #ffe0e4; }
+
+.nappi-hyva {
+  background: #f0fff4;
+  border-color: #27ae60;
+  color: #1e8449;
+}
+
+.nappi-hyva:hover { background: #d4f5e0; }
+
+.kehote-teksti {
+  background: #f4f4f8;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  font-size: 0.88rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0.5rem 0 1rem;
+}
+
+/* --- Yhteistyö: nimimerkki + profiili --- */
+
+#yhteistyo-alue {
+  position: absolute;
+  top: 1rem;
+  right: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  flex-wrap: nowrap;
+}
+
+#muut-ympyrat {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.vieras-ympyra-pieni {
+  border-radius: 50%;
+  display: block;
+  flex-shrink: 0;
+}
+
+#oma-alue {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+#oma-ympyra {
+  border-radius: 50%;
+  cursor: pointer;
+  display: block;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+#oma-ympyra:hover { opacity: 0.85; }
+
+.nimimerkki-ohje {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.55);
+  white-space: nowrap;
+}
+
+#nimimerkki-kentta {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  color: #fff;
+  padding: 0.22rem 0.5rem;
+  font-size: 0.88rem;
+  width: 200px;
+}
+
+#nimimerkki-kentta:focus {
+  outline: none;
+  border-color: rgba(255,255,255,0.45);
+  background: rgba(255,255,255,0.15);
+}
+
+#nollaa-nimimerkki {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  color: rgba(255,255,255,0.65);
+  padding: 0.2rem 0.5rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#nollaa-nimimerkki:hover {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}
+
+/* Profiilimuokkaus-popup */
+
+#profiili-muokkaus {
+  position: fixed;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  padding: 0.9rem 1rem;
+  z-index: 200;
+  min-width: 220px;
+}
+
+.profiili-esikatselu-rivi {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.7rem;
+}
+
+#profiili-esikatselu {
+  border-radius: 50%;
+  display: block;
+}
+
+.vari-otsikko {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.3rem;
+}
+
+.vari-ruudukko {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 0.65rem;
+}
+
+.vari-nappula {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.vari-nappula:hover { opacity: 0.8; }
+.vari-nappula.valittu { border-color: #333; }
+
+.profiili-napit {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.profiili-napit button {
+  flex: 1;
+  background: #ececf4;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.profiili-napit button:hover { background: #dde; }
+
+/* Leijuvat kursorit */
+
+#kursori-kerros {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  overflow: hidden;
+}
+
+.vieras-kursori {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  transition: left 0.15s ease-out, top 0.15s ease-out;
+}
+
+.vieras-kursori canvas {
+  display: block;
+  border-radius: 50%;
+}
+
+/* Uutispalkki */
+
+#uutispalkki {
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  font-size: 0.76rem;
+  color: rgba(255,255,255,0.55);
+  padding: 0.1rem 0 0.2rem;
+  min-height: 1.3rem;
+}
+
+#uutispalkki:empty { display: none; }
+#uutispalkki::-webkit-scrollbar { display: none; }
+
+.uutinen-item { flex-shrink: 0; white-space: nowrap; }
+
+.uutinen-item + .uutinen-item::before {
+  content: "·";
+  color: rgba(255,255,255,0.22);
+  padding: 0 0.55rem;
+}
+
+.uutinen-aika {
+  color: rgba(255,255,255,0.28);
+  margin-right: 0.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nav-indikaattorit */
+
+#nav-indikaattorit {
+  position: relative;
+  height: 12px;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* Tooltip */
+
+#nimis-tooltip {
+  position: fixed;
+  background: rgba(0,0,0,0.78);
+  color: #fff;
+  font-size: 0.78rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 999;
+  white-space: nowrap;
+}
+
+/* Arviointi-taulukko */
+
+.arvio-teksti { display: block; }
+
+.arvio-kommentti {
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  color: #1a5c4a;
+  background: #e8f5f0;
+  border-left: 3px solid #27ae60;
+  padding: 0.2rem 0.4rem;
+  border-radius: 2px;
+}
+
+.arvio-korjaa-nappi {
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  padding: 0.1rem 0.45rem;
+  background: #eef2ff;
+  border: 1px solid #b0bfff;
+  border-radius: 3px;
+  color: #2c3e90;
+  cursor: pointer;
+}
+
+.arvio-korjaa-nappi:hover { background: #d9e2ff; }
+
+/* Arviointimuokkaus-modaali */
+
+.arviointimuokkaus-sisalto {
+  max-width: 640px;
+  width: 95vw;
+}
+
+.arviointimuokkaus-ai {
+  background: #f7f8fa;
+  border-left: 3px solid #193764;
+  padding: 0.6rem 0.8rem;
+  border-radius: 3px;
+  font-size: 0.88rem;
+  margin-bottom: 1rem;
+  max-height: 10rem;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+.arviointimuokkaus-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.arviointimuokkaus-kommentti-alue { margin-bottom: 1rem; }
+
+#arviointimuokkaus-tekstialue {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  border: 1px solid #c0cce0;
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  display: block;
+}
+
+#arviointimuokkaus-kursorit {
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+#arviointimuokkaus-muokkaajat {
+  font-size: 0.78rem;
+  color: #555;
+  margin-top: 0.3rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.muokkaaja-rivi {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.modaali-napit {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+/* --- Raportti --- */
+
+.raportti-toiminnot {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1.5rem;
+}
+
+.raportti-osio {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.raportti-osio-otsikkorivi {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.raportti-osio-otsikko {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #16213e;
+}
+
+.raportti-muokkaa-nappi {
+  flex-shrink: 0;
+}
+
+.raportti-osio-teksti {
+  line-height: 1.75;
+  color: #2a2a3a;
+  font-size: 0.95rem;
+}
+
+.raportti-muokkaajat {
+  font-size: 0.78rem;
+  color: #555;
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+#raporttimuokkaus-tekstialue {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  border: 1px solid #c0cce0;
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  display: block;
+}
+
+#raporttimuokkaus-kursorit {
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+#raporttimuokkaus-muokkaajat {
+  font-size: 0.78rem;
+  color: #555;
+  margin-top: 0.3rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+@media print {
+  header, #hitl-modaali, #modaali, #arviointimuokkaus-modaali,
+  #raporttimuokkaus-modaali, .raportti-toiminnot, .raportti-muokkaa-nappi,
+  .raportti-muokkaajat { display: none !important; }
+  .raportti-osio { box-shadow: none; border: none; padding: 0; }
+}

@@ -1,0 +1,886 @@
+[
+ {
+  "name": {
+   "valueEn": "Computer Science and Engineering (Digitalisation, Computing and Electronics), Bachelor and Master of Science (Technology) (3 years + 2 years)",
+   "valueFi": "Computer Science and Engineering (Digitalisation, Computing and Electronics), Bachelor and Master of Science (Technology) (3 years + 2 years)",
+   "valueSv": ""
+  },
+  "id": "43205",
+  "code": "P2025COMDIGI",
+  "type": "EDUCATION",
+  "maxCredits": 0,
+  "minCredits": 0,
+  "optionality": null,
+  "educationLevel": null,
+  "descriptions": [
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Koulutuksen nimi",
+      "valueEn": "Name of the degree",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Computer Science and Engineering, Degree Programme in Digitalization, Computing and Electronics, Bachelor and Master of Science (Technology) (3y + 2y)</p>",
+     "valueEn": "<p>Computer Science and Engineering, Degree Programme in Digitalization, Computing and Electronics, Bachelor and Master of Science (Technology) (3y + 2y)</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Koulutuksen kuvaus Opintopolussa",
+      "valueEn": "Programme description at Studyinfo",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "",
+     "valueEn": "",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Toteutuksen yleinen kuvaus",
+      "valueEn": "General description",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Bachelor of Science studies in Computer Science and Engineering in Oulu provides a broad knowledge of the basics of computer science, for example in programming, hardware, software, artificial intelligence, data and data processing. Application of mathematics and mathematical methods are important part of computer science, and BSc studies include versatile studies in applications of engineering mathematics, for example matrix analysis, statistics and probability theory. The studies begin from the basics and therefore previous experience for example in programming is not necessary. In BSc studies the student can select the orientation by his/her own interest. Orientations are 1) Artificial Intelligence, 2) Applied Computing, 3) Computer Engineering, and 4) Cyber Security. The student can also select supplementary module and optional studies, and therefore tailor the degree to meet his/her own interest and career plan. In addition to theory, the studies are also focused on practical skills through various exercise work and projects. BSc studies provide strong foundation for Master of Science studies in Computer Science and Engineering.</p>\r\n\r\n<p>In Master of Science studies the student continues to deepen his/her selected orientation. Also MSc studies include optional studies and thus further supports the development of students&#39; expert profile to suit their own needs. After completing the MSc studies a student can work as an expert of computer science and engineering, for example designing and developing new algorithms, software, hardware and systems. MSc studies also provide the qualification required for postgraduate studies.</p>",
+     "valueEn": "<p>Bachelor of Science studies in Computer Science and Engineering in Oulu provides a broad knowledge of the basics of computer science, for example in programming, hardware, software, artificial intelligence, data and data processing. Application of mathematics and mathematical methods are important part of computer science, and BSc studies include versatile studies in applications of engineering mathematics, for example matrix analysis, statistics and probability theory. The studies begin from the basics and therefore previous experience for example in programming is not necessary. In BSc studies the student can select the orientation by his/her own interest. Orientations are 1) Artificial Intelligence, 2) Applied Computing, 3) Computer Engineering, and 4) Cyber Security. The student can also select supplementary module and optional studies, and therefore tailor the degree to meet his/her own interest and career plan. In addition to theory, the studies are also focused on practical skills through various exercise work and projects. BSc studies provide strong foundation for Master of Science studies in Computer Science and Engineering.</p>\r\n\r\n<p>In Master of Science studies the student continues to deepen his/her selected orientation. Also MSc studies include optional studies and thus further supports the development of students&#39; expert profile to suit their own needs. After completing the MSc studies a student can work as an expert of computer science and engineering, for example designing and developing new algorithms, software, hardware and systems. MSc studies also provide the qualification required for postgraduate studies.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Pääasiallinen opetuskieli",
+      "valueEn": "Language of instruction",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>English</p>",
+     "valueEn": "<p>English</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opetuskieli, tarkempi kuvaus",
+      "valueEn": "More about the language of instruction",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>All courses are carried out in English.</p>",
+     "valueEn": "<p>All courses are&nbsp;carried out in English.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Pääasiallinen opetusaika",
+      "valueEn": "Teaching time",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Daytime teaching</p>",
+     "valueEn": "<p>Daytime teaching</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opetusaika, tarkempi kuvaus",
+      "valueEn": "More information about teaching time",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "",
+     "valueEn": "",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Pääasiallinen opetustapa",
+      "valueEn": "Form of teaching",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<ul>\r\n\t<li>Contact teaching</li>\r\n\t<li>Independent learning</li>\r\n\t<li>Blended teaching</li>\r\n\t<li>Online teaching</li>\r\n</ul>",
+     "valueEn": "<ul>\r\n\t<li>Contact teaching</li>\r\n\t<li>Independent learning</li>\r\n\t<li>Blended teaching</li>\r\n\t<li>Online teaching</li>\r\n</ul>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opetustapa, tarkempi kuvaus",
+      "valueEn": "More information about form of teaching",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "",
+     "valueEn": "",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opetuksen maksullisuus",
+      "valueEn": "Tuition fees",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Scholarship system is meant for non-EU/EEA students who are required to pay tuition fees. <a href=\"https://www.oulu.fi/en/apply/applying-non-finnish-qualification\">Please, see information about scholarships of University of Oulu here</a>&nbsp;</p>",
+     "valueEn": "<p>Scholarship system is meant for non-EU/EEA students who are required to pay tuition fees. <a href=\"https://www.oulu.fi/en/apply/applying-non-finnish-qualification\">Please, see information about scholarships of University of Oulu here</a>&nbsp;</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opetuksen maksullisuus (hinta euroina)",
+      "valueEn": "Tuition fee payment (in Euros)",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>10 000 &euro; / year</p>",
+     "valueEn": "<p>10 000 &euro; / year</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opetuksen maksullisuus, tarkempi kuvaus",
+      "valueEn": "More information about tuition fee payment",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "",
+     "valueEn": "",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Apuraha",
+      "valueEn": "Scholarship",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "",
+     "valueEn": "",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Lisätietoa apurahasta",
+      "valueEn": "More information on scholarship​",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "",
+     "valueEn": "",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Osaamistavoitteet",
+      "valueEn": "Competence objectives",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>The Degree Programme in Digitalisation, Computing and Electronics (DICE) focuses on providing a wide range of skills and knowledge needed in research, product development, and production of computer-based devices, services and systems including, for example, expertise for developing solutions to artificial intelligence-based data analysis, Internet of Things, and interactive systems. The programme is based on the latest research excellence and prepares students to apply their skills in working life, as well as gives them tools for continuous learning.</p>\r\n\r\n<p><strong>After performing the BSc studies in the degree programme a student</strong></p>\r\n\r\n<ul>\r\n\t<li>knows the essential concepts, methods, and technologies in Information and Communication Technologies (ICT) especially in the field of the chosen specialisation</li>\r\n\t<li>can use and apply the acquired knowledge in a creative and critical manner in their work</li>\r\n\t<li>can use information technology tools and communication skills in solving problems in their field of study</li>\r\n\t<li>is able to work responsibly both independently and as a team member and can communicate clearly to international audience both literally and verbally</li>\r\n\t<li>has the abilities required for master&rsquo;s studies and continuous professional development.</li>\r\n</ul>\r\n\r\n<p><strong>After completing the MSc in Computer Science and Engineering studies a student</strong></p>\r\n\r\n<ul>\r\n\t<li>can work as an expert of computer science and engineering in international communities</li>\r\n\t<li>masters profoundly and diversely the concepts, theory, and methods related to the selected orientation, and knows the basics in the fields of the complementary and optional studies</li>\r\n\t<li>can apply the acquired knowledge in a creative manner in research, development and management</li>\r\n\t<li>masters the communication and collaboration skills needed in working life</li>\r\n\t<li>can conduct scientific research and create new knowledge for the needs of&nbsp; companies and the society</li>\r\n\t<li>has the abilities required for postgraduate studies and continuous professional development.</li>\r\n</ul>\r\n\r\n<p><strong>Specialization-specific learning outcomes:</strong></p>\r\n\r\n<p><strong>Applied Computing</strong></p>\r\n\r\n<p>A bachelor&#39;s degree graduate is familiar with digital technologies and approaches that enhance everyday life (VR/XR, IoT, and HCI), knows how to use collaborative development tools like Git, and can utilize various engines and frameworks to develop applications on different platforms. A human-centered perspective plays an important role. A master&#39;s degree graduate has a broad understanding of various fields of applied computing and the ability to build complex systems using different technologies in both physical and virtual environments.</p>\r\n\r\n<p><strong>Artificial Intelligence</strong></p>\r\n\r\n<p>A bachelor&#39;s degree graduate understands the basics of machine learning and artificial intelligence. A master&#39;s degree graduate masters AI solutions, including machine learning methods, the processing of various data sources and signals, as well as data analysis and data-driven reasoning, and can apply these methods in areas such as computer vision, speech recognition, and data mining.</p>\r\n\r\n<p><strong>Computer Engineering</strong></p>\r\n\r\n<p>A bachelor&#39;s degree graduate has comprehensive basic knowledge and skills related to the hardware, processors, software, signal processing, lifecycles, and security of embedded systems. A master&#39;s degree graduate has an in-depth understanding of Internet of Things (IoT) applications and physical devices, as well as low-power implementations.</p>\r\n\r\n<p><strong>Cyber Security</strong></p>\r\n\r\n<p>A bachelor&#39;s degree graduate has a broad understanding of the basics and phenomena of the cybersecurity field. They have good basic skills in cybersecurity testing including other necessary technical skills and are prepared to further educate themselves for various tasks in the cybersecurity field. A master&#39;s degree graduate has an in-depth understanding of the phenomena and field of cybersecurity, has specialized in a specific area of cybersecurity, and has extensive knowledge of the cybersecurity of software, devices, networks, and cloud services.</p>",
+     "valueEn": "<p>The Degree Programme in Digitalisation, Computing and Electronics (DICE) focuses on providing a wide range of skills and knowledge needed in research, product development, and production of computer-based devices, services and systems including, for example, expertise for developing solutions to artificial intelligence-based data analysis, Internet of Things, and interactive systems. The programme is based on the latest research excellence and prepares students to apply their skills in working life, as well as gives them tools for continuous learning.</p>\r\n\r\n<p><strong>After performing the BSc studies in the degree programme a student</strong></p>\r\n\r\n<ul>\r\n\t<li>knows the essential concepts, methods, and technologies in Information and Communication Technologies (ICT) especially in the field of the chosen specialisation</li>\r\n\t<li>can use and apply the acquired knowledge in a creative and critical manner in their work</li>\r\n\t<li>can use information technology tools and communication skills in solving problems in their field of study</li>\r\n\t<li>is able to work responsibly both independently and as a team member and can communicate clearly to international audience both literally and verbally</li>\r\n\t<li>has the abilities required for master&rsquo;s studies and continuous professional development.</li>\r\n</ul>\r\n\r\n<p><strong>After completing the MSc in Computer Science and Engineering studies a student</strong></p>\r\n\r\n<ul>\r\n\t<li>can work as an expert of computer science and engineering in international communities</li>\r\n\t<li>masters profoundly and diversely the concepts, theory, and methods related to the selected orientation, and knows the basics in the fields of the complementary and optional studies</li>\r\n\t<li>can apply the acquired knowledge in a creative manner in research, development and management</li>\r\n\t<li>masters the communication and collaboration skills needed in working life</li>\r\n\t<li>can conduct scientific research and create new knowledge for the needs of&nbsp; companies and the society</li>\r\n\t<li>has the abilities required for postgraduate studies and continuous professional development.</li>\r\n</ul>\r\n\r\n<p><strong>Specialization-specific learning outcomes:</strong></p>\r\n\r\n<p><strong>Applied Computing</strong></p>\r\n\r\n<p>A bachelor&#39;s degree graduate is familiar with digital technologies and approaches that enhance everyday life (VR/XR, IoT, and HCI), knows how to use collaborative development tools like Git, and can utilize various engines and frameworks to develop applications on different platforms. A human-centered perspective plays an important role. A master&#39;s degree graduate has a broad understanding of various fields of applied computing and the ability to build complex systems using different technologies in both physical and virtual environments.</p>\r\n\r\n<p><strong>Artificial Intelligence</strong></p>\r\n\r\n<p>A bachelor&#39;s degree graduate understands the basics of machine learning and artificial intelligence. A master&#39;s degree graduate masters AI solutions, including machine learning methods, the processing of various data sources and signals, as well as data analysis and data-driven reasoning, and can apply these methods in areas such as computer vision, speech recognition, and data mining.</p>\r\n\r\n<p><strong>Computer Engineering</strong></p>\r\n\r\n<p>A bachelor&#39;s degree graduate has comprehensive basic knowledge and skills related to the hardware, processors, software, signal processing, lifecycles, and security of embedded systems. A master&#39;s degree graduate has an in-depth understanding of Internet of Things (IoT) applications and physical devices, as well as low-power implementations.</p>\r\n\r\n<p><strong>Cyber Security</strong></p>\r\n\r\n<p>A bachelor&#39;s degree graduate has a broad understanding of the basics and phenomena of the cybersecurity field. They have good basic skills in cybersecurity testing including other necessary technical skills and are prepared to further educate themselves for various tasks in the cybersecurity field. A master&#39;s degree graduate has an in-depth understanding of the phenomena and field of cybersecurity, has specialized in a specific area of cybersecurity, and has extensive knowledge of the cybersecurity of software, devices, networks, and cloud services.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Sisältö",
+      "valueEn": "Content",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>The studies in the Bachelor degree program in Computer Science and Engineering cover the basics of computer engineering, programming, processing and analysing digital information, embedded systems, Internet, electronics, and telecommunications. The studies are grouped to allow students to accumulate professional competences from the first year of studies onwards. The degree contains courses on mathematics and natural sciences that build a basis for professional studies. A student can also select supplementary courses based on her/his interests, for example, on economy or electrical engineering.</p>\r\n\r\n<p>The program aims to provide the skills and knowledge needed in research, product development, and production of computer-based devices and systems. Master of Science studies cover four&nbsp;options, which are Artificial Intelligence, Applied Computing, Embedded Systems and Cyber Security. Furthermore, advanced and supplementary modules are available.&nbsp;A student can choose the specialization based on their interests, for example, in intelligent systems and techniques like artificial intelligence and digital signal processing. They can also focus on designing embedded systems for smart phones, mobile base stations, cars, and wearable devices. Or they can train to become a specialist who masters the new technologies such as Internet of Things and human-centered computing, and is capable of developing new software and devices to meet the needs identified by users and businesses. Additionally, they can examine research, application and product development tasks of devices and software from a cyber security perspective.</p>",
+     "valueEn": "<p>The studies in the Bachelor degree program in Computer Science and Engineering cover the basics of computer engineering, programming, processing and analysing digital information, embedded systems, Internet, electronics, and telecommunications. The studies are grouped to allow students to accumulate professional competences from the first year of studies onwards. The degree contains courses on mathematics and natural sciences that build a basis for professional studies. A student can also select supplementary courses based on her/his interests, for example, on economy or electrical engineering.</p>\r\n\r\n<p>The program aims to provide the skills and knowledge needed in research, product development, and production of computer-based devices and systems. Master of Science studies cover four&nbsp;options, which are Artificial Intelligence, Applied Computing, Embedded Systems and Cyber Security. Furthermore, advanced and supplementary modules are available.&nbsp;A student can choose the specialization based on their interests, for example, in intelligent systems and techniques like artificial intelligence and digital signal processing. They can also focus on designing embedded systems for smart phones, mobile base stations, cars, and wearable devices. Or they can train to become a specialist who masters the new technologies such as Internet of Things and human-centered computing, and is capable of developing new software and devices to meet the needs identified by users and businesses. Additionally, they can examine research, application and product development tasks of devices and software from a cyber security perspective.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Suuntautumisvaihtoehdot",
+      "valueEn": "Specialisations",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>A student selects one of the four orientations during the Spring of the 2nd year:</p>\r\n\r\n<ul>\r\n\t<li>Artificial Intelligence</li>\r\n\t<li>Applied Computing</li>\r\n\t<li>Computer Engineering</li>\r\n\t<li>Cyber Security</li>\r\n</ul>\r\n\r\n<p>The preparatory module of the orientation is included in the BSc studies, and the basic module and the advanced module of the orientation in the MSc studies.</p>\r\n\r\n<p><strong>Applied Computing</strong> focuses on the next generation of interactive systems that place humans at the focus of the technological development. Adopting a multidisciplinary real-world approach, students have to spend a substantial amount of time working in group projects to develop a variety of systems ranging from interactive online services to games and mobile applications, with a strong focus on innovation and design.</p>\r\n\r\n<p><strong>Artificial Intelligence</strong> focuses on various fields of AI such as machine learning, machine vision and data mining. This specialization provides students with a solid theoretical understanding and practical skills on processing and analyzing digital data and the ability to create intelligent solutions to real world problems with modern AI techniques.</p>\r\n\r\n<p><strong>Computer Engineering</strong> focuses on both hardware and software aspects of computing with emphasis on embedded system development. In this specialization, students also study signal processing and its applications, and work with projects on modern signal processors and embedded computers. The specialization gives the students a good basis to work with Internet of Things (IoT) applications.</p>\r\n\r\n<p><strong>Cyber Security</strong> covers various aspects about modern information security such as possible vulnerabilities, attack vectors and preventive methods in user, software and hardware level. The focus is on hands-on exercises and project work with good theoretical understanding of the topics.</p>\r\n\r\n<p>In addition, the student selects a supplementary module and optional courses both for BSc and MSc studies to fulfill the requirements of the degree.</p>",
+     "valueEn": "<p>A student selects one of the four orientations during the Spring of the 2rd year:</p>\r\n\r\n<ul>\r\n\t<li>Artificial Intelligence</li>\r\n\t<li>Applied Computing</li>\r\n\t<li>Computer Engineering</li>\r\n\t<li>Cyber Security</li>\r\n</ul>\r\n\r\n<p>The preparatory module of the orientation is included in the BSc studies, and the basic module and the advanced module of the orientation in the MSc studies.</p>\r\n\r\n<p><strong>Applied Computing</strong> focuses on the next generation of interactive systems that place humans at the focus of the technological development. Adopting a multidisciplinary real-world approach, students have to spend a substantial amount of time working in group projects to develop a variety of systems ranging from interactive online services to games and mobile applications, with a strong focus on innovation and design.</p>\r\n\r\n<p><strong>Artificial Intelligence </strong>focuses on various fields of AI such as machine learning, machine vision and data mining. This specialization provides students with a solid theoretical understanding and practical skills on processing and analyzing digital data and the ability to create intelligent solutions to real world problems with modern AI techniques.</p>\r\n\r\n<p><strong>Computer Engineering</strong> focuses on both hardware and software aspects of computing with emphasis on embedded system development. In this specialization, students also study signal processing and its applications, and work with projects on modern signal processors and embedded computers. The specialization gives the students a good basis to work with Internet of Things (IoT) applications.</p>\r\n\r\n<p><strong>Cyber Security</strong> covers various aspects about modern information security such as possible vulnerabilities, attack vectors and preventive methods in user, software and hardware level. The focus is on hands-on exercises and project work with good theoretical understanding of the topics.</p>\r\n\r\n<p>In addition, the student selects a supplementary module and optional courses both for BSc and MSc studies to fulfill the requirements of the degree.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Uramahdollisuudet",
+      "valueEn": "Career opportunities",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>The graduates are qualified to practice many professions that require M.Sc. degree, and also to pursue the PhD degree in computer science and engineering.</p>\r\n\r\n<p>The programme will provide the graduates with sufficient skills to work in a wide variety of positions offered by research institutes and companies mainly operating in the field of information and communications technology (ICT). The graduates are most likely to be employed in research and development related positions, but also management positions and entrepreneurship fit into the profile. The work is often international.</p>\r\n\r\n<p>Professional Titles of Graduates:</p>\r\n\r\n<ul>\r\n\t<li>Software engineer</li>\r\n\t<li>System designer</li>\r\n\t<li>Project manager</li>\r\n\t<li>Development manager</li>\r\n\t<li>Product manager</li>\r\n\t<li>Specialist</li>\r\n\t<li>Data analyst</li>\r\n\t<li>Research scientist</li>\r\n</ul>",
+     "valueEn": "<p>The graduates are qualified to practice many professions that require M.Sc. degree, and also to pursue the PhD degree in computer science and engineering.</p>\r\n\r\n<p>The programme will provide the graduates with sufficient skills to work in a wide variety of positions offered by research institutes and companies mainly operating in the field of information and communications technology (ICT). The graduates are most likely to be employed in research and development related positions, but also management positions and entrepreneurship fit into the profile. The work is often international.</p>\r\n\r\n<p>Professional Titles of Graduates:</p>\r\n\r\n<ul>\r\n\t<li>Software engineer</li>\r\n\t<li>System designer</li>\r\n\t<li>Project manager</li>\r\n\t<li>Development manager</li>\r\n\t<li>Product manager</li>\r\n\t<li>Specialist</li>\r\n\t<li>Data analyst</li>\r\n\t<li>Research scientist</li>\r\n</ul>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opintojen rakenne",
+      "valueEn": "Structure of studies",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Get acquainted with the study structures in 2024-2025 curriculum for Bachelor&rsquo;s [https://opas.peppi.oulu.fi/en/programme/40142?period=2024-2025] and Master&rsquo;s degrees [https://opas.peppi.oulu.fi/en/programme/40186?period=2024-2025]. The study structures for the academic year 2025-2026 are published in the beginning of March 2025 and the new links are updated to the Studyinfo in the beginning of March. The updated structure of studies is also published in the Study Guide of University of Oulu.</p>",
+     "valueEn": "<p>Get acquainted with the study structures in 2024-2025 curriculum for Bachelor&rsquo;s [https://opas.peppi.oulu.fi/en/programme/40142?period=2024-2025] and Master&rsquo;s degrees [https://opas.peppi.oulu.fi/en/programme/40186?period=2024-2025]. The study structures for the academic year 2025-2026 are published in the beginning of March 2025 and the new links are updated to the Studyinfo in the beginning of March. The updated structure of studies is also published in the Study Guide of University of Oulu.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opinnäytetyö",
+      "valueEn": "Thesis",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>The bachelor&rsquo;s degree in Computer Science and Engineering includes a BSc thesis (8 ECTS cr), which is made independently or as a group work. In addition, the BSc thesis includes technical communication studies (2 ECTS cr).</p>\r\n\r\n<p>The master&rsquo;s degree in Computer Science and Engineering includes an MSc thesis (30 ECTS cr), which is made independently and often as a work commissioned by an external customer such as a company from a topic related to its research or product development. The MSc thesis can be also made in the university research unit when it is more focused on scientific work and its documentation.</p>\r\n\r\n<p>To be awarded a bachelor&rsquo;s and master&#39;s degree, a student must complete the required studies and the thesis, write a maturity essay demonstrating language proficiency in the language in which the student has been educated (Finnish or Swedish). The student shall demonstrate the satisfactory level of proficiency in Finnish and Swedish required in the Act (424/2003) section 6 subsection 1. A student who has already demonstrated his/her language proficiency for a lower university degree (Bachelor) does not, however, need to demonstrate it again for a master&acute;s degree. The diploma for the degrees of Bachelor of Science and Master of Science (Diploma Engineer) is awarded on request and issued by the Education Dean of the Faculty.</p>",
+     "valueEn": "<p>The bachelor&rsquo;s degree in Computer Science and Engineering includes a BSc thesis (8 ECTS cr), which is made independently or as a group work. In addition, the BSc thesis includes technical communication studies (2 ECTS cr).</p>\r\n\r\n<p>The master&rsquo;s degree in Computer Science and Engineering includes an MSc thesis (30 ECTS cr), which is made independently and often as a work commissioned by an external customer such as a company from a topic related to its research or product development. The MSc thesis can be also made in the university research unit when it is more focused on scientific work and its documentation.</p>\r\n\r\n<p>To be awarded a bachelor&rsquo;s and master&#39;s degree, a student must complete the required studies and the thesis, write a maturity essay demonstrating language proficiency in the language in which the student has been educated (Finnish or Swedish). The student shall demonstrate the satisfactory level of proficiency in Finnish and Swedish required in the Act (424/2003) section 6 subsection 1. A student who has already demonstrated his/her language proficiency for a lower university degree (Bachelor) does not, however, need to demonstrate it again for a master&acute;s degree. The diploma for the degrees of Bachelor of Science and Master of Science (Diploma Engineer) is awarded on request and issued by the Education Dean of the Faculty.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Koulutuksen antama pätevyys",
+      "valueEn": "Qualification",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "",
+     "valueEn": "",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Yhteistyö muiden toimijoiden kanssa",
+      "valueEn": "Co-operation with other parties",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Teaching and research personnel in the Degree Programme in Computer Science and Engineering constantly and closely collaborate with companies in various projects, which gives a good basis for taking into account the requirements from the working life in teaching. For example, external specialists from companies can provide practical aspects to the topics addressed in courses. Studies include also several courses where project work is practiced along with collaboration and communication skills that are essential in working life. The students can include a supplementary module on working life and entrepreneurship in their BSc studies as well as practical training. The BSc thesis can be made on a topic defined by a company. In order to guarantee that the graduates have some &nbsp;basic level of work experience from the field, MSc studies include compulsory practical training in a company, research institute or university. In addition, many companies hire students to make an MSc thesis, which gives them an opportunity to integrate to the working life already during their studies.</p>",
+     "valueEn": "<p>Teaching and research personnel in the Degree Programme in Computer Science and Engineering constantly and closely collaborate with companies in various projects, which gives a good basis for taking into account the requirements from the working life in teaching. For example, external specialists from companies can provide practical aspects to the topics addressed in courses. Studies include also several courses where project work is practiced along with collaboration and communication skills that are essential in working life. The students can include a supplementary module on working life and entrepreneurship in their BSc studies as well as practical training. The BSc thesis can be made on a topic defined by a company. In order to guarantee that the graduates have some &nbsp;basic level of work experience from the field, MSc studies include compulsory practical training in a company, research institute or university. In addition, many companies hire students to make an MSc thesis, which gives them an opportunity to integrate to the working life already during their studies.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Kansainvälistyminen",
+      "valueEn": "Internationalisation",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Computer Science and Engineering is one of the most international fields in the University of Oulu. A significant part of the personnel consists of foreign teachers and researchers. English is the teaching language in some of the BSc level courses and mainly in the MSc studies, where students are in the same groups with the exchange and international master&rsquo;s degree students. The degree programme has several exchange agreements with foreign universities that give a good opportunity for the students to go to exchange during the BSc and MSc studies. Companies in the field of computer science and engineering are typically international or multinational having sites in several countries and operating in international markets. Hence, the MSc theses, for example, are commonly &nbsp;written in English.</p>",
+     "valueEn": "<p>Computer Science and Engineering is one of the most international fields in the University of Oulu. A significant part of the personnel consists of foreign teachers and researchers. English is the teaching language in some of the BSc level courses and mainly in the MSc studies, where students are in the same groups with the exchange and international master&rsquo;s degree students. The degree programme has several exchange agreements with foreign universities that give a good opportunity for the students to go to exchange during the BSc and MSc studies. Companies in the field of computer science and engineering are typically international or multinational having sites in several countries and operating in international markets. Hence, the MSc theses, for example, are commonly &nbsp;written in English.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Tutkimuksen painopisteet",
+      "valueEn": "Research focus",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>In the University of Oulu, world-class research is carried out in machine vision, biomedical engineering, intelligent information analysis, information security and virtual reality. These research areas are strongly present also in the curriculum of the Degree Programme in Computer Science and Engineering. Research units often hire students to make their internship and MSc thesis in the university, which provides an excellent basis for continuing as a postgraduate student after graduation to pursue the Ph.D. degree and researcher career.</p>",
+     "valueEn": "<p>In the University of Oulu, world-class research is carried out in machine vision, biomedical engineering, intelligent information analysis, information security and virtual reality. These research areas are strongly present also in the curriculum of the Degree Programme in Computer Science and Engineering. Research units often hire students to make their internship and MSc thesis in the university, which provides an excellent basis for continuing as a postgraduate student after graduation to pursue the Ph.D. degree and researcher career.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Jatko-opintomahdollisuudet",
+      "valueEn": "Further study opportunities",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>The Master&rsquo;s degree in Computer Science and Engineering is a qualification for doctoral studies.</p>",
+     "valueEn": "<p>The Master&rsquo;s degree in Computer Science and Engineering is a qualification for doctoral studies.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Ammattinimikkeet",
+      "valueEn": "Job titles",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<ul>\r\n\t<li>Software engineer</li>\r\n\t<li>System designer</li>\r\n\t<li>Project manager</li>\r\n\t<li>Specialist</li>\r\n\t<li>Research scientist</li>\r\n</ul>",
+     "valueEn": "<ul>\r\n\t<li>Software engineer</li>\r\n\t<li>System designer</li>\r\n\t<li>Project manager</li>\r\n\t<li>Specialist</li>\r\n\t<li>Research scientist</li>\r\n</ul>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Avainsanat",
+      "valueEn": "Keywords",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Computer sciene, Computer engineering, Oulu, Artificial Intelligence, Applied computing, Cyber security</p>",
+     "valueEn": "<p>Computer sciene, Computer engineering, Oulu, Artificial Intelligence, Applied computing, Cyber security</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Koulutuksen yhteyshenkilö",
+      "valueEn": "Contact information",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Email: study.itee(at)oulu.fi</p>",
+     "valueEn": "<p>Email: study.itee(at)oulu.fi</p>",
+     "valueSv": ""
+    }
+   }
+  ],
+  "children": [
+   {
+    "name": {
+     "valueEn": "Computer Science and Engineering, Degree Programme in Digitalisation, Computing and Electronics, (BSc, Tech) 2025-2026",
+     "valueFi": "Computer Science and Engineering, Degree Programme in Digitalisation, Computing and Electronics, (BSc, Tech) 2025-2026",
+     "valueSv": ""
+    },
+    "id": "45691",
+    "code": "IBP2025CSEDICE",
+    "type": "PROGRAMME",
+    "maxCredits": 0,
+    "minCredits": 0,
+    "optionality": null,
+    "educationLevel": "BA",
+    "descriptions": null,
+    "children": []
+   },
+   {
+    "name": {
+     "valueEn": "Computer Science and Engineering (MSc,Tech) 2025-2026",
+     "valueFi": "Computer Science and Engineering (MSc, Tech) 2025-2026",
+     "valueSv": ""
+    },
+    "id": "45729",
+    "code": "IMP2025CSE",
+    "type": "PROGRAMME",
+    "maxCredits": 0,
+    "minCredits": 0,
+    "optionality": null,
+    "educationLevel": "MA",
+    "descriptions": null,
+    "children": []
+   }
+  ]
+ },
+ {
+  "name": {
+   "valueEn": "Electronics and Communications Engineering (Digitalisation, Computing and Electronics), Bachelor and Master of Science (Technology) (3 years + 2 years) ",
+   "valueFi": "Electronics and Communications Engineering (Digitalisation, Computing and Electronics), Bachelor and Master of Science (Technology) (3 years + 2 years) ",
+   "valueSv": ""
+  },
+  "id": "43206",
+  "code": "P2025ELEC",
+  "type": "EDUCATION",
+  "maxCredits": 0,
+  "minCredits": 0,
+  "optionality": null,
+  "educationLevel": null,
+  "descriptions": [
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Koulutuksen nimi",
+      "valueEn": "Name of the degree",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Electronics and Communications Engineering, Degree Programme in Digitalization, Computing and Electronics, Bachelor and Master of Science (Technology) (3y + 2y)</p>",
+     "valueEn": "<p>Electronics and Communications Engineering, Degree Programme in Digitalization, Computing and Electronics, Bachelor and Master of Science (Technology) (3y + 2y)</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Koulutuksen kuvaus Opintopolussa",
+      "valueEn": "Programme description at Studyinfo",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "",
+     "valueEn": "",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Toteutuksen yleinen kuvaus",
+      "valueEn": "General description",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>The emphasis of Bachelor&#39;s studies is on mathematics, physics and signal processing, as well as professional courses on electronics design, computer engineering and programming, measurement techniques, electronics components and materials and telecommunications. The studies are scheduled to build professional competences from the first year of studies onwards.</p>\r\n\r\n<p>After bachelor studies, the student can focus on i) electronics design, ii) electronics materials and components, iii) future electronics and measurement techniques, iv) telecommunication or v) radio engineering. In addition to the chosen specialization field of study and the related advanced studies, the studies usually also include a rather large set of studies in one of the other study fields mentioned above, as well as optional studies.</p>\r\n\r\n<p>In addition to mathematics, physics and signal processing, the main focus of the bachelor&#39;s studies in the Electronics and communications engineering program is in professional subjects focusing on electronics design, computer engineering and programming, measurement engineering, electronic components and materials, and communications engineering. The studies are grouped in such a way that the student&#39;s professional competence is accumulated immediately from the first year of study.</p>\r\n\r\n<p>In the master&#39;s degree in electronics and communication engineering, the main focus is on electronic design, telecommunication technology, radio engineering, measurement technology, electronics materials and components, and future electronics solutions.</p>\r\n\r\n<p>The degree program provides its students with a broad and in-depth foundation to focus on different types of career opportunities or research. The degree program trains specialists and multidisciplinary experts for challenging tasks. The training is based on the latest knowledge produced by high-quality research and prepares for the application of knowledge and continuous learning of new things also in working life.</p>",
+     "valueEn": "<p>The emphasis of Bachelor&#39;s studies is on mathematics, physics and signal processing, as well as professional courses on electronics design, computer engineering and programming, measurement techniques, electronics components and materials and telecommunications. The studies are scheduled to build professional competences from the first year of studies onwards.</p>\r\n\r\n<p>After bachelor studies, the student can focus on i) electronics design, ii) electronics materials and components, iii) future electronics and measurement techniques, iv) telecommunication or v) radio engineering. In addition to the chosen specialization field of study and the related advanced studies, the studies usually also include a rather large set of studies in one of the other study fields mentioned above, as well as optional studies.</p>\r\n\r\n<p>In addition to mathematics, physics and signal processing, the main focus of the bachelor&#39;s studies in the Electronics and communications engineering program is in professional subjects focusing on electronics design, computer engineering and programming, measurement engineering, electronic components and materials, and communications engineering. The studies are grouped in such a way that the student&#39;s professional competence is accumulated immediately from the first year of study.</p>\r\n\r\n<p>In the master&#39;s degree in electronics and communication engineering, the main focus is on electronic design, telecommunication technology, radio engineering, measurement technology, electronics materials and components, and future electronics solutions.</p>\r\n\r\n<p>The degree program provides its students with a broad and in-depth foundation to focus on different types of career opportunities or research. The degree program trains specialists and multidisciplinary experts for challenging tasks. The training is based on the latest knowledge produced by high-quality research and prepares for the application of knowledge and continuous learning of new things also in working life.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Pääasiallinen opetuskieli",
+      "valueEn": "Language of instruction",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>English</p>",
+     "valueEn": "<p>English</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opetuskieli, tarkempi kuvaus",
+      "valueEn": "More about the language of instruction",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>All courses are carried out in English.</p>",
+     "valueEn": "<p>All courses are carried out in English.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Pääasiallinen opetusaika",
+      "valueEn": "Teaching time",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Daytime teaching</p>",
+     "valueEn": "<p>Daytime teaching</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opetusaika, tarkempi kuvaus",
+      "valueEn": "More information about teaching time",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "",
+     "valueEn": "",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Pääasiallinen opetustapa",
+      "valueEn": "Form of teaching",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Contact teaching</p>\r\n\r\n<p>Independent learning</p>\r\n\r\n<p>Blended teaching</p>\r\n\r\n<p>Online teaching.</p>",
+     "valueEn": "<p>Contact teaching</p>\r\n\r\n<p>Independent learning</p>\r\n\r\n<p>Blended teaching</p>\r\n\r\n<p>Online teaching</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opetustapa, tarkempi kuvaus",
+      "valueEn": "More information about form of teaching",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "",
+     "valueEn": "",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opetuksen maksullisuus",
+      "valueEn": "Tuition fees",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Scholarship system is meant for non-EU/EEA students who are required to pay tuition fees. <a href=\"https://www.oulu.fi/en/apply/applying-non-finnish-qualification\">Please, see information about scholarships of University of Oulu here</a>&nbsp;</p>",
+     "valueEn": "<p>Scholarship system is meant for non-EU/EEA students who are required to pay tuition fees. <a href=\"https://www.oulu.fi/en/apply/applying-non-finnish-qualification\">Please, see information about scholarships of University of Oulu here</a>&nbsp;</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opetuksen maksullisuus (hinta euroina)",
+      "valueEn": "Tuition fee payment (in Euros)",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>10 000 &euro; / year</p>",
+     "valueEn": "<p>10 000 &euro; / year</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opetuksen maksullisuus, tarkempi kuvaus",
+      "valueEn": "More information about tuition fee payment",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "",
+     "valueEn": "",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Apuraha",
+      "valueEn": "Scholarship",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "",
+     "valueEn": "",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Lisätietoa apurahasta",
+      "valueEn": "More information on scholarship​",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "",
+     "valueEn": "",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Osaamistavoitteet",
+      "valueEn": "Competence objectives",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p><strong>After completing the bachelor&#39;s degree, the student</strong></p>\r\n\r\n<ul>\r\n\t<li>Knows the key concepts, methods and technologies of electronics and communications technology, and is able to analyze, design and implement electronic circuits, devices and systems</li>\r\n\t<li>Can apply electronics and telecommunication technology in applications in various industries such as ICT, health and well-being and automotive</li>\r\n\t<li>Can apply basic theories and concepts of science in solving technical problems</li>\r\n\t<li>Can apply methods and tools used in engineering work, such as measuring equipment, design and modeling software, programming environments and manufacturing equipment</li>\r\n\t<li>Masters the basic skills needed in working life, is able to communicate in an international work environment and is able to express technical issues in writing</li>\r\n</ul>\r\n\r\n<p>After completing the bachelor&#39;s degree, the student has the ability to study for a master&#39;s degree in electronics and telecommunications engineering, as well as the general prerequisites for other education leading to a master&#39;s degree and continuous learning.</p>\r\n\r\n<p>&nbsp;</p>\r\n\r\n<p><strong>A person who has completed a master&#39;s degree in engineering is able to</strong></p>\r\n\r\n<ul>\r\n\t<li>have an in-depth understanding of the key methods and technologies in a particular field of study in electronics and telecommunications technology, and be able to apply this knowledge independently in product development activities</li>\r\n\t<li>to acquire and utilize the latest knowledge and special expertise in the field and to use it in product development, research and expert tasks in the chosen field of study</li>\r\n\t<li>to produce new knowledge in their field of study for the needs of industry and society</li>\r\n\t<li>to carry out research using scientific research methods</li>\r\n\t<li>set goals for themselves and work independently and in a group to achieve goals</li>\r\n\t<li>communicate and communicate orally and in writing in a clear and reasoned manner</li>\r\n\t<li>to expand and deepen their own skills independently in the spirit of lifelong learning</li>\r\n</ul>\r\n\r\n<p>In addition, the person who has completed the M.Sc. degree masters the Competence Objectives of the chosen field of study.</p>",
+     "valueEn": "<p><strong>After completing the bachelor&#39;s degree, the student</strong></p>\r\n\r\n<ul>\r\n\t<li>Knows the key concepts, methods and technologies of electronics and communications technology, and is able to analyze, design and implement electronic circuits, devices and systems</li>\r\n\t<li>Can apply electronics and telecommunication technology in applications in various industries such as ICT, health and well-being and automotive</li>\r\n\t<li>Can apply basic theories and concepts of science in solving technical problems</li>\r\n\t<li>Can apply methods and tools used in engineering work, such as measuring equipment, design and modeling software, programming environments and manufacturing equipment</li>\r\n\t<li>Masters the basic skills needed in working life, is able to communicate in an international work environment and is able to express technical issues in writing</li>\r\n</ul>\r\n\r\n<p>After completing the bachelor&#39;s degree, the student has the ability to study for a master&#39;s degree in electronics and telecommunications engineering, as well as the general prerequisites for other education leading to a master&#39;s degree and continuous learning.</p>\r\n\r\n<p>&nbsp;</p>\r\n\r\n<p><strong>A person who has completed a master&#39;s degree in engineering is able to</strong></p>\r\n\r\n<ul>\r\n\t<li>have an in-depth understanding of the key methods and technologies in a particular field of study in electronics and telecommunications technology, and be able to apply this knowledge independently in product development activities</li>\r\n\t<li>to acquire and utilize the latest knowledge and special expertise in the field and to use it in product development, research and expert tasks in the chosen field of study</li>\r\n\t<li>to produce new knowledge in their field of study for the needs of industry and society</li>\r\n\t<li>to carry out research using scientific research methods</li>\r\n\t<li>set goals for themselves and work independently and in a group to achieve goals</li>\r\n\t<li>communicate and communicate orally and in writing in a clear and reasoned manner</li>\r\n\t<li>to expand and deepen their own skills independently in the spirit of lifelong learning</li>\r\n</ul>\r\n\r\n<p>In addition, the person who has completed the M.Sc. degree masters the Competence Objectives of the chosen field of study.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Sisältö",
+      "valueEn": "Content",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>The Bachelor&#39;s degree in Engineering (180 ECTS) consists of basic and subject studies (142&nbsp;ECTS), supplementary module and optional studies (30 ECTS), as well as bachelor&#39;s thesis (8&nbsp;ECTS).</p>\r\n\r\n<p>The Master degree studies (120 ECTS) comprise of one of the available modules of the option (40 ECTS), a related advanced module (30 ECTS), optional studies (20 ECTS) and the masters thesis (30 ECTS). The degree programme accepts and confirms optional studies.</p>\r\n\r\n<p>MSc studies includes a mandatory 3 ECTS Advanced practical training. Apart from engineering, optional studies can also contain natural sciences and commercial studies to complement the degree. They may include courses at least at the subject level (course code A) completed at a university.</p>\r\n\r\n<p>As to language studies, the total amount for combined bachelor and master level is limited to 18 ECTS. The modules must be planned so that the coursework covers the minimum of 30 ECTS of advanced courses (S-marked) courses in addition to masters thesis.</p>\r\n\r\n<p>The students must draft a PSP and have it approved by degree program representatives during Bachelor studies and on the first MSc study year.</p>\r\n\r\n<p>Recognition of prior knowledge follows the main principles of the university:&nbsp;https://www.oulu.fi/en/students/completing-studies/recognition-learning</p>",
+     "valueEn": "<p>The Bachelor&#39;s degree in Engineering (180 ECTS) consists of basic and subject studies (142&nbsp;ECTS), supplementary module and optional studies (30 ECTS), as well as bachelor&#39;s thesis (8&nbsp;ECTS).</p>\r\n\r\n<p>The Master degree studies (120 ECTS) comprise of one of the available modules of the option (40 ECTS), a related advanced module (30 ECTS), optional studies (20 ECTS) and the masters thesis (30 ECTS). The degree programme accepts and confirms optional studies.</p>\r\n\r\n<p>MSc studies includes a mandatory 3 ECTS Advanced practical training. Apart from engineering, optional studies can also contain natural sciences and commercial studies to complement the degree. They may include courses at least at the subject level (course code A) completed at a university.</p>\r\n\r\n<p>As to language studies, the total amount for combined bachelor and master level is limited to 18 ECTS. The modules must be planned so that the coursework covers the minimum of 30 ECTS of advanced courses (S-marked) courses in addition to masters thesis.</p>\r\n\r\n<p>The students must draft a PSP and have it approved by degree program representatives during Bachelor studies and on the first MSc study year.</p>\r\n\r\n<p>Recognition of prior knowledge follows the main principles of the university:&nbsp;https://www.oulu.fi/en/students/completing-studies/recognition-learning</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Suuntautumisvaihtoehdot",
+      "valueEn": "Specialisations",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>At Bachelor lever there is only one main subject, Electronics and Communications Engineering.</p>\r\n\r\n<p>On Master&rsquo;s level specialization can be made to during the first study year</p>\r\n\r\n<ul>\r\n\t<li>Electronics design</li>\r\n\t<li>Electronics materials and components.</li>\r\n\t<li>Future electronics and measurement techniques</li>\r\n\t<li>Radio Engineering</li>\r\n\t<li>Telecommunications</li>\r\n</ul>",
+     "valueEn": "<p>At Bachelor lever there is only one main subject, Electronics and Communications Engineering.</p>\r\n\r\n<p>On Master&rsquo;s level specialization can be made to during the first study year</p>\r\n\r\n<ul>\r\n\t<li>Electronics design</li>\r\n\t<li>Electronics materials and components.</li>\r\n\t<li>Future electronics and measurement techniques</li>\r\n\t<li>Radio Engineering</li>\r\n\t<li>Telecommunications</li>\r\n</ul>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Uramahdollisuudet",
+      "valueEn": "Career opportunities",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>The graduates are qualified to practice many professions that require M.Sc. degree, and also to pursue the PhD degree in electronics and communications engineering.</p>\r\n\r\n<p>The programme will provide the graduates with skills to work in a wide variety of positions offered by research institutes and companies mainly operating in the field of information and communications technology (ICT) globally as well as in Finland. There is international demand for specialists in ICT but career opportunities are also available in national and international ICT companies which operate in Oulu. During the Master&rsquo;s degree studies there are opportunities to take optional courses which support students&rsquo; possible interests in entrepreneurship.</p>\r\n\r\n<p>Example profiles for Electronics and Communication Engineering (MSc) graduates include:</p>\r\n\r\n<ul>\r\n\t<li><span style=\"background-color:white\"><span style=\"color:#212224\">Electronics Designer</span></span></li>\r\n\t<li><span style=\"background-color:white\"><span style=\"color:#212224\">System Designer</span></span></li>\r\n\t<li><span style=\"background-color:white\"><span style=\"color:#212224\">Testing Engineer</span></span></li>\r\n\t<li><span style=\"background-color:white\"><span style=\"color:#212224\">Project Manager</span></span></li>\r\n\t<li><span style=\"background-color:white\"><span style=\"color:#212224\">Specialist</span></span></li>\r\n\t<li><span style=\"background-color:white\"><span style=\"color:#212224\">Research Scientist.</span></span></li>\r\n</ul>\r\n\r\n<p>Example profiles for Wireless Communication Engineering (MSc) graduates include:</p>\r\n\r\n<ul>\r\n\t<li>Chief Engineer</li>\r\n\t<li>Design Engineer</li>\r\n\t<li>Development Engineer</li>\r\n\t<li>Maintenance Engineer</li>\r\n\t<li>Patent Engineer</li>\r\n\t<li>Program Manager</li>\r\n\t<li>Project Manager</li>\r\n\t<li>Radio Network Designer</li>\r\n\t<li>Research Engineer</li>\r\n\t<li>RF Engineer</li>\r\n\t<li>Sales Engineer</li>\r\n\t<li>System Engineer</li>\r\n\t<li>Test Engineer</li>\r\n\t<li>University Teacher.</li>\r\n</ul>",
+     "valueEn": "<p>The graduates are qualified to practice many professions that require M.Sc. degree, and also to pursue the PhD degree in electronics and communications engineering.</p>\r\n\r\n<p>The programme will provide the graduates with skills to work in a wide variety of positions offered by research institutes and companies mainly operating in the field of information and communications technology (ICT) globally as well as in Finland. There is international demand for specialists in ICT but career opportunities are also available in national and international ICT companies which operate in Oulu. During the Master&rsquo;s degree studies there are opportunities to take optional courses which support students&rsquo; possible interests in entrepreneurship.</p>\r\n\r\n<p>Example profiles for Electronics and Communication Engineering (MSc) graduates include:</p>\r\n\r\n<ul>\r\n\t<li><span style=\"background-color:white\"><span style=\"color:#212224\">Electronics Designer</span></span></li>\r\n\t<li><span style=\"background-color:white\"><span style=\"color:#212224\">System Designer</span></span></li>\r\n\t<li><span style=\"background-color:white\"><span style=\"color:#212224\">Testing Engineer</span></span></li>\r\n\t<li><span style=\"background-color:white\"><span style=\"color:#212224\">Project Manager</span></span></li>\r\n\t<li><span style=\"background-color:white\"><span style=\"color:#212224\">Specialist</span></span></li>\r\n\t<li><span style=\"background-color:white\"><span style=\"color:#212224\">Research Scientist.</span></span></li>\r\n</ul>\r\n\r\n<p>Example profiles for Wireless Communication Engineering (MSc) graduates include:</p>\r\n\r\n<ul>\r\n\t<li>Chief Engineer</li>\r\n\t<li>Design Engineer</li>\r\n\t<li>Development Engineer</li>\r\n\t<li>Maintenance Engineer</li>\r\n\t<li>Patent Engineer</li>\r\n\t<li>Program Manager</li>\r\n\t<li>Project Manager</li>\r\n\t<li>Radio Network Designer</li>\r\n\t<li>Research Engineer</li>\r\n\t<li>RF Engineer</li>\r\n\t<li>Sales Engineer</li>\r\n\t<li>System Engineer</li>\r\n\t<li>Test Engineer</li>\r\n\t<li>University Teacher.</li>\r\n</ul>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opintojen rakenne",
+      "valueEn": "Structure of studies",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Get acquainted with the study structures in 2024-2025&nbsp;curriculum for Bachelor&rsquo;s [<a href=\"https://opas.peppi.oulu.fi/en/programme/41159?period=2024-2025\">https://opas.peppi.oulu.fi/en/programme/41159?period=2024-2025</a>]&nbsp;and Master&rsquo;s degrees [<a href=\"https://opas.peppi.oulu.fi/en/programme/41128?period=2024-2025\">Electronics</a>, <a href=\"https://opas.peppi.oulu.fi/en/programme/41168?period=2024-2025\">WCE</a>]. The study structures for the academic year 2025-2026&nbsp;are published in the beginning of March 2025&nbsp;and the new links are updated to the Studyinfo in the beginning of March. The updated structure of studies is also published in the Study Guide of University of Oulu.</p>",
+     "valueEn": "<p>Get acquainted with the study structures in 2024-2025&nbsp;curriculum for Bachelor&rsquo;s [<a href=\"https://opas.peppi.oulu.fi/en/programme/41159?period=2024-2025\">https://opas.peppi.oulu.fi/en/programme/41159?period=2024-2025</a>]&nbsp;and Master&rsquo;s degrees [<a href=\"https://opas.peppi.oulu.fi/en/programme/41128?period=2024-2025\">Electronics</a>, <a href=\"https://opas.peppi.oulu.fi/en/programme/41168?period=2024-2025\">WCE</a>]. The study structures for the academic year 2025-2026&nbsp;are published in the beginning of March 2025&nbsp;and the new links are updated to the Studyinfo in the beginning of March. The updated structure of studies is also published in the Study Guide of University of Oulu.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Opinnäytetyö",
+      "valueEn": "Thesis",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>To be awarded a bachelor&acute;s degree, a student must complete the required studies and bachelor&acute;s thesis. The bachelor&#39;s theis is typically a solution to a minor technical assignment. By solving the given task, the student applies the acquired skills fully, while the process also trains in technical documentation.&nbsp;The diploma for the degree of Bachelor of Science (Technology) is awarded on request and issued by the Education Dean of the Faculty.</p>\r\n\r\n<p>To be awarded a master&acute;s degree, a student must complete the required studies and master&acute;s thesis. The master&#39;s thesis is an important element of the degree, preparing the student for independent engineering work. It is typically a solution to a relatively extensive technical assignment. Although the assignment often integrates further study, the idea is to encourage the student to solve it mainly using the skills aquired during master study. The work also further trains the student in technical documentation. Presentation skills are practicing in the master&#39;s thesis seminar where students will present their theses to each other. The diploma for the degree of Master of Science (Technology) is awarded on request and issued by the Education Dean of the Faculty.</p>",
+     "valueEn": "<p>To be awarded a bachelor&acute;s degree, a student must complete the required studies and bachelor&acute;s thesis. The bachelor&#39;s theis is typically a solution to a minor technical assignment. By solving the given task, the student applies the acquired skills fully, while the process also trains in technical documentation.&nbsp;The diploma for the degree of Bachelor of Science (Technology) is awarded on request and issued by the Education Dean of the Faculty.</p>\r\n\r\n<p>To be awarded a master&acute;s degree, a student must complete the required studies and master&acute;s thesis. The master&#39;s thesis is an important element of the degree, preparing the student for independent engineering work. It is typically a solution to a relatively extensive technical assignment. Although the assignment often integrates further study, the idea is to encourage the student to solve it mainly using the skills aquired during master study. The work also further trains the student in technical documentation. Presentation skills are practicing in the master&#39;s thesis seminar where students will present their theses to each other. The diploma for the degree of Master of Science (Technology) is awarded on request and issued by the Education Dean of the Faculty.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Koulutuksen antama pätevyys",
+      "valueEn": "Qualification",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "",
+     "valueEn": "",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Yhteistyö muiden toimijoiden kanssa",
+      "valueEn": "Co-operation with other parties",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Teaching and research personnel in the Degree Program in Digitalisation, Computing and Electronics (DICE) collaborate closely and continuously with companies, which translates into valuable knowledge in teaching that takes into account the requirements of the industry and companies.</p>\r\n\r\n<p>Co-operation opportunities with other parties during the DICE programme may include for example:</p>\r\n\r\n<ul>\r\n\t<li>visiting lecturers from companies</li>\r\n\t<li>courses in which students aim to solve challenges appointed by a company or work in company provided project</li>\r\n\t<li>practical trainings in a company, research institute or university</li>\r\n\t<li>research topic suggestions from companies</li>\r\n\t<li>Master&rsquo;s research opportunities in companies</li>\r\n\t<li>job fairs which are organised at the university to connect companies and students.</li>\r\n</ul>",
+     "valueEn": "<p>Teaching and research personnel in the Degree Program in Digitalisation, Computing and Electronics (DICE) collaborate closely and continuously with companies, which translates into valuable knowledge in teaching that takes into account the requirements of the industry and companies.</p>\r\n\r\n<p>Co-operation opportunities with other parties during the DICE programme may include for example:</p>\r\n\r\n<ul>\r\n\t<li>visiting lecturers from companies</li>\r\n\t<li>courses in which students aim to solve challenges appointed by a company or work in company provided project</li>\r\n\t<li>practical trainings in a company, research institute or university</li>\r\n\t<li>research topic suggestions from companies</li>\r\n\t<li>Master&rsquo;s research opportunities in companies</li>\r\n\t<li>job fairs which are organised at the university to connect companies and students.</li>\r\n</ul>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Kansainvälistyminen",
+      "valueEn": "Internationalisation",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>This programme is aimed at providing a truly international learning environment for our students which prepares them for their potential future careers anywhere in the world.</p>",
+     "valueEn": "<p>This programme is aimed at providing a truly international learning environment for our students which prepares them for their potential future careers anywhere in the world.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Tutkimuksen painopisteet",
+      "valueEn": "Research focus",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>The Education of the Degree Program in Digitalisation, Computing and Electronics (DICE) is based on research of the Faculty of Information Technology and Electrical Engineering (ITEE) at the University of Oulu. The mission of the ITEE faculty is to advance internationally top-level research on information technology and education based on it, in order to educate information technology experts, to generate new knowledge on information technology and to apply it to the needs of the society, people and industries.</p>\r\n\r\n<p>The faculty has more than 50 professors and 560 experts in the field of ICT. The research done at the Faculty of ITEE targets core ICT areas such as measuring, electronics and materials, 5G and 6G wireless communications, artificial intelligence, information systems, software and experiences.</p>\r\n\r\n<p><span style=\"background-color:white\"><span style=\"color:black\">Education of the Degree programme in Electronics is based on the excellent research of mainly three research units - Circuits and Systems (CAS), Microelectronics (MIC), and Opto-Electronics and Measurement Techniques (OPEM). The degree program in Wireless Communications Engineering is based on cutting edge research in global digitalization,5G and beyond, Internet of Things and Internet of Everything, as well as Radio Technologies, Signal Processing and Optimization, Medical and Health Networking, Secure Virtualised Networks, Radio Frequency Design, and Specialised Wireless solutions.</span></span></p>",
+     "valueEn": "<p>The Education of the Degree Program in Digitalisation, Computing and Electronics (DICE) is based on research of the Faculty of Information Technology and Electrical Engineering (ITEE) at the University of Oulu. The mission of the ITEE faculty is to advance internationally top-level research on information technology and education based on it, in order to educate information technology experts, to generate new knowledge on information technology and to apply it to the needs of the society, people and industries.</p>\r\n\r\n<p>The faculty has more than 50 professors and 560 experts in the field of ICT. The research done at the Faculty of ITEE targets core ICT areas such as measuring, electronics and materials, 5G and 6G wireless communications, artificial intelligence, information systems, software and experiences.</p>\r\n\r\n<p><span style=\"background-color:white\"><span style=\"color:black\">Education of the Degree programme in Electronics is based on the excellent research of mainly three research units - Circuits and Systems (CAS), Microelectronics (MIC), and Opto-Electronics and Measurement Techniques (OPEM). The degree program in Wireless Communications Engineering is based on cutting edge research in global digitalization,5G and beyond, Internet of Things and Internet of Everything, as well as Radio Technologies, Signal Processing and Optimization, Medical and Health Networking, Secure Virtualised Networks, Radio Frequency Design, and Specialised Wireless solutions.</span></span></p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Jatko-opintomahdollisuudet",
+      "valueEn": "Further study opportunities",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>The Master&rsquo;s degree in DICE is a qualification for doctoral studies.</p>",
+     "valueEn": "<p>The Master&rsquo;s degree in DICE is a qualification for doctoral studies.</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Ammattinimikkeet",
+      "valueEn": "Job titles",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Electronics designer</p>\r\n\r\n<p>Project manager</p>\r\n\r\n<p>Test engineer</p>\r\n\r\n<p>Development Manager</p>\r\n\r\n<p>Product Manager</p>",
+     "valueEn": "<p>Electronics designer</p>\r\n\r\n<p>Project manager</p>\r\n\r\n<p>Test engineer</p>\r\n\r\n<p>Development Manager</p>\r\n\r\n<p>Product Manager</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Avainsanat",
+      "valueEn": "Keywords",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Electronics; ICT; Electrical Engineering; Communications Engineering; Telecommunication</p>",
+     "valueEn": "<p>Electronics; ICT; Electrical Engineering; Communications Engineering; Telecommunication</p>",
+     "valueSv": ""
+    }
+   },
+   {
+    "descriptionField": {
+     "title": {
+      "valueFi": "Koulutuksen yhteyshenkilö",
+      "valueEn": "Contact information",
+      "valueSv": ""
+     }
+    },
+    "text": {
+     "valueFi": "<p>Email: study.itee(at)oulu.fi</p>",
+     "valueEn": "<p>Email: study.itee(at)oulu.fi</p>",
+     "valueSv": ""
+    }
+   }
+  ],
+  "children": [
+   {
+    "name": {
+     "valueEn": "Electronics and Communications Engineering, Degree Programme in Digitalisation, Computing and Electronics, (BSc, Tech) 2025-2026",
+     "valueFi": "Electronics and Communications Engineering, Degree Programme in Digitalisation, Computing and Electronics, (BSc, Tech) 2025-2026",
+     "valueSv": ""
+    },
+    "id": "46676",
+    "code": "IBP2025ECEDICE",
+    "type": "PROGRAMME",
+    "maxCredits": 0,
+    "minCredits": 0,
+    "optionality": null,
+    "educationLevel": "BA",
+    "descriptions": null,
+    "children": []
+   },
+   {
+    "name": {
+     "valueEn": "Electronics (MSc, Tech) 2025-2026",
+     "valueFi": "Electronics (MSc, Tech) 2025-2026",
+     "valueSv": ""
+    },
+    "id": "46657",
+    "code": "IMP2025ELECTRONICS",
+    "type": "PROGRAMME",
+    "maxCredits": 0,
+    "minCredits": 0,
+    "optionality": null,
+    "educationLevel": "MA",
+    "descriptions": null,
+    "children": []
+   }
+  ]
+ }
+]

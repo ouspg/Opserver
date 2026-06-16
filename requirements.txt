@@ -1,0 +1,10 @@
+mysql-connector-python==8.4.0
+fastapi
+uvicorn
+websockets
+beautifulsoup4
+requests
+python-dotenv
+pytest
+httpx
+pillow

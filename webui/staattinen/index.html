@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>kyberESR</title>
+  <link rel="icon" href="/staattinen/favicon.ico" sizes="any">
+  <link rel="stylesheet" href="/staattinen/tyyli.css?v=18">
+</head>
+<body>
+  <header>
+    <h1>kyberESR</h1>
+    <span id="paivitysaika" class="paivitysaika"></span>
+    <nav id="paanav">
+      <button data-polku="/korkeakoulut">Korkeakoulut</button>
+      <button data-polku="/kurssit">Kurssit</button>
+      <button data-polku="/tutkimukset">Tutkimukset</button>
+    </nav>
+    <nav id="tutkimus-nav" class="piilotettu">
+      <button id="tutkimus-nav-nimi" data-tutkimus-alasivu="tiedot"></button>
+      <button data-tutkimus-alasivu="kurssit" id="tutkimus-nav-kurssit">Valitut kurssit</button>
+      <button data-tutkimus-alasivu="arvioinnit">Arvioinnit</button>
+      <button data-tutkimus-alasivu="raportti">Raportti</button>
+      <span id="tutkimus-nav-tila" class="piilotettu">
+        <span class="nav-erotin">|</span>
+        <button class="tila-nappi-nav aktiivinen" data-tila="mukana">Mukana</button>
+        <button class="tila-nappi-nav" data-tila="odottaa">Odottaa</button>
+        <button class="tila-nappi-nav" data-tila="hylätty">Hylätty</button>
+      </span>
+    </nav>
+  </header>
+
+  <main>
+    <section id="s-korkeakoulut" class="nakyma">
+      <h2>Korkeakoulut</h2>
+      <table>
+        <thead>
+          <tr><th>Nimi</th><th>OPS-tyyppi</th><th>Opinto-oppaan osoite</th></tr>
+        </thead>
+        <tbody id="korkeakoulut-rungot"></tbody>
+      </table>
+    </section>
+
+    <section id="s-kurssit" class="nakyma">
+      <h2>Kurssit</h2>
+      <div class="suodattimet">
+        <select id="suodatin-koulu"><option value="">Kaikki yliopistot</option></select>
+        <select id="suodatin-taso">
+          <option value="">Kaikki tasot</option>
+          <option value="yleis">Yleisopinnot</option>
+          <option value="perus">Perusopinnot</option>
+          <option value="aine">Aineopinnot</option>
+          <option value="syventävä">Syventävät opinnot</option>
+        </select>
+        <span id="kurssit-lkm" class="lkm"></span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Nimi</th><th>Koodi</th><th>Taso</th>
+            <th>Oppiaine</th><th>op</th><th>Vuosi</th>
+          </tr>
+        </thead>
+        <tbody id="kurssit-rungot"></tbody>
+      </table>
+    </section>
+
+    <section id="s-tutkimukset" class="nakyma">
+      <h2>Tutkimukset</h2>
+      <table>
+        <thead>
+          <tr><th>Nimi</th><th>Tasorajaus</th><th>Oppiainerajaus</th><th></th></tr>
+        </thead>
+        <tbody id="tutkimukset-rungot"></tbody>
+      </table>
+    </section>
+
+    <section id="s-tutkimus-tiedot" class="nakyma">
+      <div id="tutkimus-tiedot-sisalto"></div>
+    </section>
+
+    <section id="s-tutkimus-kurssit" class="nakyma">
+      <h2 id="tutkimus-kurssit-otsikko"></h2>
+      <div class="suodattimet">
+        <button class="tila-nappi aktiivinen" data-tila="mukana">Mukana</button>
+        <button class="tila-nappi" data-tila="odottaa">Odottaa</button>
+        <button class="tila-nappi" data-tila="hylätty">Hylätty</button>
+        <span id="tutkimus-kurssit-lkm" class="lkm"></span>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Nimi</th><th>Koodi</th><th>Taso</th><th>Oppiaine</th><th>op</th><th>Perustelu</th><th></th></tr>
+        </thead>
+        <tbody id="tutkimus-kurssit-rungot"></tbody>
+      </table>
+    </section>
+
+    <section id="s-tutkimus-arvioinnit" class="nakyma">
+      <h2 id="tutkimus-arvioinnit-otsikko"></h2>
+      <p id="tutkimus-arvioinnit-lkm" class="lkm"></p>
+      <div id="tutkimus-arvioinnit-sisalto"></div>
+    </section>
+
+    <section id="s-tutkimus-raportti" class="nakyma">
+      <div class="raportti-toiminnot">
+        <button id="raportti-pdf-nappi" class="nappi-toiminto">Lataa PDF-tiedostona</button>
+      </div>
+      <div id="raportti-sisalto"></div>
+    </section>
+  </main>
+
+  <div id="hitl-modaali" class="modaali piilotettu">
+    <div class="modaali-sisalto">
+      <button class="modaali-sulje" id="hitl-modaali-sulje">&#x2715;</button>
+      <h2 id="hitl-otsikko"></h2>
+      <div id="hitl-ai-perustelu-osio" class="hitl-ai-perustelu"></div>
+      <form id="hitl-lomake">
+        <div class="lomake-kentta">
+          <label for="hitl-nimi">Nimesi</label>
+          <input type="text" id="hitl-nimi" autocomplete="name" required>
+        </div>
+        <div class="lomake-kentta">
+          <label for="hitl-sahkoposti">Sähköposti</label>
+          <input type="email" id="hitl-sahkoposti" autocomplete="email" required>
+        </div>
+        <div class="lomake-kentta">
+          <label for="hitl-perustelu">Perustelu poiketa tekoälyn näkemyksestä</label>
+          <textarea id="hitl-perustelu" rows="4" required></textarea>
+        </div>
+        <button type="submit" id="hitl-laheta" class="nappi-toiminto">Vahvista</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="modaali" class="modaali piilotettu">
+    <div class="modaali-sisalto">
+      <button class="modaali-sulje" id="modaali-sulje">✕</button>
+      <h2 id="modaali-otsikko"></h2>
+      <div id="modaali-teksti"></div>
+    </div>
+  </div>
+
+  <script src="/staattinen/sovellus.js?v=17"></script>
+  <script src="/staattinen/yhteistyo.js?v=5"></script>
+  <script src="/staattinen/arviointimuokkaus.js?v=3"></script>
+  <script src="/staattinen/raporttimuokkaus.js?v=1"></script>
+</body>
+</html>
