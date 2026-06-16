@@ -35,6 +35,7 @@ async function renderoi() {
     document.getElementById("tutkimus-nav").classList.add("piilotettu");
     if (r.sivu === "korkeakoulut") {
       document.getElementById("s-korkeakoulut").classList.add("aktiivinen");
+      await lataaKorkeakoulut();
     } else if (r.sivu === "kurssit") {
       document.getElementById("s-kurssit").classList.add("aktiivinen");
       lataaKurssit();
