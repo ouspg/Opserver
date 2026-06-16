@@ -1,0 +1,31 @@
+{
+  "start": 0,
+  "limit": 100,
+  "total": 2,
+  "searchResults": [
+    {
+      "id": "otm-1e84a2f0-5e70-4e01-937c-60337616cff3",
+      "code": "TJTA237",
+      "lang": "fi",
+      "name": "Informaatio- ja tietotekniikkaoikeus",
+      "groupId": "jy-CU-30338",
+      "organisations": ["jy-ORG-25"],
+      "curriculumPeriodIds": ["jy-CP-2024-2025", "jy-CP-2025-2026"],
+      "credits": {"min": 5, "max": 5},
+      "tweetText": "Kurssilla tarkastellaan kokonaisvaltaisesti informaatio- ja tietotekniikkaoikeuden peruskysymyksiä."
+    },
+    {
+      "id": "otm-8cf7ea2c-c01d-4f4c-ab65-4998487209f8",
+      "code": "TIEP115",
+      "lang": "fi",
+      "name": "Johdatus tietotekniikkaan",
+      "groupId": "jy-CU-29395",
+      "organisations": ["jy-ORG-25"],
+      "curriculumPeriodIds": ["jy-CP-2024-2025", "jy-CP-2025-2026"],
+      "credits": {"min": 3, "max": 3},
+      "tweetText": "Tarkemmat ja ajankohtaisemmat tiedot löytyvät toteutuksen tiedoista."
+    }
+  ],
+  "truncated": false,
+  "notifications": null
+}

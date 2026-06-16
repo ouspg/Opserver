@@ -1,0 +1,34 @@
+[
+  {
+    "documentState": "ACTIVE",
+    "id": "jy-CP-2023-2024",
+    "universityOrgId": "jyu-university-root-id",
+    "name": {"fi": "Opetussuunnitelmakausi 2023-2024"},
+    "abbreviation": {"fi": "2023-2024", "en": "2023-2024"},
+    "activePeriod": {"startDate": "2023-08-01", "endDate": "2024-08-01"}
+  },
+  {
+    "documentState": "ACTIVE",
+    "id": "jy-CP-2024-2025",
+    "universityOrgId": "jyu-university-root-id",
+    "name": {"fi": "Opetussuunnitelmakausi 2024-2025"},
+    "abbreviation": {"fi": "2024-2025", "en": "2024-2025"},
+    "activePeriod": {"startDate": "2024-08-01", "endDate": "2025-08-01"}
+  },
+  {
+    "documentState": "ACTIVE",
+    "id": "jy-CP-2025-2026",
+    "universityOrgId": "jyu-university-root-id",
+    "name": {"fi": "Opetussuunnitelmakausi 2025-2026"},
+    "abbreviation": {"fi": "2025-2026", "en": "2025-2026"},
+    "activePeriod": {"startDate": "2025-08-01", "endDate": "2026-08-01"}
+  },
+  {
+    "documentState": "ACTIVE",
+    "id": "jy-CP-before-2017",
+    "universityOrgId": "jyu-university-root-id",
+    "name": {"fi": "Ennen 2017"},
+    "abbreviation": {"fi": "-2017", "en": "-2017"},
+    "activePeriod": {"startDate": "1929-01-01", "endDate": "2017-08-01"}
+  }
+]

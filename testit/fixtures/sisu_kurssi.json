@@ -1,0 +1,27 @@
+[
+  {
+    "documentState": "ACTIVE",
+    "id": "otm-1e84a2f0-5e70-4e01-937c-60337616cff3",
+    "universityOrgIds": ["jyu-university-root-id"],
+    "groupId": "jy-CU-30338",
+    "code": "TJTA237",
+    "name": {"fi": "Informaatio- ja tietotekniikkaoikeus", "en": "Information and IT law"},
+    "credits": {"min": 5, "max": 5},
+    "studyLevel": "urn:code:study-level:intermediate-studies",
+    "organisations": [
+      {
+        "organisationId": "jy-ORG-25",
+        "roleUrn": "urn:code:organisation-role:responsible-organisation",
+        "share": 1,
+        "validityPeriod": {}
+      }
+    ],
+    "curriculumPeriodIds": ["jy-CP-2024-2025", "jy-CP-2025-2026"],
+    "tweetText": {"fi": "Kurssilla tarkastellaan kokonaisvaltaisesti informaatio- ja tietotekniikkaoikeuden peruskysymyksiä."},
+    "outcomes": {"fi": "<p>Opintojakson suoritettuaan opiskelija tuntee tietoteknologian käyttöön liittyvän lainsäädännön perusteet.</p>"},
+    "content": {"fi": "<p>Kurssilla käsitellään informaatio-oikeuden ja ICT-oikeuden keskeisiä kysymyksiä.</p>"},
+    "prerequisites": {"fi": "<p>Ei esitietovaatimuksia.</p>"},
+    "additional": null,
+    "learningMaterial": null
+  }
+]

@@ -91,7 +91,10 @@ let kaikki_koulut = [];
 
 function kurssiUrl(kurssi) {
   const koulu = kaikki_koulut.find((k) => k.KKID === kurssi.KKID);
-  if (!koulu || !kurssi.LahdeId || !kurssi.Koodi) return null;
+  if (!koulu || !kurssi.LahdeId) return null;
+  if (koulu.OpsTyyppi === "Sisu")
+    return `${koulu.OpsOsoite}/student/courseunit/${kurssi.LahdeId}/brochure`;
+  if (!kurssi.Koodi) return null;
   return `${koulu.OpsOsoite}/fi/opintojakso/${kurssi.Koodi}/${kurssi.LahdeId}?period=${kurssi.Opetusvuosi}`;
 }
 

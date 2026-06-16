@@ -7,6 +7,9 @@ def _tee_lukija(koulu: dict):
     if koulu["OpsTyyppi"] == "Peppi":
         from tiedonhaku.peppilukija import PeppiLukija
         return PeppiLukija(koulu)
+    if koulu["OpsTyyppi"] == "Sisu":
+        from tiedonhaku.sisulukija import SisuLukija
+        return SisuLukija(koulu)
     return None
 
 

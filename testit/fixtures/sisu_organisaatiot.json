@@ -1,0 +1,26 @@
+[
+  {
+    "documentState": "ACTIVE",
+    "id": "jyu-university-root-id",
+    "universityOrgId": "jyu-university-root-id",
+    "name": {"fi": "Jyväskylän yliopisto", "en": "University of Jyväskylä"},
+    "abbreviation": {"fi": "JY", "en": "JYU"},
+    "status": "ACTIVE"
+  },
+  {
+    "documentState": "ACTIVE",
+    "id": "jy-ORG-25",
+    "universityOrgId": "jyu-university-root-id",
+    "name": {"fi": "Informaatioteknologian tiedekunta", "en": "Faculty of Information Technology"},
+    "abbreviation": {"fi": "IT", "en": "IT"},
+    "status": "ACTIVE"
+  },
+  {
+    "documentState": "ACTIVE",
+    "id": "jy-ORG-55",
+    "universityOrgId": "jyu-university-root-id",
+    "name": {"fi": "Matemaattis-luonnontieteellinen tiedekunta", "en": "Faculty of Mathematics and Science"},
+    "abbreviation": {"fi": "MaLu", "en": "MaLu"},
+    "status": "ACTIVE"
+  }
+]
