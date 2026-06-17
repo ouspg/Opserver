@@ -17,12 +17,14 @@ def _rivi_diktina(kursori) -> dict | None:
 
 # --- Korkeakoulu ---
 
-def lisaa_korkeakoulu(koulu_nimi: str, ops_osoite: str, ops_tyyppi: str) -> int:
+def lisaa_korkeakoulu(koulu_nimi: str, ops_osoite: str, ops_tyyppi: str,
+                      api_osoite: str | None = None) -> int:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                "INSERT INTO Korkeakoulu (KouluNimi, OpsOsoite, OpsTyyppi) VALUES (%s, %s, %s)",
-                (koulu_nimi, ops_osoite, ops_tyyppi),
+                "INSERT INTO Korkeakoulu (KouluNimi, OpsOsoite, ApiOsoite, OpsTyyppi) "
+                "VALUES (%s, %s, %s, %s)",
+                (koulu_nimi, ops_osoite, api_osoite, ops_tyyppi),
             )
             return kursori.lastrowid
 
@@ -34,12 +36,14 @@ def hae_korkeakoulut() -> list[dict]:
             return _rivit_dikteina(kursori)
 
 
-def paivita_korkeakoulu(kkid: int, koulu_nimi: str, ops_osoite: str, ops_tyyppi: str) -> None:
+def paivita_korkeakoulu(kkid: int, koulu_nimi: str, ops_osoite: str, ops_tyyppi: str,
+                        api_osoite: str | None = None) -> None:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                "UPDATE Korkeakoulu SET KouluNimi = %s, OpsOsoite = %s, OpsTyyppi = %s WHERE KKID = %s",
-                (koulu_nimi, ops_osoite, ops_tyyppi, kkid),
+                "UPDATE Korkeakoulu SET KouluNimi = %s, OpsOsoite = %s, ApiOsoite = %s, "
+                "OpsTyyppi = %s WHERE KKID = %s",
+                (koulu_nimi, ops_osoite, api_osoite, ops_tyyppi, kkid),
             )
 
 
