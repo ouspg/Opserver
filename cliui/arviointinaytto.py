@@ -39,6 +39,7 @@ def _arvioi(stdscr, tutkimus: dict) -> None:
 
 def _aja_llm(stdscr, tutkimus: dict, vain_yksi_era: bool = False) -> None:
     from arviointi import llmarviointi
+    from llm import mallitiedot
     otsikko = "LLM-arviointi (yksi erä)" if vain_yksi_era else "LLM-arviointi"
     piirra_otsikko(stdscr, f"{otsikko} — {tutkimus['LuokittelunNimi']}")
 
@@ -60,6 +61,13 @@ def _aja_llm(stdscr, tutkimus: dict, vain_yksi_era: bool = False) -> None:
         )
         if valinta != 0:
             return
+
+    # Esitarkistus: malli on saatavilla ennen kuin aloitetaan LLM-kutsut
+    try:
+        mallitiedot.tarkista_saatavuus()
+    except Exception as e:
+        nayta_viesti(stdscr, f"Mallia ei voi käyttää: {e}")
+        return
 
     stdscr.addstr(3, 0, "Yhdistetään LLM:ään...")
     stdscr.refresh()
