@@ -159,6 +159,39 @@ class TestAja:
         assert tapahtumat[0] == (0, 2, 1, 1)
         assert tapahtumat[1] == (2, 2, 1, 1)
 
+    def test_aja_max_erat_rajaa_yhteen_pyyntoon(self):
+        # 7 kurssia, sama kysymysjoukko → ERÄKOKO 5 → 2 erää. max_erat=1 → 1 LLM-pyyntö.
+        kurssit = [{"KID": i, "KurssiNimi": f"K{i}", "Koodi": f"C{i}", "Taso": "aine",
+                    "Oppiaine": "TT", "Opintopisteet": "5", "Opetusvuosi": "2025", "OpsKuvaus": None}
+                   for i in range(1, 8)]
+        vastaus = '{"tulokset": [{"id": 1, "vastaukset": ["a", "b"]}]}'
+        tapahtumat = []
+        with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+             patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=kurssit), \
+             patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value={}), \
+             patch("arviointi.llmarviointi.kutsu.kysy", return_value=vastaus) as mock_kysy, \
+             patch("arviointi.llmarviointi.kutsu.hae_malli", return_value="m"), \
+             patch("arviointi.llmarviointi.mallit.aseta_vastaus"), \
+             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value="system"):
+            llmarviointi.aja(TUTKIMUS, lambda n, y, e, et: tapahtumat.append(et), max_erat=1)
+        assert mock_kysy.call_count == 1
+        assert all(et == 1 for et in tapahtumat)  # eräkokonaismäärä näkyy rajattuna
+
+    def test_aja_ilman_max_erat_ajaa_kaikki_erat(self):
+        kurssit = [{"KID": i, "KurssiNimi": f"K{i}", "Koodi": f"C{i}", "Taso": "aine",
+                    "Oppiaine": "TT", "Opintopisteet": "5", "Opetusvuosi": "2025", "OpsKuvaus": None}
+                   for i in range(1, 8)]
+        vastaus = '{"tulokset": [{"id": 1, "vastaukset": ["a", "b"]}]}'
+        with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+             patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=kurssit), \
+             patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value={}), \
+             patch("arviointi.llmarviointi.kutsu.kysy", return_value=vastaus) as mock_kysy, \
+             patch("arviointi.llmarviointi.kutsu.hae_malli", return_value="m"), \
+             patch("arviointi.llmarviointi.mallit.aseta_vastaus"), \
+             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value="system"):
+            llmarviointi.aja(TUTKIMUS)
+        assert mock_kysy.call_count == 2
+
     def test_laske_tyomaara_erottaa_uudet_ja_vanhentuneet(self):
         jarj = "system"
         t10 = llmarviointi.tiiviste.kysymys(TUTKIMUS["Arviointikehote"], jarj, KYSYMYKSET[0])

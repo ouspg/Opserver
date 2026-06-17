@@ -182,11 +182,14 @@ def laske_tyomaara(tutkimus: dict) -> tuple[int, int]:
     return uudet, vanhentuneet
 
 
-def aja(tutkimus: dict, edistyminen_cb=None) -> int:
+def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None) -> int:
     """Arvioi mukaan otetut kurssit LLM:llä. Palauttaa arvioitujen kurssien määrän.
 
     Idempotentti ja kehotetietoinen: kysyy LLM:ltä vain ne (kurssi, kysymys) -parit,
     joiden vastaus puuttuu tai joiden kehote/kysymys on muuttunut.
+
+    max_erat: jos annettu, ajetaan korkeintaan tämän verran eräpyyntöjä (esim. 1 =
+    yksi LLM-pyyntö, kätevä testaukseen). Loput jäävät seuraavalle ajolle.
     """
     tieto = _selvita_tyo(tutkimus)
     tyo = tieto["tyo"]
@@ -212,8 +215,11 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> int:
         for i in range(0, len(ryhman_kurssit), ERÄKOKO):
             erat.append((osa_kysymykset, ryhman_kurssit[i:i + ERÄKOKO]))
 
+    if max_erat is not None:
+        erat = erat[:max_erat]
+
     malli = kutsu.hae_malli()
-    yhteensa = len(tyo)
+    yhteensa = sum(len(erä) for _, erä in erat)
     arvioidut: set = set()
     käsitelty = 0
 

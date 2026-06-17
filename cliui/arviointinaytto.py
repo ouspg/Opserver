@@ -21,27 +21,35 @@ def _arvioi(stdscr, tutkimus: dict) -> None:
         valinta = valitse_listasta(
             stdscr,
             f"Arvioi — {tutkimus['LuokittelunNimi']}",
-            ["Aja LLM-arviointi", "Näytä tilanne"],
+            [
+                "Aja LLM-arviointi (kaikki arvioimattomat)",
+                "Aja LLM-arviointi (vain yksi eräpyyntö)",
+                "Näytä tilanne",
+            ],
         )
         if valinta is None:
             return
         if valinta == 0:
             _aja_llm(stdscr, tutkimus)
         elif valinta == 1:
+            _aja_llm(stdscr, tutkimus, vain_yksi_era=True)
+        elif valinta == 2:
             _nayta_tilanne(stdscr, tutkimus)
 
 
-def _aja_llm(stdscr, tutkimus: dict) -> None:
+def _aja_llm(stdscr, tutkimus: dict, vain_yksi_era: bool = False) -> None:
     from arviointi import llmarviointi
-    piirra_otsikko(stdscr, f"LLM-arviointi — {tutkimus['LuokittelunNimi']}")
+    otsikko = "LLM-arviointi (yksi erä)" if vain_yksi_era else "LLM-arviointi"
+    piirra_otsikko(stdscr, f"{otsikko} — {tutkimus['LuokittelunNimi']}")
 
     uudet, vanhentuneet = llmarviointi.laske_tyomaara(tutkimus)
     if uudet + vanhentuneet == 0:
         nayta_viesti(stdscr, "Kaikki mukana olevat kurssit on jo arvioitu nykyisellä kehotteella ja kysymyksillä.")
         return
 
-    # Varoita kustannusvaikutuksesta, jos kehote/kysymys on muuttunut
-    if vanhentuneet > 0:
+    # Yhden erän testiajo: ohitetaan kustannusvaroitus (yksi pyyntö on tarkoituksellisen pieni).
+    # Täysajossa varoitetaan, jos kehote/kysymys on muuttunut (uudelleenajo maksaa).
+    if not vain_yksi_era and vanhentuneet > 0:
         valinta = valitse_listasta(
             stdscr,
             "LLM-arviointi — kehote tai kysymys on muuttunut",
@@ -67,10 +75,13 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
         stdscr.refresh()
 
     try:
-        arvioitu = llmarviointi.aja(tutkimus, edistyminen)
+        arvioitu = llmarviointi.aja(tutkimus, edistyminen, max_erat=1 if vain_yksi_era else None)
         piirra_otsikko(stdscr, "LLM-arviointi — valmis")
         stdscr.addstr(3, 0, f"Arvioitu: {arvioitu}")
-        nayta_viesti(stdscr, "", 5)
+        if vain_yksi_era and arvioitu < uudet + vanhentuneet:
+            jaljella = uudet + vanhentuneet - arvioitu
+            stdscr.addstr(4, 0, f"Jäljellä vielä {jaljella} kurssia (aja uudelleen jatkaaksesi).")
+        nayta_viesti(stdscr, "", 6)
     except EnvironmentError as e:
         nayta_viesti(stdscr, f"Virhe: {e}")
     except Exception as e:
