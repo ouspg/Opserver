@@ -59,7 +59,12 @@ def _aja_meta(stdscr, tutkimus: dict) -> None:
         stdscr.addstr(4, 0, f"  {n}/{yht} kurssia  |  hyväksytty: {hyvaksytty}")
         stdscr.refresh()
 
-    lapaisseet, yhteensa = metasuodatus.aja(tutkimus, edistyminen, nollaa=nollaa)
+    try:
+        lapaisseet, yhteensa = metasuodatus.aja(tutkimus, edistyminen, nollaa=nollaa)
+    except ValueError as virhe:
+        piirra_otsikko(stdscr, "Meta-suodatus — keskeytyi")
+        nayta_viesti(stdscr, str(virhe), 3)
+        return
     piirra_otsikko(stdscr, "Meta-suodatus — valmis")
     stdscr.addstr(3, 0, f"Läpäisi:  {lapaisseet}")
     stdscr.addstr(4, 0, f"Hylätty:  {yhteensa - lapaisseet}")

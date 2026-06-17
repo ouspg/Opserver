@@ -1,5 +1,7 @@
-"""Meta-suodatus: kirjoittaa Kurssiluokitus-rivit taso- ja oppiainerajauksilla."""
+"""Meta-suodatus: kirjoittaa Kurssiluokitus-rivit korkeakoulu-, lukuvuosi-,
+taso- ja oppiainerajauksilla."""
 from tietokanta import mallit
+from luokittelu import lukuvuosi as lv
 
 
 def _taso_ok(kurssi: dict, tasorajaus: str | None) -> bool:
@@ -19,6 +21,9 @@ def _oppiaine_ok(kurssi: dict, oppiainerajaus: str | None) -> bool:
 def aja(tutkimus: dict, edistyminen_cb=None, nollaa: bool = False) -> tuple[int, int]:
     """Käy kurssit läpi; kirjoittaa luokittelut Kurssiluokitus-tauluun.
 
+    Huomioidaan vain tutkimukseen valittujen korkeakoulujen kurssit. Lukuvuosi ja
+    vähintään yksi korkeakoulu ovat pakollisia — muuten nostetaan ValueError.
+
     nollaa=False (oletus): ohitetaan kurssit joilla on jo luokittelu tässä tutkimuksessa.
     nollaa=True: ylikirjoitetaan kaikki olemassaolevat luokittelut.
     Palauttaa (läpäisseet, käsitelty).
@@ -26,8 +31,15 @@ def aja(tutkimus: dict, edistyminen_cb=None, nollaa: bool = False) -> tuple[int,
     tid = tutkimus["TID"]
     tasorajaus = tutkimus.get("Tasorajaus")
     oppiainerajaus = tutkimus.get("Oppiainerajaus")
+    tutk_lukuvuosi = tutkimus.get("Lukuvuosi")
+    korkeakoulut = set(mallit.hae_tutkimuksen_korkeakoulut(tid))
+    if not tutk_lukuvuosi or not korkeakoulut:
+        raise ValueError(
+            "Tutkimukselle on määriteltävä lukuvuosi ja vähintään yksi korkeakoulu "
+            "ennen meta-suodatusta."
+        )
 
-    kurssit = mallit.hae_kurssit()
+    kurssit = [k for k in mallit.hae_kurssit() if k["KKID"] in korkeakoulut]
     jo_luokitellut = set() if nollaa else {l["KID"] for l in mallit.hae_luokitukset(tid)}
     kasiteltavat = [k for k in kurssit if k["KID"] not in jo_luokitellut]
 
@@ -35,8 +47,9 @@ def aja(tutkimus: dict, edistyminen_cb=None, nollaa: bool = False) -> tuple[int,
     for i, kurssi in enumerate(kasiteltavat):
         taso_ok = _taso_ok(kurssi, tasorajaus)
         oa_ok = _oppiaine_ok(kurssi, oppiainerajaus)
+        vuosi_ok = lv.kattaa(kurssi["Opetusvuosi"], tutk_lukuvuosi)
 
-        if taso_ok and oa_ok:
+        if taso_ok and oa_ok and vuosi_ok:
             lapaisseet += 1
             mallit.aseta_luokitus(tid, kurssi["KID"], None, "meta: odottaa LLM-seulontaa")
         else:
@@ -45,6 +58,8 @@ def aja(tutkimus: dict, edistyminen_cb=None, nollaa: bool = False) -> tuple[int,
                 syyt.append(f"taso '{kurssi.get('Taso')}' ∉ '{tasorajaus}'")
             if not oa_ok:
                 syyt.append(f"oppiaine '{kurssi.get('Oppiaine')}' ≉ '{oppiainerajaus}'")
+            if not vuosi_ok:
+                syyt.append(f"lukuvuosi '{kurssi.get('Opetusvuosi')}' ei kata '{tutk_lukuvuosi}'")
             mallit.aseta_luokitus(tid, kurssi["KID"], False, "meta: " + "; ".join(syyt))
 
         if edistyminen_cb:

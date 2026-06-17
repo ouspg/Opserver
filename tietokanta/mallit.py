@@ -1,5 +1,6 @@
 import json
 from tietokanta.yhteys import yhteys
+from luokittelu import lukuvuosi as lv
 
 
 def _rivit_dikteina(kursori) -> list[dict]:
@@ -114,14 +115,14 @@ def hae_kurssi(kid: int) -> dict | None:
 
 # --- Tutkimus ---
 
-def lisaa_tutkimus(luokittelun_nimi: str, slug: str, luokittelukehote: str,
+def lisaa_tutkimus(luokittelun_nimi: str, slug: str, lukuvuosi: str, luokittelukehote: str,
                    tasorajaus: str, oppiainerajaus: str, arviointikehote: str,
                    raportointikehote: str = "") -> int:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                "INSERT INTO Tutkimus (LuokittelunNimi, Slug, Luokittelukehote, Tasorajaus, Oppiainerajaus, Arviointikehote, Raportointikehote) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (luokittelun_nimi, slug, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote),
+                "INSERT INTO Tutkimus (LuokittelunNimi, Slug, Lukuvuosi, Luokittelukehote, Tasorajaus, Oppiainerajaus, Arviointikehote, Raportointikehote) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                (luokittelun_nimi, slug, lukuvuosi, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote),
             )
             return kursori.lastrowid
 
@@ -173,14 +174,14 @@ def hae_valitut_kurssit(tid: int) -> list[dict]:
             return _rivit_dikteina(kursori)
 
 
-def paivita_tutkimus(tid: int, luokittelun_nimi: str, slug: str, luokittelukehote: str,
+def paivita_tutkimus(tid: int, luokittelun_nimi: str, slug: str, lukuvuosi: str, luokittelukehote: str,
                      tasorajaus: str, oppiainerajaus: str, arviointikehote: str,
                      raportointikehote: str = "") -> None:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                "UPDATE Tutkimus SET LuokittelunNimi=%s, Slug=%s, Luokittelukehote=%s, Tasorajaus=%s, Oppiainerajaus=%s, Arviointikehote=%s, Raportointikehote=%s WHERE TID=%s",
-                (luokittelun_nimi, slug, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote, tid),
+                "UPDATE Tutkimus SET LuokittelunNimi=%s, Slug=%s, Lukuvuosi=%s, Luokittelukehote=%s, Tasorajaus=%s, Oppiainerajaus=%s, Arviointikehote=%s, Raportointikehote=%s WHERE TID=%s",
+                (luokittelun_nimi, slug, lukuvuosi, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote, tid),
             )
 
 
@@ -188,6 +189,30 @@ def poista_tutkimus(tid: int) -> None:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute("DELETE FROM Tutkimus WHERE TID = %s", (tid,))
+
+
+# --- Tutkimuksen korkeakoulut ---
+
+def aseta_tutkimuksen_korkeakoulut(tid: int, kkid_lista: list[int]) -> None:
+    """Korvaa tutkimukseen valitut korkeakoulut annetulla listalla."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute("DELETE FROM TutkimusKorkeakoulu WHERE TID = %s", (tid,))
+            for kkid in kkid_lista:
+                kursori.execute(
+                    "INSERT INTO TutkimusKorkeakoulu (TID, KKID) VALUES (%s, %s)",
+                    (tid, kkid),
+                )
+
+
+def hae_tutkimuksen_korkeakoulut(tid: int) -> list[int]:
+    """Tutkimukseen valittujen korkeakoulujen KKID:t."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                "SELECT KKID FROM TutkimusKorkeakoulu WHERE TID = %s ORDER BY KKID", (tid,)
+            )
+            return [r[0] for r in kursori.fetchall()]
 
 
 # --- Kysymykset ---
@@ -530,11 +555,40 @@ def hae_raportti_osio(tid: int, avain: str) -> str:
 
 # --- Raporttitilastot ---
 
+def _kattavat_kaudet(kursori, lukuvuosi: str | None) -> list[str]:
+    """Aineiston Opetusvuosi-arvot, jotka kattavat tutkimuksen lukuvuoden.
+
+    Tyhjä lukuvuosi (vanha tutkimus) → kaikki kaudet (ei vuosirajausta).
+    """
+    kursori.execute("SELECT DISTINCT Opetusvuosi FROM Kurssi")
+    kaikki = [r[0] for r in kursori.fetchall()]
+    if not lukuvuosi:
+        return kaikki
+    return [k for k in kaikki if lv.kattaa(k, lukuvuosi)]
+
+
 def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
-    """Per-yliopisto-tilastot raporttia varten."""
+    """Per-yliopisto-tilastot raporttia varten.
+
+    Rajattu tutkimukseen valittuihin korkeakouluihin ja niihin kursseihin,
+    joiden OPS-kausi kattaa tutkimuksen lukuvuoden. Tyhjä valinta/lukuvuosi
+    (vanha tutkimus) → ei rajausta kyseisen ulottuvuuden osalta.
+    """
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute("""
+            kursori.execute("SELECT Lukuvuosi FROM Tutkimus WHERE TID = %s", (tid,))
+            rivi = kursori.fetchone()
+            lukuvuosi = rivi[0] if rivi else None
+            kkid_lista = hae_tutkimuksen_korkeakoulut(tid)
+            kaudet = _kattavat_kaudet(kursori, lukuvuosi)
+
+            kk_ehto = f"WHERE ko.KKID IN ({','.join(['%s'] * len(kkid_lista))})" if kkid_lista else ""
+            if kaudet:
+                vuosi_ehto = f"AND k.Opetusvuosi IN ({','.join(['%s'] * len(kaudet))})"
+            else:
+                vuosi_ehto = "AND 1 = 0"  # lukuvuosi asetettu, mutta yksikään kausi ei kata sitä
+
+            kursori.execute(f"""
                 SELECT
                     ko.KKID,
                     ko.KouluNimi,
@@ -543,11 +597,12 @@ def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
                     COUNT(DISTINCT CASE WHEN kl.TID = %s AND kl.Mukana = 1 THEN kl.KID END) AS Mukana,
                     COUNT(DISTINCT CASE WHEN kl.TID = %s AND kl.Mukana = 0 THEN kl.KID END) AS Hylatty
                 FROM Korkeakoulu ko
-                LEFT JOIN Kurssi k ON k.KKID = ko.KKID
+                LEFT JOIN Kurssi k ON k.KKID = ko.KKID {vuosi_ehto}
                 LEFT JOIN Kurssiluokitus kl ON kl.KID = k.KID
+                {kk_ehto}
                 GROUP BY ko.KKID, ko.KouluNimi
                 ORDER BY ko.KouluNimi
-            """, (tid, tid, tid))
+            """, (tid, tid, tid, *(kaudet if kaudet else []), *kkid_lista))
             rivit = _rivit_dikteina(kursori)
             # Lisää HITL-lukumäärä per yliopisto
             kursori.execute("""
