@@ -189,22 +189,43 @@ def valitse_monivalinta(stdscr, otsikko: str, vaihtoehdot: list[str],
 
 
 def valitse_listasta(stdscr, otsikko: str, vaihtoehdot: list[str]) -> int | None:
-    """Nuolinäppäimillä valittava lista. Palauttaa valitun indeksin tai None (Esc/q)."""
+    """Nuolinäppäimillä valittava lista. Palauttaa valitun indeksin tai None (Esc/q).
+
+    Sivuttaa pitkät listat näytön korkeuden mukaan ja rajaa rivit näytön
+    leveyteen, jottei addstr kirjoita ruudun ulkopuolelle (curses ERR).
+    """
     valittu = 0
+    n = len(vaihtoehdot)
+    alku_rivi = 3
     while True:
         piirra_otsikko(stdscr, otsikko)
+        korkeus, leveys = stdscr.getmaxyx()
         if not vaihtoehdot:
-            stdscr.addstr(3, 0, "(ei kohteita)")
-        for i, teksti in enumerate(vaihtoehdot):
+            stdscr.addstr(alku_rivi, 0, "(ei kohteita)")
+
+        # Vieritysnäkymä: kuinka monta riviä mahtuu (ohje + reunavara varattu)
+        nakyvat = max(1, korkeus - alku_rivi - 2)
+        if n > nakyvat:
+            offset = min(max(0, valittu - nakyvat // 2), n - nakyvat)
+        else:
+            offset = 0
+        loppu = min(offset + nakyvat, n)
+
+        for rivi_idx, i in enumerate(range(offset, loppu)):
             tyyli = curses.A_REVERSE if i == valittu else curses.A_NORMAL
-            stdscr.addstr(3 + i, 0, teksti, tyyli)
-        ohje_rivi = 3 + max(len(vaihtoehdot), 1) + 1
-        stdscr.addstr(ohje_rivi, 0, "↑/↓ liiku · Enter valitse · q takaisin")
+            stdscr.addstr(alku_rivi + rivi_idx, 0, vaihtoehdot[i][:leveys - 1], tyyli)
+
+        ohje = "↑/↓ liiku · Enter valitse · q takaisin"
+        if n > nakyvat:
+            ohje += f"   [{valittu + 1}/{n}]"
+        ohje_rivi = min(alku_rivi + max(loppu - offset, 1), korkeus - 1)
+        stdscr.addstr(ohje_rivi, 0, ohje[:leveys - 1])
+
         nappain = stdscr.getch()
         if nappain in (curses.KEY_UP, ord("k")):
-            valittu = (valittu - 1) % max(len(vaihtoehdot), 1)
+            valittu = (valittu - 1) % max(n, 1)
         elif nappain in (curses.KEY_DOWN, ord("j")):
-            valittu = (valittu + 1) % max(len(vaihtoehdot), 1)
+            valittu = (valittu + 1) % max(n, 1)
         elif nappain in (curses.KEY_ENTER, 10, 13):
             if vaihtoehdot:
                 return valittu
