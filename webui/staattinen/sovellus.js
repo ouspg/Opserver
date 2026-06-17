@@ -560,6 +560,11 @@ function _renderArviointiSolu(kys, v) {
   } else if (luokittelu === "asteikko" && v?.pisteet != null) {
     const max = kys.LuokitteluMaarittely?.maksimi;
     body = `<span class="pisteet-arvo">${v.pisteet}${max ? "/" + max : ""}</span>${perustelu}`;
+  } else if (luokittelu === "lista" && Array.isArray(v?.lista)) {
+    const kohdat = v.lista.length
+      ? `<ul class="arvio-lista">${v.lista.map((x) => `<li>${x}</li>`).join("")}</ul>`
+      : '<span class="arvio-tyhja">—</span>';
+    body = kohdat + perustelu;
   } else {
     body = v?.vastaus || "—";
   }
@@ -572,7 +577,7 @@ function _vastusTeksti(v) {
 
 function _vastusOnAnnettu(v) {
   if (typeof v === "string") return !!v;
-  return !!(v?.vastaus || v?.luokka || v?.pisteet != null);
+  return !!(v?.vastaus || v?.luokka || v?.pisteet != null || (Array.isArray(v?.lista) && v.lista.length));
 }
 
 async function renderTutkimusArvioinnit(slug, nimi) {
@@ -608,7 +613,7 @@ async function renderTutkimusArvioinnit(slug, nimi) {
   for (const k of kysymykset) {
     const th = document.createElement("th");
     th.className = "kysymys-sarake";
-    const tyyppiMerkki = k.Luokittelu === "luokittelu" ? " [L]" : k.Luokittelu === "asteikko" ? " [A]" : "";
+    const tyyppiMerkki = k.Luokittelu === "luokittelu" ? " [L]" : k.Luokittelu === "asteikko" ? " [A]" : k.Luokittelu === "lista" ? " [Li]" : "";
     th.textContent = (k.Kysymys.length > 48 ? k.Kysymys.slice(0, 45) + "…" : k.Kysymys) + tyyppiMerkki;
     th.title = k.Kysymys;
     otsikkorivi.appendChild(th);
@@ -658,7 +663,7 @@ const RAPORTTI_OSIOT = [
 function _renderTilastotTaulukko(tilastot) {
   if (!tilastot?.kysymykset?.length) return "";
   const rakenteiset = tilastot.kysymykset.filter(
-    (k) => k.luokittelu === "luokittelu" || k.luokittelu === "asteikko"
+    (k) => k.luokittelu === "luokittelu" || k.luokittelu === "asteikko" || k.luokittelu === "lista"
   );
   if (!rakenteiset.length) return "";
 
@@ -692,6 +697,14 @@ function _renderTilastotTaulukko(tilastot) {
           const pct = Math.round((lkm / yht) * 100);
           return `<td>${lkm} (${pct}%)</td>`;
         }).join("") + "</tr></table>";
+      }
+    } else if (k.luokittelu === "lista") {
+      const jakauma = k.jakauma || {};
+      const parit = Object.entries(jakauma).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      if (parit.length) {
+        html += '<table class="tilasto-taulu"><tr><th>Kohta</th><th>Mainintoja</th></tr>';
+        html += parit.map(([kohde, lkm]) => `<tr><td>${kohde}</td><td>${lkm}</td></tr>`).join("");
+        html += "</table>";
       }
     }
     html += "</div>";

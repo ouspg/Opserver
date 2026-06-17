@@ -1,36 +1,9 @@
 """LLM-luokittelu: lähettää meta-suodatuksen läpäisseet kurssit LLM:lle."""
 import json
 from tietokanta import mallit
-from llm import kutsu, tiiviste, kehoteet
+from llm import kutsu, tiiviste, kehoteet, kurssimuoto
 
 ERÄKOKO = 20  # kursseja per LLM-kutsu
-
-
-def _kuvaus_tekstina(ops_kuvaus: str | None, max_merkit: int = 800) -> str:
-    if not ops_kuvaus:
-        return ""
-    try:
-        data = json.loads(ops_kuvaus)
-        osat = []
-        for osio in data.get("contentList", []):
-            otsikko = (osio.get("title") or {}).get("valueFi", "")
-            teksti = ((osio.get("content") or {}).get("valueFi") or "").strip()
-            if teksti:
-                osat.append(f"{otsikko}: {teksti}" if otsikko else teksti)
-        return "\n".join(osat)[:max_merkit]
-    except (ValueError, AttributeError):
-        return str(ops_kuvaus)[:max_merkit]
-
-
-def _kurssi_json_promptiin(kurssi: dict) -> dict:
-    return {
-        "id": kurssi["KID"],
-        "nimi": kurssi["KurssiNimi"],
-        "koodi": kurssi.get("Koodi") or "",
-        "taso": kurssi.get("Taso") or "",
-        "oppiaine": kurssi.get("Oppiaine") or "",
-        "kuvaus": _kuvaus_tekstina(kurssi.get("OpsKuvaus")),
-    }
 
 
 def _lue_jarjestelma_kehote() -> str:
@@ -50,17 +23,18 @@ def _erittele_json(teksti: str) -> list[dict]:
 def _luokittele_erä(erä: list[dict], luokittelukehote: str, jarjestelma: str) -> list[dict]:
     """Lähettää yhden erän LLM:lle ja palauttaa jäsennetyn vastauksen."""
     kurssit_json = json.dumps(
-        [_kurssi_json_promptiin(k) for k in erä],
+        [kurssimuoto.kurssi_json_promptiin(k) for k in erä],
         ensure_ascii=False,
         indent=2,
     )
-    viesti = f"{luokittelukehote}\n\nArvioi seuraavat kurssit:\n{kurssit_json}"
-    vastaus = kutsu.kysy(viesti, jarjestelma)
+    vakaa_prefix = f"{luokittelukehote}\n\nArvioi seuraavat kurssit:\n"
+    viesti = f"{vakaa_prefix}{kurssit_json}"
+    vastaus = kutsu.kysy(viesti, jarjestelma, vakaa_prefix=vakaa_prefix)
     try:
         return _erittele_json(vastaus)
     except (ValueError, json.JSONDecodeError):
         # Yksi uusintayritys
-        vastaus2 = kutsu.kysy(viesti + "\n\nPalauta PELKKÄ JSON-taulukko.", jarjestelma)
+        vastaus2 = kutsu.kysy(viesti + "\n\nPalauta PELKKÄ JSON-taulukko.", jarjestelma, vakaa_prefix=vakaa_prefix)
         return _erittele_json(vastaus2)
 
 

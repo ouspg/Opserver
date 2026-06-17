@@ -120,6 +120,24 @@ def test_api_tutkimus_arvioinnit_palauttaa_rakenteen():
     assert "OpsKuvaus" not in data["kurssit"][0]
 
 
+def test_api_tutkimus_arvioinnit_lista_vastaus():
+    kysymys_lista = {**KYSYMYS, "KysID": 20, "Luokittelu": "lista", "LuokitteluMaarittely": {"max_kohdat": 5}}
+    vastaus_rivi = {"VasID": 2, "KysID": 20, "KID": 1, "Vastaus": "Opetussuunnitelman mukaan",
+                    "Pisteet": None, "Luokka": None, "Lista": ["Matematiikka", "Ohjelmointi"]}
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_kysymykset", return_value=[kysymys_lista]), \
+         patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[KURSSI_MUKANA]), \
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[vastaus_rivi]), \
+         patch("webui.palvelin.mallit.hae_arviokommentit_kaikki", return_value=[]):
+        vastaus = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit")
+    assert vastaus.status_code == 200
+    data = vastaus.json()
+    assert data["kysymykset"][0]["Luokittelu"] == "lista"
+    v = data["kurssit"][0]["vastaukset"][0]
+    assert v["lista"] == ["Matematiikka", "Ohjelmointi"]
+    assert v["vastaus"] == "Opetussuunnitelman mukaan"
+
+
 def test_api_tutkimus_arvioinnit_tyhjat_vastaukset():
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=[KYSYMYS]), \

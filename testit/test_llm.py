@@ -53,6 +53,32 @@ class TestKysy:
         assert jarjestelma["role"] == "system"
         assert jarjestelma["content"]  # ei tyhjä
 
+    def test_vakaa_prefix_merkitsee_valimuistin(self):
+        prefix = "Kehote ja kysymykset\n\nArvioi seuraavat kurssit:\n"
+        viesti = prefix + '[{"id": 1}]'
+        with patch.dict(os.environ, _ENV), \
+             patch("llm.kutsu.requests.post", return_value=self._mock_vastaus("ok")) as mock_post:
+            kutsu.kysy(viesti, jarjestelma="ohje", vakaa_prefix=prefix)
+        viestit = mock_post.call_args.kwargs["json"]["messages"]
+        # Järjestelmäkehote kakutettuna
+        assert viestit[0]["content"][0]["cache_control"] == {"type": "ephemeral"}
+        assert viestit[0]["content"][0]["text"] == "ohje"
+        # Käyttäjäviesti jaettu: vakaa etuliite (kakku) + muuttuva loppu (ei kakkua)
+        user = viestit[1]["content"]
+        assert user[0]["text"] == prefix
+        assert user[0]["cache_control"] == {"type": "ephemeral"}
+        assert user[1]["text"] == '[{"id": 1}]'
+        assert "cache_control" not in user[1]
+
+    def test_ilman_vakaa_prefix_kayttaa_merkkijonosisaltoa(self):
+        # Taaksepäin yhteensopiva: ei välimuistimerkintöjä, sisältö pelkkä merkkijono
+        with patch.dict(os.environ, _ENV), \
+             patch("llm.kutsu.requests.post", return_value=self._mock_vastaus("ok")) as mock_post:
+            kutsu.kysy("kysymys", jarjestelma="ohje")
+        viestit = mock_post.call_args.kwargs["json"]["messages"]
+        assert viestit[0]["content"] == "ohje"
+        assert viestit[1]["content"] == "kysymys"
+
     def test_kysy_vaatii_konfiguraation(self):
         tyhja = {avain: "" for avain in _ENV}
         with patch.dict(os.environ, tyhja), pytest.raises(EnvironmentError):

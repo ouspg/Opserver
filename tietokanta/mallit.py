@@ -235,17 +235,18 @@ def poista_kysymys(kysid: int) -> None:
 
 def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "",
                   pisteet: float | None = None, luokka: str | None = None,
-                  tiiviste: str | None = None) -> None:
+                  lista: list | None = None, tiiviste: str | None = None) -> None:
+    lista_json = json.dumps(lista, ensure_ascii=False) if lista is not None else None
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                """INSERT INTO Vastaukset (KysID, KID, Vastaus, Malli, Pisteet, Luokka, Kehotetiiviste)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """INSERT INTO Vastaukset (KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                    ON DUPLICATE KEY UPDATE
                        Vastaus = VALUES(Vastaus), Malli = VALUES(Malli),
                        Pisteet = VALUES(Pisteet), Luokka = VALUES(Luokka),
-                       Kehotetiiviste = VALUES(Kehotetiiviste)""",
-                (kysid, kid, vastaus, malli, pisteet, luokka, tiiviste),
+                       Lista = VALUES(Lista), Kehotetiiviste = VALUES(Kehotetiiviste)""",
+                (kysid, kid, vastaus, malli, pisteet, luokka, lista_json, tiiviste),
             )
 
 
@@ -261,7 +262,8 @@ def hae_vastaus_tiivisteet(tid: int) -> dict[tuple[int, int], dict]:
             kursori.execute("""
                 SELECT v.KID, v.KysID, v.Kehotetiiviste,
                        ((v.Vastaus IS NOT NULL AND v.Vastaus <> '')
-                        OR v.Luokka IS NOT NULL OR v.Pisteet IS NOT NULL) AS Vastattu
+                        OR v.Luokka IS NOT NULL OR v.Pisteet IS NOT NULL
+                        OR v.Lista IS NOT NULL) AS Vastattu
                 FROM Vastaukset v
                 JOIN Kysymykset k ON v.KysID = k.KysID
                 WHERE k.TID = %s
@@ -298,7 +300,11 @@ def hae_vastaukset(tid: int) -> list[dict]:
                 WHERE k.TID = %s
                 ORDER BY v.KID, v.KysID
             """, (tid,))
-            return _rivit_dikteina(kursori)
+            rivit = _rivit_dikteina(kursori)
+    for r in rivit:
+        if isinstance(r.get("Lista"), str):
+            r["Lista"] = json.loads(r["Lista"])
+    return rivit
 
 
 # --- Luokittelun apufunktiot ---

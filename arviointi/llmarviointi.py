@@ -1,36 +1,9 @@
 """LLM-arviointi: lähettää mukaan otetut kurssit LLM:lle kysymysvastauksiin."""
 import json
 from tietokanta import mallit
-from llm import kutsu, tiiviste, kehoteet
+from llm import kutsu, tiiviste, kehoteet, kurssimuoto
 
 ERÄKOKO = 5
-
-
-def _kuvaus_tekstina(ops_kuvaus: str | None, max_merkit: int = 800) -> str:
-    if not ops_kuvaus:
-        return ""
-    try:
-        data = json.loads(ops_kuvaus)
-        osat = []
-        for osio in data.get("contentList", []):
-            otsikko = (osio.get("title") or {}).get("valueFi", "")
-            teksti = ((osio.get("content") or {}).get("valueFi") or "").strip()
-            if teksti:
-                osat.append(f"{otsikko}: {teksti}" if otsikko else teksti)
-        return "\n".join(osat)[:max_merkit]
-    except (ValueError, AttributeError):
-        return str(ops_kuvaus)[:max_merkit]
-
-
-def _kurssi_json_promptiin(kurssi: dict) -> dict:
-    return {
-        "id": kurssi["KID"],
-        "nimi": kurssi["KurssiNimi"],
-        "koodi": kurssi.get("Koodi") or "",
-        "taso": kurssi.get("Taso") or "",
-        "oppiaine": kurssi.get("Oppiaine") or "",
-        "kuvaus": _kuvaus_tekstina(kurssi.get("OpsKuvaus")),
-    }
 
 
 def _lue_jarjestelma_kehote() -> str:
@@ -73,6 +46,11 @@ def _rakenna_kysymysteksti(kysymykset: list[dict]) -> str:
             for p in pisteet:
                 rivit.append(f'   - {p["arvo"]}/{maksimi}: {p["kuvaus"]}')
             rivit.append(f'   Palauta objekti: {{"pisteet": <{minimi}-{maksimi}>, "perustelu": "<selitys>"}}')
+        elif luokittelu == "lista":
+            maks = maarittely.get("max_kohdat")
+            raja = f" (enintään {maks} kohtaa)" if maks else ""
+            rivit.append(f'   Luettele asiat erillisinä kohtina{raja}.')
+            rivit.append('   Palauta objekti: {"kohdat": ["<kohta1>", "<kohta2>", …], "perustelu": "<selitys>"}')
     return "\n".join(rivit)
 
 
@@ -85,37 +63,39 @@ def _tallenna_tulokset(tulokset: list[dict], kysymykset: list[dict], malli: str,
             raw = vastaukset_lista[i] if i < len(vastaukset_lista) else ""
             luokittelu = k.get("Luokittelu") or "vapaa_teksti"
 
+            pisteet = luokka = lista = None
             if luokittelu == "luokittelu" and isinstance(raw, dict):
                 vastaus = raw.get("perustelu", "")
                 luokka = raw.get("luokka", "")
-                pisteet = None
             elif luokittelu == "asteikko" and isinstance(raw, dict):
                 vastaus = raw.get("perustelu", "")
                 pisteet = float(raw["pisteet"]) if raw.get("pisteet") is not None else None
-                luokka = None
+            elif luokittelu == "lista" and isinstance(raw, dict):
+                vastaus = raw.get("perustelu", "")
+                kohdat = raw.get("kohdat", [])
+                lista = [str(x) for x in kohdat] if isinstance(kohdat, list) else []
             else:
                 vastaus = str(raw) if raw else ""
-                pisteet = None
-                luokka = None
 
             tiiv = (kys_tiiviste or {}).get(k["KysID"])
             mallit.aseta_vastaus(k["KysID"], kid, vastaus, malli,
-                                 pisteet=pisteet, luokka=luokka, tiiviste=tiiv)
+                                 pisteet=pisteet, luokka=luokka, lista=lista, tiiviste=tiiv)
 
 
 def _arvioi_erä(erä: list[dict], arviointikehote: str, kysymykset: list[dict], jarjestelma: str) -> list[dict]:
     kurssit_json = json.dumps(
-        [_kurssi_json_promptiin(k) for k in erä],
+        [kurssimuoto.kurssi_json_promptiin(k) for k in erä],
         ensure_ascii=False,
         indent=2,
     )
     kysymysteksti = _rakenna_kysymysteksti(kysymykset)
-    viesti = f"{arviointikehote}\n\n{kysymysteksti}\n\nArvioi seuraavat kurssit:\n{kurssit_json}"
+    vakaa_prefix = f"{arviointikehote}\n\n{kysymysteksti}\n\nArvioi seuraavat kurssit:\n"
+    viesti = f"{vakaa_prefix}{kurssit_json}"
     try:
-        vastaus = kutsu.kysy(viesti, jarjestelma, json_muoto=True)
+        vastaus = kutsu.kysy(viesti, jarjestelma, json_muoto=True, vakaa_prefix=vakaa_prefix)
         return _erittele_json(vastaus)
     except (ValueError, json.JSONDecodeError):
-        vastaus2 = kutsu.kysy(viesti + "\n\nPalauta PELKKÄ JSON-objekti muodossa {\"tulokset\": [...]}.", jarjestelma, json_muoto=True)
+        vastaus2 = kutsu.kysy(viesti + "\n\nPalauta PELKKÄ JSON-objekti muodossa {\"tulokset\": [...]}.", jarjestelma, json_muoto=True, vakaa_prefix=vakaa_prefix)
         return _erittele_json(vastaus2)
 
 
@@ -176,11 +156,14 @@ def laske_tyomaara(tutkimus: dict) -> tuple[int, int]:
     return uudet, vanhentuneet
 
 
-def aja(tutkimus: dict, edistyminen_cb=None) -> int:
+def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None) -> int:
     """Arvioi mukaan otetut kurssit LLM:llä. Palauttaa arvioitujen kurssien määrän.
 
     Idempotentti ja kehotetietoinen: kysyy LLM:ltä vain ne (kurssi, kysymys) -parit,
     joiden vastaus puuttuu tai joiden kehote/kysymys on muuttunut.
+
+    max_erat: jos annettu, ajetaan korkeintaan tämän verran eräpyyntöjä (esim. 1 =
+    yksi LLM-pyyntö, kätevä testaukseen). Loput jäävät seuraavalle ajolle.
     """
     tieto = _selvita_tyo(tutkimus)
     tyo = tieto["tyo"]
@@ -206,8 +189,11 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> int:
         for i in range(0, len(ryhman_kurssit), ERÄKOKO):
             erat.append((osa_kysymykset, ryhman_kurssit[i:i + ERÄKOKO]))
 
+    if max_erat is not None:
+        erat = erat[:max_erat]
+
     malli = kutsu.hae_malli()
-    yhteensa = len(tyo)
+    yhteensa = sum(len(erä) for _, erä in erat)
     arvioidut: set = set()
     käsitelty = 0
 

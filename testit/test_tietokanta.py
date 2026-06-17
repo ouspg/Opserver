@@ -220,6 +220,26 @@ class TestKysymykset:
         assert 4.0 in params
         assert "korkea" in params
 
+    def test_aseta_vastaus_lista_serialisoidaan_jsoniksi(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.aseta_vastaus(kysid=1, kid=7, vastaus="Perustelu", lista=["a", "b"])
+        sql, params = kursori.execute.call_args[0]
+        assert "Lista" in sql
+        assert '["a", "b"]' in params  # JSON-serialisoituna
+
+    def test_aseta_vastaus_lista_none_tallentaa_nullin(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.aseta_vastaus(kysid=1, kid=7, vastaus="x")
+        _, params = kursori.execute.call_args[0]
+        assert None in params
+
+    def test_hae_vastaukset_parsii_lista_jsonin(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.description = [("KysID",), ("KID",), ("Lista",)]
+        kursori.fetchall.return_value = [(1, 7, '["a", "b"]')]
+        rivit = mallit.hae_vastaukset(tid=1)
+        assert rivit[0]["Lista"] == ["a", "b"]
+
     def test_hae_vastausten_lkm(self, mock_yhteys):
         yht, kursori = mock_yhteys
         kursori.fetchone.return_value = (5,)

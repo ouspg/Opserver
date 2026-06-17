@@ -601,6 +601,16 @@ td.toiminto { text-align: right; white-space: nowrap; }
   margin-top: 0.15rem;
 }
 
+.arvio-lista {
+  margin: 0.1rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+}
+
+.arvio-lista li {
+  margin-bottom: 0.1rem;
+}
+
 .vanha-merkki {
   display: inline-block;
   background: #fff3cd;

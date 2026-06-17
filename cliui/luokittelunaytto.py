@@ -69,6 +69,7 @@ def _aja_meta(stdscr, tutkimus: dict) -> None:
 
 def _aja_llm(stdscr, tutkimus: dict) -> None:
     from luokittelu import llmluokittelu
+    from llm import mallitiedot
     piirra_otsikko(stdscr, f"LLM-luokittelu — {tutkimus['LuokittelunNimi']}")
 
     tid = tutkimus["TID"]
@@ -93,6 +94,13 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
         )
         if valinta != 0:
             return
+
+    # Esitarkistus: malli on saatavilla ennen kuin aloitetaan LLM-kutsut
+    try:
+        mallitiedot.tarkista_saatavuus()
+    except Exception as e:
+        nayta_viesti(stdscr, f"Mallia ei voi käyttää: {e}")
+        return
 
     stdscr.addstr(3, 0, "Yhdistetään LLM:ään...")
     stdscr.refresh()
