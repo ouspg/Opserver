@@ -105,7 +105,7 @@ class TestTutkimus:
     def test_lisaa_tutkimus_palauttaa_id(self, mock_yhteys):
         yht, kursori = mock_yhteys
         kursori.lastrowid = 3
-        tulos = mallit.lisaa_tutkimus("Kyber-tutkimus", "kyber-2025", "luokittelukehote", "perus,aine", "Tietojenkäsittely", "arviointikehote")
+        tulos = mallit.lisaa_tutkimus("Kyber-tutkimus", "kyber-2025", "2025-2026", "luokittelukehote", "perus,aine", "Tietojenkäsittely", "arviointikehote")
         assert tulos == 3
 
     def test_hae_tutkimukset_palauttaa_listan(self, mock_yhteys):
@@ -131,7 +131,7 @@ class TestTutkimus:
 
     def test_paivita_tutkimus_tekee_update(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        mallit.paivita_tutkimus(1, "Uusi", "uusi-slug", "uusi kehote", "perus", "aine", "uusi arviointi")
+        mallit.paivita_tutkimus(1, "Uusi", "uusi-slug", "2025-2026", "uusi kehote", "perus", "aine", "uusi arviointi")
         sql = kursori.execute.call_args[0][0]
         assert "UPDATE" in sql.upper()
 
@@ -140,6 +140,20 @@ class TestTutkimus:
         mallit.poista_tutkimus(1)
         sql = kursori.execute.call_args[0][0]
         assert "DELETE" in sql.upper()
+
+
+class TestTutkimuksenKorkeakoulut:
+    def test_aseta_korvaa_valinnan(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.aseta_tutkimuksen_korkeakoulut(1, [2, 3])
+        sqlt = [c.args[0] for c in kursori.execute.call_args_list]
+        assert any("DELETE" in s.upper() for s in sqlt)
+        assert sum("INSERT" in s.upper() for s in sqlt) == 2
+
+    def test_hae_palauttaa_kkid_listan(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = [(2,), (3,)]
+        assert mallit.hae_tutkimuksen_korkeakoulut(1) == [2, 3]
 
 
 class TestKysymykset:
