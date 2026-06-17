@@ -273,12 +273,16 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
     vastaukset_lista = mallit.hae_vastaukset(tid)
     kommentit_lista = mallit.hae_arviokommentit_kaikki(tid)
 
-    vastaus_kartta: dict[int, dict[int, str]] = {}
+    vastaus_kartta: dict[int, dict[int, dict]] = {}
     for v in vastaukset_lista:
         kid = v["KID"]
         if kid not in vastaus_kartta:
             vastaus_kartta[kid] = {}
-        vastaus_kartta[kid][v["KysID"]] = v["Vastaus"]
+        vastaus_kartta[kid][v["KysID"]] = {
+            "vastaus": v.get("Vastaus") or "",
+            "luokka": v.get("Luokka"),
+            "pisteet": v.get("Pisteet"),
+        }
 
     kommentti_kartta: dict[int, dict[int, str]] = {}
     for k in kommentit_lista:
@@ -288,8 +292,17 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
         kommentti_kartta[kid][k["KysID"]] = k["Kommentti"]
 
     kys_idt = [k["KysID"] for k in kysymykset]
+    tyhjä_vastaus = {"vastaus": "", "luokka": None, "pisteet": None}
     return {
-        "kysymykset": [{"KysID": k["KysID"], "Kysymys": k["Kysymys"]} for k in kysymykset],
+        "kysymykset": [
+            {
+                "KysID": k["KysID"],
+                "Kysymys": k["Kysymys"],
+                "Luokittelu": k.get("Luokittelu", "vapaa_teksti"),
+                "LuokitteluMaarittely": k.get("LuokitteluMaarittely"),
+            }
+            for k in kysymykset
+        ],
         "kurssit": [
             {
                 "KID": k["KID"],
@@ -301,7 +314,7 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
                 "Taso": k.get("Taso") or "",
                 "Oppiaine": k.get("Oppiaine") or "",
                 "Opintopisteet": k.get("Opintopisteet"),
-                "vastaukset": [vastaus_kartta.get(k["KID"], {}).get(kys_id, "") for kys_id in kys_idt],
+                "vastaukset": [vastaus_kartta.get(k["KID"], {}).get(kys_id, tyhjä_vastaus) for kys_id in kys_idt],
                 "kommentit": {kys_id: kommentti_kartta.get(k["KID"], {}).get(kys_id, "") for kys_id in kys_idt},
             }
             for k in kurssit
@@ -335,6 +348,64 @@ def api_raportti(slug: str) -> dict:
         raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     osiot = mallit.hae_raportti_osiot(tutkimus["TID"])
     return {"tid": tutkimus["TID"], "osiot": osiot}
+
+
+@sovellus.get("/api/tutkimukset/{slug}/raportti/tilastot")
+def api_raportti_tilastot(slug: str) -> dict:
+    """Palauttaa per-kysymys-tilastot rakenteellisille arvioinneille ilman LLM-kutsua."""
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    tid = tutkimus["TID"]
+    kysymykset = mallit.hae_kysymykset(tid)
+    vastaukset_lista = mallit.hae_vastaukset(tid)
+
+    # Rakenna per-kysymys indeksi vastauksista
+    v_per_kys: dict[int, list[dict]] = {k["KysID"]: [] for k in kysymykset}
+    for v in vastaukset_lista:
+        kysid = v["KysID"]
+        if kysid in v_per_kys:
+            v_per_kys[kysid].append(v)
+
+    tulos_kysymykset = []
+    for k in kysymykset:
+        kysid = k["KysID"]
+        luokittelu = k.get("Luokittelu", "vapaa_teksti")
+        vastaukset = v_per_kys.get(kysid, [])
+        kohta: dict = {"kysid": kysid, "kysymys": k["Kysymys"], "luokittelu": luokittelu}
+
+        if luokittelu == "luokittelu":
+            jakauma: dict[str, int] = {}
+            for v in vastaukset:
+                luokka = v.get("Luokka") or ""
+                if luokka:
+                    jakauma[luokka] = jakauma.get(luokka, 0) + 1
+            kohta["jakauma"] = jakauma
+            kohta["yhteensa"] = sum(jakauma.values())
+
+        elif luokittelu == "asteikko":
+            pisteet_arvot = [v["Pisteet"] for v in vastaukset if v.get("Pisteet") is not None]
+            jakauma_num: dict[str, int] = {}
+            for p in pisteet_arvot:
+                avain = str(int(round(p)))
+                jakauma_num[avain] = jakauma_num.get(avain, 0) + 1
+            kohta["yhteensa"] = len(pisteet_arvot)
+            kohta["jakauma"] = jakauma_num
+            if pisteet_arvot:
+                kohta["keskiarvo"] = round(sum(pisteet_arvot) / len(pisteet_arvot), 2)
+                kohta["minimi"] = min(pisteet_arvot)
+                kohta["maksimi"] = max(pisteet_arvot)
+            else:
+                kohta["keskiarvo"] = None
+                kohta["minimi"] = None
+                kohta["maksimi"] = None
+
+        else:  # vapaa_teksti
+            kohta["yhteensa"] = sum(1 for v in vastaukset if v.get("Vastaus"))
+
+        tulos_kysymykset.append(kohta)
+
+    return {"kysymykset": tulos_kysymykset}
 
 
 @sovellus.get("/api/tutkimukset/{slug}")

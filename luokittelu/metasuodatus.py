@@ -16,19 +16,23 @@ def _oppiaine_ok(kurssi: dict, oppiainerajaus: str | None) -> bool:
     return any(t.strip().lower() in oppiaine for t in oppiainerajaus.split(",") if t.strip())
 
 
-def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int]:
-    """Käy kaikki kurssit läpi; kirjoittaa hylätyt Kurssiluokitus-tauluun.
+def aja(tutkimus: dict, edistyminen_cb=None, nollaa: bool = False) -> tuple[int, int]:
+    """Käy kurssit läpi; kirjoittaa luokittelut Kurssiluokitus-tauluun.
 
-    Palauttaa (läpäisseet, yhteensä). Idempotentti.
+    nollaa=False (oletus): ohitetaan kurssit joilla on jo luokittelu tässä tutkimuksessa.
+    nollaa=True: ylikirjoitetaan kaikki olemassaolevat luokittelut.
+    Palauttaa (läpäisseet, käsitelty).
     """
     tid = tutkimus["TID"]
     tasorajaus = tutkimus.get("Tasorajaus")
     oppiainerajaus = tutkimus.get("Oppiainerajaus")
 
     kurssit = mallit.hae_kurssit()
-    lapaisseet = 0
+    jo_luokitellut = set() if nollaa else {l["KID"] for l in mallit.hae_luokitukset(tid)}
+    kasiteltavat = [k for k in kurssit if k["KID"] not in jo_luokitellut]
 
-    for i, kurssi in enumerate(kurssit):
+    lapaisseet = 0
+    for i, kurssi in enumerate(kasiteltavat):
         taso_ok = _taso_ok(kurssi, tasorajaus)
         oa_ok = _oppiaine_ok(kurssi, oppiainerajaus)
 
@@ -44,6 +48,6 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int]:
             mallit.aseta_luokitus(tid, kurssi["KID"], False, "meta: " + "; ".join(syyt))
 
         if edistyminen_cb:
-            edistyminen_cb(i + 1, len(kurssit), lapaisseet)
+            edistyminen_cb(i + 1, len(kasiteltavat), lapaisseet)
 
-    return lapaisseet, len(kurssit)
+    return lapaisseet, len(kasiteltavat)

@@ -35,6 +35,7 @@ async function renderoi() {
     document.getElementById("tutkimus-nav").classList.add("piilotettu");
     if (r.sivu === "korkeakoulut") {
       document.getElementById("s-korkeakoulut").classList.add("aktiivinen");
+      await lataaKorkeakoulut();
     } else if (r.sivu === "kurssit") {
       document.getElementById("s-kurssit").classList.add("aktiivinen");
       lataaKurssit();
@@ -91,15 +92,27 @@ let kaikki_koulut = [];
 
 function kurssiUrl(kurssi) {
   const koulu = kaikki_koulut.find((k) => k.KKID === kurssi.KKID);
-  if (!koulu || !kurssi.LahdeId || !kurssi.Koodi) return null;
+  if (!koulu || !kurssi.LahdeId) return null;
+  if (koulu.OpsTyyppi === "Sisu")
+    return `${koulu.OpsOsoite}/student/courseunit/${kurssi.LahdeId}/brochure`;
+  if (!kurssi.Koodi) return null;
   return `${koulu.OpsOsoite}/fi/opintojakso/${kurssi.Koodi}/${kurssi.LahdeId}?period=${kurssi.Opetusvuosi}`;
+}
+
+function koulunLyhenne(koulu) {
+  try {
+    const osat = new URL(koulu.OpsOsoite).hostname.split(".");
+    return (koulu.OpsTyyppi === "Sisu" ? osat[1] : osat[osat.length - 2])
+      ?.toUpperCase() || "";
+  } catch { return ""; }
 }
 
 function kurssiLinkki(kurssi) {
   const url = kurssiUrl(kurssi);
-  return url
-    ? `<a href="${url}" target="_blank" rel="noopener">${kurssi.KurssiNimi}</a>`
-    : kurssi.KurssiNimi;
+  if (!url) return kurssi.KurssiNimi;
+  const koulu = kaikki_koulut.find((k) => k.KKID === kurssi.KKID);
+  if (!koulu) return kurssi.KurssiNimi;
+  return `${kurssi.KurssiNimi} <a href="${url}" target="_blank" rel="noopener" class="ops-linkki">🌐 ${koulunLyhenne(koulu)} · ${koulu.OpsTyyppi}</a>`;
 }
 
 function ryhmitaKurssit(kurssit) {
@@ -392,6 +405,15 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
 async function renderTutkimusKurssit(slug, nimi) {
   document.getElementById("tutkimus-kurssit-otsikko").textContent = `${nimi} — kurssit`;
   tutkimus_luokitukset = await fetch(`/api/tutkimukset/${slug}/luokitukset`).then((r) => r.json());
+  const lkmt = {
+    mukana:  tutkimus_luokitukset.filter((k) => k.Mukana === true  || k.Mukana === 1).length,
+    odottaa: tutkimus_luokitukset.filter((k) => k.Mukana === null).length,
+    "hylätty": tutkimus_luokitukset.filter((k) => k.Mukana === false || k.Mukana === 0).length,
+  };
+  const nimet = { mukana: "Mukana", odottaa: "Odottaa", "hylätty": "Hylätty" };
+  document.querySelectorAll(".tila-nappi").forEach((b) => {
+    b.textContent = `${nimet[b.dataset.tila]} (${lkmt[b.dataset.tila] ?? 0})`;
+  });
   renderTutkimusKurssitTila();
 }
 
@@ -438,6 +460,7 @@ function renderTutkimusKurssitTila() {
     }
 
     const rivi = document.createElement("tr");
+    rivi.className = "kurssi-rivi";
     rivi.innerHTML = `
       <td>${kurssiLinkki(k)}</td>
       <td class="koodi">${k.Koodi || ""}</td>
@@ -446,6 +469,8 @@ function renderTutkimusKurssitTila() {
       <td class="op">${k.Opintopisteet ?? "—"}</td>
       <td class="perustelu">${perusteluHtml}</td>
       <td class="toiminto">${toimintoHtml}</td>`;
+    rivi.querySelector("a.ops-linkki")?.addEventListener("click", (e) => e.stopPropagation());
+    rivi.addEventListener("click", () => avaaModaali(k.KID));
     runko.appendChild(rivi);
   }
 
@@ -475,6 +500,29 @@ document.querySelectorAll(".tila-nappi, .tila-nappi-nav").forEach((b) => {
 
 // --- Tutkimus-arvioinnit ---
 
+function _renderArviointiSolu(kys, v) {
+  if (typeof v === "string") return v || "—";
+  const luokittelu = kys.Luokittelu || "vapaa_teksti";
+  const perustelu = v?.vastaus ? `<em class="arvio-perustelu">${v.vastaus}</em>` : "";
+  if (luokittelu === "luokittelu" && v?.luokka) {
+    return `<span class="luokka-badge">${v.luokka}</span>${perustelu}`;
+  }
+  if (luokittelu === "asteikko" && v?.pisteet != null) {
+    const max = kys.LuokitteluMaarittely?.maksimi;
+    return `<span class="pisteet-arvo">${v.pisteet}${max ? "/" + max : ""}</span>${perustelu}`;
+  }
+  return v?.vastaus || "—";
+}
+
+function _vastusTeksti(v) {
+  return typeof v === "string" ? v : (v?.vastaus || "");
+}
+
+function _vastusOnAnnettu(v) {
+  if (typeof v === "string") return !!v;
+  return !!(v?.vastaus || v?.luokka || v?.pisteet != null);
+}
+
 async function renderTutkimusArvioinnit(slug, nimi) {
   document.getElementById("tutkimus-arvioinnit-otsikko").textContent = `${nimi} — arvioinnit`;
   const data = await fetch(`/api/tutkimukset/${slug}/arvioinnit`).then((r) => r.json());
@@ -488,7 +536,7 @@ async function renderTutkimusArvioinnit(slug, nimi) {
     return;
   }
 
-  const arvioitu = kurssit.filter((k) => k.vastaukset.some((v) => v)).length;
+  const arvioitu = kurssit.filter((k) => k.vastaukset.some(_vastusOnAnnettu)).length;
   lkm.textContent = `${arvioitu} / ${kurssit.length} kurssia arvioitu`;
 
   if (!kurssit.length) {
@@ -508,7 +556,8 @@ async function renderTutkimusArvioinnit(slug, nimi) {
   for (const k of kysymykset) {
     const th = document.createElement("th");
     th.className = "kysymys-sarake";
-    th.textContent = k.Kysymys.length > 50 ? k.Kysymys.slice(0, 47) + "…" : k.Kysymys;
+    const tyyppiMerkki = k.Luokittelu === "luokittelu" ? " [L]" : k.Luokittelu === "asteikko" ? " [A]" : "";
+    th.textContent = (k.Kysymys.length > 48 ? k.Kysymys.slice(0, 45) + "…" : k.Kysymys) + tyyppiMerkki;
     th.title = k.Kysymys;
     otsikkorivi.appendChild(th);
   }
@@ -517,22 +566,27 @@ async function renderTutkimusArvioinnit(slug, nimi) {
   const tbody = taulu.createTBody();
   for (const k of kurssit) {
     const rivi = tbody.insertRow();
+    rivi.className = "kurssi-rivi";
     const taso = k.Taso ? (TASO_SUOMI[k.Taso] || k.Taso) : "—";
     rivi.innerHTML = `
       <td>${kurssiLinkki(k)}</td>
       <td>${taso}</td>
       <td class="op">${k.Opintopisteet ?? "—"}</td>`;
+    rivi.querySelector("a.ops-linkki")?.addEventListener("click", (e) => e.stopPropagation());
+    rivi.addEventListener("click", () => avaaModaali(k.KID));
     kysymykset.forEach((kys, i) => {
-      const vastaus = k.vastaukset[i] || "";
+      const v = k.vastaukset[i];
+      const vastausTeksti = _vastusTeksti(v);
       const kommentti = k.kommentit?.[kys.KysID] || "";
       const td = rivi.insertCell();
       td.className = "arviointi-vastaus";
       const korjaaId = `korjaa-${k.KID}-${kys.KysID}`;
-      td.innerHTML = `<span class="arvio-teksti">${vastaus || "—"}</span>` +
+      td.innerHTML = `<span class="arvio-teksti">${_renderArviointiSolu(kys, v)}</span>` +
         (kommentti ? `<div class="arvio-kommentti">${kommentti}</div>` : "") +
         `<button class="arvio-korjaa-nappi" id="${korjaaId}">Korjaa</button>`;
-      td.querySelector(".arvio-korjaa-nappi").addEventListener("click", () => {
-        window.avaaArviointiMuokkaus?.(tid, k.KID, kys.KysID, kys.Kysymys, vastaus, kommentti);
+      td.querySelector(".arvio-korjaa-nappi").addEventListener("click", (e) => {
+        e.stopPropagation();
+        window.avaaArviointiMuokkaus?.(tid, k.KID, kys.KysID, kys.Kysymys, vastausTeksti, kommentti);
       });
     });
   }
@@ -549,14 +603,62 @@ const RAPORTTI_OSIOT = [
   { avain: "arvioinnit", otsikko: "3. Arvioinnit" },
 ];
 
+function _renderTilastotTaulukko(tilastot) {
+  if (!tilastot?.kysymykset?.length) return "";
+  const rakenteiset = tilastot.kysymykset.filter(
+    (k) => k.luokittelu === "luokittelu" || k.luokittelu === "asteikko"
+  );
+  if (!rakenteiset.length) return "";
+
+  let html = '<div class="tilastot-osio"><h3>Tilastot</h3>';
+  for (const k of rakenteiset) {
+    html += `<div class="tilasto-kysymys"><strong>${k.kysymys}</strong> (${k.yhteensa} arviointia)`;
+    if (k.luokittelu === "luokittelu") {
+      const jakauma = k.jakauma || {};
+      const yht = k.yhteensa || 1;
+      html += '<table class="tilasto-taulu"><tr>';
+      for (const [luokka, lkm] of Object.entries(jakauma)) {
+        const pct = Math.round((lkm / yht) * 100);
+        html += `<th>${luokka}</th>`;
+      }
+      html += "</tr><tr>";
+      for (const [luokka, lkm] of Object.entries(jakauma)) {
+        const pct = Math.round((lkm / yht) * 100);
+        html += `<td><div class="tilasto-pylvas" style="width:${pct}%"></div>${lkm} (${pct}%)</td>`;
+      }
+      html += "</tr></table>";
+    } else if (k.luokittelu === "asteikko") {
+      html += `<table class="tilasto-taulu"><tr><th>ka</th><th>min</th><th>max</th></tr>` +
+        `<tr><td>${k.keskiarvo ?? "—"}</td><td>${k.minimi ?? "—"}</td><td>${k.maksimi ?? "—"}</td></tr></table>`;
+      const jakauma = k.jakauma || {};
+      if (Object.keys(jakauma).length) {
+        const yht = k.yhteensa || 1;
+        const avaimet = Object.keys(jakauma).sort((a, b) => +a - +b);
+        html += '<table class="tilasto-taulu"><tr>' + avaimet.map((a) => `<th>${a}</th>`).join("") + "</tr><tr>";
+        html += avaimet.map((a) => {
+          const lkm = jakauma[a] || 0;
+          const pct = Math.round((lkm / yht) * 100);
+          return `<td>${lkm} (${pct}%)</td>`;
+        }).join("") + "</tr></table>";
+      }
+    }
+    html += "</div>";
+  }
+  html += "</div>";
+  return html;
+}
+
 async function renderTutkimusRaportti(slug, tutkimus) {
   const sisalto = document.getElementById("raportti-sisalto");
   const pdfNappi = document.getElementById("raportti-pdf-nappi");
   sisalto.innerHTML = "";
 
-  let data;
+  let data, tilastot;
   try {
-    data = await fetch(`/api/tutkimukset/${slug}/raportti`).then((r) => r.json());
+    [data, tilastot] = await Promise.all([
+      fetch(`/api/tutkimukset/${slug}/raportti`).then((r) => r.json()),
+      fetch(`/api/tutkimukset/${slug}/raportti/tilastot`).then((r) => r.json()).catch(() => null),
+    ]);
   } catch (_) {
     sisalto.innerHTML = '<p class="tulossa">Raportin lataaminen epäonnistui.</p>';
     return;
@@ -576,6 +678,7 @@ async function renderTutkimusRaportti(slug, tutkimus) {
 
   for (const { avain, otsikko } of RAPORTTI_OSIOT) {
     const teksti = osiot[avain] || "";
+    const tilastotHtml = avain === "arvioinnit" ? _renderTilastotTaulukko(tilastot) : "";
     const div = document.createElement("div");
     div.className = "raportti-osio";
     div.dataset.avain = avain;
@@ -584,6 +687,7 @@ async function renderTutkimusRaportti(slug, tutkimus) {
         <h2 class="raportti-osio-otsikko">${otsikko}</h2>
         <button class="arvio-korjaa-nappi raportti-muokkaa-nappi" data-avain="${avain}">Muokkaa</button>
       </div>
+      ${tilastotHtml}
       <div class="raportti-osio-teksti">${teksti ? teksti.replace(/\n/g, "<br>") : '<em class="tulossa">Tämä osio puuttuu raportista.</em>'}</div>
       <div class="raportti-muokkaajat" id="raportti-muokkaajat-${avain}"></div>`;
     div.querySelector(".raportti-muokkaa-nappi").addEventListener("click", () => {

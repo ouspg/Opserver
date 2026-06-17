@@ -1,3 +1,4 @@
+import json
 from tietokanta.yhteys import yhteys
 
 
@@ -187,12 +188,14 @@ def poista_tutkimus(tid: int) -> None:
 
 # --- Kysymykset ---
 
-def lisaa_kysymys(tid: int, kysymys: str) -> int:
+def lisaa_kysymys(tid: int, kysymys: str, luokittelu: str = "vapaa_teksti",
+                  luokittelu_maarittely: dict | None = None) -> int:
+    maarittely_json = json.dumps(luokittelu_maarittely, ensure_ascii=False) if luokittelu_maarittely else None
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                "INSERT INTO Kysymykset (TID, Kysymys) VALUES (%s, %s)",
-                (tid, kysymys),
+                "INSERT INTO Kysymykset (TID, Kysymys, Luokittelu, LuokitteluMaarittely) VALUES (%s, %s, %s, %s)",
+                (tid, kysymys, luokittelu, maarittely_json),
             )
             return kursori.lastrowid
 
@@ -204,15 +207,21 @@ def hae_kysymykset(tid: int) -> list[dict]:
                 "SELECT * FROM Kysymykset WHERE TID = %s ORDER BY KysID",
                 (tid,),
             )
-            return _rivit_dikteina(kursori)
+            rivit = _rivit_dikteina(kursori)
+    for r in rivit:
+        if r.get("LuokitteluMaarittely") and isinstance(r["LuokitteluMaarittely"], str):
+            r["LuokitteluMaarittely"] = json.loads(r["LuokitteluMaarittely"])
+    return rivit
 
 
-def paivita_kysymys(kysid: int, kysymys: str) -> None:
+def paivita_kysymys(kysid: int, kysymys: str, luokittelu: str = "vapaa_teksti",
+                    luokittelu_maarittely: dict | None = None) -> None:
+    maarittely_json = json.dumps(luokittelu_maarittely, ensure_ascii=False) if luokittelu_maarittely else None
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                "UPDATE Kysymykset SET Kysymys = %s WHERE KysID = %s",
-                (kysymys, kysid),
+                "UPDATE Kysymykset SET Kysymys = %s, Luokittelu = %s, LuokitteluMaarittely = %s WHERE KysID = %s",
+                (kysymys, luokittelu, maarittely_json, kysid),
             )
 
 
@@ -224,15 +233,31 @@ def poista_kysymys(kysid: int) -> None:
 
 # --- Vastaukset ---
 
-def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "") -> None:
+def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "",
+                  pisteet: float | None = None, luokka: str | None = None) -> None:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                """INSERT INTO Vastaukset (KysID, KID, Vastaus, Malli)
-                   VALUES (%s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE Vastaus = VALUES(Vastaus), Malli = VALUES(Malli)""",
-                (kysid, kid, vastaus, malli),
+                """INSERT INTO Vastaukset (KysID, KID, Vastaus, Malli, Pisteet, Luokka)
+                   VALUES (%s, %s, %s, %s, %s, %s)
+                   ON DUPLICATE KEY UPDATE
+                       Vastaus = VALUES(Vastaus), Malli = VALUES(Malli),
+                       Pisteet = VALUES(Pisteet), Luokka = VALUES(Luokka)""",
+                (kysid, kid, vastaus, malli, pisteet, luokka),
             )
+
+
+def hae_vastausten_lkm(kysid: int) -> int:
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute("SELECT COUNT(*) FROM Vastaukset WHERE KysID = %s", (kysid,))
+            return kursori.fetchone()[0]
+
+
+def poista_vastaukset_kysymykselta(kysid: int) -> None:
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute("DELETE FROM Vastaukset WHERE KysID = %s", (kysid,))
 
 
 def hae_vastaukset(tid: int) -> list[dict]:

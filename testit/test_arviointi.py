@@ -7,8 +7,10 @@ from arviointi import llmarviointi
 LLM_VASTAUS = '{"tulokset": [{"id": 1, "vastaukset": ["Kyllä", "Ei"]}, {"id": 2, "vastaukset": ["Ei", "Kyllä"]}]}'
 
 KYSYMYKSET = [
-    {"KysID": 10, "TID": 1, "Kysymys": "Liittyykö kurssi kyberturvallisuuteen?"},
-    {"KysID": 11, "TID": 1, "Kysymys": "Soveltuuko kurssi ESR-hankkeeseen?"},
+    {"KysID": 10, "TID": 1, "Kysymys": "Liittyykö kurssi kyberturvallisuuteen?",
+     "Luokittelu": "vapaa_teksti", "LuokitteluMaarittely": None},
+    {"KysID": 11, "TID": 1, "Kysymys": "Soveltuuko kurssi ESR-hankkeeseen?",
+     "Luokittelu": "vapaa_teksti", "LuokitteluMaarittely": None},
 ]
 
 KURSSIT = [
@@ -56,11 +58,10 @@ class TestAja:
         assert arvioitu == 2
         # 2 kurssit × 2 kysymystä = 4 aseta_vastaus-kutsua
         assert mock_aseta.call_count == 4
-        # Tarkista kutsut kurssi 1:lle (sisältää nyt mallinimi neljäntenä argumenttina)
-        mock_aseta.assert_any_call(10, 1, "Kyllä", "testimalli")
-        mock_aseta.assert_any_call(11, 1, "Ei", "testimalli")
-        mock_aseta.assert_any_call(10, 2, "Ei", "testimalli")
-        mock_aseta.assert_any_call(11, 2, "Kyllä", "testimalli")
+        mock_aseta.assert_any_call(10, 1, "Kyllä", "testimalli", pisteet=None, luokka=None)
+        mock_aseta.assert_any_call(11, 1, "Ei", "testimalli", pisteet=None, luokka=None)
+        mock_aseta.assert_any_call(10, 2, "Ei", "testimalli", pisteet=None, luokka=None)
+        mock_aseta.assert_any_call(11, 2, "Kyllä", "testimalli", pisteet=None, luokka=None)
 
     def test_aja_ilman_kysymyksia_palauttaa_nollan(self):
         with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=[]), \
@@ -104,3 +105,94 @@ class TestAja:
         assert len(tapahtumat) == 2
         assert tapahtumat[0] == (0, 2, 1, 1)
         assert tapahtumat[1] == (2, 2, 1, 1)
+
+
+KYSYMYKSET_MONITYYPPI = [
+    {"KysID": 10, "TID": 1, "Kysymys": "Kuvaile kurssia.",
+     "Luokittelu": "vapaa_teksti", "LuokitteluMaarittely": None},
+    {"KysID": 11, "TID": 1, "Kysymys": "Millä tasolla kyber on mukana?",
+     "Luokittelu": "luokittelu",
+     "LuokitteluMaarittely": {"luokat": [
+         {"nimi": "korkea", "kuvaus": "Pääaiheena"},
+         {"nimi": "matala", "kuvaus": "Sivuaa"},
+     ]}},
+    {"KysID": 12, "TID": 1, "Kysymys": "Kuinka hyödyllinen kurssi on (1–3)?",
+     "Luokittelu": "asteikko",
+     "LuokitteluMaarittely": {"minimi": 1, "maksimi": 3,
+                               "pisteet": [{"arvo": 1, "kuvaus": "Ei lainkaan"},
+                                           {"arvo": 3, "kuvaus": "Täydellisesti"}]}},
+]
+
+
+class TestRakennaKysymysteksti:
+    def test_vapaa_teksti_on_vain_kysymys(self):
+        teksti = llmarviointi._rakenna_kysymysteksti(KYSYMYKSET[:1])
+        assert "Kuvaile" not in teksti  # eri kysymys, tarkistetaan muoto
+        ks = [{"KysID": 1, "Kysymys": "Kuvaile kurssia.", "Luokittelu": "vapaa_teksti", "LuokitteluMaarittely": None}]
+        teksti = llmarviointi._rakenna_kysymysteksti(ks)
+        assert "1. Kuvaile kurssia." in teksti
+        assert "luokka" not in teksti.lower()
+        assert "pisteet" not in teksti.lower()
+
+    def test_luokittelu_sisaltaa_luokat(self):
+        teksti = llmarviointi._rakenna_kysymysteksti([KYSYMYKSET_MONITYYPPI[1]])
+        assert "korkea" in teksti
+        assert "matala" in teksti
+        assert "luokka" in teksti.lower()
+
+    def test_asteikko_sisaltaa_asteikon(self):
+        teksti = llmarviointi._rakenna_kysymysteksti([KYSYMYKSET_MONITYYPPI[2]])
+        assert "1" in teksti
+        assert "3" in teksti
+        assert "pisteet" in teksti.lower()
+        assert "Ei lainkaan" in teksti
+
+    def test_numerot_oikein_sekakysymyksissa(self):
+        teksti = llmarviointi._rakenna_kysymysteksti(KYSYMYKSET_MONITYYPPI)
+        assert "1." in teksti
+        assert "2." in teksti
+        assert "3." in teksti
+
+
+class TestTallennaTulokset:
+    def test_vapaa_teksti_tallennetaan_sellaisenaan(self):
+        with patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta:
+            ks = [{"KysID": 10, "Luokittelu": "vapaa_teksti", "LuokitteluMaarittely": None}]
+            tulokset = [{"id": 1, "vastaukset": ["Hyvä kurssi"]}]
+            llmarviointi._tallenna_tulokset(tulokset, ks, "testimalli")
+        mock_aseta.assert_called_once_with(10, 1, "Hyvä kurssi", "testimalli", pisteet=None, luokka=None)
+
+    def test_luokittelu_purkaa_luokan_ja_perustelun(self):
+        with patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta:
+            ks = [{"KysID": 11, "Luokittelu": "luokittelu", "LuokitteluMaarittely": {}}]
+            tulokset = [{"id": 1, "vastaukset": [{"luokka": "korkea", "perustelu": "Koska..."}]}]
+            llmarviointi._tallenna_tulokset(tulokset, ks, "malli")
+        mock_aseta.assert_called_once_with(11, 1, "Koska...", "malli", pisteet=None, luokka="korkea")
+
+    def test_asteikko_purkaa_pisteet_ja_perustelun(self):
+        with patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta:
+            ks = [{"KysID": 12, "Luokittelu": "asteikko", "LuokitteluMaarittely": {}}]
+            tulokset = [{"id": 1, "vastaukset": [{"pisteet": 4, "perustelu": "Erittäin hyvä"}]}]
+            llmarviointi._tallenna_tulokset(tulokset, ks, "malli")
+        mock_aseta.assert_called_once_with(12, 1, "Erittäin hyvä", "malli", pisteet=4.0, luokka=None)
+
+    def test_fallback_merkkijono_strukturoidulle(self):
+        """LLM palauttaa merkkijonon vaikka odotettiin objektia — tallennetaan sellaisenaan."""
+        with patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta:
+            ks = [{"KysID": 11, "Luokittelu": "luokittelu", "LuokitteluMaarittely": {}}]
+            tulokset = [{"id": 1, "vastaukset": ["korkea"]}]
+            llmarviointi._tallenna_tulokset(tulokset, ks, "malli")
+        mock_aseta.assert_called_once_with(11, 1, "korkea", "malli", pisteet=None, luokka=None)
+
+    def test_useita_kursseja_ja_kysymyksia(self):
+        with patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta:
+            ks = [
+                {"KysID": 10, "Luokittelu": "vapaa_teksti", "LuokitteluMaarittely": None},
+                {"KysID": 11, "Luokittelu": "asteikko", "LuokitteluMaarittely": {}},
+            ]
+            tulokset = [
+                {"id": 1, "vastaukset": ["Teksti", {"pisteet": 3, "perustelu": "OK"}]},
+                {"id": 2, "vastaukset": ["Toinen", {"pisteet": 5, "perustelu": "Erinomainen"}]},
+            ]
+            llmarviointi._tallenna_tulokset(tulokset, ks, "m")
+        assert mock_aseta.call_count == 4

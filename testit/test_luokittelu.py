@@ -28,6 +28,7 @@ class TestMetasuodatus:
 
     def test_aja_kirjoittaa_kaikki_kurssit(self):
         with patch("luokittelu.metasuodatus.mallit.hae_kurssit", return_value=self.KURSSIT), \
+             patch("luokittelu.metasuodatus.mallit.hae_luokitukset", return_value=[]), \
              patch("luokittelu.metasuodatus.mallit.aseta_luokitus") as mock_aseta:
             lapaisseet, yht = metasuodatus.aja(self.TUTKIMUS)
         assert yht == 3
@@ -41,12 +42,32 @@ class TestMetasuodatus:
     def test_aja_ilman_rajausta_kaikki_odottavat(self):
         tutkimus = {"TID": 1, "Tasorajaus": None, "Oppiainerajaus": None}
         with patch("luokittelu.metasuodatus.mallit.hae_kurssit", return_value=self.KURSSIT), \
+             patch("luokittelu.metasuodatus.mallit.hae_luokitukset", return_value=[]), \
              patch("luokittelu.metasuodatus.mallit.aseta_luokitus") as mock_aseta:
             lapaisseet, yht = metasuodatus.aja(tutkimus)
         assert lapaisseet == yht == 3
         assert mock_aseta.call_count == 3  # kaikki kirjataan Mukana=NULL (Odottaa)
         for call in mock_aseta.call_args_list:
             assert call.args[2] is None
+
+    def test_aja_ohittaa_jo_luokitellut(self):
+        jo_luokitellut = [{"KID": 1}, {"KID": 2}]
+        with patch("luokittelu.metasuodatus.mallit.hae_kurssit", return_value=self.KURSSIT), \
+             patch("luokittelu.metasuodatus.mallit.hae_luokitukset", return_value=jo_luokitellut), \
+             patch("luokittelu.metasuodatus.mallit.aseta_luokitus") as mock_aseta:
+            lapaisseet, yht = metasuodatus.aja(self.TUTKIMUS)
+        assert yht == 1  # vain KID=3 käsitellään
+        assert lapaisseet == 1
+        mock_aseta.assert_called_once_with(1, 3, None, "meta: odottaa LLM-seulontaa")
+
+    def test_aja_nollaa_ylikirjoittaa_kaikki(self):
+        jo_luokitellut = [{"KID": 1}, {"KID": 2}]
+        with patch("luokittelu.metasuodatus.mallit.hae_kurssit", return_value=self.KURSSIT), \
+             patch("luokittelu.metasuodatus.mallit.hae_luokitukset", return_value=jo_luokitellut), \
+             patch("luokittelu.metasuodatus.mallit.aseta_luokitus") as mock_aseta:
+            lapaisseet, yht = metasuodatus.aja(self.TUTKIMUS, nollaa=True)
+        assert yht == 3  # kaikki 3 käsitellään
+        assert mock_aseta.call_count == 3
 
 
 # --- llmluokittelu ---
