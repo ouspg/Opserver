@@ -1,36 +1,9 @@
 """LLM-arviointi: lähettää mukaan otetut kurssit LLM:lle kysymysvastauksiin."""
 import json
 from tietokanta import mallit
-from llm import kutsu, tiiviste, kehoteet
+from llm import kutsu, tiiviste, kehoteet, kurssimuoto
 
 ERÄKOKO = 5
-
-
-def _kuvaus_tekstina(ops_kuvaus: str | None, max_merkit: int = 800) -> str:
-    if not ops_kuvaus:
-        return ""
-    try:
-        data = json.loads(ops_kuvaus)
-        osat = []
-        for osio in data.get("contentList", []):
-            otsikko = (osio.get("title") or {}).get("valueFi", "")
-            teksti = ((osio.get("content") or {}).get("valueFi") or "").strip()
-            if teksti:
-                osat.append(f"{otsikko}: {teksti}" if otsikko else teksti)
-        return "\n".join(osat)[:max_merkit]
-    except (ValueError, AttributeError):
-        return str(ops_kuvaus)[:max_merkit]
-
-
-def _kurssi_json_promptiin(kurssi: dict) -> dict:
-    return {
-        "id": kurssi["KID"],
-        "nimi": kurssi["KurssiNimi"],
-        "koodi": kurssi.get("Koodi") or "",
-        "taso": kurssi.get("Taso") or "",
-        "oppiaine": kurssi.get("Oppiaine") or "",
-        "kuvaus": _kuvaus_tekstina(kurssi.get("OpsKuvaus")),
-    }
 
 
 def _lue_jarjestelma_kehote() -> str:
@@ -111,7 +84,7 @@ def _tallenna_tulokset(tulokset: list[dict], kysymykset: list[dict], malli: str,
 
 def _arvioi_erä(erä: list[dict], arviointikehote: str, kysymykset: list[dict], jarjestelma: str) -> list[dict]:
     kurssit_json = json.dumps(
-        [_kurssi_json_promptiin(k) for k in erä],
+        [kurssimuoto.kurssi_json_promptiin(k) for k in erä],
         ensure_ascii=False,
         indent=2,
     )
