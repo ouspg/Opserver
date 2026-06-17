@@ -4,6 +4,7 @@ Käytetään mallin saatavuustarkistukseen (ennen LLM-ajoa), LLM-asetusvalikkoon
 välimuistituen tunnistukseen. Erillään kutsu.py:stä, joka on pelkkä pyyntökääre.
 """
 import os
+import time
 import requests
 from dotenv import load_dotenv
 
@@ -11,6 +12,7 @@ load_dotenv()
 
 _AIKAKATKAISU_S = 30
 _mallit_kakku: list[dict] | None = None  # prosessin sisäinen välimuisti
+_haettu: float | None = None              # milloin kakku täytettiin (epoch-sekunnit)
 
 
 def _perus_url() -> str:
@@ -25,7 +27,7 @@ def hae_mallit(paivita: bool = False) -> list[dict]:
 
     Tulos kakutetaan prosessiin; paivita=True hakee listan uudelleen.
     """
-    global _mallit_kakku
+    global _mallit_kakku, _haettu
     if _mallit_kakku is not None and not paivita:
         return _mallit_kakku
     api_avain = os.environ.get("LLM_API_KEY")
@@ -33,7 +35,22 @@ def hae_mallit(paivita: bool = False) -> list[dict]:
     vastaus = requests.get(f"{_perus_url()}/models", headers=headers, timeout=_AIKAKATKAISU_S)
     vastaus.raise_for_status()
     _mallit_kakku = vastaus.json().get("data", [])
+    _haettu = time.time()
     return _mallit_kakku
+
+
+def tuoreus_teksti() -> str | None:
+    """Ihmisluettava kuvaus mallilistan iästä, tai None jos listaa ei ole vielä haettu."""
+    if _haettu is None:
+        return None
+    ika = max(0, int(time.time() - _haettu))
+    if ika < 60:
+        ikateksti = f"{ika} s sitten"
+    elif ika < 3600:
+        ikateksti = f"{ika // 60} min sitten"
+    else:
+        ikateksti = f"{ika // 3600} h {ika % 3600 // 60} min sitten"
+    return f"haettu {time.strftime('%H:%M', time.localtime(_haettu))} ({ikateksti})"
 
 
 def hae_malli_tiedot(malli: str) -> dict | None:

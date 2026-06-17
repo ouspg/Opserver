@@ -17,8 +17,10 @@ _DATA = [
 @pytest.fixture(autouse=True)
 def nollaa_kakku():
     mallitiedot._mallit_kakku = None
+    mallitiedot._haettu = None
     yield
     mallitiedot._mallit_kakku = None
+    mallitiedot._haettu = None
 
 
 def _mock_get(data):
@@ -76,6 +78,22 @@ class TestSaatavuus:
         with patch.dict(os.environ, env):
             with pytest.raises(EnvironmentError):
                 mallitiedot.tarkista_saatavuus()
+
+
+class TestTuoreus:
+    def test_ennen_hakua_on_none(self):
+        assert mallitiedot.tuoreus_teksti() is None
+
+    def test_haun_jalkeen_nayttaa_ian(self):
+        with patch.dict(os.environ, _ENV), \
+             patch("llm.mallitiedot.requests.get", return_value=_mock_get(_DATA)), \
+             patch("llm.mallitiedot.time.time", return_value=1000.0):
+            mallitiedot.hae_mallit()
+        with patch("llm.mallitiedot.time.time", return_value=1000.0 + 125):
+            teksti = mallitiedot.tuoreus_teksti()
+        assert teksti is not None
+        assert "haettu" in teksti
+        assert "2 min sitten" in teksti
 
 
 class TestKuvaus:

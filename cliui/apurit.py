@@ -12,6 +12,8 @@ def alusta_varit() -> None:
 
 def piirra_otsikko(stdscr, teksti: str) -> None:
     stdscr.clear()
+    leveys = stdscr.getmaxyx()[1]
+    teksti = teksti[:leveys - 1]  # estä addstr-ylivuoto kapealla ruudulla
     stdscr.addstr(0, 0, teksti, curses.A_BOLD)
     stdscr.addstr(1, 0, "=" * len(teksti))
 

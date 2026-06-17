@@ -6,9 +6,12 @@ from llm import kutsu, mallitiedot, asetukset
 def nayta(stdscr) -> None:
     while True:
         malli = kutsu.hae_malli() or "(ei asetettu)"
+        tuoreus = mallitiedot.tuoreus_teksti()
+        otsikko = f"LLM-asetukset — nykyinen malli: {malli}"
+        otsikko += f"  ·  mallilista {tuoreus}" if tuoreus else "  ·  mallilistaa ei vielä haettu"
         valinta = valitse_listasta(
             stdscr,
-            f"LLM-asetukset — nykyinen malli: {malli}",
+            otsikko,
             [
                 "Tarkista nykyisen mallin saatavuus",
                 "Selaa ja vaihda mallia",
@@ -64,7 +67,10 @@ def _selaa_ja_vaihda(stdscr) -> None:
 
     mallit = sorted(mallit, key=lambda m: m.get("id", ""))
     rivit = [mallitiedot.kuvaa_malli(m) for m in mallit]
-    valinta = valitse_listasta(stdscr, "Valitse malli (Enter vaihtaa)", rivit)
+    tuoreus = mallitiedot.tuoreus_teksti()
+    otsikko = "Valitse malli (Enter vaihtaa)"
+    otsikko += f" — lista {tuoreus}" if tuoreus else ""
+    valinta = valitse_listasta(stdscr, otsikko, rivit)
     if valinta is None:
         return
 
