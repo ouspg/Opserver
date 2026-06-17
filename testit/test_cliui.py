@@ -67,6 +67,27 @@ def test_valitse_listasta_kiintea_otsikko_pysyy_nakyvissa_vieritettaessa():
     assert rivilla.get(4) == otsikkorivit[1]
 
 
+def test_lisaa_korkeakoulu_selvittaa_ja_tallentaa_api_osoitteen():
+    from unittest.mock import patch
+    from cliui import korkeakoulunaytto as kn
+
+    class _Scr:
+        def addstr(self, *a, **k): pass
+        def refresh(self): pass
+
+    with patch.object(kn, "piirra_otsikko"), \
+         patch.object(kn, "nayta_viesti"), \
+         patch.object(kn, "lue_teksti", side_effect=["Testiyliopisto", "https://opas.peppi.x.fi", "kyllä"]), \
+         patch.object(kn, "_valitse_ops_tyyppi", return_value="Peppi"), \
+         patch.object(kn.konfiguraatio, "selvita_konfiguraatio",
+                      return_value={"api_osoite": "https://opasbe.x.fi"}) as selvita, \
+         patch.object(kn.mallit, "lisaa_korkeakoulu", return_value=1) as lisaa:
+        kn._lisaa(_Scr())
+
+    selvita.assert_called_once_with("https://opas.peppi.x.fi", "Peppi")
+    assert lisaa.call_args.kwargs["api_osoite"] == "https://opasbe.x.fi"
+
+
 def test_valitse_monivalinta_on_olemassa():
     from cliui.apurit import valitse_monivalinta
     import inspect
