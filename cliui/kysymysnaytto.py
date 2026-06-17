@@ -4,7 +4,14 @@ from cliui.apurit import piirra_otsikko, nayta_viesti, lue_teksti, valitse_lista
 
 _KATKAISU = 50
 _TYYPIT = ["vapaa_teksti", "luokittelu", "asteikko", "lista"]
-_TYYPPI_LYHENNE = {"vapaa_teksti": "TXT", "luokittelu": "LUO", "asteikko": "AST", "lista": "LIS"}
+_TYYPPI_NIMI = {"vapaa_teksti": "TEKSTI", "luokittelu": "LUOKITUS",
+                "asteikko": "ASTEIKKO", "lista": "LISTAUS"}
+_TYYPPI_LEVEYS = max(len(n) for n in _TYYPPI_NIMI.values())
+
+
+def _tyyppimerkki(luokittelu: str | None) -> str:
+    """Tasalevyinen tyyppimerkki listanäkymään, esim. '[TEKSTI  ]'."""
+    return _TYYPPI_NIMI.get(luokittelu or "vapaa_teksti", "TEKSTI").ljust(_TYYPPI_LEVEYS)
 
 
 def _lyhenna(teksti: str) -> str:
@@ -17,7 +24,7 @@ def nayta(stdscr, tutkimus: dict) -> None:
     while True:
         kysymykset = mallit.hae_kysymykset(tutkimus["TID"])
         vaihtoehdot = ["[+] Lisää uusi kysymys"] + [
-            f"{i}. [{_TYYPPI_LYHENNE.get(k.get('Luokittelu','vapaa_teksti'),'TXT')}] {_lyhenna(k['Kysymys'])}"
+            f"{i}. [{_tyyppimerkki(k.get('Luokittelu'))}] {_lyhenna(k['Kysymys'])}"
             for i, k in enumerate(kysymykset, 1)
         ]
         valinta = valitse_listasta(stdscr, otsikko_pohja, vaihtoehdot)
