@@ -39,6 +39,23 @@ def _valitse_tasot(stdscr, oletus: str = "") -> str:
     return ",".join(tulos)
 
 
+def _valitse_oppiaineet(stdscr, kkid_lista: list[int], oletus: str = "") -> str:
+    """Monivalinta valittujen korkeakoulujen oppiaineista (aakkosjärjestyksessä).
+
+    Palauttaa pilkulla erotellun rajauksen (tyhjä = kaikki). Jos korkeakouluissa
+    ei ole oppiaineita, palautetaan oletus eikä näytetä listaa.
+    """
+    oppiaineet = mallit.hae_oppiaineet(kkid_lista)
+    if not oppiaineet:
+        nayta_viesti(stdscr, "Valituissa korkeakouluissa ei oppiaineita — rajaus jätetään tyhjäksi.")
+        return ""
+    valitut = [o.strip() for o in oletus.split(",") if o.strip() in oppiaineet] if oletus else []
+    tulos = valitse_monivalinta(stdscr, "Valitse oppiaineet (tyhjä = kaikki)", oppiaineet, valitut)
+    if tulos is None:
+        return oletus
+    return ",".join(tulos)
+
+
 def _validoi_slug(slug: str) -> bool:
     return bool(_SLUG_KAAVA.match(slug))
 
@@ -99,12 +116,12 @@ def _lisaa(stdscr) -> None:
         nayta_viesti(stdscr, "Peruutettu (arviointikehote pakollinen).")
         return
     raportointikehote = lue_teksti(stdscr, "Raportointikehote (tyhjä = ei)", 8)
-    oppiainerajaus = lue_teksti(stdscr, "Oppiainerajaus, pilkulla eroteltu (tyhjä = kaikki)", 9)
     tasorajaus = _valitse_tasot(stdscr)
     korkeakoulut = _valitse_korkeakoulut(stdscr)
     if not korkeakoulut:
         nayta_viesti(stdscr, "Peruutettu (valitse vähintään yksi korkeakoulu).")
         return
+    oppiainerajaus = _valitse_oppiaineet(stdscr, korkeakoulut)
     tid = mallit.lisaa_tutkimus(nimi, slug, lukuvuosi, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote)
     mallit.aseta_tutkimuksen_korkeakoulut(tid, korkeakoulut)
     piirra_otsikko(stdscr, "Lisää tutkimus")
@@ -128,12 +145,12 @@ def _muokkaa(stdscr) -> None:
     luokittelukehote = lue_teksti(stdscr, "Valintakehote", 6, tutkimus["Luokittelukehote"])
     arviointikehote = lue_teksti(stdscr, "Arviointikehote", 7, tutkimus["Arviointikehote"])
     raportointikehote = lue_teksti(stdscr, "Raportointikehote", 8, tutkimus.get("Raportointikehote") or "")
-    oppiainerajaus = lue_teksti(stdscr, "Oppiainerajaus, pilkulla eroteltu (tyhjä = kaikki)", 9, tutkimus["Oppiainerajaus"] or "")
     tasorajaus = _valitse_tasot(stdscr, tutkimus["Tasorajaus"] or "")
     korkeakoulut = _valitse_korkeakoulut(stdscr, mallit.hae_tutkimuksen_korkeakoulut(tutkimus["TID"]))
     if not korkeakoulut:
         nayta_viesti(stdscr, "Peruutettu (valitse vähintään yksi korkeakoulu).")
         return
+    oppiainerajaus = _valitse_oppiaineet(stdscr, korkeakoulut, tutkimus["Oppiainerajaus"] or "")
     mallit.paivita_tutkimus(tutkimus["TID"], nimi, slug, lukuvuosi, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote)
     mallit.aseta_tutkimuksen_korkeakoulut(tutkimus["TID"], korkeakoulut)
     piirra_otsikko(stdscr, "Muokkaa tutkimusta")
