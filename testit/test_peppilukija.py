@@ -2,7 +2,10 @@ import json
 import os
 from unittest.mock import patch, MagicMock, call
 import requests
-from tiedonhaku.peppilukija import PeppiLukija, paattele_taso, generoi_kaudet, _lue_kausiconfig_js_bundlesta, _turvallinen_float
+from tiedonhaku.peppilukija import (
+    PeppiLukija, paattele_taso, generoi_kaudet, lue_kaudet_bundlesta,
+    _kaudet_taulukosta, _kaudet_laskettuna, _turvallinen_float,
+)
 
 DIR = os.path.dirname(__file__)
 
@@ -13,7 +16,9 @@ def _fixture(nimi: str):
 
 
 def _lukija() -> PeppiLukija:
-    return PeppiLukija({"KKID": 1, "KouluNimi": "Oulun Yliopisto", "OpsOsoite": "https://opas.peppi.oulu.fi"})
+    return PeppiLukija({"KKID": 1, "KouluNimi": "Oulun Yliopisto",
+                        "OpsOsoite": "https://opas.peppi.oulu.fi",
+                        "ApiOsoite": "https://opasbe.peppi.oulu.fi"})
 
 
 # --- hae_kurssi ---
@@ -57,23 +62,36 @@ def test_generoi_kaudet_kahden_vuoden_jakso():
     kaudet = generoi_kaudet(ensimmainen=2022, viimeinen=2026, pituus=2)
     assert kaudet == ["2022-2024","2024-2026","2026-2028"]
 
-def test_hae_saatavilla_kaudet_parsii_js_bundlen():
-    with patch("tiedonhaku.peppilukija._lue_kausiconfig_js_bundlesta", return_value=(2020, 2026, 1)):
+def test_hae_saatavilla_kaudet_lukee_bundlen():
+    fake_js = "firstSchoolYear:2020,currentPeriodStartYear:2026,curriculumPeriod:1,showTags:!1"
+    with patch("tiedonhaku.peppilukija._hae_bundle_js", return_value=fake_js):
         kaudet = _lukija().hae_saatavilla_kaudet()
     assert "2025-2026" in kaudet
     assert "2020-2021" in kaudet
     assert len(kaudet) == 7
 
-def test_lue_kausiconfig_parsii_arvot():
-    fake_html = '<script src="main.abc123.js"></script>'
-    fake_js = "firstSchoolYear:2020,currentPeriodStartYear:2026,curriculumPeriod:1,showTags:!1"
-    with patch("requests.get") as mock_get:
-        mock_get.side_effect = [
-            type("R", (), {"text": fake_html})(),
-            type("R", (), {"text": fake_js})(),
-        ]
-        tulos = _lue_kausiconfig_js_bundlesta("https://opas.peppi.oulu.fi")
-    assert tulos == (2020, 2026, 1)
+
+# --- kausiparsinta: eksplisiittinen taulukko ensin, muuten laskettu ---
+
+def test_kaudet_laskettuna_kaksoispiste_syntaksi():  # Oulu
+    js = "firstSchoolYear:2020,currentPeriodStartYear:2026,curriculumPeriod:1"
+    assert _kaudet_laskettuna(js)[-1] == "2026-2027"
+
+def test_kaudet_laskettuna_yhtasuuruus_ja_oletuspituus():  # Åbo (ei curriculumPeriod)
+    js = "this.firstSchoolYear=2018,this.currentPeriodStartYear=2024,search"
+    kaudet = _kaudet_laskettuna(js)
+    assert kaudet[0] == "2018-2019" and kaudet[-1] == "2024-2025"  # askel 1
+
+def test_kaudet_taulukosta_lukee_sekapituiset_verbatim():  # UTU-tyyli, 2v + 3v
+    js = 'x=["2018-2020","2020-2022","2022-2024","2024-2027"],y'
+    assert _kaudet_taulukosta(js) == ["2018-2020","2020-2022","2022-2024","2024-2027"]
+
+def test_kaudet_taulukosta_none_kun_ei_taulukkoa():
+    assert _kaudet_taulukosta("firstSchoolYear:2020,curriculumPeriod:1") is None
+
+def test_lue_kaudet_suosii_taulukkoa_yli_lasketun():
+    js = 'firstSchoolYear:2020,currentPeriodStartYear:2026,curriculumPeriod:1,p=["2024-2025","2025-2026"]'
+    assert lue_kaudet_bundlesta(js) == ["2024-2025", "2025-2026"]
 
 # --- taso-kartta ---
 
@@ -131,6 +149,33 @@ def test_hae_kurssit_kayttaa_oikeita_endpointteja():
     kutsu = mock_tallenna.call_args
     assert kutsu.kwargs["opetusvuosi"] == "2025-2026"
     assert kutsu.kwargs["kkid"] == 1
+
+
+def test_hae_kurssit_hyvaksyy_ja_kutsuu_tila_cb():
+    """hakunaytto antaa tila_cb:n — Peppin on hyväksyttävä se kuten Sisun."""
+    nav = _fixture("peppi_navigaatio.json")[:1]
+    edu = _fixture("peppi_education_type_mini.json")
+    plan = _fixture("peppi_accomplishment_plan_mini.json")
+    kurssi = _fixture("peppi_kurssi_45690.json")
+
+    def fake_hae_json(url, viive=True):
+        if "/navigation" in url and "/navigation/" not in url:
+            return nav
+        if "/education-type" in url:
+            return edu
+        if "/accomplishment-plan/" in url:
+            return plan
+        if "/course/" in url:
+            return kurssi
+        return []
+
+    tilat = []
+    with patch.object(PeppiLukija, "_hae_json", side_effect=fake_hae_json), \
+         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1), \
+         patch("tiedonhaku.peppilukija.mallit.hae_tallennetut_lahde_idt", return_value=set()):
+        _lukija().hae_kurssit("2025-2026", tila_cb=lambda v: tilat.append(v))
+
+    assert tilat and "Vaihe 1/2" in tilat[0]
 
 
 def test_hae_kurssit_deduplikoi_kurssit():

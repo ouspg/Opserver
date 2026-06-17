@@ -66,7 +66,7 @@ class SisuLukija(OpsLukija):
             raise ValueError(f"Kausi '{kausi}' ei ole saatavilla")
         kausi_id = kaudet[kausi]
         organisaatiot = self._lataa_organisaatiot()
-        pohja = self.korkeakoulu["OpsOsoite"].rstrip("/")
+        pohja = self._pohja()
         kkid = self.korkeakoulu["KKID"]
 
         group_idt = self._keraa_group_idt(pohja, yliopisto_id, kausi_id, list(organisaatiot.keys()), tila_cb)
@@ -109,9 +109,13 @@ class SisuLukija(OpsLukija):
 
     # --- Yksityiset apumetodit ---
 
+    def _pohja(self) -> str:
+        """Sisun API-origin tietokannasta (ApiOsoite); varafallback OpsOsoitteeseen."""
+        return (self.korkeakoulu.get("ApiOsoite") or self.korkeakoulu["OpsOsoite"]).rstrip("/")
+
     def _yliopisto_org_id(self) -> str:
         if not self._yliopisto_id:
-            pohja = self.korkeakoulu["OpsOsoite"].rstrip("/")
+            pohja = self._pohja()
             vastaus = requests.get(f"{pohja}/student/universityConfig.js", timeout=30)
             vastaus.raise_for_status()
             osuma = re.search(r"var universityConfig\s*=\s*(\{.*?\});", vastaus.text, re.DOTALL)
@@ -124,7 +128,7 @@ class SisuLukija(OpsLukija):
     def _lataa_kaudet(self) -> dict[str, str]:
         if self._kaudet is None:
             yliopisto_id = self._yliopisto_org_id()
-            pohja = self.korkeakoulu["OpsOsoite"].rstrip("/")
+            pohja = self._pohja()
             data = self._hae_json(
                 f"{pohja}/kori/api/curriculum-periods?universityOrgId={yliopisto_id}"
             )
@@ -133,14 +137,14 @@ class SisuLukija(OpsLukija):
                 if cp.get("documentState") != "ACTIVE":
                     continue
                 lyhenne = _fi(cp.get("abbreviation"))
-                if re.match(r"^\d{4}-\d{4}$", lyhenne):
+                if re.match(r"^\d{4}-\d{2,4}$", lyhenne):  # YYYY-YYYY (JYU/LUT/TUNI) ja YYYY-YY (HY)
                     self._kaudet[lyhenne] = cp["id"]
         return self._kaudet
 
     def _lataa_organisaatiot(self) -> dict[str, str]:
         if self._organisaatiot is None:
             yliopisto_id = self._yliopisto_org_id()
-            pohja = self.korkeakoulu["OpsOsoite"].rstrip("/")
+            pohja = self._pohja()
             data = self._hae_json(
                 f"{pohja}/kori/api/organisations?universityOrgId={yliopisto_id}"
             )
