@@ -142,12 +142,17 @@ class PeppiLukija(OpsLukija):
         """
         return lue_kaudet_bundlesta(_hae_bundle_js(self.korkeakoulu["OpsOsoite"]))
 
-    def hae_kurssit(self, kausi: str, edistyminen_cb=None) -> int:
+    def hae_kurssit(self, kausi: str, edistyminen_cb=None, tila_cb=None) -> tuple[int, int]:
         """Käy läpi koko opinto-oppaan ja tallentaa kaikki kurssit tietokantaan.
 
-        Palauttaa tallennettujen kurssien määrän. Idempotentti: uudelleenajo
-        päivittää olemassa olevat rivit (ON DUPLICATE KEY UPDATE).
+        tila_cb(viesti) — valinnainen, kutsutaan keräysvaiheessa (kuten SisuLukija).
+        edistyminen_cb(n, yhteensa, nimi) — kutsutaan tallennusvaiheessa per kurssi.
+
+        Palauttaa (tallennettu, ohitettu). Idempotentti: uudelleenajo päivittää
+        olemassa olevat rivit (ON DUPLICATE KEY UPDATE).
         """
+        if tila_cb:
+            tila_cb("Vaihe 1/2: kerätään kurssilistauksia ohjelmista...")
         ohjelma_idt = self._hae_ohjelma_idt(kausi)
         kurssi_idt = self._keraa_kurssi_idt_ohjelmista(ohjelma_idt, kausi)
         jo_kannassa = mallit.hae_tallennetut_lahde_idt(self.korkeakoulu["KKID"], kausi)

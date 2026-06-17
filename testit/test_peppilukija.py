@@ -151,6 +151,33 @@ def test_hae_kurssit_kayttaa_oikeita_endpointteja():
     assert kutsu.kwargs["kkid"] == 1
 
 
+def test_hae_kurssit_hyvaksyy_ja_kutsuu_tila_cb():
+    """hakunaytto antaa tila_cb:n — Peppin on hyväksyttävä se kuten Sisun."""
+    nav = _fixture("peppi_navigaatio.json")[:1]
+    edu = _fixture("peppi_education_type_mini.json")
+    plan = _fixture("peppi_accomplishment_plan_mini.json")
+    kurssi = _fixture("peppi_kurssi_45690.json")
+
+    def fake_hae_json(url, viive=True):
+        if "/navigation" in url and "/navigation/" not in url:
+            return nav
+        if "/education-type" in url:
+            return edu
+        if "/accomplishment-plan/" in url:
+            return plan
+        if "/course/" in url:
+            return kurssi
+        return []
+
+    tilat = []
+    with patch.object(PeppiLukija, "_hae_json", side_effect=fake_hae_json), \
+         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1), \
+         patch("tiedonhaku.peppilukija.mallit.hae_tallennetut_lahde_idt", return_value=set()):
+        _lukija().hae_kurssit("2025-2026", tila_cb=lambda v: tilat.append(v))
+
+    assert tilat and "Vaihe 1/2" in tilat[0]
+
+
 def test_hae_kurssit_deduplikoi_kurssit():
     """Sama kurssi-id kahdessa ohjelmassa tallennetaan vain kerran."""
     nav = _fixture("peppi_navigaatio.json")[:1]
