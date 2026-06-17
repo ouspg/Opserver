@@ -180,6 +180,51 @@ document.getElementById("suodatin-taso").addEventListener("change", renderKurssi
 
 // --- Modaali (kurssin tiedot) ---
 
+const KIELI_SUOMI = {
+  "urn:code:language:fi": "suomi", "urn:code:language:en": "englanti",
+  "urn:code:language:sv": "ruotsi",
+};
+
+function _monikielinen(arvo) {
+  if (arvo && typeof arvo === "object") return arvo.fi || arvo.en || "";
+  return arvo || "";
+}
+
+// Peppi: contentList-rakenne nimetyillä osioilla
+function peppiKuvausOsat(data) {
+  return (data.contentList || [])
+    .filter((o) => (o.content?.valueFi || "").trim())
+    .map((o) => ({
+      otsikko: o.title?.valueFi || "",
+      sisalto: (o.content?.valueFi || "").replace(/\n/g, "<br>"),
+    }));
+}
+
+// Sisu: KORI-rajapinnan kentät kartoitettuna samoihin osioihin kuin Peppi
+function sisuKuvausOsat(data) {
+  const osat = [];
+  const lisaa = (otsikko, sisalto) => {
+    if (sisalto && sisalto.trim()) osat.push({ otsikko, sisalto });
+  };
+  lisaa("Lyhyt kuvaus", _monikielinen(data.tweetText));
+  lisaa("Osaamistavoitteet", _monikielinen(data.outcomes));
+  lisaa("Sisältö", _monikielinen(data.content));
+  lisaa(
+    "Suoritustavat",
+    (data.completionMethods || []).map((c) => _monikielinen(c.description)).filter(Boolean).join("<br>"),
+  );
+  lisaa("Esitietovaatimukset", _monikielinen(data.prerequisites));
+  lisaa("Oppimateriaalit", _monikielinen(data.learningMaterial));
+  lisaa(
+    "Kurssikirjallisuus",
+    (data.literature || []).map((l) => l.name).filter(Boolean).map((n) => `• ${n}`).join("<br>"),
+  );
+  const kielet = (data.possibleAttainmentLanguages || []).map((k) => KIELI_SUOMI[k] || k).join(", ");
+  lisaa("Opetuskieli", kielet);
+  lisaa("Lisätiedot", _monikielinen(data.additional));
+  return osat;
+}
+
 async function avaaModaali(kid) {
   const kurssi = await fetch(`/api/kurssit/${kid}`).then((r) => r.json());
   const opsUrl = kurssiUrl(kurssi);
@@ -189,14 +234,15 @@ async function avaaModaali(kid) {
   document.getElementById("modaali-otsikko").innerHTML =
     `${nimiHtml} (${kurssi.Koodi || "—"})`;
 
+  const koulu = kaikki_koulut.find((k) => k.KKID === kurssi.KKID);
   let kuvaus = "—";
   if (kurssi.OpsKuvaus) {
     try {
       const data = JSON.parse(kurssi.OpsKuvaus);
-      const osat = (data.contentList || [])
-        .filter((o) => (o.content?.valueFi || "").trim())
-        .map((o) => `<strong>${o.title?.valueFi || ""}</strong><br>${(o.content?.valueFi || "").replace(/\n/g, "<br>")}`);
-      kuvaus = osat.length ? osat.join("<hr>") : "—";
+      const osat = koulu?.OpsTyyppi === "Sisu" ? sisuKuvausOsat(data) : peppiKuvausOsat(data);
+      kuvaus = osat.length
+        ? osat.map((o) => `<strong>${o.otsikko}</strong><br>${o.sisalto}`).join("<hr>")
+        : "—";
     } catch {
       kuvaus = kurssi.OpsKuvaus;
     }
@@ -504,14 +550,20 @@ function _renderArviointiSolu(kys, v) {
   if (typeof v === "string") return v || "—";
   const luokittelu = kys.Luokittelu || "vapaa_teksti";
   const perustelu = v?.vastaus ? `<em class="arvio-perustelu">${v.vastaus}</em>` : "";
+  // Vanhentunut = tekoälyn vastaus on generoitu vanhaan kysymykseen/kehotteeseen
+  const vanha = v?.vanhentunut
+    ? `<span class="vanha-merkki" title="Tämä tekoälyn vastaus on generoitu vanhentuneeseen kysymykseen tai kehotteeseen. Aja LLM-arviointi uudelleen päivittääksesi.">⚠ vanhentunut</span>`
+    : "";
+  let body;
   if (luokittelu === "luokittelu" && v?.luokka) {
-    return `<span class="luokka-badge">${v.luokka}</span>${perustelu}`;
-  }
-  if (luokittelu === "asteikko" && v?.pisteet != null) {
+    body = `<span class="luokka-badge">${v.luokka}</span>${perustelu}`;
+  } else if (luokittelu === "asteikko" && v?.pisteet != null) {
     const max = kys.LuokitteluMaarittely?.maksimi;
-    return `<span class="pisteet-arvo">${v.pisteet}${max ? "/" + max : ""}</span>${perustelu}`;
+    body = `<span class="pisteet-arvo">${v.pisteet}${max ? "/" + max : ""}</span>${perustelu}`;
+  } else {
+    body = v?.vastaus || "—";
   }
-  return v?.vastaus || "—";
+  return vanha + body;
 }
 
 function _vastusTeksti(v) {

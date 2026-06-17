@@ -93,7 +93,7 @@ class TestLlmluokittelu:
              "Oppiaine": "FY", "Opintopisteet": 3, "Opetusvuosi": "2025-2026", "OpsKuvaus": None},
         ]
         tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi kyberturvallisuusrelevanssi."}
-        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
+        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit) as mock_hae, \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=self.LLM_VASTAUS), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
              patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
@@ -101,3 +101,15 @@ class TestLlmluokittelu:
         assert mukana == 1
         assert hylätty == 1
         assert mock_aseta.call_count == 2
+        # Kandidaatit haetaan tiivisteellä, jotta vanhentunut kehote ajetaan uudelleen
+        tiiv = mock_hae.call_args.args[1]
+        assert tiiv and len(tiiv) == 64
+        # Tulokset tallennetaan samalla tiivisteellä
+        for c in mock_aseta.call_args_list:
+            assert c.kwargs["tiiviste"] == tiiv
+
+    def test_aja_tiiviste_muuttuu_kehotteesta(self):
+        from llm import tiiviste
+        t1 = llmluokittelu.tiiviste.luokittelu("kehote A", "system")
+        t2 = llmluokittelu.tiiviste.luokittelu("kehote B", "system")
+        assert t1 != t2 == tiiviste.luokittelu("kehote B", "system")

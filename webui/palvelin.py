@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from tietokanta import mallit
+from llm import tiiviste, kehoteet
 
 sovellus = FastAPI(title="kyberESR")
 
@@ -273,15 +274,24 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
     vastaukset_lista = mallit.hae_vastaukset(tid)
     kommentit_lista = mallit.hae_arviokommentit_kaikki(tid)
 
+    # Nykyiset kysymystiivisteet: tunnistavat vastaukset jotka on generoitu
+    # vanhentuneeseen kysymykseen/kehotteeseen (ennen seuraavaa LLM-ajoa).
+    jarjestelma = kehoteet.lue("arviointi_jarjestelma.txt")
+    nyky_tiiviste = tiiviste.kysymystiivisteet(
+        tutkimus.get("Arviointikehote") or "", jarjestelma, kysymykset
+    )
+
     vastaus_kartta: dict[int, dict[int, dict]] = {}
     for v in vastaukset_lista:
         kid = v["KID"]
         if kid not in vastaus_kartta:
             vastaus_kartta[kid] = {}
+        on_vastaus = bool((v.get("Vastaus") or "").strip()) or v.get("Luokka") is not None or v.get("Pisteet") is not None
         vastaus_kartta[kid][v["KysID"]] = {
             "vastaus": v.get("Vastaus") or "",
             "luokka": v.get("Luokka"),
             "pisteet": v.get("Pisteet"),
+            "vanhentunut": on_vastaus and v.get("Kehotetiiviste") != nyky_tiiviste.get(v["KysID"]),
         }
 
     kommentti_kartta: dict[int, dict[int, str]] = {}
@@ -292,7 +302,7 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
         kommentti_kartta[kid][k["KysID"]] = k["Kommentti"]
 
     kys_idt = [k["KysID"] for k in kysymykset]
-    tyhjä_vastaus = {"vastaus": "", "luokka": None, "pisteet": None}
+    tyhjä_vastaus = {"vastaus": "", "luokka": None, "pisteet": None, "vanhentunut": False}
     return {
         "kysymykset": [
             {

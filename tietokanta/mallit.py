@@ -234,17 +234,45 @@ def poista_kysymys(kysid: int) -> None:
 # --- Vastaukset ---
 
 def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "",
-                  pisteet: float | None = None, luokka: str | None = None) -> None:
+                  pisteet: float | None = None, luokka: str | None = None,
+                  tiiviste: str | None = None) -> None:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                """INSERT INTO Vastaukset (KysID, KID, Vastaus, Malli, Pisteet, Luokka)
-                   VALUES (%s, %s, %s, %s, %s, %s)
+                """INSERT INTO Vastaukset (KysID, KID, Vastaus, Malli, Pisteet, Luokka, Kehotetiiviste)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)
                    ON DUPLICATE KEY UPDATE
                        Vastaus = VALUES(Vastaus), Malli = VALUES(Malli),
-                       Pisteet = VALUES(Pisteet), Luokka = VALUES(Luokka)""",
-                (kysid, kid, vastaus, malli, pisteet, luokka),
+                       Pisteet = VALUES(Pisteet), Luokka = VALUES(Luokka),
+                       Kehotetiiviste = VALUES(Kehotetiiviste)""",
+                (kysid, kid, vastaus, malli, pisteet, luokka, tiiviste),
             )
+
+
+def hae_vastaus_tiivisteet(tid: int) -> dict[tuple[int, int], dict]:
+    """Palauttaa tutkimuksen vastausten tilan: {(KID, KysID): {tiiviste, vastattu}}.
+
+    vastattu = True jos vastauksessa on ei-tyhjä teksti, luokka tai pisteet.
+    Käytetään tunnistamaan mitkä (kurssi, kysymys) -parit tarvitsevat
+    (uudelleen)arvioinnin kehotteen/kysymyksen muututtua.
+    """
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute("""
+                SELECT v.KID, v.KysID, v.Kehotetiiviste,
+                       ((v.Vastaus IS NOT NULL AND v.Vastaus <> '')
+                        OR v.Luokka IS NOT NULL OR v.Pisteet IS NOT NULL) AS Vastattu
+                FROM Vastaukset v
+                JOIN Kysymykset k ON v.KysID = k.KysID
+                WHERE k.TID = %s
+            """, (tid,))
+            return {
+                (r["KID"], r["KysID"]): {
+                    "tiiviste": r["Kehotetiiviste"],
+                    "vastattu": bool(r["Vastattu"]),
+                }
+                for r in _rivit_dikteina(kursori)
+            }
 
 
 def hae_vastausten_lkm(kysid: int) -> int:
@@ -275,17 +303,39 @@ def hae_vastaukset(tid: int) -> list[dict]:
 
 # --- Luokittelun apufunktiot ---
 
-def hae_luokittelemattomat(tid: int) -> list[dict]:
-    """Kurssit, jotka odottavat LLM-seulontaa (ei riviä tai Mukana IS NULL)."""
+def hae_luokittelemattomat(tid: int, tiiviste: str | None = None) -> list[dict]:
+    """Kurssit, jotka odottavat LLM-seulontaa.
+
+    Aina mukana: kurssit joilla ei ole luokitusriviä tai Mukana IS NULL
+    (meta-suodatuksen läpäisseet, jotka odottavat LLM:ää).
+
+    Jos tiiviste annetaan: lisäksi aiemmin LLM-luokitellut kurssit, joiden
+    tallennettu Kehotetiiviste eroaa nykyisestä (kehote on muuttunut) — pois
+    lukien ihmisen HITL-korjaamat, joiden päätös säilytetään.
+    """
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute("""
-                SELECT k.*
-                FROM Kurssi k
-                LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
-                WHERE kl.KID IS NULL OR kl.Mukana IS NULL
-                ORDER BY k.KurssiNimi
-            """, (tid,))
+            if tiiviste is None:
+                kursori.execute("""
+                    SELECT k.*
+                    FROM Kurssi k
+                    LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
+                    WHERE kl.KID IS NULL OR kl.Mukana IS NULL
+                    ORDER BY k.KurssiNimi
+                """, (tid,))
+            else:
+                kursori.execute("""
+                    SELECT k.*
+                    FROM Kurssi k
+                    LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
+                    WHERE kl.KID IS NULL
+                       OR kl.Mukana IS NULL
+                       OR (kl.Kehotetiiviste IS NOT NULL
+                           AND NOT (kl.Kehotetiiviste <=> %s)
+                           AND NOT EXISTS (SELECT 1 FROM HitlKorjaus h
+                                           WHERE h.TID = %s AND h.KID = k.KID))
+                    ORDER BY k.KurssiNimi
+                """, (tid, tiiviste, tid))
             return _rivit_dikteina(kursori)
 
 
@@ -318,15 +368,17 @@ def hae_hitl_historia(tid: int) -> list[dict]:
 
 # --- Kurssiluokitus ---
 
-def aseta_luokitus(tid: int, kid: int, mukana: bool | None, perustelu: str, malli: str = "") -> None:
+def aseta_luokitus(tid: int, kid: int, mukana: bool | None, perustelu: str,
+                   malli: str = "", tiiviste: str | None = None) -> None:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                """INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste, Malli)
-                   VALUES (%s, %s, %s, %s, %s)
+                """INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste, Malli, Kehotetiiviste)
+                   VALUES (%s, %s, %s, %s, %s, %s)
                    ON DUPLICATE KEY UPDATE Mukana = VALUES(Mukana),
-                       Luokitteluperuste = VALUES(Luokitteluperuste), Malli = VALUES(Malli)""",
-                (tid, kid, mukana, perustelu, malli),
+                       Luokitteluperuste = VALUES(Luokitteluperuste), Malli = VALUES(Malli),
+                       Kehotetiiviste = VALUES(Kehotetiiviste)""",
+                (tid, kid, mukana, perustelu, malli, tiiviste),
             )
 
 
