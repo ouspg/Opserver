@@ -5,9 +5,10 @@ def test_moduulit_latautuvat():
     from cliui import valikko, korkeakoulunaytto, tutkimusnaytto, luokittelunaytto, apurit  # noqa: F401
 
 
-def test_paavalikossa_kuusi_kohtaa():
+def test_paavalikon_kohdat_ja_kasittelijat_tasmaavat():
     from cliui import valikko
-    assert len(valikko.VALIKKO) == 6
+    assert len(valikko.VALIKKO) == 7  # 6 vaihetta + LLM-asetukset
+    assert valikko.VALIKKO[-1] == "A) LLM-asetukset"
 
 
 def test_korkeakoulunaytto_ops_tyypit():

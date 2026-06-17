@@ -76,3 +76,22 @@ class TestSaatavuus:
         with patch.dict(os.environ, env):
             with pytest.raises(EnvironmentError):
                 mallitiedot.tarkista_saatavuus()
+
+
+class TestKuvaus:
+    def test_tukee_valimuistia_tunnistaa_cache_kentan(self):
+        assert mallitiedot.tukee_valimuistia(_DATA[1]) is True   # input_cache_read
+        assert mallitiedot.tukee_valimuistia(_DATA[0]) is False
+
+    def test_kuvaa_ilmainen_malli(self):
+        teksti = mallitiedot.kuvaa_malli(_DATA[0])
+        assert "openai/gpt-oss-120b:free" in teksti
+        assert "ilmainen" in teksti
+        assert "131k" in teksti
+        assert "—" in teksti  # ei välimuistia
+
+    def test_kuvaa_maksullinen_malli_hinta_per_miljoona(self):
+        teksti = mallitiedot.kuvaa_malli(_DATA[1])
+        assert "$3.00/$15.00 per Mtok" in teksti  # 0.000003*1e6, 0.000015*1e6
+        assert "200k" in teksti
+        assert "kakku" in teksti
