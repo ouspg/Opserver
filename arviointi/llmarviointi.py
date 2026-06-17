@@ -116,12 +116,13 @@ def _arvioi_erä(erä: list[dict], arviointikehote: str, kysymykset: list[dict],
         indent=2,
     )
     kysymysteksti = _rakenna_kysymysteksti(kysymykset)
-    viesti = f"{arviointikehote}\n\n{kysymysteksti}\n\nArvioi seuraavat kurssit:\n{kurssit_json}"
+    vakaa_prefix = f"{arviointikehote}\n\n{kysymysteksti}\n\nArvioi seuraavat kurssit:\n"
+    viesti = f"{vakaa_prefix}{kurssit_json}"
     try:
-        vastaus = kutsu.kysy(viesti, jarjestelma, json_muoto=True)
+        vastaus = kutsu.kysy(viesti, jarjestelma, json_muoto=True, vakaa_prefix=vakaa_prefix)
         return _erittele_json(vastaus)
     except (ValueError, json.JSONDecodeError):
-        vastaus2 = kutsu.kysy(viesti + "\n\nPalauta PELKKÄ JSON-objekti muodossa {\"tulokset\": [...]}.", jarjestelma, json_muoto=True)
+        vastaus2 = kutsu.kysy(viesti + "\n\nPalauta PELKKÄ JSON-objekti muodossa {\"tulokset\": [...]}.", jarjestelma, json_muoto=True, vakaa_prefix=vakaa_prefix)
         return _erittele_json(vastaus2)
 
 

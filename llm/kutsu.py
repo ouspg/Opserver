@@ -26,11 +26,44 @@ def hae_malli() -> str:
     return os.environ.get("LLM_MODEL", "")
 
 
-def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False) -> str:
+def _tekstilohko(teksti: str, kakku: bool = False) -> dict:
+    lohko = {"type": "text", "text": teksti}
+    if kakku:
+        lohko["cache_control"] = {"type": "ephemeral"}
+    return lohko
+
+
+def _rakenna_viestit(viesti: str, jarjestelma: str, vakaa_prefix: str | None) -> list[dict]:
+    """Rakentaa chat-viestit. Jos vakaa_prefix annetaan, järjestelmäkehote ja viestin
+    vakaa alkuosa merkitään välimuistiin (cache_control) — palveluntarjoaja joka ei
+    tue välimuistia jättää merkinnän huomiotta (OpenRouter normalisoi)."""
+    jarj = jarjestelma or "Olet tarkka ja analyyttinen apuri."
+    if not vakaa_prefix:
+        return [
+            {"role": "system", "content": jarj},
+            {"role": "user", "content": viesti},
+        ]
+    system = {"role": "system", "content": [_tekstilohko(jarj, kakku=True)]}
+    if viesti.startswith(vakaa_prefix):
+        loppu = viesti[len(vakaa_prefix):]
+        user_sisalto = [_tekstilohko(vakaa_prefix, kakku=True)]
+        if loppu:
+            user_sisalto.append(_tekstilohko(loppu))
+    else:
+        user_sisalto = [_tekstilohko(viesti)]
+    return [system, {"role": "user", "content": user_sisalto}]
+
+
+def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
+         vakaa_prefix: str | None = None) -> str:
     """Lähettää viestin LLM:lle ja palauttaa vastauksen tekstinä.
 
     json_muoto=True lisää response_format: json_object pyyntöön, jolloin
     malli pakotetaan API-tasolla palauttamaan kelvollinen JSON-objekti.
+
+    vakaa_prefix: viestin muuttumaton alkuosa (esim. järjestelmä + kehote +
+    kysymykset), joka merkitään kehotevälimuistiin. Kun useat erät jakavat saman
+    etuliitteen, sitä ei laskuteta/prosessoida uudelleen tukevilla malleilla.
     """
     global _viive_s
     perus_url = os.environ.get("LLM_PROVIDER")
@@ -46,10 +79,7 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False) -> str:
         runko = {
             "model": malli,
             "max_tokens": _MAX_TOKENIT,
-            "messages": [
-                {"role": "system", "content": jarjestelma or "Olet tarkka ja analyyttinen apuri."},
-                {"role": "user", "content": viesti},
-            ],
+            "messages": _rakenna_viestit(viesti, jarjestelma, vakaa_prefix),
         }
         if json_muoto:
             runko["response_format"] = {"type": "json_object"}

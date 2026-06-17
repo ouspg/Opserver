@@ -5,6 +5,9 @@ välimuistituen tunnistukseen. Erillään kutsu.py:stä, joka on pelkkä pyyntö
 """
 import os
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 _AIKAKATKAISU_S = 30
 _mallit_kakku: list[dict] | None = None  # prosessin sisäinen välimuisti

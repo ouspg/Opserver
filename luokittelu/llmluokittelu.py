@@ -54,13 +54,14 @@ def _luokittele_erä(erä: list[dict], luokittelukehote: str, jarjestelma: str) 
         ensure_ascii=False,
         indent=2,
     )
-    viesti = f"{luokittelukehote}\n\nArvioi seuraavat kurssit:\n{kurssit_json}"
-    vastaus = kutsu.kysy(viesti, jarjestelma)
+    vakaa_prefix = f"{luokittelukehote}\n\nArvioi seuraavat kurssit:\n"
+    viesti = f"{vakaa_prefix}{kurssit_json}"
+    vastaus = kutsu.kysy(viesti, jarjestelma, vakaa_prefix=vakaa_prefix)
     try:
         return _erittele_json(vastaus)
     except (ValueError, json.JSONDecodeError):
         # Yksi uusintayritys
-        vastaus2 = kutsu.kysy(viesti + "\n\nPalauta PELKKÄ JSON-taulukko.", jarjestelma)
+        vastaus2 = kutsu.kysy(viesti + "\n\nPalauta PELKKÄ JSON-taulukko.", jarjestelma, vakaa_prefix=vakaa_prefix)
         return _erittele_json(vastaus2)
 
 
