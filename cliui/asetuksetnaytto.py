@@ -66,11 +66,11 @@ def _selaa_ja_vaihda(stdscr) -> None:
         return
 
     mallit = sorted(mallit, key=lambda m: m.get("id", ""))
-    rivit = [mallitiedot.kuvaa_malli(m) for m in mallit]
+    otsikkorivit, rivit = mallitiedot.muotoile_taulukko(mallit)
     tuoreus = mallitiedot.tuoreus_teksti()
     otsikko = "Valitse malli (Enter vaihtaa)"
     otsikko += f" — lista {tuoreus}" if tuoreus else ""
-    valinta = valitse_listasta(stdscr, otsikko, rivit)
+    valinta = valitse_listasta(stdscr, otsikko, rivit, kiintea_otsikko=otsikkorivit)
     if valinta is None:
         return
 

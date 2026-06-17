@@ -75,16 +75,43 @@ def _hinta_per_milj(arvo: str | None) -> float:
         return 0.0
 
 
-def kuvaa_malli(malli_tiedot: dict) -> str:
-    """Yhden rivin kuvaus mallilistaan: id, hinta, konteksti, välimuistituki."""
+_SARAKEOTSIKOT = ("Mallin nimi", "Hinta", "konteksti", "välimuisti?")
+_EROTIN = "  |  "
+
+
+def _mallin_kentat(malli_tiedot: dict) -> tuple[str, str, str, str]:
+    """Yhden mallin sarakearvot: (id, hinta, konteksti, välimuisti)."""
     pricing = malli_tiedot.get("pricing") or {}
     sisaan = _hinta_per_milj(pricing.get("prompt"))
     ulos = _hinta_per_milj(pricing.get("completion"))
     hinta = "ilmainen" if sisaan == 0 and ulos == 0 else f"${sisaan:.2f}/${ulos:.2f} per Mtok"
     ctx = malli_tiedot.get("context_length") or 0
     konteksti = f"{ctx // 1000}k" if ctx else "?"
-    kakku = "kakku" if tukee_valimuistia(malli_tiedot) else "—"
-    return f"{malli_tiedot.get('id', '?')}  |  {hinta}  |  {konteksti}  |  {kakku}"
+    valimuisti = "kyllä" if tukee_valimuistia(malli_tiedot) else "—"
+    return malli_tiedot.get("id", "?"), hinta, konteksti, valimuisti
+
+
+def muotoile_taulukko(mallit: list[dict]) -> tuple[list[str], list[str]]:
+    """Muotoilee mallit tasatuksi taulukoksi.
+
+    Palauttaa (otsikkorivit, datarivit), missä otsikkorivit = [sarakeotsikot, erotinviiva].
+    Sarakkeet tasataan leveimmän arvon mukaan: nimi ja hinta vasemmalle, konteksti
+    keskelle, välimuisti vasemmalle (viimeinen sarake). Kaikki rivit ovat samanlevyisiä.
+    """
+    kentat = [_mallin_kentat(m) for m in mallit]
+    lev = [len(_SARAKEOTSIKOT[s]) for s in range(4)]
+    for rivi in kentat:
+        for s in range(4):
+            lev[s] = max(lev[s], len(rivi[s]))
+
+    def koosta(nimi, hinta, ktx, valimuisti):
+        return _EROTIN.join([nimi.ljust(lev[0]), hinta.ljust(lev[1]),
+                             ktx.center(lev[2]), valimuisti.ljust(lev[3])])
+
+    otsikkorivi = koosta(*_SARAKEOTSIKOT)
+    viiva = "-" * len(otsikkorivi)
+    datarivit = [koosta(*rivi) for rivi in kentat]
+    return [otsikkorivi, viiva], datarivit
 
 
 def tarkista_saatavuus(malli: str | None = None) -> None:

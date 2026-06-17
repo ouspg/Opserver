@@ -190,18 +190,26 @@ def valitse_monivalinta(stdscr, otsikko: str, vaihtoehdot: list[str],
             return None
 
 
-def valitse_listasta(stdscr, otsikko: str, vaihtoehdot: list[str]) -> int | None:
+def valitse_listasta(stdscr, otsikko: str, vaihtoehdot: list[str],
+                     kiintea_otsikko: list[str] | None = None) -> int | None:
     """Nuolinäppäimillä valittava lista. Palauttaa valitun indeksin tai None (Esc/q).
 
     Sivuttaa pitkät listat näytön korkeuden mukaan ja rajaa rivit näytön
     leveyteen, jottei addstr kirjoita ruudun ulkopuolelle (curses ERR).
+
+    kiintea_otsikko: rivit (esim. taulukon sarakeotsikko + erotinviiva), jotka
+    piirretään listan yläpuolelle ja pysyvät näkyvissä myös vieritettäessä.
     """
     valittu = 0
     n = len(vaihtoehdot)
-    alku_rivi = 3
+    otsikkorivit = kiintea_otsikko or []
     while True:
         piirra_otsikko(stdscr, otsikko)
         korkeus, leveys = stdscr.getmaxyx()
+        for j, rivi in enumerate(otsikkorivit):
+            if 3 + j < korkeus:
+                stdscr.addstr(3 + j, 0, rivi[:leveys - 1])
+        alku_rivi = 3 + len(otsikkorivit)
         if not vaihtoehdot:
             stdscr.addstr(alku_rivi, 0, "(ei kohteita)")
 

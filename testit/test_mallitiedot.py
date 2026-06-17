@@ -96,20 +96,44 @@ class TestTuoreus:
         assert "2 min sitten" in teksti
 
 
-class TestKuvaus:
-    def test_tukee_valimuistia_tunnistaa_cache_kentan(self):
+class TestTukeeValimuistia:
+    def test_tunnistaa_cache_kentan(self):
         assert mallitiedot.tukee_valimuistia(_DATA[1]) is True   # input_cache_read
         assert mallitiedot.tukee_valimuistia(_DATA[0]) is False
 
-    def test_kuvaa_ilmainen_malli(self):
-        teksti = mallitiedot.kuvaa_malli(_DATA[0])
-        assert "openai/gpt-oss-120b:free" in teksti
-        assert "ilmainen" in teksti
-        assert "131k" in teksti
-        assert "—" in teksti  # ei välimuistia
 
-    def test_kuvaa_maksullinen_malli_hinta_per_miljoona(self):
-        teksti = mallitiedot.kuvaa_malli(_DATA[1])
-        assert "$3.00/$15.00 per Mtok" in teksti  # 0.000003*1e6, 0.000015*1e6
-        assert "200k" in teksti
-        assert "kakku" in teksti
+class TestTaulukko:
+    def test_otsikkorivit_sisaltavat_sarakeotsikot_ja_viivan(self):
+        otsikkorivit, _ = mallitiedot.muotoile_taulukko(_DATA)
+        assert len(otsikkorivit) == 2
+        otsikko, viiva = otsikkorivit
+        for sarake in ("Mallin nimi", "Hinta", "konteksti", "välimuisti?"):
+            assert sarake in otsikko
+        assert set(viiva) == {"-"}            # erotinviiva pelkkiä viivoja
+        assert len(viiva) == len(otsikko)     # yhtä leveä kuin otsikkorivi
+
+    def test_rivit_ovat_tasaleveita(self):
+        otsikkorivit, rivit = mallitiedot.muotoile_taulukko(_DATA)
+        leveydet = {len(r) for r in otsikkorivit + rivit}
+        assert len(leveydet) == 1, f"epätasaiset leveydet: {leveydet}"
+
+    def test_ilmainen_malli_arvot(self):
+        _, rivit = mallitiedot.muotoile_taulukko(_DATA)
+        rivi = rivit[0]  # openai/gpt-oss-120b:free
+        assert "openai/gpt-oss-120b:free" in rivi
+        assert "ilmainen" in rivi
+        assert "131k" in rivi
+        assert "—" in rivi   # ei välimuistia
+        assert "kyllä" not in rivi
+
+    def test_maksullinen_malli_arvot(self):
+        _, rivit = mallitiedot.muotoile_taulukko(_DATA)
+        rivi = rivit[1]  # anthropic/claude-fable-5
+        assert "$3.00/$15.00 per Mtok" in rivi  # 0.000003*1e6, 0.000015*1e6
+        assert "200k" in rivi
+        assert "kyllä" in rivi   # tukee välimuistia
+
+    def test_tyhja_lista_antaa_pelkan_otsikon(self):
+        otsikkorivit, rivit = mallitiedot.muotoile_taulukko([])
+        assert len(otsikkorivit) == 2
+        assert rivit == []

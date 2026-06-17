@@ -26,15 +26,17 @@ class _FakeScr:
     def __init__(self, korkeus, leveys, nappaimet):
         self.korkeus, self.leveys = korkeus, leveys
         self._nappaimet = iter(nappaimet)
+        self.piirretyt = []  # (y, teksti) viimeisimmästä ruudunpäivityksestä
     def getmaxyx(self):
         return (self.korkeus, self.leveys)
     def clear(self):
-        pass
+        self.piirretyt = []
     def addstr(self, y, x, teksti, *a):
         if not (0 <= y < self.korkeus):
             raise Exception(f"rivi ruudun ulkopuolella: {y} (korkeus {self.korkeus})")
         if x + len(teksti) > self.leveys:
             raise Exception(f"teksti yli leveyden: {x}+{len(teksti)} > {self.leveys}")
+        self.piirretyt.append((y, teksti))
     def getch(self):
         return next(self._nappaimet)
 
@@ -47,6 +49,22 @@ def test_valitse_listasta_ei_kirjoita_ruudun_ulkopuolelle_pitkalla_listalla():
     nappaimet = [curses.KEY_DOWN] * 200 + [10]
     scr = _FakeScr(korkeus=24, leveys=80, nappaimet=nappaimet)
     assert valitse_listasta(scr, "Otsikko", vaihtoehdot) == 200
+
+
+def test_valitse_listasta_kiintea_otsikko_pysyy_nakyvissa_vieritettaessa():
+    import curses
+    from cliui.apurit import valitse_listasta
+    otsikkorivit = ["Sarake A  |  Sarake B", "---------------------"]
+    vaihtoehdot = [f"rivi {i:03d}" for i in range(300)]
+    # Vieritä 200 alas ja valitse; sarakeotsikon pitää näkyä riveillä 3 ja 4.
+    nappaimet = [curses.KEY_DOWN] * 200 + [10]
+    scr = _FakeScr(korkeus=24, leveys=80, nappaimet=nappaimet)
+    tulos = valitse_listasta(scr, "Otsikko", vaihtoehdot, kiintea_otsikko=otsikkorivit)
+    assert tulos == 200
+    # Viimeisin ruutu: kiinteät otsikkorivit yhä paikoillaan (rivit 3 ja 4)
+    rivilla = {y: t for y, t in scr.piirretyt}
+    assert rivilla.get(3) == otsikkorivit[0]
+    assert rivilla.get(4) == otsikkorivit[1]
 
 
 def test_valitse_monivalinta_on_olemassa():
