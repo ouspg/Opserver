@@ -90,6 +90,20 @@ def test_hae_saatavilla_kaudet_suodattaa_ei_vuosimuotoiset():
     assert all(len(k) == 9 and "-" in k for k in kaudet)
 
 
+def test_hae_saatavilla_kaudet_hyvaksyy_yyyy_yy_muodon():  # Helsinki
+    lukija = _lukija()
+    lukija._yliopisto_id = "hy-university-root-id"
+    kaudet_data = [
+        {"documentState": "ACTIVE", "abbreviation": {"fi": "2025-26"}, "id": "hy-lv-76"},
+        {"documentState": "ACTIVE", "abbreviation": {"fi": "2024-25"}, "id": "hy-lv-75"},
+        {"documentState": "ACTIVE", "abbreviation": {"fi": "-2017"}, "id": "hy-lv-x"},
+    ]
+    with patch.object(SisuLukija, "_hae_json", return_value=kaudet_data):
+        kaudet = lukija.hae_saatavilla_kaudet()
+    assert "2025-26" in kaudet and "2024-25" in kaudet
+    assert "-2017" not in kaudet
+
+
 # --- _jasenna_kurssi ---
 
 def test_jasenna_kurssi_perustiedot():

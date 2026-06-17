@@ -10,8 +10,6 @@ import requests
 from tietokanta import mallit
 from tiedonhaku.opslukija import OpsLukija
 
-BACKEND = "https://opasbe.peppi.oulu.fi/api"
-
 # Kurssikuvauksen "Taso"-osion teksti -> Kurssi-taulun Taso-enum.
 TASO_KARTTA = {
     "yleisopinnot": "yleis",
@@ -63,31 +61,50 @@ def _kokoa_kuvaus(sisalto: dict) -> str:
     return "\n\n".join(osat)
 
 
-def _lue_kausiconfig_js_bundlesta(ops_osoite: str) -> tuple[int, int, int]:
-    """Lukee kausikonfiguraation Peppi-etusivun JS-bundlesta.
-
-    Palauttaa (ensimmainen_vuosi, viimeinen_vuosi, kauden_pituus).
-    Peppi renderöi kausilistan pelkästään näistä kolmesta arvosta —
-    erillistä API-endpointtia ei ole.
-    """
+def _hae_bundle_js(ops_osoite: str) -> str:
+    """Hakee Peppi-frontendin JS-bundlen tekstinä (sisältää kausikonfiguraation)."""
     pohja = ops_osoite.rstrip("/")
     html = requests.get(pohja, timeout=30).text
     osuma = re.search(r'src="(main\.[a-f0-9]+\.js)"', html)
     if not osuma:
         raise ValueError(f"Ei löydy main.js URL:ia sivulta {pohja}")
-    js_url = f"{pohja}/{osuma.group(1)}"
-    js = requests.get(js_url, timeout=60).text
+    return requests.get(f"{pohja}/{osuma.group(1)}", timeout=60).text
 
-    def etsi_int(kaava: str) -> int:
-        o = re.search(kaava, js)
-        if not o:
-            raise ValueError(f"Ei löydy kaavaa '{kaava}' JS-bundlesta")
-        return int(o.group(1))
 
-    ensimmainen = etsi_int(r'firstSchoolYear:(\d{4})')
-    viimeinen = etsi_int(r'currentPeriodStartYear:(\d{4})')
-    pituus = etsi_int(r'curriculumPeriod:(\d+)')
-    return ensimmainen, viimeinen, pituus
+def _kaudet_taulukosta(js: str) -> list[str] | None:
+    """Lukee bundlessa julistetun eksplisiittisen kausitaulukon (["YYYY-YYYY", ...]).
+
+    Tämä on frontendin pudotusvalikon lähde ja koodaa jokaisen kauden oman
+    jaksonsa, joten 1-/2-/3-/sekapituiset kaudet luetaan sellaisinaan ilman
+    pituuden oletusta. Palauttaa None jos taulukkoa ei ole bundlessa.
+    """
+    taulukot = re.findall(r'\[\s*(?:"\d{4}-\d{2,4}"\s*,\s*)+"\d{4}-\d{2,4}"\s*\]', js)
+    if not taulukot:
+        return None
+    paras = max(taulukot, key=lambda t: len(re.findall(r"\d{4}-\d{2,4}", t)))
+    return list(dict.fromkeys(re.findall(r"\d{4}-\d{2,4}", paras)))
+
+
+def _kaudet_laskettuna(js: str) -> list[str]:
+    """Laskee kaudet konfiguraatioarvoista kun eksplisiittistä taulukkoa ei ole.
+
+    firstSchoolYear .. currentPeriodStartYear, askel = curriculumPeriod (oletus 1,
+    jos arvoa ei ole). Sietää sekä kaksoispiste- että yhtäsuuruus-syntaksia.
+    """
+    def lue(avain: str, oletus: int | None = None) -> int:
+        o = re.search(rf"{avain}\s*[:=]\s*(\d+)", js)
+        if o:
+            return int(o.group(1))
+        if oletus is not None:
+            return oletus
+        raise ValueError(f"Ei löydy arvoa '{avain}' JS-bundlesta")
+    return generoi_kaudet(lue("firstSchoolYear"), lue("currentPeriodStartYear"),
+                          lue("curriculumPeriod", 1))
+
+
+def lue_kaudet_bundlesta(js: str) -> list[str]:
+    """Kausilista bundlesta: ensisijaisesti eksplisiittinen taulukko, muuten laskettu."""
+    return _kaudet_taulukosta(js) or _kaudet_laskettuna(js)
 
 
 def generoi_kaudet(ensimmainen: int, viimeinen: int, pituus: int) -> list[str]:
@@ -102,20 +119,28 @@ def generoi_kaudet(ensimmainen: int, viimeinen: int, pituus: int) -> list[str]:
 
 class PeppiLukija(OpsLukija):
 
+    def _api(self) -> str:
+        """Korkeakoulun Peppi-backendin API-juuri tietokannan ApiOsoite-tiedosta."""
+        api = self.korkeakoulu.get("ApiOsoite")
+        if not api:
+            raise ValueError(
+                "Korkeakoulun ApiOsoite puuttuu — lisää tai muokkaa korkeakoulu "
+                "uudelleen, jolloin API-osoite selvitetään ja tallennetaan."
+            )
+        return f"{api.rstrip('/')}/api"
+
     def hae_kurssi(self, kurssi_id: str, kausi: str = "2025-2026") -> dict:
         """Hakee ja jäsentää yhden kurssin Peppi-rajapinnasta."""
-        url = f"{BACKEND}/course/{kurssi_id}?period={kausi}"
+        url = f"{self._api()}/course/{kurssi_id}?period={kausi}"
         return self._jasenna_kurssi(self._hae_json(url))
 
     def hae_saatavilla_kaudet(self) -> list[str]:
-        """Lukee saatavilla olevat OPS-kaudet suoraan Peppi-etusivun JS-bundlesta.
+        """Lukee saatavilla olevat OPS-kaudet Peppi-etusivun JS-bundlesta.
 
-        Peppi laskee kausilistan kolmesta JS-konfiguraatioarvosta:
-        firstSchoolYear, currentPeriodStartYear, curriculumPeriod.
+        Ensisijaisesti bundlessa julistettu eksplisiittinen kausitaulukko (joka
+        kattaa myös sekapituiset OPS:t), muuten laskettuna konfiguraatioarvoista.
         """
-        ops_osoite = self.korkeakoulu["OpsOsoite"]
-        ensimmainen, viimeinen, pituus = _lue_kausiconfig_js_bundlesta(ops_osoite)
-        return generoi_kaudet(ensimmainen, viimeinen, pituus)
+        return lue_kaudet_bundlesta(_hae_bundle_js(self.korkeakoulu["OpsOsoite"]))
 
     def hae_kurssit(self, kausi: str, edistyminen_cb=None) -> int:
         """Käy läpi koko opinto-oppaan ja tallentaa kaikki kurssit tietokantaan.
@@ -132,7 +157,7 @@ class PeppiLukija(OpsLukija):
         ohitettu = 0
         for kurssi_id in kurssi_idt:
             try:
-                kurssi_json = self._hae_json(f"{BACKEND}/course/{kurssi_id}?period={kausi}")
+                kurssi_json = self._hae_json(f"{self._api()}/course/{kurssi_id}?period={kausi}")
             except requests.exceptions.RequestException:
                 ohitettu += 1
                 continue
@@ -156,11 +181,11 @@ class PeppiLukija(OpsLukija):
     # --- Yksityiset apumetodit ---
 
     def _hae_ohjelma_idt(self, kausi: str) -> list[str]:
-        nav = self._hae_json(f"{BACKEND}/navigation?period={kausi}")
+        nav = self._hae_json(f"{self._api()}/navigation?period={kausi}")
         idt = []
         for kategoria in nav:
             koulutukset = self._hae_json(
-                f"{BACKEND}/education/{kategoria['id']}/education-type?period={kausi}"
+                f"{self._api()}/education/{kategoria['id']}/education-type?period={kausi}"
             )
             for koulutus in koulutukset:
                 for lapsi in koulutus.get("children") or []:
@@ -171,7 +196,7 @@ class PeppiLukija(OpsLukija):
     def _keraa_kurssi_idt_ohjelmista(self, ohjelma_idt: list[str], kausi: str) -> list[str]:
         idt = []
         for ohjelma_id in ohjelma_idt:
-            puu = self._hae_json(f"{BACKEND}/accomplishment-plan/{ohjelma_id}?period={kausi}")
+            puu = self._hae_json(f"{self._api()}/accomplishment-plan/{ohjelma_id}?period={kausi}")
             idt.extend(self._keraa_solmuista(puu, "COURSE_UNIT"))
         return list(dict.fromkeys(idt))
 
