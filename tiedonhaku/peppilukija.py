@@ -152,9 +152,9 @@ class PeppiLukija(OpsLukija):
         olemassa olevat rivit (ON DUPLICATE KEY UPDATE).
         """
         if tila_cb:
-            tila_cb("Vaihe 1/2: kerätään kurssilistauksia ohjelmista...")
-        ohjelma_idt = self._hae_ohjelma_idt(kausi)
-        kurssi_idt = self._keraa_kurssi_idt_ohjelmista(ohjelma_idt, kausi)
+            tila_cb("Vaihe 1/2: haetaan ohjelmalistaus...")
+        ohjelma_idt = self._hae_ohjelma_idt(kausi, tila_cb)
+        kurssi_idt = self._keraa_kurssi_idt_ohjelmista(ohjelma_idt, kausi, tila_cb)
         jo_kannassa = mallit.hae_tallennetut_lahde_idt(self.korkeakoulu["KKID"], kausi)
         kurssi_idt = [kid for kid in kurssi_idt if str(kid) not in jo_kannassa]
         yhteensa = len(kurssi_idt)
@@ -185,10 +185,13 @@ class PeppiLukija(OpsLukija):
 
     # --- Yksityiset apumetodit ---
 
-    def _hae_ohjelma_idt(self, kausi: str) -> list[str]:
+    def _hae_ohjelma_idt(self, kausi: str, tila_cb=None) -> list[str]:
         nav = self._hae_json(f"{self._api()}/navigation?period={kausi}")
         idt = []
-        for kategoria in nav:
+        for i, kategoria in enumerate(nav, 1):
+            if tila_cb:
+                tila_cb(f"Vaihe 1/2: haetaan koulutusalat {i}/{len(nav)} "
+                        f"({len(idt)} ohjelmaa löydetty)...")
             koulutukset = self._hae_json(
                 f"{self._api()}/education/{kategoria['id']}/education-type?period={kausi}"
             )
@@ -198,9 +201,14 @@ class PeppiLukija(OpsLukija):
                         idt.append(str(lapsi["id"]))
         return list(dict.fromkeys(idt))
 
-    def _keraa_kurssi_idt_ohjelmista(self, ohjelma_idt: list[str], kausi: str) -> list[str]:
+    def _keraa_kurssi_idt_ohjelmista(self, ohjelma_idt: list[str], kausi: str,
+                                     tila_cb=None) -> list[str]:
         idt = []
-        for ohjelma_id in ohjelma_idt:
+        yhteensa = len(ohjelma_idt)
+        for i, ohjelma_id in enumerate(ohjelma_idt, 1):
+            if tila_cb:
+                tila_cb(f"Vaihe 1/2: kerätään kurssit ohjelmista {i}/{yhteensa} "
+                        f"({len(set(idt))} kurssia löydetty)...")
             puu = self._hae_json(f"{self._api()}/accomplishment-plan/{ohjelma_id}?period={kausi}")
             idt.extend(self._keraa_solmuista(puu, "COURSE_UNIT"))
         return list(dict.fromkeys(idt))
