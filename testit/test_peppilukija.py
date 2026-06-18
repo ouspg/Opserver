@@ -208,6 +208,35 @@ def test_hae_kurssit_raportoi_vaihe1_edistymisen():
     assert any("2/2" in t for t in vaihe1)  # per-ohjelma laskuri näkyy
 
 
+def test_hae_kurssit_lahde_id_pyydetysta_idsta_vaikka_vastaus_ilman_idta():
+    """Peppi-kurssivastaus voi tulla ilman top-level 'id':tä — LahdeId otetaan
+    silloin pyydetystä kurssi_id:stä, ei jätetä NULLiksi (rikkoisi dedup+URL)."""
+    nav = _fixture("peppi_navigaatio.json")[:1]
+    edu = [{"id": "11738", "type": "EDUCATION", "name": {"valueFi": "T", "valueEn": "", "valueSv": ""},
+            "children": [{"id": "999", "type": "PROGRAMME"}]}]
+    plan = {"type": "MODULE", "id": "999", "children": [{"type": "COURSE_UNIT", "id": "77777"}]}
+    kurssi = dict(_fixture("peppi_kurssi_45690.json"))
+    kurssi.pop("id", None)  # simuloi vastausta ilman top-level id:tä
+
+    def fake_hae_json(url, viive=True):
+        if "/navigation" in url and "/navigation/" not in url:
+            return nav
+        if "/education-type" in url:
+            return edu
+        if "/accomplishment-plan/" in url:
+            return plan
+        if "/course/" in url:
+            return kurssi
+        return []
+
+    with patch.object(PeppiLukija, "_hae_json", side_effect=fake_hae_json), \
+         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1) as mock_t, \
+         patch("tiedonhaku.peppilukija.mallit.hae_tallennetut_lahde_idt", return_value=set()):
+        _lukija().hae_kurssit("2025-2026")
+
+    assert mock_t.call_args.kwargs["lahde_id"] == "77777"
+
+
 def test_hae_kurssit_deduplikoi_kurssit():
     """Sama kurssi-id kahdessa ohjelmassa tallennetaan vain kerran."""
     nav = _fixture("peppi_navigaatio.json")[:1]

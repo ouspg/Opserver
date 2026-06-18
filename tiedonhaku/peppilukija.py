@@ -167,9 +167,12 @@ class PeppiLukija(OpsLukija):
                 ohitettu += 1
                 continue
             kurssi = self._jasenna_kurssi(kurssi_json)
+            # LahdeId = pyydetty kurssi_id: Peppin kurssivastauksesta puuttuu joskus
+            # top-level "id", jolloin data.get("id") jäisi NULLiksi ja rikkoisi sekä
+            # dedup-uudelleenajon (uniikkiavain) että WebUI:n kurssi-URL:n.
             mallit.tallenna_kurssi(
                 kkid=self.korkeakoulu["KKID"],
-                lahde_id=kurssi["lahde_id"],
+                lahde_id=str(kurssi_id),
                 koodi=kurssi["koodi"],
                 kurssi_nimi=kurssi["kurssi_nimi"],
                 taso=kurssi["taso"],
