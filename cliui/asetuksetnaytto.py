@@ -34,9 +34,9 @@ def _tarkista(stdscr) -> None:
     stdscr.refresh()
     try:
         mallitiedot.tarkista_saatavuus()
-        nayta_viesti(stdscr, f"Malli '{kutsu.hae_malli()}' on saatavilla.")
+        nayta_viesti(stdscr, f"Malli '{kutsu.hae_malli()}' on saatavilla.", 4)
     except Exception as e:
-        nayta_viesti(stdscr, f"Ei saatavilla: {e}")
+        nayta_viesti(stdscr, f"Ei saatavilla: {e}", 4)
 
 
 def _paivita_lista(stdscr) -> None:
