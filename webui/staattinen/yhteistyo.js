@@ -320,7 +320,7 @@ function lisaaUutinen(teksti, aika) {
   if (!palkki) return;
   const item = document.createElement("span");
   item.className = "uutinen-item";
-  item.innerHTML = `<span class="uutinen-aika">${aika}</span>${teksti}`;
+  item.innerHTML = `<span class="uutinen-aika">${escapeHtml(aika)}</span>${escapeHtml(teksti)}`;
   palkki.insertBefore(item, palkki.firstChild);
   palkki.scrollLeft = 0;
 }

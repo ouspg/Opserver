@@ -1,5 +1,13 @@
 "use strict";
 
+// XSS-suojaus: enkoodaa arvo turvalliseksi HTML-kontekstiin (innerHTML-sinkit).
+// Jaettu globaali; yhteistyo.js ja arviointimuokkaus.js käyttävät samaa.
+function escapeHtml(arvo) {
+  return String(arvo ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+window.escapeHtml = escapeHtml;
+
 // --- Reititys ---
 
 function navigoi(polku) {
@@ -501,23 +509,23 @@ function renderTutkimusKurssitTila() {
     if (korjaukset.length > 0) {
       const aiTila = k.AiMukana ? "mukana" : "hylkäys";
       const aiOsa = k.Luokitteluperuste
-        ? `<span class="ai-perustelu">Tekoäly (${aiTila}): ${k.Luokitteluperuste}</span>`
+        ? `<span class="ai-perustelu">Tekoäly (${aiTila}): ${escapeHtml(k.Luokitteluperuste)}</span>`
         : "";
       const korjausOsat = korjaukset.map((h) => {
         const tila = h.UusiTila ? "mukana" : "hylkäys";
-        const nimi = h.KayttajaNimi ? ` (${h.KayttajaNimi})` : "";
-        return `<span class="hitl-perustelu">Ihminen (${tila}): ${h.Perustelu}${nimi}</span>`;
+        const nimi = h.KayttajaNimi ? ` (${escapeHtml(h.KayttajaNimi)})` : "";
+        return `<span class="hitl-perustelu">Ihminen (${tila}): ${escapeHtml(h.Perustelu)}${nimi}</span>`;
       }).join("");
       perusteluHtml = aiOsa + korjausOsat;
     } else {
-      perusteluHtml = k.Luokitteluperuste || "";
+      perusteluHtml = escapeHtml(k.Luokitteluperuste || "");
     }
 
     let toimintoHtml = "";
     if (aktiivinen_tila === "mukana") {
-      toimintoHtml = `<button class="nappi-pieni nappi-vaara hitl-nappi" data-kid="${k.KID}" data-nimi="${k.KurssiNimi.replace(/"/g, "&quot;")}" data-perustelu="${(k.Luokitteluperuste || "").replace(/"/g, "&quot;")}" data-tila="0">Poista tutkimuksesta</button>`;
+      toimintoHtml = `<button class="nappi-pieni nappi-vaara hitl-nappi" data-kid="${k.KID}" data-nimi="${escapeHtml(k.KurssiNimi)}" data-perustelu="${escapeHtml(k.Luokitteluperuste || "")}" data-tila="0">Poista tutkimuksesta</button>`;
     } else if (aktiivinen_tila === "hylätty") {
-      toimintoHtml = `<button class="nappi-pieni nappi-hyva hitl-nappi" data-kid="${k.KID}" data-nimi="${k.KurssiNimi.replace(/"/g, "&quot;")}" data-perustelu="${(k.Luokitteluperuste || "").replace(/"/g, "&quot;")}" data-tila="1">Sisällytä tutkimukseen</button>`;
+      toimintoHtml = `<button class="nappi-pieni nappi-hyva hitl-nappi" data-kid="${k.KID}" data-nimi="${escapeHtml(k.KurssiNimi)}" data-perustelu="${escapeHtml(k.Luokitteluperuste || "")}" data-tila="1">Sisällytä tutkimukseen</button>`;
     }
 
     const rivi = document.createElement("tr");
