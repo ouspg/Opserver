@@ -285,7 +285,7 @@ async function laataaTutkimukset() {
     rivi.innerHTML = `
       <td class="kurssi-rivi tutkimus-nimi-solu">${t.LuokittelunNimi}</td>
       <td>${t.Tasorajaus || "—"}</td>
-      <td>${t.Oppiainerajaus || "—"}</td>
+      <td class="tutkimus-oppiaine-solu" title="${t.Oppiainerajaus || ""}">${t.Oppiainerajaus || "—"}</td>
       <td class="tutkimus-toiminnot">
         <button class="nappi-pieni" data-slug="${t.Slug}" data-alasivu="kurssit">Valitut kurssit (${lkm})</button>
         <button class="nappi-pieni" data-slug="${t.Slug}" data-alasivu="arvioinnit">Arvioinnit</button>
