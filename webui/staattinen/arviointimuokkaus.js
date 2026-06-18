@@ -149,7 +149,7 @@ function paivitaMuokkaajat(muokkaajat) {
     offsc.width = 14; offsc.height = 14;
     offsc.className = "vieras-ympyra-pieni";
     window.piirraYmpyra?.(offsc, m.profiili);
-    return `<span class="muokkaaja-rivi">${offsc.outerHTML} ${m.nimimerkki || "?"}</span>`;
+    return `<span class="muokkaaja-rivi">${offsc.outerHTML} ${escapeHtml(m.nimimerkki || "?")}</span>`;
   }).join(", ");
 }
 
