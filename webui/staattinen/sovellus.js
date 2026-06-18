@@ -287,6 +287,7 @@ async function laataaTutkimukset() {
       <td>${t.Tasorajaus || "—"}</td>
       <td class="tutkimus-oppiaine-solu" title="${t.Oppiainerajaus || ""}">${t.Oppiainerajaus || "—"}</td>
       <td class="tutkimus-toiminnot">
+        ${verkkosivuIkoni(t.Verkkosivu)}
         <button class="nappi-pieni" data-slug="${t.Slug}" data-alasivu="kurssit">Valitut kurssit (${lkm})</button>
         <button class="nappi-pieni" data-slug="${t.Slug}" data-alasivu="arvioinnit">Arvioinnit</button>
         <button class="nappi-pieni" data-slug="${t.Slug}" data-alasivu="raportti">Raportti</button>
@@ -352,6 +353,12 @@ function verkkosivuLinkki(url) {
   return /^https?:\/\//i.test(url)
     ? `<a href="${url}" target="_blank" rel="noopener" class="ops-linkki">🌐 ${url}</a>`
     : url;
+}
+
+// Pelkkä maapallo-ikonilinkki (esim. tutkimuslistan toimintosarakkeeseen).
+function verkkosivuIkoni(url) {
+  if (!url || !/^https?:\/\//i.test(url)) return "";
+  return `<a href="${url}" target="_blank" rel="noopener" class="ops-linkki" title="${url}">🌐</a>`;
 }
 
 function renderTutkimusTiedot(t) {
