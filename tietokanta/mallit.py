@@ -117,12 +117,12 @@ def hae_kurssi(kid: int) -> dict | None:
 
 def lisaa_tutkimus(luokittelun_nimi: str, slug: str, lukuvuosi: str, luokittelukehote: str,
                    tasorajaus: str, oppiainerajaus: str, arviointikehote: str,
-                   raportointikehote: str = "") -> int:
+                   raportointikehote: str = "", verkkosivu: str = "") -> int:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                "INSERT INTO Tutkimus (LuokittelunNimi, Slug, Lukuvuosi, Luokittelukehote, Tasorajaus, Oppiainerajaus, Arviointikehote, Raportointikehote) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                (luokittelun_nimi, slug, lukuvuosi, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote),
+                "INSERT INTO Tutkimus (LuokittelunNimi, Slug, Lukuvuosi, Verkkosivu, Luokittelukehote, Tasorajaus, Oppiainerajaus, Arviointikehote, Raportointikehote) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (luokittelun_nimi, slug, lukuvuosi, verkkosivu, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote),
             )
             return kursori.lastrowid
 
@@ -176,12 +176,12 @@ def hae_valitut_kurssit(tid: int) -> list[dict]:
 
 def paivita_tutkimus(tid: int, luokittelun_nimi: str, slug: str, lukuvuosi: str, luokittelukehote: str,
                      tasorajaus: str, oppiainerajaus: str, arviointikehote: str,
-                     raportointikehote: str = "") -> None:
+                     raportointikehote: str = "", verkkosivu: str = "") -> None:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                "UPDATE Tutkimus SET LuokittelunNimi=%s, Slug=%s, Lukuvuosi=%s, Luokittelukehote=%s, Tasorajaus=%s, Oppiainerajaus=%s, Arviointikehote=%s, Raportointikehote=%s WHERE TID=%s",
-                (luokittelun_nimi, slug, lukuvuosi, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote, tid),
+                "UPDATE Tutkimus SET LuokittelunNimi=%s, Slug=%s, Lukuvuosi=%s, Verkkosivu=%s, Luokittelukehote=%s, Tasorajaus=%s, Oppiainerajaus=%s, Arviointikehote=%s, Raportointikehote=%s WHERE TID=%s",
+                (luokittelun_nimi, slug, lukuvuosi, verkkosivu, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote, tid),
             )
 
 

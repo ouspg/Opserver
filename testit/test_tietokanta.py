@@ -135,6 +135,23 @@ class TestTutkimus:
         sql = kursori.execute.call_args[0][0]
         assert "UPDATE" in sql.upper()
 
+    def test_lisaa_tutkimus_tallentaa_verkkosivun(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.lastrowid = 5
+        mallit.lisaa_tutkimus("T", "t", "2025-2026", "k", "aine", "Tieto", "a",
+                              verkkosivu="https://hanke.fi")
+        sql, params = kursori.execute.call_args[0]
+        assert "Verkkosivu" in sql
+        assert "https://hanke.fi" in params
+
+    def test_paivita_tutkimus_tallentaa_verkkosivun(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.paivita_tutkimus(1, "T", "t", "2025-2026", "k", "aine", "Tieto", "a",
+                                verkkosivu="https://hanke.fi")
+        sql, params = kursori.execute.call_args[0]
+        assert "Verkkosivu=%s" in sql
+        assert "https://hanke.fi" in params
+
     def test_poista_tutkimus_tekee_delete(self, mock_yhteys):
         yht, kursori = mock_yhteys
         mallit.poista_tutkimus(1)
