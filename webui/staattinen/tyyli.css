@@ -222,6 +222,16 @@ td.perustelu {
 .tutkimus-nimi-solu { cursor: pointer; }
 .tutkimus-nimi-solu:hover { text-decoration: underline; color: #16213e; }
 
+/* Oppiainerajaus voi olla pitkä lista — rajaa leveys, katkaise ellipsillä,
+   koko sisältö näkyy hover-title:ssä. */
+.tutkimus-oppiaine-solu {
+  max-width: 320px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: help;
+}
+
 .vuosivalinta {
   padding: 0.1rem 0.3rem;
   font-size: 0.85rem;
