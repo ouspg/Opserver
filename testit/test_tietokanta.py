@@ -198,20 +198,43 @@ class TestTutkimuksenKorkeakoulut:
 
 
 class TestOppiaineet:
-    def test_pilkkoo_dedupoi_ja_jarjestaa(self, mock_yhteys):
+    def test_pilkkoo_dedupoi_ja_jarjestaa_peppi(self, mock_yhteys):
         yht, kursori = mock_yhteys
         kursori.fetchall.return_value = [
-            ("Tietotekniikka, Fysiikka",),
-            ("Arkeologia, Kulttuuriantropologia",),
-            ("Fysiikka",),          # duplikaatti
-            ("",),                  # tyhjä → ohitetaan
-            (None,),                # NULL → ohitetaan
+            ("Tietotekniikka, Fysiikka", "Peppi"),
+            ("Arkeologia, Kulttuuriantropologia", "Peppi"),
+            ("Fysiikka", "Peppi"),      # duplikaatti
+            ("", "Peppi"),              # tyhjä → ohitetaan
+            (None, "Peppi"),            # NULL → ohitetaan
         ]
         tulos = mallit.hae_oppiaineet([1, 2])
         assert tulos == ["Arkeologia", "Fysiikka", "Kulttuuriantropologia", "Tietotekniikka"]
         sql, params = kursori.execute.call_args[0]
         assert "IN (%s,%s)" in sql and "KKID" in sql
         assert list(params) == [1, 2]
+
+    def test_ei_pilko_sisun_oppiaineita(self, mock_yhteys):
+        """Sisussa pilkku on osa nimeä (esim. 'LBS, Kauppatiede') — ei pilkota."""
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = [
+            ("LBS, Kauppatiede", "Sisu"),
+            ("Master's Programme in Russian, Eurasian and Eastern European Studies", "Sisu"),
+            ("LBS, Kauppatiede", "Sisu"),  # duplikaatti
+        ]
+        tulos = mallit.hae_oppiaineet([4])
+        assert tulos == [
+            "LBS, Kauppatiede",
+            "Master's Programme in Russian, Eurasian and Eastern European Studies",
+        ]
+
+    def test_sekalahteet_pilkkoo_vain_pepin(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = [
+            ("Hoitotiede, Terveyshallintotiede", "Peppi"),
+            ("LENS, Tietotekniikka", "Sisu"),
+        ]
+        tulos = mallit.hae_oppiaineet([1, 4])
+        assert tulos == ["Hoitotiede", "LENS, Tietotekniikka", "Terveyshallintotiede"]
 
     def test_tyhja_kkid_lista_ei_kysele(self, mock_yhteys):
         yht, kursori = mock_yhteys

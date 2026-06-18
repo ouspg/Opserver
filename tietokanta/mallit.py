@@ -238,8 +238,11 @@ def hae_tutkimuksen_korkeakoulut(tid: int) -> list[int]:
 def hae_oppiaineet(kkid_lista: list[int]) -> list[str]:
     """Annetuissa korkeakouluissa esiintyvät yksittäiset oppiaineet, aakkosjärjestyksessä.
 
-    Kurssin Oppiaine-kenttä voi listata useita oppiaineita pilkulla eroteltuna;
-    ne pilkotaan yksittäisiksi oppiaineiksi, joista palautetaan uniikit lajiteltuina.
+    Pilkun merkitys riippuu lähdejärjestelmästä:
+    - Peppissä Oppiaine-kenttä voi listata useita oppiaineita pilkulla eroteltuna
+      (esim. "Hoitotiede, Terveyshallintotiede") → pilkotaan yksittäisiksi.
+    - Sisussa pilkku on osa yhden vastuuorganisaation/ohjelman nimeä
+      (esim. "LBS, Kauppatiede") → arvoa ei pilkota.
     """
     if not kkid_lista:
         return []
@@ -247,14 +250,17 @@ def hae_oppiaineet(kkid_lista: list[int]) -> list[str]:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                f"SELECT DISTINCT Oppiaine FROM Kurssi WHERE KKID IN ({paikat})",
+                f"""SELECT DISTINCT k.Oppiaine, kk.OpsTyyppi
+                    FROM Kurssi k JOIN Korkeakoulu kk ON k.KKID = kk.KKID
+                    WHERE k.KKID IN ({paikat})""",
                 tuple(kkid_lista),
             )
             oppiaineet: set[str] = set()
-            for (arvo,) in kursori.fetchall():
+            for arvo, opstyyppi in kursori.fetchall():
                 if not arvo:
                     continue
-                for osa in arvo.split(","):
+                osat = arvo.split(",") if opstyyppi == "Peppi" else [arvo]
+                for osa in osat:
                     osa = osa.strip()
                     if osa:
                         oppiaineet.add(osa)
