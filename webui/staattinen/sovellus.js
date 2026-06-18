@@ -347,6 +347,13 @@ async function renderTutkimusKonteksti(slug, alasivu) {
   }
 }
 
+function verkkosivuLinkki(url) {
+  if (!url) return "—";
+  return /^https?:\/\//i.test(url)
+    ? `<a href="${url}" target="_blank" rel="noopener" class="ops-linkki">🌐 ${url}</a>`
+    : url;
+}
+
 function renderTutkimusTiedot(t) {
   const kysymysLista = (t.Kysymykset && t.Kysymykset.length > 0)
     ? `<ol>${t.Kysymykset.map((k) => `<li>${k.Kysymys}</li>`).join("")}</ol>`
@@ -355,6 +362,7 @@ function renderTutkimusTiedot(t) {
     <h2>${t.LuokittelunNimi}</h2>
     <table class="modaali-meta">
       <tr><th>Slug</th><td>${t.Slug}</td></tr>
+      <tr><th>Verkkosivu</th><td>${verkkosivuLinkki(t.Verkkosivu)}</td></tr>
       <tr><th>Tasorajaus</th><td>${t.Tasorajaus || "—"}</td></tr>
       <tr><th>Oppiainerajaus</th><td>${t.Oppiainerajaus || "—"}</td></tr>
     </table>

@@ -107,22 +107,23 @@ def _lisaa(stdscr) -> None:
     if not _validoi_lukuvuosi(lukuvuosi):
         nayta_viesti(stdscr, "Peruutettu (lukuvuosi pakollinen, muoto YYYY-YYYY).")
         return
-    luokittelukehote = lue_teksti(stdscr, "Valintakehote", 6)
+    verkkosivu = lue_teksti(stdscr, "Verkkosivu (URL, tyhjä = ei)", 6)
+    luokittelukehote = lue_teksti(stdscr, "Valintakehote", 7)
     if not luokittelukehote:
         nayta_viesti(stdscr, "Peruutettu (valintakehote pakollinen).")
         return
-    arviointikehote = lue_teksti(stdscr, "Arviointikehote", 7)
+    arviointikehote = lue_teksti(stdscr, "Arviointikehote", 8)
     if not arviointikehote:
         nayta_viesti(stdscr, "Peruutettu (arviointikehote pakollinen).")
         return
-    raportointikehote = lue_teksti(stdscr, "Raportointikehote (tyhjä = ei)", 8)
+    raportointikehote = lue_teksti(stdscr, "Raportointikehote (tyhjä = ei)", 9)
     tasorajaus = _valitse_tasot(stdscr)
     korkeakoulut = _valitse_korkeakoulut(stdscr)
     if not korkeakoulut:
         nayta_viesti(stdscr, "Peruutettu (valitse vähintään yksi korkeakoulu).")
         return
     oppiainerajaus = _valitse_oppiaineet(stdscr, korkeakoulut)
-    tid = mallit.lisaa_tutkimus(nimi, slug, lukuvuosi, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote)
+    tid = mallit.lisaa_tutkimus(nimi, slug, lukuvuosi, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote, verkkosivu=verkkosivu)
     mallit.aseta_tutkimuksen_korkeakoulut(tid, korkeakoulut)
     piirra_otsikko(stdscr, "Lisää tutkimus")
     nayta_viesti(stdscr, f"Lisätty: {nimi} ({slug})")
@@ -142,16 +143,17 @@ def _muokkaa(stdscr) -> None:
     if not _validoi_lukuvuosi(lukuvuosi):
         nayta_viesti(stdscr, "Peruutettu (lukuvuosi pakollinen, muoto YYYY-YYYY).")
         return
-    luokittelukehote = lue_teksti(stdscr, "Valintakehote", 6, tutkimus["Luokittelukehote"])
-    arviointikehote = lue_teksti(stdscr, "Arviointikehote", 7, tutkimus["Arviointikehote"])
-    raportointikehote = lue_teksti(stdscr, "Raportointikehote", 8, tutkimus.get("Raportointikehote") or "")
+    verkkosivu = lue_teksti(stdscr, "Verkkosivu (URL, tyhjä = ei)", 6, tutkimus.get("Verkkosivu") or "")
+    luokittelukehote = lue_teksti(stdscr, "Valintakehote", 7, tutkimus["Luokittelukehote"])
+    arviointikehote = lue_teksti(stdscr, "Arviointikehote", 8, tutkimus["Arviointikehote"])
+    raportointikehote = lue_teksti(stdscr, "Raportointikehote", 9, tutkimus.get("Raportointikehote") or "")
     tasorajaus = _valitse_tasot(stdscr, tutkimus["Tasorajaus"] or "")
     korkeakoulut = _valitse_korkeakoulut(stdscr, mallit.hae_tutkimuksen_korkeakoulut(tutkimus["TID"]))
     if not korkeakoulut:
         nayta_viesti(stdscr, "Peruutettu (valitse vähintään yksi korkeakoulu).")
         return
     oppiainerajaus = _valitse_oppiaineet(stdscr, korkeakoulut, tutkimus["Oppiainerajaus"] or "")
-    mallit.paivita_tutkimus(tutkimus["TID"], nimi, slug, lukuvuosi, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote)
+    mallit.paivita_tutkimus(tutkimus["TID"], nimi, slug, lukuvuosi, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote, verkkosivu=verkkosivu)
     mallit.aseta_tutkimuksen_korkeakoulut(tutkimus["TID"], korkeakoulut)
     piirra_otsikko(stdscr, "Muokkaa tutkimusta")
     nayta_viesti(stdscr, f"Päivitetty: {nimi}")
