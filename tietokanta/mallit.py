@@ -215,6 +215,32 @@ def hae_tutkimuksen_korkeakoulut(tid: int) -> list[int]:
             return [r[0] for r in kursori.fetchall()]
 
 
+def hae_oppiaineet(kkid_lista: list[int]) -> list[str]:
+    """Annetuissa korkeakouluissa esiintyvät yksittäiset oppiaineet, aakkosjärjestyksessä.
+
+    Kurssin Oppiaine-kenttä voi listata useita oppiaineita pilkulla eroteltuna;
+    ne pilkotaan yksittäisiksi oppiaineiksi, joista palautetaan uniikit lajiteltuina.
+    """
+    if not kkid_lista:
+        return []
+    paikat = ",".join(["%s"] * len(kkid_lista))
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                f"SELECT DISTINCT Oppiaine FROM Kurssi WHERE KKID IN ({paikat})",
+                tuple(kkid_lista),
+            )
+            oppiaineet: set[str] = set()
+            for (arvo,) in kursori.fetchall():
+                if not arvo:
+                    continue
+                for osa in arvo.split(","):
+                    osa = osa.strip()
+                    if osa:
+                        oppiaineet.add(osa)
+    return sorted(oppiaineet, key=str.casefold)
+
+
 # --- Kysymykset ---
 
 def lisaa_kysymys(tid: int, kysymys: str, luokittelu: str = "vapaa_teksti",

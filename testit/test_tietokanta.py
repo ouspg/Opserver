@@ -156,6 +156,28 @@ class TestTutkimuksenKorkeakoulut:
         assert mallit.hae_tutkimuksen_korkeakoulut(1) == [2, 3]
 
 
+class TestOppiaineet:
+    def test_pilkkoo_dedupoi_ja_jarjestaa(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = [
+            ("Tietotekniikka, Fysiikka",),
+            ("Arkeologia, Kulttuuriantropologia",),
+            ("Fysiikka",),          # duplikaatti
+            ("",),                  # tyhjä → ohitetaan
+            (None,),                # NULL → ohitetaan
+        ]
+        tulos = mallit.hae_oppiaineet([1, 2])
+        assert tulos == ["Arkeologia", "Fysiikka", "Kulttuuriantropologia", "Tietotekniikka"]
+        sql, params = kursori.execute.call_args[0]
+        assert "IN (%s,%s)" in sql and "KKID" in sql
+        assert list(params) == [1, 2]
+
+    def test_tyhja_kkid_lista_ei_kysele(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        assert mallit.hae_oppiaineet([]) == []
+        kursori.execute.assert_not_called()
+
+
 class TestKysymykset:
     def test_lisaa_kysymys_palauttaa_id(self, mock_yhteys):
         yht, kursori = mock_yhteys

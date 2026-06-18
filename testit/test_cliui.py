@@ -95,3 +95,13 @@ def test_valitse_monivalinta_on_olemassa():
     params = inspect.signature(valitse_monivalinta).parameters
     assert "vaihtoehdot" in params
     assert "valitut" in params
+
+
+def test_valitse_monivalinta_ei_kirjoita_ruudun_ulkopuolelle_pitkalla_listalla():
+    import curses
+    from cliui.apurit import valitse_monivalinta
+    vaihtoehdot = [f"{i:03d} " + "x" * 120 for i in range(300)]  # pitkä JA leveä lista
+    # Liiku 200 alas, valitse (Space) ja vahvista (Enter) — ei saa kaatua
+    nappaimet = [curses.KEY_DOWN] * 200 + [ord(" "), 10]
+    scr = _FakeScr(korkeus=24, leveys=80, nappaimet=nappaimet)
+    assert valitse_monivalinta(scr, "Otsikko", vaihtoehdot) == [vaihtoehdot[200]]

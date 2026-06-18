@@ -163,27 +163,44 @@ def valitse_monivalinta(stdscr, otsikko: str, vaihtoehdot: list[str],
     Palauttaa valittujen arvojen listan tai None jos peruutettu.
     """
     aktiivinen = 0
+    n = len(vaihtoehdot)
     valinta_joukko = set(valitut or [])
 
     while True:
         piirra_otsikko(stdscr, otsikko)
-        for i, teksti in enumerate(vaihtoehdot):
-            merkki = "[x]" if teksti in valinta_joukko else "[ ]"
+        korkeus, leveys = stdscr.getmaxyx()
+
+        # Vieritysnäkymä: kuinka monta riviä mahtuu (ohje + reunavara varattu)
+        nakyvat = max(1, korkeus - 3 - 2)
+        if n > nakyvat:
+            offset = min(max(0, aktiivinen - nakyvat // 2), n - nakyvat)
+        else:
+            offset = 0
+        loppu = min(offset + nakyvat, n)
+
+        for rivi_idx, i in enumerate(range(offset, loppu)):
+            merkki = "[x]" if vaihtoehdot[i] in valinta_joukko else "[ ]"
             tyyli = curses.A_REVERSE if i == aktiivinen else curses.A_NORMAL
-            stdscr.addstr(3 + i, 0, f"{merkki} {teksti}", tyyli)
-        ohje_rivi = 3 + max(len(vaihtoehdot), 1) + 1
-        stdscr.addstr(ohje_rivi, 0, "↑/↓ liiku · Space valitse · Enter vahvista · q takaisin")
+            stdscr.addstr(3 + rivi_idx, 0, f"{merkki} {vaihtoehdot[i]}"[:leveys - 1], tyyli)
+
+        ohje = "↑/↓ liiku · Space valitse · Enter vahvista · q takaisin"
+        if n > nakyvat:
+            ohje += f"   [{aktiivinen + 1}/{n}]"
+        ohje_rivi = min(3 + max(loppu - offset, 1), korkeus - 1)
+        stdscr.addstr(ohje_rivi, 0, ohje[:leveys - 1])
+
         nappain = stdscr.getch()
         if nappain in (curses.KEY_UP, ord("k")):
-            aktiivinen = (aktiivinen - 1) % max(len(vaihtoehdot), 1)
+            aktiivinen = (aktiivinen - 1) % max(n, 1)
         elif nappain in (curses.KEY_DOWN, ord("j")):
-            aktiivinen = (aktiivinen + 1) % max(len(vaihtoehdot), 1)
+            aktiivinen = (aktiivinen + 1) % max(n, 1)
         elif nappain == ord(" "):
-            kohde = vaihtoehdot[aktiivinen]
-            if kohde in valinta_joukko:
-                valinta_joukko.discard(kohde)
-            else:
-                valinta_joukko.add(kohde)
+            if vaihtoehdot:
+                kohde = vaihtoehdot[aktiivinen]
+                if kohde in valinta_joukko:
+                    valinta_joukko.discard(kohde)
+                else:
+                    valinta_joukko.add(kohde)
         elif nappain in (curses.KEY_ENTER, 10, 13):
             return [v for v in vaihtoehdot if v in valinta_joukko]
         elif nappain in (ord("q"), 27):
