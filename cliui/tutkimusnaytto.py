@@ -1,4 +1,5 @@
 """Tutkimusten hallintanäkymä: listaa, lisää, muokkaa ja poista."""
+import os
 import re
 
 from tietokanta import mallit
@@ -7,6 +8,11 @@ from cliui.apurit import piirra_otsikko, nayta_viesti, lue_teksti, valitse_lista
 
 _SLUG_KAAVA = re.compile(r'^[a-z0-9][a-z0-9_-]*$')
 _LUKUVUOSI_KAAVA = re.compile(r'^\d{4}-\d{4}$')
+
+
+def _webui_osoite() -> str:
+    """WebUI:n perusosoite ilman loppukauttaviivaa (konfiguroitavissa .env:ssä)."""
+    return os.getenv("WEBUI_OSOITE", "http://localhost:12121").rstrip("/")
 
 
 def _validoi_lukuvuosi(lukuvuosi: str) -> bool:
@@ -208,8 +214,24 @@ def _listaa(stdscr) -> None:
     if not tutkimukset:
         nayta_viesti(stdscr, "Ei tutkimuksia tietokannassa.")
         return
-    for i, t in enumerate(tutkimukset):
-        rajaus = f"{t['Tasorajaus'] or '—'} / {t['Oppiainerajaus'] or '—'}"
+    korkeus, leveys = stdscr.getmaxyx()
+    osoite = _webui_osoite()
+    rivi = 3
+    for t in tutkimukset:
         lukuvuosi = t.get("Lukuvuosi") or "—"
-        stdscr.addstr(3 + i, 0, f"{t['LuokittelunNimi']} ({t['Slug']}) · {lukuvuosi} · {rajaus}")
+        rivit = [
+            f"{t['LuokittelunNimi']} ({t['Slug']}) · {lukuvuosi}",
+            f"  WebUI: {osoite}/tutkimukset/{t['Slug']}",
+        ]
+        verkkosivu = (t.get("Verkkosivu") or "").strip()
+        if verkkosivu:
+            rivit.append(f"  Verkkosivu: {verkkosivu}")
+        for teksti in rivit:
+            if rivi >= korkeus - 2:  # jätä tila viestiriville
+                break
+            stdscr.addstr(rivi, 0, teksti[:leveys - 1])  # rajaa, ettei rivi rivity/ylivuoda
+            rivi += 1
+        rivi += 1  # tyhjä rivi tutkimusten väliin
+        if rivi >= korkeus - 2:
+            break
     nayta_viesti(stdscr, "")
