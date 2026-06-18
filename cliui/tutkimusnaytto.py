@@ -65,7 +65,7 @@ def nayta(stdscr) -> None:
         valinta = valitse_listasta(
             stdscr,
             "Tutkimusten hallinta",
-            ["Lisää tutkimus", "Muokkaa tutkimusta", "Poista tutkimus",
+            ["Lisää tutkimus", "Monista tutkimus", "Muokkaa tutkimusta", "Poista tutkimus",
              "Listaa tutkimukset", "Hallinnoi kysymyksiä"],
         )
         if valinta is None:
@@ -73,12 +73,14 @@ def nayta(stdscr) -> None:
         if valinta == 0:
             _lisaa(stdscr)
         elif valinta == 1:
-            _muokkaa(stdscr)
+            _monista(stdscr)
         elif valinta == 2:
-            _poista(stdscr)
+            _muokkaa(stdscr)
         elif valinta == 3:
-            _listaa(stdscr)
+            _poista(stdscr)
         elif valinta == 4:
+            _listaa(stdscr)
+        elif valinta == 5:
             _hallinnoi_kysymyksia(stdscr)
 
 
@@ -127,6 +129,27 @@ def _lisaa(stdscr) -> None:
     mallit.aseta_tutkimuksen_korkeakoulut(tid, korkeakoulut)
     piirra_otsikko(stdscr, "Lisää tutkimus")
     nayta_viesti(stdscr, f"Lisätty: {nimi} ({slug})")
+
+
+def _monista(stdscr) -> None:
+    tutkimus = _valitse_tutkimus(stdscr, "Monista tutkimus — valitse lähde")
+    if tutkimus is None:
+        return
+    piirra_otsikko(stdscr, f"Monista: {tutkimus['LuokittelunNimi']}")
+    nimi = lue_teksti(stdscr, "Uuden tutkimuksen nimi", 3, f"{tutkimus['LuokittelunNimi']} (kopio)")
+    if not nimi:
+        nayta_viesti(stdscr, "Peruutettu (nimi pakollinen).")
+        return
+    slug = lue_teksti(stdscr, "Uusi slug (a-z, 0-9, - ja _)", 4)
+    if not slug or not _validoi_slug(slug):
+        nayta_viesti(stdscr, "Peruutettu (slug pakollinen, vain: a-z 0-9 - _).")
+        return
+    if mallit.hae_tutkimus_slugilla(slug):
+        nayta_viesti(stdscr, f"Peruutettu (slug '{slug}' on jo käytössä).")
+        return
+    mallit.monista_tutkimus(tutkimus["TID"], nimi, slug)
+    piirra_otsikko(stdscr, "Monista tutkimus")
+    nayta_viesti(stdscr, f"Monistettu: {nimi} ({slug}). Vaihda arvot Muokkaa-toiminnolla.")
 
 
 def _muokkaa(stdscr) -> None:

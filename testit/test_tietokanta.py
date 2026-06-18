@@ -158,6 +158,30 @@ class TestTutkimus:
         sql = kursori.execute.call_args[0][0]
         assert "DELETE" in sql.upper()
 
+    def test_monista_tutkimus_kopioi_maarittelyn(self):
+        lahde = {"TID": 1, "LuokittelunNimi": "Alkup", "Slug": "alkup", "Lukuvuosi": "2024-2025",
+                 "Verkkosivu": "https://x", "Luokittelukehote": "lk", "Tasorajaus": "aine",
+                 "Oppiainerajaus": "Tieto", "Arviointikehote": "ak", "Raportointikehote": "rk"}
+        kysymykset = [
+            {"Kysymys": "K1", "Luokittelu": "vapaa_teksti", "LuokitteluMaarittely": None},
+            {"Kysymys": "K2", "Luokittelu": "asteikko", "LuokitteluMaarittely": {"min": 1}},
+        ]
+        with patch("tietokanta.mallit.hae_tutkimus", return_value=lahde), \
+             patch("tietokanta.mallit.hae_tutkimuksen_korkeakoulut", return_value=[2, 3]), \
+             patch("tietokanta.mallit.hae_kysymykset", return_value=kysymykset), \
+             patch("tietokanta.mallit.lisaa_tutkimus", return_value=9) as lisaa, \
+             patch("tietokanta.mallit.aseta_tutkimuksen_korkeakoulut") as aseta_kk, \
+             patch("tietokanta.mallit.lisaa_kysymys") as lisaa_kys:
+            uusi = mallit.monista_tutkimus(1, "Kopio", "kopio")
+        assert uusi == 9
+        # määrittely kopioidaan, nimi+slug uudet
+        lisaa.assert_called_once_with("Kopio", "kopio", "2024-2025", "lk", "aine", "Tieto", "ak", "rk", "https://x")
+        aseta_kk.assert_called_once_with(9, [2, 3])
+        # kysymykset kopioidaan uudelle tutkimukselle
+        assert lisaa_kys.call_count == 2
+        lisaa_kys.assert_any_call(9, "K1", "vapaa_teksti", None)
+        lisaa_kys.assert_any_call(9, "K2", "asteikko", {"min": 1})
+
 
 class TestTutkimuksenKorkeakoulut:
     def test_aseta_korvaa_valinnan(self, mock_yhteys):

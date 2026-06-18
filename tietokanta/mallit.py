@@ -191,6 +191,26 @@ def poista_tutkimus(tid: int) -> None:
             kursori.execute("DELETE FROM Tutkimus WHERE TID = %s", (tid,))
 
 
+def monista_tutkimus(lahde_tid: int, uusi_nimi: str, uusi_slug: str) -> int:
+    """Luo uuden tutkimuksen kopioimalla lähteen määrittelyn (kehotteet, rajaukset,
+    lukuvuosi, verkkosivu, valitut korkeakoulut ja arviointikysymykset).
+
+    Tuloksia (luokitukset, vastaukset, arvioinnit, raportti) ei kopioida — kopio on
+    tuore tutkimus ajettavaksi. Nimi ja slug annetaan uusina.
+    """
+    lahde = hae_tutkimus(lahde_tid)
+    uusi_tid = lisaa_tutkimus(
+        uusi_nimi, uusi_slug, lahde["Lukuvuosi"], lahde["Luokittelukehote"],
+        lahde["Tasorajaus"], lahde["Oppiainerajaus"], lahde["Arviointikehote"],
+        lahde.get("Raportointikehote") or "", lahde.get("Verkkosivu") or "",
+    )
+    aseta_tutkimuksen_korkeakoulut(uusi_tid, hae_tutkimuksen_korkeakoulut(lahde_tid))
+    for kysymys in hae_kysymykset(lahde_tid):
+        lisaa_kysymys(uusi_tid, kysymys["Kysymys"], kysymys["Luokittelu"],
+                      kysymys.get("LuokitteluMaarittely"))
+    return uusi_tid
+
+
 # --- Tutkimuksen korkeakoulut ---
 
 def aseta_tutkimuksen_korkeakoulut(tid: int, kkid_lista: list[int]) -> None:
