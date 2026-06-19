@@ -74,13 +74,25 @@ def tallenna_kurssi(kkid: int, lahde_id: str, koodi: str, kurssi_nimi: str,
             return kursori.lastrowid
 
 
+# Listanäkymän kentät — EI raskasta OpsKuvaus-blobia (koko aineistossa ~248 MB,
+# joka muuten luettaisiin turhaan jokaiseen listahakuun).
+_KURSSI_LISTA_SARAKKEET = (
+    "KID, KKID, LahdeId, Koodi, KurssiNimi, Taso, Oppiaine, Opintopisteet, Opetusvuosi"
+)
+
+
 def hae_kurssit(kkid: int | None = None) -> list[dict]:
     with yhteys() as yht:
         with yht.cursor() as kursori:
             if kkid is not None:
-                kursori.execute("SELECT * FROM Kurssi WHERE KKID = %s ORDER BY KurssiNimi", (kkid,))
+                kursori.execute(
+                    f"SELECT {_KURSSI_LISTA_SARAKKEET} FROM Kurssi WHERE KKID = %s ORDER BY KurssiNimi",
+                    (kkid,),
+                )
             else:
-                kursori.execute("SELECT * FROM Kurssi ORDER BY KurssiNimi")
+                kursori.execute(
+                    f"SELECT {_KURSSI_LISTA_SARAKKEET} FROM Kurssi ORDER BY KurssiNimi"
+                )
             return _rivit_dikteina(kursori)
 
 

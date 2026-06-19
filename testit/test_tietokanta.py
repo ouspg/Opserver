@@ -92,6 +92,16 @@ class TestKurssi:
         sql, params = kursori.execute.call_args[0]
         assert "KKID" in sql
         assert 2 in params
+        # Listanäkymä ei tarvitse raskasta OpsKuvaus-kenttää (248 MB koko aineistossa)
+        assert "OpsKuvaus" not in sql
+
+    def test_hae_kurssit_ei_hae_opskuvausta(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        mallit.hae_kurssit()
+        sql = kursori.execute.call_args[0][0]
+        assert "OpsKuvaus" not in sql and "SELECT *" not in sql
 
     def test_hae_kurssi_palauttaa_yhden(self, mock_yhteys):
         yht, kursori = mock_yhteys
