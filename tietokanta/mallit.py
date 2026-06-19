@@ -493,35 +493,83 @@ def hae_luokittelemattomat(tid: int, tiiviste: str | None = None) -> list[dict]:
             return _rivit_dikteina(kursori)
 
 
-def hae_kurssit_luokituksilla(tid: int) -> list[dict]:
-    """Tutkimuksen kurssit luokitustiloineen — rajattuna tutkimuksen valittuihin
-    korkeakouluihin ja lukuvuoteen.
+# Vuosirajaus SQL:ssä (sivutuksen vuoksi): peilaa luokittelu/lukuvuosi.kattaa-logiikkaa.
+# Kurssin OPS-kausi "YYYY-YYYY"/"YYYY-YY" kattaa lukuvuoden [alku,loppu] kun
+# ops_alku <= alku JA ops_loppu >= loppu. (Vuosisadan ylitys YYYY-YY:ssä jätetty
+# huomiotta — ei esiinny todellisissa lyhyissä OPS-kausissa.)
+_OPS_ALKU_SQL = "CAST(SUBSTRING_INDEX(k.Opetusvuosi, '-', 1) AS UNSIGNED)"
+_OPS_LOPPU_SQL = (
+    "(CASE WHEN CHAR_LENGTH(SUBSTRING_INDEX(k.Opetusvuosi, '-', -1)) = 4 "
+    "      THEN CAST(SUBSTRING_INDEX(k.Opetusvuosi, '-', -1) AS UNSIGNED) "
+    f"     ELSE {_OPS_ALKU_SQL} DIV 100 * 100 + CAST(SUBSTRING_INDEX(k.Opetusvuosi, '-', -1) AS UNSIGNED) END)"
+)
+# Tila-välilehden ehto Kurssiluokitus.Mukana-arvosta.
+_TILA_EHTO = {"mukana": "kl.Mukana = 1", "odottaa": "kl.Mukana IS NULL", "hylätty": "kl.Mukana = 0"}
 
-    Lukuvuosi on kova rajaus: vain kurssit, joiden OPS-kausi kattaa tutkimuksen
-    lukuvuoden, ovat mukana. Näin esim. "Odottaa"-tilaan (Mukana=NULL) eivät
-    päädy väärän vuoden tai muiden korkeakoulujen kurssit.
-    """
+
+def _tutkimus_kurssi_scope(tid: int) -> tuple[str | None, list]:
+    """SQL-WHERE + parametrit jotka rajaavat Kurssi-rivit tutkimuksen korkeakouluihin
+    ja lukuvuoteen (OPS-kausi kattaa lukuvuoden). (None, None) jos rajaus puuttuu."""
     tutkimus = hae_tutkimus(tid)
-    lukuvuosi = (tutkimus or {}).get("Lukuvuosi")
     korkeakoulut = hae_tutkimuksen_korkeakoulut(tid)
-    if not korkeakoulut:
-        return []
+    lukuvuosi = (tutkimus or {}).get("Lukuvuosi")
+    if not korkeakoulut or not lukuvuosi:
+        return None, None
+    alku, loppu = lv._parsi_vuodet(lukuvuosi)
     paikat = ",".join(["%s"] * len(korkeakoulut))
+    where = f"k.KKID IN ({paikat}) AND {_OPS_ALKU_SQL} <= %s AND {_OPS_LOPPU_SQL} >= %s"
+    return where, [*korkeakoulut, alku, loppu]
+
+
+def hae_tutkimuksen_tilamaarat(tid: int) -> dict:
+    """Tutkimuksen kurssimäärät tiloittain (mukana/odottaa/hylätty), rajattuna
+    korkeakouluihin ja lukuvuoteen. Kevyt COUNT — välilehtien lukuihin."""
+    maarat = {"mukana": 0, "odottaa": 0, "hylätty": 0}
+    where, params = _tutkimus_kurssi_scope(tid)
+    if where is None:
+        return maarat
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute(f"""
-                SELECT k.KID, k.KKID, k.LahdeId, k.KurssiNimi, k.Koodi, k.Taso, k.Oppiaine,
-                       k.Opintopisteet, k.Opetusvuosi,
-                       kl.Mukana, kl.Luokitteluperuste
-                FROM Kurssi k
-                LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
-                WHERE k.KKID IN ({paikat})
-                ORDER BY k.KurssiNimi
-            """, (tid, *korkeakoulut))
-            rivit = _rivit_dikteina(kursori)
-    if lukuvuosi:
-        rivit = [r for r in rivit if _kattaa_turvallinen(r.get("Opetusvuosi"), lukuvuosi)]
-    return rivit
+            kursori.execute(
+                f"SELECT kl.Mukana, COUNT(*) FROM Kurssi k "
+                f"LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s "
+                f"WHERE {where} GROUP BY kl.Mukana",
+                (tid, *params),
+            )
+            for mukana, n in kursori.fetchall():
+                if mukana is None:
+                    maarat["odottaa"] = n
+                elif mukana == 1:
+                    maarat["mukana"] = n
+                else:
+                    maarat["hylätty"] = n
+    return maarat
+
+
+def hae_kurssit_luokituksilla(tid: int, tila: str | None = None,
+                              sivu: int = 0, koko: int | None = None) -> list[dict]:
+    """Tutkimuksen kurssit luokitustiloineen — rajattuna korkeakouluihin ja
+    lukuvuoteen. Valinnainen tila-välilehti (mukana/odottaa/hylätty) ja sivutus
+    (koko=None palauttaa kaikki). Lukuvuosi on kova rajaus.
+    """
+    where, params = _tutkimus_kurssi_scope(tid)
+    if where is None:
+        return []
+    tila_sql = f" AND {_TILA_EHTO[tila]}" if tila in _TILA_EHTO else ""
+    raja_sql, raja_params = "", []
+    if koko:
+        raja_sql = " LIMIT %s OFFSET %s"
+        raja_params = [koko, max(0, sivu) * koko]
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                f"SELECT k.KID, k.KKID, k.LahdeId, k.KurssiNimi, k.Koodi, k.Taso, k.Oppiaine, "
+                f"k.Opintopisteet, k.Opetusvuosi, kl.Mukana, kl.Luokitteluperuste "
+                f"FROM Kurssi k LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s "
+                f"WHERE {where}{tila_sql} ORDER BY k.KurssiNimi{raja_sql}",
+                (tid, *params, *raja_params),
+            )
+            return _rivit_dikteina(kursori)
 
 
 def hae_hitl_historia(tid: int) -> list[dict]:

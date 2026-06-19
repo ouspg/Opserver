@@ -240,13 +240,22 @@ def api_tutkimus_kurssit(slug: str) -> list[dict]:
     return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
 
 
+@sovellus.get("/api/tutkimukset/{slug}/luokitukset/maarat")
+def api_tutkimus_luokitukset_maarat(slug: str) -> dict:
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    return mallit.hae_tutkimuksen_tilamaarat(tutkimus["TID"])
+
+
 @sovellus.get("/api/tutkimukset/{slug}/luokitukset")
-def api_tutkimus_luokitukset(slug: str) -> list[dict]:
+def api_tutkimus_luokitukset(slug: str, tila: Optional[str] = None,
+                             sivu: int = 0, koko: int = 200) -> list[dict]:
     tutkimus = mallit.hae_tutkimus_slugilla(slug)
     if tutkimus is None:
         raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     tid = tutkimus["TID"]
-    rivit = mallit.hae_kurssit_luokituksilla(tid)
+    rivit = mallit.hae_kurssit_luokituksilla(tid, tila=tila, sivu=sivu, koko=koko)
 
     # Ryhmittele HITL-historia kursseittain (vanhimmasta uusimpaan)
     historia: dict[int, list[dict]] = {}
