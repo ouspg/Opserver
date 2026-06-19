@@ -212,6 +212,11 @@ def api_lukuvuodet() -> list[str]:
     return mallit.hae_lukuvuodet()
 
 
+@sovellus.get("/api/tasot")
+def api_tasot(kkid: Optional[int] = None, lukuvuosi: Optional[str] = None) -> list[str]:
+    return mallit.hae_tasot(kkid=kkid, lukuvuosi=lukuvuosi)
+
+
 @sovellus.get("/api/kurssit")
 def api_kurssit(kkid: Optional[int] = None, lukuvuosi: Optional[str] = None) -> list[dict]:
     rivit = mallit.hae_kurssit(kkid=kkid, lukuvuosi=lukuvuosi)

@@ -230,12 +230,28 @@ async function taytaLukuvuodet() {
   // Lista on uusin-ensin, joten ensimmäinen optio (oletusvalinta) on viimeisin vuosi
 }
 
+// Täytä taso-suodatin senhetkisen lukuvuoden + yliopiston mukaan (säilytä valinta)
+async function taytaTasot(lukuvuosi, kkid) {
+  const sel = document.getElementById("suodatin-taso");
+  const valittu = sel.value;
+  const params = new URLSearchParams();
+  if (lukuvuosi) params.set("lukuvuosi", lukuvuosi);
+  if (kkid) params.set("kkid", kkid);
+  const tasot = await fetch(`/api/tasot?${params}`).then((r) => r.json());
+  // Näytä raa'at arvot sellaisinaan: kannassa on rinnakkaisia muotoja
+  // ("aine" ja "Aineopinnot"), eikä TASO_SUOMI-mappaus saa piilottaa niitä.
+  sel.innerHTML = '<option value="">Kaikki tasot</option>'
+    + tasot.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+  if (valittu && tasot.includes(valittu)) sel.value = valittu;  // säilytä jos yhä tarjolla
+}
+
 async function lataaKurssit() {
   const sel = document.getElementById("suodatin-lukuvuosi");
   if (!sel.options.length) await taytaLukuvuodet();
+  const kkid = document.getElementById("suodatin-koulu").value;
+  await taytaTasot(sel.value, kkid);
   const params = new URLSearchParams();
   if (sel.value) params.set("lukuvuosi", sel.value);
-  const kkid = document.getElementById("suodatin-koulu").value;
   if (kkid) params.set("kkid", kkid);
   const kysely = params.toString();
   kaikki_kurssit = await fetch("/api/kurssit" + (kysely ? `?${kysely}` : "")).then((r) => r.json());
