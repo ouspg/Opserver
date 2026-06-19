@@ -84,6 +84,25 @@ def hae_kurssit(kkid: int | None = None) -> list[dict]:
             return _rivit_dikteina(kursori)
 
 
+def hae_kurssimaarat_kouluittain() -> dict[int, list[dict]]:
+    """Kurssimäärät korkeakoulu- ja opetusvuosi-kohtaisesti.
+
+    Palauttaa {KKID: [{"Opetusvuosi": "2025-2026", "lkm": 2435}, ...]}.
+    """
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute("""
+                SELECT KKID, Opetusvuosi, COUNT(*)
+                FROM Kurssi
+                WHERE Opetusvuosi IS NOT NULL AND Opetusvuosi != ''
+                GROUP BY KKID, Opetusvuosi
+            """)
+            tulos: dict[int, list[dict]] = {}
+            for kkid, vuosi, lkm in kursori.fetchall():
+                tulos.setdefault(kkid, []).append({"Opetusvuosi": vuosi, "lkm": lkm})
+    return tulos
+
+
 def hae_tasot() -> list[str]:
     """Palauttaa kaikki aineistossa esiintyvät Taso-arvot, yleisimmät ensin."""
     with yhteys() as yht:

@@ -197,6 +197,22 @@ class TestTutkimuksenKorkeakoulut:
         assert mallit.hae_tutkimuksen_korkeakoulut(1) == [2, 3]
 
 
+class TestKurssimaarat:
+    def test_ryhmittelee_kkid_ja_opetusvuosi(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = [
+            (1, "2025-2026", 2435),
+            (1, "2026-2027", 2522),
+            (3, "2026-27", 625),
+        ]
+        tulos = mallit.hae_kurssimaarat_kouluittain()
+        assert tulos == {
+            1: [{"Opetusvuosi": "2025-2026", "lkm": 2435},
+                {"Opetusvuosi": "2026-2027", "lkm": 2522}],
+            3: [{"Opetusvuosi": "2026-27", "lkm": 625}],
+        }
+
+
 class TestOppiaineet:
     def test_pilkkoo_dedupoi_ja_jarjestaa_peppi(self, mock_yhteys):
         yht, kursori = mock_yhteys

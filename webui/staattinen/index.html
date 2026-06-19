@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>kyberESR</title>
   <link rel="icon" href="/staattinen/favicon.ico" sizes="any">
-  <link rel="stylesheet" href="/staattinen/tyyli.css?v=24">
+  <link rel="stylesheet" href="/staattinen/tyyli.css?v=25">
 </head>
 <body>
   <header>
@@ -33,10 +33,8 @@
   <main>
     <section id="s-korkeakoulut" class="nakyma">
       <h2>Korkeakoulut</h2>
-      <table>
-        <thead>
-          <tr><th>Nimi</th><th>OPS-tyyppi</th><th>Opinto-oppaan osoite</th></tr>
-        </thead>
+      <table class="korkeakoulut-taulu">
+        <thead id="korkeakoulut-otsikko"></thead>
         <tbody id="korkeakoulut-rungot"></tbody>
       </table>
     </section>
@@ -140,7 +138,7 @@
     </div>
   </div>
 
-  <script src="/staattinen/sovellus.js?v=29"></script>
+  <script src="/staattinen/sovellus.js?v=30"></script>
   <script src="/staattinen/yhteistyo.js?v=6"></script>
   <script src="/staattinen/arviointimuokkaus.js?v=4"></script>
   <script src="/staattinen/raporttimuokkaus.js?v=1"></script>

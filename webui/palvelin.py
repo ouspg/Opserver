@@ -200,7 +200,11 @@ _KURSSI_LISTA_KENTAT = {"OpsKuvaus"}
 
 @sovellus.get("/api/korkeakoulut")
 def api_korkeakoulut() -> list[dict]:
-    return mallit.hae_korkeakoulut()
+    koulut = mallit.hae_korkeakoulut()
+    maarat = mallit.hae_kurssimaarat_kouluittain()
+    for k in koulut:
+        k["KurssitKausittain"] = maarat.get(k["KKID"], [])
+    return koulut
 
 
 @sovellus.get("/api/kurssit")
