@@ -562,6 +562,51 @@ def hae_luokitukset(tid: int, mukana: bool | None = None) -> list[dict]:
             return _rivit_dikteina(kursori)
 
 
+def hae_tutkimuksen_tilanne(tid: int) -> dict:
+    """Tutkimuksen suppilo (funnel): kuinka kurssit karsiutuvat vaihe vaiheelta.
+
+    Vuosi- ja oppilaitosrajaus ovat kovia (rajaavat ehdokasjoukon); meta- ja
+    LLM-luokitus jakavat in-scope-kurssit odottaviin/hylättyihin/hyväksyttyihin.
+    Meta- ja LLM-hylkäys erotetaan Luokitteluperusteen "meta:"-etuliitteestä.
+    """
+    tutkimus = hae_tutkimus(tid)
+    lukuvuosi = (tutkimus or {}).get("Lukuvuosi")
+    korkeakoulut = set(hae_tutkimuksen_korkeakoulut(tid))
+    kurssit = hae_kurssit()
+    kursseja_yht = len(kurssit)
+
+    vuosi_lapi = [k for k in kurssit
+                  if lukuvuosi and _kattaa_turvallinen(k.get("Opetusvuosi"), lukuvuosi)]
+    in_scope = [k for k in vuosi_lapi if k["KKID"] in korkeakoulut]
+    in_scope_kid = {k["KID"] for k in in_scope}
+
+    luok = {l["KID"]: l for l in hae_luokitukset(tid) if l["KID"] in in_scope_kid}
+    hyl_meta = hyl_llm = odottaa_llm = hyvaksytty = 0
+    for l in luok.values():
+        mukana = l.get("Mukana")
+        if mukana in (1, True):
+            hyvaksytty += 1
+        elif mukana is None:
+            odottaa_llm += 1
+        elif (l.get("Luokitteluperuste") or "").startswith("meta:"):
+            hyl_meta += 1
+        else:
+            hyl_llm += 1
+
+    return {
+        "kursseja_yht": kursseja_yht,
+        "vuosi_lapi": len(vuosi_lapi),
+        "vuosi_hyl": kursseja_yht - len(vuosi_lapi),
+        "oppilaitos_lapi": len(in_scope),
+        "oppilaitos_hyl": len(vuosi_lapi) - len(in_scope),
+        "odottaa_meta": len(in_scope) - len(luok),
+        "hyl_meta": hyl_meta,
+        "odottaa_llm": odottaa_llm,
+        "hyl_llm": hyl_llm,
+        "hyvaksytty": hyvaksytty,
+    }
+
+
 def hae_arvioimattomat(tid: int) -> list[dict]:
     """Mukaan otetut kurssit, joille ei vielä ole kaikkia ei-tyhjiä vastauksia tässä tutkimuksessa."""
     with yhteys() as yht:

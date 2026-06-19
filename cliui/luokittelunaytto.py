@@ -128,20 +128,29 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
 
 def _nayta_tilanne(stdscr, tutkimus: dict) -> None:
     tid = tutkimus["TID"]
-    luokitukset = mallit.hae_luokitukset(tid)
-    kurssit_yht = len(mallit.hae_kurssit())
-    mukana = sum(1 for l in luokitukset if l.get("Mukana") == 1)
-    hylätty = sum(1 for l in luokitukset if l.get("Mukana") == 0)
-    odottaa = kurssit_yht - len(luokitukset)
+    t = mallit.hae_tutkimuksen_tilanne(tid)
     arvioimattomat = len(mallit.hae_arvioimattomat(tid))
-    arvioitu = mukana - arvioimattomat
+    arvioitu = t["hyvaksytty"] - arvioimattomat
 
     piirra_otsikko(stdscr, f"Tilanne — {tutkimus['LuokittelunNimi']}")
-    stdscr.addstr(3, 0, f"Kursseja yhteensä:  {kurssit_yht}")
-    stdscr.addstr(4, 0, f"Mukana (LLM):       {mukana}")
-    stdscr.addstr(5, 0, f"Hylätty:            {hylätty}")
-    stdscr.addstr(6, 0, f"Odottaa käsittelyä: {odottaa}")
-    stdscr.addstr(7, 0, f"")
-    stdscr.addstr(8, 0, f"LLM-arvioitu:       {arvioitu} / {mukana}")
-    stdscr.addstr(9, 0, f"Odottaa arviointia: {arvioimattomat}")
-    nayta_viesti(stdscr, "", 11)
+    korkeus, leveys = stdscr.getmaxyx()
+
+    def rivi(nro: int, label: str, arvo, lisa: str = "") -> None:
+        if 3 + nro < korkeus - 2:
+            teksti = f"{label:<28}: {arvo}{lisa}"
+            stdscr.addstr(3 + nro, 0, teksti[:leveys - 1])
+
+    # Suppilo: vuosi- ja oppilaitosrajaus karsivat ehdokasjoukon,
+    # meta- ja LLM-luokitus jakavat loput.
+    rivi(0, "Kursseja yhteensä", t["kursseja_yht"])
+    rivi(1, "Kursseja (vuosirajaus)", t["vuosi_lapi"], f"   ({t['vuosi_hyl']} hylätty)")
+    rivi(2, "Kursseja (oppilaitosrajaus)", t["oppilaitos_lapi"], f"   ({t['oppilaitos_hyl']} hylätty)")
+    rivi(3, "Odottaa metaluokitusta", t["odottaa_meta"])
+    rivi(4, "Hylätty metaluokituksella", t["hyl_meta"])
+    rivi(5, "Odottaa LLM-luokitusta", t["odottaa_llm"])
+    rivi(6, "Hylätty LLM-luokituksella", t["hyl_llm"])
+    rivi(7, "Hyväksytty tutkimukseen", t["hyvaksytty"])
+    # Vaihe 3 (arviointi) hyväksytyille
+    rivi(9, "LLM-arvioitu", f"{arvioitu} / {t['hyvaksytty']}")
+    rivi(10, "Odottaa arviointia", arvioimattomat)
+    nayta_viesti(stdscr, "")
