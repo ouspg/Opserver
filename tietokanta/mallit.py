@@ -494,18 +494,34 @@ def hae_luokittelemattomat(tid: int, tiiviste: str | None = None) -> list[dict]:
 
 
 def hae_kurssit_luokituksilla(tid: int) -> list[dict]:
-    """Kaikki kurssit ja niiden luokitustila tässä tutkimuksessa."""
+    """Tutkimuksen kurssit luokitustiloineen — rajattuna tutkimuksen valittuihin
+    korkeakouluihin ja lukuvuoteen.
+
+    Lukuvuosi on kova rajaus: vain kurssit, joiden OPS-kausi kattaa tutkimuksen
+    lukuvuoden, ovat mukana. Näin esim. "Odottaa"-tilaan (Mukana=NULL) eivät
+    päädy väärän vuoden tai muiden korkeakoulujen kurssit.
+    """
+    tutkimus = hae_tutkimus(tid)
+    lukuvuosi = (tutkimus or {}).get("Lukuvuosi")
+    korkeakoulut = hae_tutkimuksen_korkeakoulut(tid)
+    if not korkeakoulut:
+        return []
+    paikat = ",".join(["%s"] * len(korkeakoulut))
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute("""
+            kursori.execute(f"""
                 SELECT k.KID, k.KKID, k.LahdeId, k.KurssiNimi, k.Koodi, k.Taso, k.Oppiaine,
                        k.Opintopisteet, k.Opetusvuosi,
                        kl.Mukana, kl.Luokitteluperuste
                 FROM Kurssi k
                 LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
+                WHERE k.KKID IN ({paikat})
                 ORDER BY k.KurssiNimi
-            """, (tid,))
-            return _rivit_dikteina(kursori)
+            """, (tid, *korkeakoulut))
+            rivit = _rivit_dikteina(kursori)
+    if lukuvuosi:
+        rivit = [r for r in rivit if _kattaa_turvallinen(r.get("Opetusvuosi"), lukuvuosi)]
+    return rivit
 
 
 def hae_hitl_historia(tid: int) -> list[dict]:

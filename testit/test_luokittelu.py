@@ -76,7 +76,9 @@ class TestMetasuodatus:
         for call in mock_aseta.call_args_list:
             assert call.args[1] != 4
 
-    def test_aja_hylkaa_lukuvuoden_ulkopuoliset(self):
+    def test_aja_ohittaa_lukuvuoden_ulkopuoliset_kokonaan(self):
+        # Lukuvuosi on kova rajaus: väärän vuoden kurssia ei luokitella lainkaan
+        # (ei edes Hylätty), koska vuosi ei voi olla "väärin" kuten taso/oppiaine.
         kurssit = [
             {"KID": 1, "KKID": 1, "KurssiNimi": "Vanha", "Taso": "aine",
              "Oppiaine": "Tietotekniikka", "Opetusvuosi": "2023-2024"},
@@ -84,12 +86,11 @@ class TestMetasuodatus:
              "Oppiaine": "Tietotekniikka", "Opetusvuosi": "2025-2026"},
         ]
         (lapaisseet, yht), mock_aseta = self._aja(self.TUTKIMUS, kurssit, [])
-        assert yht == 2
-        assert lapaisseet == 1  # vain 2025-2026 läpäisee lukuvuoden
-        mock_aseta.assert_any_call(1, 2, None, "meta: odottaa LLM-seulontaa")
-        kid1_call = next(c for c in mock_aseta.call_args_list if c.args[1] == 1)
-        assert kid1_call.args[2] is False
-        assert "lukuvuosi" in kid1_call.args[3].lower()
+        assert yht == 1  # vain 2025-2026 on ehdokas; 2023-2024 jää kokonaan pois
+        assert lapaisseet == 1
+        mock_aseta.assert_called_once_with(1, 2, None, "meta: odottaa LLM-seulontaa")
+        # KID=1 (väärä vuosi) ei saa luokitusta lainkaan
+        assert all(c.args[1] != 1 for c in mock_aseta.call_args_list)
 
     def test_aja_vaatii_lukuvuoden_ja_korkeakoulut(self):
         with pytest.raises(ValueError):

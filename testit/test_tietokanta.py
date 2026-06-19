@@ -226,6 +226,28 @@ class TestLukuvuodet:
         assert [r["KID"] for r in tulos] == [1, 3]
 
 
+class TestKurssitLuokituksilla:
+    def test_rajaa_korkeakouluihin_ja_lukuvuoteen(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.description = [("KID",), ("KKID",), ("Opetusvuosi",), ("Mukana",)]
+        kursori.fetchall.return_value = [
+            (1, 1, "2024-2027", None),   # kattaa 2026-2027 → mukana
+            (2, 1, "2025-2026", None),   # ei kata → pois
+        ]
+        with patch.object(mallit, "hae_tutkimus", return_value={"TID": 1, "Lukuvuosi": "2026-2027"}), \
+             patch.object(mallit, "hae_tutkimuksen_korkeakoulut", return_value=[1, 3]):
+            tulos = mallit.hae_kurssit_luokituksilla(1)
+        assert [r["KID"] for r in tulos] == [1]
+        sql = kursori.execute.call_args[0][0]
+        assert "KKID IN" in sql
+
+    def test_ei_korkeakouluja_palauttaa_tyhjan(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        with patch.object(mallit, "hae_tutkimus", return_value={"TID": 1, "Lukuvuosi": "2026-2027"}), \
+             patch.object(mallit, "hae_tutkimuksen_korkeakoulut", return_value=[]):
+            assert mallit.hae_kurssit_luokituksilla(1) == []
+
+
 class TestKurssimaarat:
     def test_ryhmittelee_kkid_ja_opetusvuosi(self, mock_yhteys):
         yht, kursori = mock_yhteys

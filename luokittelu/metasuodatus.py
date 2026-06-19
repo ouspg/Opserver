@@ -39,7 +39,13 @@ def aja(tutkimus: dict, edistyminen_cb=None, nollaa: bool = False) -> tuple[int,
             "ennen meta-suodatusta."
         )
 
-    kurssit = [k for k in mallit.hae_kurssit() if k["KKID"] in korkeakoulut]
+    # Lukuvuosi on kova rajaus: väärän vuoden kurssit eivät ole tutkimuksen
+    # ehdokkaita lainkaan (ei luokitella). Meta-hylkäys tehdään vain tason ja
+    # oppiaineen mukaan, koska ne voivat olla virheellisiä ja vaativat tarkistusta.
+    kurssit = [
+        k for k in mallit.hae_kurssit()
+        if k["KKID"] in korkeakoulut and _kausi_kattaa(k.get("Opetusvuosi"), tutk_lukuvuosi)
+    ]
     jo_luokitellut = set() if nollaa else {l["KID"] for l in mallit.hae_luokitukset(tid)}
     kasiteltavat = [k for k in kurssit if k["KID"] not in jo_luokitellut]
 
@@ -47,9 +53,8 @@ def aja(tutkimus: dict, edistyminen_cb=None, nollaa: bool = False) -> tuple[int,
     for i, kurssi in enumerate(kasiteltavat):
         taso_ok = _taso_ok(kurssi, tasorajaus)
         oa_ok = _oppiaine_ok(kurssi, oppiainerajaus)
-        vuosi_ok = lv.kattaa(kurssi["Opetusvuosi"], tutk_lukuvuosi)
 
-        if taso_ok and oa_ok and vuosi_ok:
+        if taso_ok and oa_ok:
             lapaisseet += 1
             mallit.aseta_luokitus(tid, kurssi["KID"], None, "meta: odottaa LLM-seulontaa")
         else:
@@ -58,11 +63,19 @@ def aja(tutkimus: dict, edistyminen_cb=None, nollaa: bool = False) -> tuple[int,
                 syyt.append(f"taso '{kurssi.get('Taso')}' ∉ '{tasorajaus}'")
             if not oa_ok:
                 syyt.append(f"oppiaine '{kurssi.get('Oppiaine')}' ≉ '{oppiainerajaus}'")
-            if not vuosi_ok:
-                syyt.append(f"lukuvuosi '{kurssi.get('Opetusvuosi')}' ei kata '{tutk_lukuvuosi}'")
             mallit.aseta_luokitus(tid, kurssi["KID"], False, "meta: " + "; ".join(syyt))
 
         if edistyminen_cb:
             edistyminen_cb(i + 1, len(kasiteltavat), lapaisseet)
 
     return lapaisseet, len(kasiteltavat)
+
+
+def _kausi_kattaa(ops_kausi: str | None, lukuvuosi: str) -> bool:
+    """lv.kattaa, mutta puuttuva/virheellinen kausi rajataan pois (ei kaadu)."""
+    if not ops_kausi:
+        return False
+    try:
+        return lv.kattaa(ops_kausi, lukuvuosi)
+    except ValueError:
+        return False
