@@ -222,10 +222,23 @@ function ryhmitaKurssit(kurssit) {
   return ryhmat;
 }
 
+// Täytä OPS-lukuvuosi-suodatin (uusin ensin), oletukseksi uusin
+async function taytaLukuvuodet() {
+  const sel = document.getElementById("suodatin-lukuvuosi");
+  const vuodet = await fetch("/api/lukuvuodet").then((r) => r.json());
+  sel.innerHTML = vuodet.map((v) => `<option value="${v}">${v}</option>`).join("");
+  // Lista on uusin-ensin, joten ensimmäinen optio (oletusvalinta) on viimeisin vuosi
+}
+
 async function lataaKurssit() {
+  const sel = document.getElementById("suodatin-lukuvuosi");
+  if (!sel.options.length) await taytaLukuvuodet();
+  const params = new URLSearchParams();
+  if (sel.value) params.set("lukuvuosi", sel.value);
   const kkid = document.getElementById("suodatin-koulu").value;
-  const url = kkid ? `/api/kurssit?kkid=${kkid}` : "/api/kurssit";
-  kaikki_kurssit = await fetch(url).then((r) => r.json());
+  if (kkid) params.set("kkid", kkid);
+  const kysely = params.toString();
+  kaikki_kurssit = await fetch("/api/kurssit" + (kysely ? `?${kysely}` : "")).then((r) => r.json());
   renderKurssit();
 }
 
@@ -269,6 +282,7 @@ function renderKurssit() {
   }
 }
 
+document.getElementById("suodatin-lukuvuosi").addEventListener("change", lataaKurssit);
 document.getElementById("suodatin-koulu").addEventListener("change", lataaKurssit);
 document.getElementById("suodatin-taso").addEventListener("change", renderKurssit);
 

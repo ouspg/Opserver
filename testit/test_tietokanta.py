@@ -207,6 +207,25 @@ class TestTutkimuksenKorkeakoulut:
         assert mallit.hae_tutkimuksen_korkeakoulut(1) == [2, 3]
 
 
+class TestLukuvuodet:
+    def test_hae_lukuvuodet_kokoaa_katetut_vuodet_uusin_ensin(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = [("2024-2027",), ("2026-27",), ("rikki",)]
+        # "2024-2027" kattaa 2024-2025, 2025-2026, 2026-2027; "2026-27" -> 2026-2027; "rikki" ohitetaan
+        assert mallit.hae_lukuvuodet() == ["2026-2027", "2025-2026", "2024-2025"]
+
+    def test_hae_kurssit_suodattaa_lukuvuoden_kattavuudella(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.description = [("KID",), ("Opetusvuosi",)]
+        kursori.fetchall.return_value = [
+            (1, "2024-2027"),   # kattaa 2026-2027
+            (2, "2025-2026"),   # ei kata
+            (3, "2026-2027"),   # kattaa
+        ]
+        tulos = mallit.hae_kurssit(lukuvuosi="2026-2027")
+        assert [r["KID"] for r in tulos] == [1, 3]
+
+
 class TestKurssimaarat:
     def test_ryhmittelee_kkid_ja_opetusvuosi(self, mock_yhteys):
         yht, kursori = mock_yhteys

@@ -81,7 +81,9 @@ _KURSSI_LISTA_SARAKKEET = (
 )
 
 
-def hae_kurssit(kkid: int | None = None) -> list[dict]:
+def hae_kurssit(kkid: int | None = None, lukuvuosi: str | None = None) -> list[dict]:
+    """Listanäkymän kurssit. lukuvuosi rajaa kurssit, joiden OPS-kausi kattaa
+    annetun lukuvuoden (esim. "2026-2027"; OPS "2024-2027" kattaa sen)."""
     with yhteys() as yht:
         with yht.cursor() as kursori:
             if kkid is not None:
@@ -93,7 +95,41 @@ def hae_kurssit(kkid: int | None = None) -> list[dict]:
                 kursori.execute(
                     f"SELECT {_KURSSI_LISTA_SARAKKEET} FROM Kurssi ORDER BY KurssiNimi"
                 )
-            return _rivit_dikteina(kursori)
+            rivit = _rivit_dikteina(kursori)
+    if lukuvuosi:
+        rivit = [r for r in rivit if _kattaa_turvallinen(r.get("Opetusvuosi"), lukuvuosi)]
+    return rivit
+
+
+def _kattaa_turvallinen(ops_kausi: str | None, lukuvuosi: str) -> bool:
+    """lv.kattaa, mutta virheellinen/puuttuva kausi rajataan pois (ei kaadu)."""
+    if not ops_kausi:
+        return False
+    try:
+        return lv.kattaa(ops_kausi, lukuvuosi)
+    except ValueError:
+        return False
+
+
+def hae_lukuvuodet() -> list[str]:
+    """Saatavilla olevat yksittäiset lukuvuodet, uusin ensin.
+
+    Kootaan kaikkien OPS-kausien kattamista vuosista (esim. "2024-2027" kattaa
+    2024-2025, 2025-2026 ja 2026-2027), jotta valinta osuu monivuotisiinkin OPS:eihin.
+    """
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                "SELECT DISTINCT Opetusvuosi FROM Kurssi "
+                "WHERE Opetusvuosi IS NOT NULL AND Opetusvuosi != ''"
+            )
+            vuodet: set[str] = set()
+            for (kausi,) in kursori.fetchall():
+                try:
+                    vuodet.update(lv.kauden_vuodet(kausi))
+                except ValueError:
+                    continue
+    return sorted(vuodet, reverse=True)
 
 
 def hae_kurssimaarat_kouluittain() -> dict[int, list[dict]]:

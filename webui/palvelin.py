@@ -207,9 +207,14 @@ def api_korkeakoulut() -> list[dict]:
     return koulut
 
 
+@sovellus.get("/api/lukuvuodet")
+def api_lukuvuodet() -> list[str]:
+    return mallit.hae_lukuvuodet()
+
+
 @sovellus.get("/api/kurssit")
-def api_kurssit(kkid: Optional[int] = None) -> list[dict]:
-    rivit = mallit.hae_kurssit(kkid=kkid)
+def api_kurssit(kkid: Optional[int] = None, lukuvuosi: Optional[str] = None) -> list[dict]:
+    rivit = mallit.hae_kurssit(kkid=kkid, lukuvuosi=lukuvuosi)
     return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
 
 
