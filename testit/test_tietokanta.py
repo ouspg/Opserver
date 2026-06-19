@@ -248,6 +248,42 @@ class TestKurssitLuokituksilla:
             assert mallit.hae_kurssit_luokituksilla(1) == []
 
 
+class TestTutkimuksenTilanne:
+    def test_funnel_jakaa_kurssit_vaiheittain(self):
+        kurssit = [
+            {"KID": 1, "KKID": 1, "Opetusvuosi": "2025-2026"},  # in-scope → hyväksytty
+            {"KID": 2, "KKID": 1, "Opetusvuosi": "2025-2026"},  # in-scope → odottaa LLM
+            {"KID": 3, "KKID": 1, "Opetusvuosi": "2025-2026"},  # in-scope → hyl meta
+            {"KID": 4, "KKID": 1, "Opetusvuosi": "2025-2026"},  # in-scope → hyl LLM
+            {"KID": 5, "KKID": 1, "Opetusvuosi": "2025-2026"},  # in-scope → odottaa meta (ei riviä)
+            {"KID": 6, "KKID": 1, "Opetusvuosi": "2024-2025"},  # väärä vuosi
+            {"KID": 7, "KKID": 2, "Opetusvuosi": "2025-2026"},  # väärä oppilaitos
+        ]
+        luok = [
+            {"KID": 1, "Mukana": 1, "Luokitteluperuste": "LLM: relevantti"},
+            {"KID": 2, "Mukana": None, "Luokitteluperuste": "meta: odottaa LLM-seulontaa"},
+            {"KID": 3, "Mukana": 0, "Luokitteluperuste": "meta: oppiaine ei täsmää"},
+            {"KID": 4, "Mukana": 0, "Luokitteluperuste": "LLM: ei liity aiheeseen"},
+            {"KID": 99, "Mukana": 1, "Luokitteluperuste": "x"},  # ulkopuolinen → ohitetaan
+        ]
+        with patch.object(mallit, "hae_tutkimus", return_value={"TID": 1, "Lukuvuosi": "2025-2026"}), \
+             patch.object(mallit, "hae_tutkimuksen_korkeakoulut", return_value=[1]), \
+             patch.object(mallit, "hae_kurssit", return_value=kurssit), \
+             patch.object(mallit, "hae_luokitukset", return_value=luok):
+            t = mallit.hae_tutkimuksen_tilanne(1)
+        assert t["kursseja_yht"] == 7
+        assert (t["vuosi_lapi"], t["vuosi_hyl"]) == (6, 1)
+        assert (t["oppilaitos_lapi"], t["oppilaitos_hyl"]) == (5, 1)
+        assert t["odottaa_meta"] == 1
+        assert t["hyl_meta"] == 1
+        assert t["odottaa_llm"] == 1
+        assert t["hyl_llm"] == 1
+        assert t["hyvaksytty"] == 1
+        # in-scope-summa täsmää
+        assert (t["odottaa_meta"] + t["hyl_meta"] + t["odottaa_llm"]
+                + t["hyl_llm"] + t["hyvaksytty"]) == t["oppilaitos_lapi"]
+
+
 class TestKurssimaarat:
     def test_ryhmittelee_kkid_ja_opetusvuosi(self, mock_yhteys):
         yht, kursori = mock_yhteys
