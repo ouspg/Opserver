@@ -151,15 +151,28 @@ def hae_kurssimaarat_kouluittain() -> dict[int, list[dict]]:
     return tulos
 
 
-def hae_tasot() -> list[str]:
-    """Palauttaa kaikki aineistossa esiintyvät Taso-arvot, yleisimmät ensin."""
+def hae_tasot(kkid: int | None = None, lukuvuosi: str | None = None) -> list[str]:
+    """Aineistossa esiintyvät Taso-arvot, yleisimmät ensin.
+
+    Valinnainen rajaus korkeakouluun (kkid) ja lukuvuoteen (OPS-kausi kattaa sen),
+    jotta /kurssit-sivu voi tarjota vain senhetkisen valinnan mukaiset tasot.
+    """
+    ehdot = ["Taso IS NOT NULL", "Taso != ''"]
+    params: list = []
+    if kkid is not None:
+        ehdot.append("KKID = %s")
+        params.append(kkid)
+    if lukuvuosi:
+        vuosi_sql, vuosi_params = _vuosi_kattaa_sql("Opetusvuosi", lukuvuosi)
+        ehdot.append(vuosi_sql)
+        params.extend(vuosi_params)
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute("""
-                SELECT Taso FROM Kurssi
-                WHERE Taso IS NOT NULL AND Taso != ''
-                GROUP BY Taso ORDER BY COUNT(*) DESC
-            """)
+            kursori.execute(
+                f"SELECT Taso FROM Kurssi WHERE {' AND '.join(ehdot)} "
+                f"GROUP BY Taso ORDER BY COUNT(*) DESC",
+                tuple(params),
+            )
             return [r[0] for r in kursori.fetchall()]
 
 
@@ -493,18 +506,24 @@ def hae_luokittelemattomat(tid: int, tiiviste: str | None = None) -> list[dict]:
             return _rivit_dikteina(kursori)
 
 
-# Vuosirajaus SQL:ssä (sivutuksen vuoksi): peilaa luokittelu/lukuvuosi.kattaa-logiikkaa.
-# Kurssin OPS-kausi "YYYY-YYYY"/"YYYY-YY" kattaa lukuvuoden [alku,loppu] kun
-# ops_alku <= alku JA ops_loppu >= loppu. (Vuosisadan ylitys YYYY-YY:ssä jätetty
-# huomiotta — ei esiinny todellisissa lyhyissä OPS-kausissa.)
-_OPS_ALKU_SQL = "CAST(SUBSTRING_INDEX(k.Opetusvuosi, '-', 1) AS UNSIGNED)"
-_OPS_LOPPU_SQL = (
-    "(CASE WHEN CHAR_LENGTH(SUBSTRING_INDEX(k.Opetusvuosi, '-', -1)) = 4 "
-    "      THEN CAST(SUBSTRING_INDEX(k.Opetusvuosi, '-', -1) AS UNSIGNED) "
-    f"     ELSE {_OPS_ALKU_SQL} DIV 100 * 100 + CAST(SUBSTRING_INDEX(k.Opetusvuosi, '-', -1) AS UNSIGNED) END)"
-)
 # Tila-välilehden ehto Kurssiluokitus.Mukana-arvosta.
 _TILA_EHTO = {"mukana": "kl.Mukana = 1", "odottaa": "kl.Mukana IS NULL", "hylätty": "kl.Mukana = 0"}
+
+
+def _vuosi_kattaa_sql(sarake: str, lukuvuosi: str) -> tuple[str, list]:
+    """SQL-ehto + parametrit: OPS-kausi (sarake "YYYY-YYYY"/"YYYY-YY") kattaa
+    lukuvuoden. Peilaa luokittelu/lukuvuosi.kattaa-logiikkaa, jotta vuosirajaus
+    voidaan tehdä kannassa (sivutus, DISTINCT). Vuosisadan ylitys YYYY-YY:ssä
+    jätetty huomiotta — ei esiinny todellisissa lyhyissä OPS-kausissa.
+    """
+    alku, loppu = lv._parsi_vuodet(lukuvuosi)
+    alku_sql = f"CAST(SUBSTRING_INDEX({sarake}, '-', 1) AS UNSIGNED)"
+    loppu_sql = (
+        f"(CASE WHEN CHAR_LENGTH(SUBSTRING_INDEX({sarake}, '-', -1)) = 4 "
+        f"      THEN CAST(SUBSTRING_INDEX({sarake}, '-', -1) AS UNSIGNED) "
+        f"      ELSE {alku_sql} DIV 100 * 100 + CAST(SUBSTRING_INDEX({sarake}, '-', -1) AS UNSIGNED) END)"
+    )
+    return f"{alku_sql} <= %s AND {loppu_sql} >= %s", [alku, loppu]
 
 
 def _tutkimus_kurssi_scope(tid: int) -> tuple[str | None, list]:
@@ -515,10 +534,10 @@ def _tutkimus_kurssi_scope(tid: int) -> tuple[str | None, list]:
     lukuvuosi = (tutkimus or {}).get("Lukuvuosi")
     if not korkeakoulut or not lukuvuosi:
         return None, None
-    alku, loppu = lv._parsi_vuodet(lukuvuosi)
     paikat = ",".join(["%s"] * len(korkeakoulut))
-    where = f"k.KKID IN ({paikat}) AND {_OPS_ALKU_SQL} <= %s AND {_OPS_LOPPU_SQL} >= %s"
-    return where, [*korkeakoulut, alku, loppu]
+    vuosi_sql, vuosi_params = _vuosi_kattaa_sql("k.Opetusvuosi", lukuvuosi)
+    where = f"k.KKID IN ({paikat}) AND {vuosi_sql}"
+    return where, [*korkeakoulut, *vuosi_params]
 
 
 def hae_tutkimuksen_tilamaarat(tid: int) -> dict:

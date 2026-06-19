@@ -257,6 +257,24 @@ class TestKurssitLuokituksilla:
             assert mallit.hae_kurssit_luokituksilla(1) == []
 
 
+class TestTasot:
+    def test_ilman_rajausta(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = [("syventävä",), ("aine",)]
+        assert mallit.hae_tasot() == ["syventävä", "aine"]
+        sql, params = kursori.execute.call_args[0]
+        assert "KKID" not in sql and "Opetusvuosi" not in sql
+        assert params == ()
+
+    def test_rajaa_kkid_ja_lukuvuosi(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = [("Aineopinnot",)]
+        mallit.hae_tasot(kkid=4, lukuvuosi="2026-2027")
+        sql, params = kursori.execute.call_args[0]
+        assert "KKID = %s" in sql and "Opetusvuosi" in sql
+        assert list(params) == [4, 2026, 2027]
+
+
 class TestTilamaarat:
     def test_ryhmittelee_tiloittain(self, mock_yhteys):
         yht, kursori = mock_yhteys
