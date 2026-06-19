@@ -24,6 +24,17 @@ class TestKattaa:
         assert lukuvuosi.kattaa("2025-26", "2024-2025") is False
 
 
+class TestKaudenVuodet:
+    def test_monivuotinen_kausi(self):
+        assert lukuvuosi.kauden_vuodet("2024-2027") == ["2024-2025", "2025-2026", "2026-2027"]
+
+    def test_yhden_vuoden_kausi(self):
+        assert lukuvuosi.kauden_vuodet("2025-2026") == ["2025-2026"]
+
+    def test_yyyy_yy_muoto(self):
+        assert lukuvuosi.kauden_vuodet("2026-27") == ["2026-2027"]
+
+
 class TestParsiVuodet:
     def test_yyyy_yyyy(self):
         assert lukuvuosi._parsi_vuodet("2024-2025") == (2024, 2025)

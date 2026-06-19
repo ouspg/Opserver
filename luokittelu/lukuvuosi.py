@@ -28,6 +28,16 @@ def _parsi_vuodet(kausi: str) -> tuple[int, int]:
     return alku, loppu
 
 
+def kauden_vuodet(kausi: str) -> list[str]:
+    """Yksittäiset lukuvuodet jotka OPS-kausi kattaa.
+
+    Esim. "2024-2027" -> ["2024-2025", "2025-2026", "2026-2027"];
+    "2025-2026" -> ["2025-2026"]; "2026-27" -> ["2026-2027"].
+    """
+    alku, loppu = _parsi_vuodet(kausi)
+    return [f"{v}-{v + 1}" for v in range(alku, loppu)]
+
+
 def kattaa(ops_kausi: str, tutkimus_lukuvuosi: str) -> bool:
     """Kattaako kurssin OPS-kausi tutkimuksen lukuvuoden?"""
     ops_alku, ops_loppu = _parsi_vuodet(ops_kausi)

@@ -33,7 +33,13 @@ def test_api_kurssit_palauttaa_listan():
 def test_api_kurssit_suodattaa_kkid_perusteella():
     with patch("webui.palvelin.mallit.hae_kurssit", return_value=[]) as mock:
         asiakas.get("/api/kurssit?kkid=2")
-    mock.assert_called_once_with(kkid=2)
+    mock.assert_called_once_with(kkid=2, lukuvuosi=None)
+
+
+def test_api_kurssit_valittaa_lukuvuoden():
+    with patch("webui.palvelin.mallit.hae_kurssit", return_value=[]) as mock:
+        asiakas.get("/api/kurssit?lukuvuosi=2026-2027")
+    mock.assert_called_once_with(kkid=None, lukuvuosi="2026-2027")
 
 
 def test_api_kurssi_palauttaa_ops_kuvauksen():
