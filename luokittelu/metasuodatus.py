@@ -18,14 +18,17 @@ def _oppiaine_ok(kurssi: dict, oppiainerajaus: str | None) -> bool:
     return any(t.strip().lower() in oppiaine for t in oppiainerajaus.split(",") if t.strip())
 
 
-def aja(tutkimus: dict, edistyminen_cb=None, nollaa: bool = False) -> tuple[int, int]:
+def aja(tutkimus: dict, edistyminen_cb=None, kohde: str = "uudet") -> tuple[int, int]:
     """Käy kurssit läpi; kirjoittaa luokittelut Kurssiluokitus-tauluun.
 
     Huomioidaan vain tutkimukseen valittujen korkeakoulujen kurssit. Lukuvuosi ja
     vähintään yksi korkeakoulu ovat pakollisia — muuten nostetaan ValueError.
 
-    nollaa=False (oletus): ohitetaan kurssit joilla on jo luokittelu tässä tutkimuksessa.
-    nollaa=True: ylikirjoitetaan kaikki olemassaolevat luokittelut.
+    kohde valitsee mitkä in-scope-kurssit (uudelleen)luokitellaan:
+      "uudet"      — vain vielä luokittelemattomat (oletus)
+      "kaikki"     — kaikki, korvaa myös LLM-päätökset
+      "hylatyt"    — vain meta-hylätyt (esim. kun oppiaine lisätty rajaukseen)
+      "hyvaksytyt" — vain meta-läpäisseet (esim. kun oppiaine poistettu rajauksesta)
     Palauttaa (läpäisseet, käsitelty).
     """
     tid = tutkimus["TID"]
@@ -46,8 +49,8 @@ def aja(tutkimus: dict, edistyminen_cb=None, nollaa: bool = False) -> tuple[int,
         k for k in mallit.hae_kurssit()
         if k["KKID"] in korkeakoulut and _kausi_kattaa(k.get("Opetusvuosi"), tutk_lukuvuosi)
     ]
-    jo_luokitellut = set() if nollaa else {l["KID"] for l in mallit.hae_luokitukset(tid)}
-    kasiteltavat = [k for k in kurssit if k["KID"] not in jo_luokitellut]
+    luok = {l["KID"]: l for l in mallit.hae_luokitukset(tid)}
+    kasiteltavat = [k for k in kurssit if _kuuluu_kohteeseen(luok.get(k["KID"]), kohde)]
 
     lapaisseet = 0
     for i, kurssi in enumerate(kasiteltavat):
@@ -79,3 +82,20 @@ def _kausi_kattaa(ops_kausi: str | None, lukuvuosi: str) -> bool:
         return lv.kattaa(ops_kausi, lukuvuosi)
     except ValueError:
         return False
+
+
+def _kuuluu_kohteeseen(luokitus: dict | None, kohde: str) -> bool:
+    """Kuuluuko in-scope-kurssi valittuun uudelleenluokittelukohteeseen?"""
+    if kohde == "kaikki":
+        return True
+    if kohde == "uudet":
+        return luokitus is None
+    if luokitus is None:
+        return False
+    mukana = luokitus.get("Mukana")
+    on_meta = (luokitus.get("Luokitteluperuste") or "").startswith("meta:")
+    if kohde == "hyvaksytyt":
+        return mukana is None  # meta-läpäisseet (odottaa LLM-seulontaa)
+    if kohde == "hylatyt":
+        return mukana in (0, False) and on_meta  # meta-hylätyt (ei LLM-hylätyt)
+    return False

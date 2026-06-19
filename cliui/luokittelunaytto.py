@@ -36,20 +36,20 @@ def _luokittele(stdscr, tutkimus: dict) -> None:
 def _aja_meta(stdscr, tutkimus: dict) -> None:
     from luokittelu import metasuodatus
 
-    nollaa = False
-    luokiteltu_lkm = len(mallit.hae_luokitukset(tutkimus["TID"]))
-    if luokiteltu_lkm > 0:
-        valinta = valitse_listasta(
-            stdscr,
-            f"Meta-suodatus — {tutkimus['LuokittelunNimi']}",
-            [
-                f"Ohita jo suodatetut ({luokiteltu_lkm} kpl) — käsittele vain uudet kurssit",
-                "Alusta kaikki uudelleen — korvaa kaikki olemassaolevat luokittelut",
-            ],
-        )
-        if valinta is None:
-            return
-        nollaa = valinta == 1
+    kohteet = ["uudet", "kaikki", "hylatyt", "hyvaksytyt"]
+    valinta = valitse_listasta(
+        stdscr,
+        f"Meta-suodatus — {tutkimus['LuokittelunNimi']}",
+        [
+            "Uudet — vain vielä luokittelemattomat kurssit",
+            "Kaikki — luokittele kaikki uudelleen (korvaa myös LLM-päätökset)",
+            "Hylätyt — luokittele meta-hylätyt uudelleen (esim. lisätty oppiaine)",
+            "Hyväksytyt — luokittele meta-läpäisseet uudelleen (esim. poistettu oppiaine)",
+        ],
+    )
+    if valinta is None:
+        return
+    kohde = kohteet[valinta]
 
     piirra_otsikko(stdscr, f"Meta-suodatus — {tutkimus['LuokittelunNimi']}")
     stdscr.addstr(3, 0, "Suodatetaan...")
@@ -60,7 +60,7 @@ def _aja_meta(stdscr, tutkimus: dict) -> None:
         stdscr.refresh()
 
     try:
-        lapaisseet, yhteensa = metasuodatus.aja(tutkimus, edistyminen, nollaa=nollaa)
+        lapaisseet, yhteensa = metasuodatus.aja(tutkimus, edistyminen, kohde=kohde)
     except ValueError as virhe:
         piirra_otsikko(stdscr, "Meta-suodatus — keskeytyi")
         nayta_viesti(stdscr, str(virhe), 3)

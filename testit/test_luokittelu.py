@@ -15,12 +15,12 @@ class TestMetasuodatus:
     TUTKIMUS = {"TID": 1, "LuokittelunNimi": "Testi", "Lukuvuosi": "2025-2026",
                 "Tasorajaus": "aine", "Oppiainerajaus": "Tietotekniikka"}
 
-    def _aja(self, tutkimus, kurssit, jo_luokitellut, korkeakoulut=(1,), nollaa=False):
+    def _aja(self, tutkimus, kurssit, jo_luokitellut, korkeakoulut=(1,), kohde="uudet"):
         with patch("luokittelu.metasuodatus.mallit.hae_kurssit", return_value=kurssit), \
              patch("luokittelu.metasuodatus.mallit.hae_luokitukset", return_value=jo_luokitellut), \
              patch("luokittelu.metasuodatus.mallit.hae_tutkimuksen_korkeakoulut", return_value=list(korkeakoulut)), \
              patch("luokittelu.metasuodatus.mallit.aseta_luokitus") as mock_aseta:
-            tulos = metasuodatus.aja(tutkimus, nollaa=nollaa)
+            tulos = metasuodatus.aja(tutkimus, kohde=kohde)
         return tulos, mock_aseta
 
     def test_taso_suodatus(self):
@@ -60,11 +60,31 @@ class TestMetasuodatus:
         assert lapaisseet == 1
         mock_aseta.assert_called_once_with(1, 3, None, "meta: odottaa LLM-seulontaa")
 
-    def test_aja_nollaa_ylikirjoittaa_kaikki(self):
+    def test_aja_kohde_kaikki_ylikirjoittaa(self):
         jo_luokitellut = [{"KID": 1}, {"KID": 2}]
-        (lapaisseet, yht), mock_aseta = self._aja(self.TUTKIMUS, self.KURSSIT, jo_luokitellut, nollaa=True)
-        assert yht == 3  # kaikki 3 käsitellään
+        (lapaisseet, yht), mock_aseta = self._aja(self.TUTKIMUS, self.KURSSIT, jo_luokitellut, kohde="kaikki")
+        assert yht == 3  # kaikki 3 käsitellään olemassaolosta huolimatta
         assert mock_aseta.call_count == 3
+
+    def test_aja_kohde_hylatyt_vain_metahylatyt(self):
+        jo_luokitellut = [
+            {"KID": 1, "Mukana": 0, "Luokitteluperuste": "meta: oppiaine ei täsmää"},  # meta-hylätty
+            {"KID": 2, "Mukana": None, "Luokitteluperuste": "meta: odottaa LLM-seulontaa"},  # meta-läpäissyt
+            {"KID": 3, "Mukana": 0, "Luokitteluperuste": "LLM: ei liity"},  # LLM-hylätty (ei kohde)
+        ]
+        (lapaisseet, yht), mock_aseta = self._aja(self.TUTKIMUS, self.KURSSIT, jo_luokitellut, kohde="hylatyt")
+        assert yht == 1  # vain KID=1 (meta-hylätty) käsitellään uudelleen
+        assert mock_aseta.call_args_list[0].args[1] == 1
+
+    def test_aja_kohde_hyvaksytyt_vain_metalapaiseet(self):
+        jo_luokitellut = [
+            {"KID": 1, "Mukana": 0, "Luokitteluperuste": "meta: oppiaine ei täsmää"},
+            {"KID": 2, "Mukana": None, "Luokitteluperuste": "meta: odottaa LLM-seulontaa"},
+            {"KID": 3, "Mukana": 1, "Luokitteluperuste": "LLM: relevantti"},  # hyväksytty LLM (ei kohde)
+        ]
+        (lapaisseet, yht), mock_aseta = self._aja(self.TUTKIMUS, self.KURSSIT, jo_luokitellut, kohde="hyvaksytyt")
+        assert yht == 1  # vain KID=2 (meta-läpäissyt) käsitellään uudelleen
+        assert mock_aseta.call_args_list[0].args[1] == 2
 
     def test_aja_rajaa_valittuihin_korkeakouluihin(self):
         kurssit = self.KURSSIT + [
