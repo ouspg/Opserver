@@ -117,6 +117,16 @@ th, td {
 
 th { background: #ececf4; }
 
+/* Korkeakoulut-taulu: 2 ensimmäistä saraketta yhteensä alle puolet leveydestä,
+   vuosisarakkeet keskitettyinä oikealla. */
+.korkeakoulut-taulu .kk-nimi { width: 22%; font-weight: 600; }
+.korkeakoulut-taulu .kk-opas { width: 22%; white-space: nowrap; }
+.korkeakoulut-taulu .kk-kurssit-otsikko,
+.korkeakoulut-taulu .kk-vuosi,
+.korkeakoulut-taulu .kk-lkm,
+.korkeakoulut-taulu .kk-tyhja { text-align: center; white-space: nowrap; }
+.korkeakoulut-taulu .kk-tyhja { color: #aaa; }
+
 td a { color: #16213e; text-underline-offset: 2px; }
 td a:hover { color: #e94560; }
 
