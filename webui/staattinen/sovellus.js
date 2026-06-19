@@ -87,18 +87,31 @@ function opasLinkki(k) {
     + `${tyyppi}: ${escapeHtml(host)}</a>`;
 }
 
-// Vuosisarakkeiden solut yhdelle koululle: kukin OPS-kausi vie colspan = vuosien määrä
+// Vaihteleva pastellisävy vuoden mukaan (todennäköisesti täydet kaudet)
+function pastelli(vuosi) {
+  const hue = (vuosi * 47) % 360;
+  return `hsl(${hue}, 62%, 88%)`;
+}
+
+// Vuosisarakkeiden solut yhdelle koululle: kukin OPS-kausi vie colspan = vuosien
+// määrä ja näkyy tiilenä. Pastelli kun kurssimäärä on lähellä rivin suurinta
+// (todennäk. kaikki haettu), harmaa kun selvästi vähemmän tai kautta ei ole haettu.
 function vuosiSolut(kaudet, minV, maxV) {
+  const maxLkm = kaudet.reduce((m, k) => Math.max(m, k.lkm), 0);
   let html = "";
   let col = minV;
   while (col < maxV) {
     const kausi = kaudet.find((x) => x.alku <= col && col < x.loppu);
     if (kausi) {
       const span = Math.min(kausi.loppu, maxV) - col;
-      html += `<td class="kk-lkm" colspan="${span}">${kausi.lkm} kpl</td>`;
+      const taysi = maxLkm > 0 && kausi.lkm >= 0.5 * maxLkm;
+      const tiili = taysi
+        ? `<span class="kk-tiili kk-tiili-taysi" style="background:${pastelli(col)}">${kausi.lkm} kpl</span>`
+        : `<span class="kk-tiili kk-tiili-vajaa">${kausi.lkm} kpl</span>`;
+      html += `<td class="kk-solu" colspan="${span}">${tiili}</td>`;
       col += span;
     } else {
-      html += `<td class="kk-tyhja">—</td>`;
+      html += `<td class="kk-solu"><span class="kk-tiili kk-tiili-eihaettu">ei haettu</span></td>`;
       col += 1;
     }
   }
