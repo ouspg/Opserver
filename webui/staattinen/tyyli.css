@@ -122,10 +122,20 @@ th { background: #ececf4; }
 .korkeakoulut-taulu .kk-nimi { width: 22%; font-weight: 600; }
 .korkeakoulut-taulu .kk-opas { width: 22%; white-space: nowrap; }
 .korkeakoulut-taulu .kk-kurssit-otsikko,
-.korkeakoulut-taulu .kk-vuosi,
-.korkeakoulut-taulu .kk-lkm,
-.korkeakoulut-taulu .kk-tyhja { text-align: center; white-space: nowrap; }
-.korkeakoulut-taulu .kk-tyhja { color: #aaa; }
+.korkeakoulut-taulu .kk-vuosi { text-align: center; white-space: nowrap; }
+.korkeakoulut-taulu td.kk-solu { padding: 0.25rem; text-align: center; }
+
+/* Vuosikausi-tiilet: pastelli = todennäk. kaikki haettu, harmaa = vajaa/ei haettu */
+.kk-tiili {
+  display: block;
+  padding: 0.45rem 0.6rem;
+  border-radius: 7px;
+  font-size: 0.92rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.kk-tiili-vajaa { background: #d6d8e0; color: #555; }
+.kk-tiili-eihaettu { background: #eef0f4; color: #9a9aa5; font-style: italic; }
 
 td a { color: #16213e; text-underline-offset: 2px; }
 td a:hover { color: #e94560; }
