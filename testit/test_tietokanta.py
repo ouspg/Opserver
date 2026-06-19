@@ -227,25 +227,50 @@ class TestLukuvuodet:
 
 
 class TestKurssitLuokituksilla:
-    def test_rajaa_korkeakouluihin_ja_lukuvuoteen(self, mock_yhteys):
+    def test_rajaa_korkeakouluihin_ja_lukuvuoteen_sqlssa(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.description = [("KID",), ("KKID",), ("Opetusvuosi",), ("Mukana",)]
-        kursori.fetchall.return_value = [
-            (1, 1, "2024-2027", None),   # kattaa 2026-2027 → mukana
-            (2, 1, "2025-2026", None),   # ei kata → pois
-        ]
+        kursori.description = [("KID",)]
+        kursori.fetchall.return_value = [(1,)]
         with patch.object(mallit, "hae_tutkimus", return_value={"TID": 1, "Lukuvuosi": "2026-2027"}), \
              patch.object(mallit, "hae_tutkimuksen_korkeakoulut", return_value=[1, 3]):
-            tulos = mallit.hae_kurssit_luokituksilla(1)
-        assert [r["KID"] for r in tulos] == [1]
-        sql = kursori.execute.call_args[0][0]
-        assert "KKID IN" in sql
+            mallit.hae_kurssit_luokituksilla(1)
+        sql, params = kursori.execute.call_args[0]
+        assert "KKID IN (%s,%s)" in sql          # korkeakoulurajaus
+        assert "Opetusvuosi" in sql               # vuosirajaus SQL:ssä
+        assert list(params) == [1, 1, 3, 2026, 2027]  # TID, KKID:t, alku, loppu
+
+    def test_tila_ja_sivutus(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.description = [("KID",)]
+        kursori.fetchall.return_value = []
+        with patch.object(mallit, "hae_tutkimus", return_value={"TID": 1, "Lukuvuosi": "2026-2027"}), \
+             patch.object(mallit, "hae_tutkimuksen_korkeakoulut", return_value=[1]):
+            mallit.hae_kurssit_luokituksilla(1, tila="hylätty", sivu=2, koko=100)
+        sql, params = kursori.execute.call_args[0]
+        assert "kl.Mukana = 0" in sql and "LIMIT %s OFFSET %s" in sql
+        assert params[-2:] == (100, 200)  # koko, sivu*koko
 
     def test_ei_korkeakouluja_palauttaa_tyhjan(self, mock_yhteys):
         yht, kursori = mock_yhteys
         with patch.object(mallit, "hae_tutkimus", return_value={"TID": 1, "Lukuvuosi": "2026-2027"}), \
              patch.object(mallit, "hae_tutkimuksen_korkeakoulut", return_value=[]):
             assert mallit.hae_kurssit_luokituksilla(1) == []
+
+
+class TestTilamaarat:
+    def test_ryhmittelee_tiloittain(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = [(1, 74), (None, 2526), (0, 31112)]
+        with patch.object(mallit, "hae_tutkimus", return_value={"TID": 1, "Lukuvuosi": "2025-2026"}), \
+             patch.object(mallit, "hae_tutkimuksen_korkeakoulut", return_value=[1]):
+            m = mallit.hae_tutkimuksen_tilamaarat(1)
+        assert m == {"mukana": 74, "odottaa": 2526, "hylätty": 31112}
+
+    def test_tyhja_kun_ei_rajausta(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        with patch.object(mallit, "hae_tutkimus", return_value={"TID": 1, "Lukuvuosi": None}), \
+             patch.object(mallit, "hae_tutkimuksen_korkeakoulut", return_value=[1]):
+            assert mallit.hae_tutkimuksen_tilamaarat(1) == {"mukana": 0, "odottaa": 0, "hylätty": 0}
 
 
 class TestTutkimuksenTilanne:

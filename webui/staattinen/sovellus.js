@@ -493,7 +493,6 @@ function renderTutkimusTiedot(t) {
 
 let tutkimus_luokitukset = [];
 let aktiivinen_tila = "mukana";
-const scroll_muistit = { mukana: 0, odottaa: 0, "hylätty": 0 };
 
 // --- HITL ---
 
@@ -571,39 +570,61 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
   nappi.disabled = false;
 });
 
+const TUTKIMUS_KURSSIT_KOKO = 100;
+let tutkimus_maarat = { mukana: 0, odottaa: 0, "hylätty": 0 };
+let tutkimus_sivu = 0;
+
 async function renderTutkimusKurssit(slug, nimi) {
   document.getElementById("tutkimus-kurssit-otsikko").textContent = `${nimi} — kurssit`;
-  tutkimus_luokitukset = await fetch(`/api/tutkimukset/${slug}/luokitukset`).then((r) => r.json());
-  const lkmt = {
-    mukana:  tutkimus_luokitukset.filter((k) => k.Mukana === true  || k.Mukana === 1).length,
-    odottaa: tutkimus_luokitukset.filter((k) => k.Mukana === null).length,
-    "hylätty": tutkimus_luokitukset.filter((k) => k.Mukana === false || k.Mukana === 0).length,
-  };
+  tutkimus_maarat = await fetch(`/api/tutkimukset/${slug}/luokitukset/maarat`).then((r) => r.json());
   const nimet = { mukana: "Mukana", odottaa: "Odottaa", "hylätty": "Hylätty" };
   document.querySelectorAll(".tila-nappi").forEach((b) => {
-    b.textContent = `${nimet[b.dataset.tila]} (${lkmt[b.dataset.tila] ?? 0})`;
+    b.textContent = `${nimet[b.dataset.tila]} (${tutkimus_maarat[b.dataset.tila] ?? 0})`;
   });
-  renderTutkimusKurssitTila();
+  tutkimus_sivu = 0;
+  await lataaTilaSivu();
 }
 
-function renderTutkimusKurssitTila() {
+// Hae aktiivisen välilehden nykyinen sivu palvelimelta ja renderöi
+async function lataaTilaSivu() {
   document.querySelectorAll(".tila-nappi, .tila-nappi-nav").forEach((b) => {
     b.classList.toggle("aktiivinen", b.dataset.tila === aktiivinen_tila);
   });
-  const suodatettu = tutkimus_luokitukset.filter((k) => {
-    if (aktiivinen_tila === "mukana")  return k.Mukana === true  || k.Mukana === 1;
-    if (aktiivinen_tila === "hylätty") return k.Mukana === false || k.Mukana === 0;
-    if (aktiivinen_tila === "odottaa") return k.Mukana === null;
-    return true;
+  const slug = aktiivinen_tutkimus.Slug;
+  const url = `/api/tutkimukset/${slug}/luokitukset?tila=${encodeURIComponent(aktiivinen_tila)}`
+    + `&sivu=${tutkimus_sivu}&koko=${TUTKIMUS_KURSSIT_KOKO}`;
+  tutkimus_luokitukset = await fetch(url).then((r) => r.json());
+  renderTutkimusKurssitRivit(tutkimus_luokitukset);
+  renderTutkimusKurssitSivutus();
+}
+
+function renderTutkimusKurssitSivutus() {
+  const kpl = tutkimus_maarat[aktiivinen_tila] ?? 0;
+  document.getElementById("tutkimus-kurssit-lkm").textContent = `${kpl} kurssia`;
+  const sivuja = Math.max(1, Math.ceil(kpl / TUTKIMUS_KURSSIT_KOKO));
+  const el = document.getElementById("tutkimus-kurssit-sivutus");
+  if (!el) return;
+  if (sivuja <= 1) { el.innerHTML = ""; return; }
+  el.innerHTML =
+    `<button id="sivu-edellinen" ${tutkimus_sivu <= 0 ? "disabled" : ""}>← Edellinen</button>`
+    + `<span class="sivu-tieto">Sivu ${tutkimus_sivu + 1} / ${sivuja}</span>`
+    + `<button id="sivu-seuraava" ${tutkimus_sivu >= sivuja - 1 ? "disabled" : ""}>Seuraava →</button>`;
+  document.getElementById("sivu-edellinen").addEventListener("click", () => {
+    if (tutkimus_sivu > 0) { tutkimus_sivu--; lataaTilaSivu(); window.scrollTo(0, 0); }
   });
-  document.getElementById("tutkimus-kurssit-lkm").textContent = `${suodatettu.length} kurssia`;
+  document.getElementById("sivu-seuraava").addEventListener("click", () => {
+    if (tutkimus_sivu < sivuja - 1) { tutkimus_sivu++; lataaTilaSivu(); window.scrollTo(0, 0); }
+  });
+}
+
+function renderTutkimusKurssitRivit(rivit) {
   const runko = document.getElementById("tutkimus-kurssit-rungot");
   runko.innerHTML = "";
-  if (suodatettu.length === 0) {
+  if (rivit.length === 0) {
     runko.innerHTML = `<tr><td colspan="7">Ei kursseja tässä kategoriassa.</td></tr>`;
     return;
   }
-  for (const k of suodatettu) {
+  for (const k of rivit) {
     let perusteluHtml = "";
     const korjaukset = k.HitlKorjaukset || [];
     if (korjaukset.length > 0) {
@@ -657,10 +678,9 @@ function renderTutkimusKurssitTila() {
 }
 
 function asetaTila(tila) {
-  scroll_muistit[aktiivinen_tila] = window.scrollY;
   aktiivinen_tila = tila;
-  renderTutkimusKurssitTila();
-  window.scrollTo(0, scroll_muistit[tila]);
+  tutkimus_sivu = 0;
+  lataaTilaSivu().then(() => window.scrollTo(0, 0));
 }
 
 document.querySelectorAll(".tila-nappi, .tila-nappi-nav").forEach((b) => {
