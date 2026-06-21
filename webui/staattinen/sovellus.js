@@ -400,7 +400,7 @@ async function laataaTutkimukset() {
   tutkimukset_lista = await fetch("/api/tutkimukset").then((r) => r.json());
   runko.innerHTML = "";
   if (tutkimukset_lista.length === 0) {
-    runko.innerHTML = '<tr><td colspan="4">Ei tutkimuksia.</td></tr>';
+    runko.innerHTML = '<tr><td colspan="5">Ei tutkimuksia.</td></tr>';
     return;
   }
   for (const t of tutkimukset_lista) {
@@ -408,6 +408,7 @@ async function laataaTutkimukset() {
     const lkm = t.MukanaLkm ?? 0;
     rivi.innerHTML = `
       <td class="kurssi-rivi tutkimus-nimi-solu">${t.LuokittelunNimi}</td>
+      <td>${t.Lukuvuosi || "—"}</td>
       <td>${t.Tasorajaus || "—"}</td>
       <td class="tutkimus-oppiaine-solu" title="${t.Oppiainerajaus || ""}">${t.Oppiainerajaus || "—"}</td>
       <td class="tutkimus-toiminnot">
