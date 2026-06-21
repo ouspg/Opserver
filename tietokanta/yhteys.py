@@ -12,7 +12,7 @@ def _asetukset() -> dict:
         "port": int(os.getenv("DB_PORT", 21212)),
         "user": os.getenv("DB_USER", "kyber"),
         "password": os.getenv("DB_PASSWORD", ""),
-        "database": os.getenv("DB_NAME", "kyberesrdb"),
+        "database": os.getenv("DB_NAME", "opserverdb"),
         "charset": "utf8mb4",
     }
 

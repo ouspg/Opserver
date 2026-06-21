@@ -48,7 +48,7 @@ tarkista_kuva_tuoreus() {
     fi
 
     kontti_kuva=$(docker inspect "$kontti_id" --format '{{.Image}}' 2>/dev/null) || kontti_kuva=""
-    uusin_kuva=$(docker inspect kyberesr-webui --format '{{.Id}}' 2>/dev/null) || uusin_kuva=""
+    uusin_kuva=$(docker inspect opserver-webui --format '{{.Id}}' 2>/dev/null) || uusin_kuva=""
 
     if [[ -z "$kontti_kuva" || -z "$uusin_kuva" ]]; then
         fail "WebUI-kuvan tuoreus — ei saatu image-tietoja"
