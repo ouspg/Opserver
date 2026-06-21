@@ -62,7 +62,7 @@ tarkista_kuva_tuoreus() {
     fi
 }
 
-echo "=== kyberESR savutesti ==="
+echo "=== Opserver savutesti ==="
 echo ""
 
 # 1. Kontit
@@ -72,7 +72,7 @@ tarkista_kontti "WebUI-kontti käynnissä"  "webui"
 echo ""
 
 # 2. WebUI HTTP
-tarkista_http "WebUI etusivu"                "$WEBUI/"                     "kyberESR"
+tarkista_http "WebUI etusivu"                "$WEBUI/"                     "Opserver"
 tarkista_http "API /korkeakoulut vastaa"     "$WEBUI/api/korkeakoulut"     ""
 tarkista_http "API /kurssit vastaa"          "$WEBUI/api/kurssit"          ""
 tarkista_http "API /tutkimukset vastaa"      "$WEBUI/api/tutkimukset"      ""

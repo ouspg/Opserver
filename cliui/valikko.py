@@ -1,4 +1,4 @@
-"""kyberESR CLI-käyttöliittymän päävalikko."""
+"""Opserver CLI-käyttöliittymän päävalikko."""
 import curses
 import locale
 
@@ -30,7 +30,7 @@ def paavalikko(stdscr) -> None:
         6: asetuksetnaytto.nayta,
     }
     while True:
-        valinta = valitse_listasta(stdscr, "kyberESR — päävalikko", VALIKKO)
+        valinta = valitse_listasta(stdscr, "Opserver — päävalikko", VALIKKO)
         if valinta is None:
             return
         kasittelijat[valinta](stdscr)
