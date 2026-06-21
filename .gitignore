@@ -28,3 +28,6 @@ Thumbs.db
 
 # Kehitysaikaiset artefaktit
 status
+
+# Testierä-tilastot (generoituja)
+testitulokset/

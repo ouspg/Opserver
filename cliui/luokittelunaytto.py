@@ -1,6 +1,6 @@
 """Luokittelunäkymä: meta-suodatus ja LLM-luokittelu."""
 from tietokanta import mallit
-from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta
+from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta, lue_teksti
 
 
 def nayta(stdscr) -> None:
@@ -17,20 +17,23 @@ def nayta(stdscr) -> None:
 
 
 def _luokittele(stdscr, tutkimus: dict) -> None:
+    toiminnot = [
+        ("Aja meta-suodatus", _aja_meta),
+        ("Aja LLM-luokittelu", _aja_llm),
+        ("Aja LLM-testierä kirjaten tilastot", _aja_testiera),
+        ("Muokkaa LLM-luokittelun asetuksia", _muokkaa_asetukset),
+        ("Poista testiajo", _poista_testiajo),
+        ("Näytä tilanne", _nayta_tilanne),
+    ]
     while True:
         valinta = valitse_listasta(
             stdscr,
             f"Luokittele — {tutkimus['LuokittelunNimi']}",
-            ["Aja meta-suodatus", "Aja LLM-luokittelu", "Näytä tilanne"],
+            [nimi for nimi, _ in toiminnot],
         )
         if valinta is None:
             return
-        if valinta == 0:
-            _aja_meta(stdscr, tutkimus)
-        elif valinta == 1:
-            _aja_llm(stdscr, tutkimus)
-        elif valinta == 2:
-            _nayta_tilanne(stdscr, tutkimus)
+        toiminnot[valinta][1](stdscr, tutkimus)
 
 
 def _aja_meta(stdscr, tutkimus: dict) -> None:
@@ -124,6 +127,108 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
         nayta_viesti(stdscr, f"Virhe: {e}")
     except Exception as e:
         nayta_viesti(stdscr, f"LLM-virhe: {e}")
+
+
+def _kysy_luvut(stdscr, otsikko: str) -> tuple[int, int] | None:
+    """Kysyy eräkoon ja erien määrän. Palauttaa (erakoko, montako) tai None."""
+    piirra_otsikko(stdscr, otsikko)
+    erakoko_s = lue_teksti(stdscr, "Eräkoko (kursseja per LLM-kutsu)", 3, "30")
+    montako_s = lue_teksti(stdscr, "Montako erää ajetaan", 4, "3")
+    try:
+        erakoko, montako = int(erakoko_s), int(montako_s)
+        if erakoko < 1 or montako < 1:
+            raise ValueError
+    except ValueError:
+        nayta_viesti(stdscr, "Kelvottomat luvut — anna positiiviset kokonaisluvut.")
+        return None
+    return erakoko, montako
+
+
+def _testiera_yhteenveto(tietueet: list[dict]) -> list[str]:
+    """Tiivis yhteenveto eräkoon viritystä varten (täyttöaste, katkeamiset, pudonneet)."""
+    if not tietueet:
+        return ["Ei eriä ajettu (ei luokittelemattomia kursseja?)."]
+    tayttoasteet = [t["ulostulo_tayttoaste"] for t in tietueet if t["ulostulo_tayttoaste"] is not None]
+    katkesi = sum(1 for t in tietueet if t["finish_reason"] == "length")
+    pudonneet = sum(t["pudonneet"] for t in tietueet)
+    epaonnistui = sum(1 for t in tietueet if t["jasennys"] != "ok")
+    maks_taytto = f"{max(tayttoasteet):.0%}" if tayttoasteet else "?"
+    return [
+        f"Eriä: {len(tietueet)}  |  suurin ulostulon täyttöaste: {maks_taytto}",
+        f"Katkesi (finish_reason=length): {katkesi}  |  pudonneita kursseja: {pudonneet}",
+        f"Jäsennys ei-ok: {epaonnistui}  (uusinta/epäonnistui)",
+    ]
+
+
+def _aja_testiera(stdscr, tutkimus: dict) -> None:
+    from luokittelu import testierat
+    from llm import mallitiedot
+
+    luvut = _kysy_luvut(stdscr, f"LLM-testierä — {tutkimus['LuokittelunNimi']}")
+    if luvut is None:
+        return
+    erakoko, montako = luvut
+
+    try:
+        mallitiedot.tarkista_saatavuus()
+    except Exception as e:
+        nayta_viesti(stdscr, f"Mallia ei voi käyttää: {e}")
+        return
+
+    piirra_otsikko(stdscr, f"LLM-testierä — {tutkimus['LuokittelunNimi']}")
+    stdscr.addstr(3, 0, f"Ajetaan {montako} × {erakoko} kurssia...")
+    stdscr.refresh()
+
+    def edistyminen(era_nro, erat):
+        stdscr.addstr(4, 0, f"  Erä {era_nro}/{erat} käsitelty")
+        stdscr.refresh()
+
+    try:
+        tulos = testierat.aja_testierat(tutkimus, erakoko, montako, edistyminen)
+    except Exception as e:
+        nayta_viesti(stdscr, f"Virhe testierässä: {e}")
+        return
+
+    piirra_otsikko(stdscr, "LLM-testierä — valmis")
+    stdscr.addstr(3, 0, f"Ajotunnus: {tulos['ajo_id']}   (eräkoko {erakoko})")
+    for i, rivi in enumerate(_testiera_yhteenveto(tulos["tietueet"]), 4):
+        stdscr.addstr(i, 0, rivi[:stdscr.getmaxyx()[1] - 1])
+    stdscr.addstr(8, 0, f"Tilastot: {tulos['tilastopolku']}")
+    nayta_viesti(stdscr, "", 10)
+
+
+def _muokkaa_asetukset(stdscr, tutkimus: dict) -> None:
+    from cliui import asetuseditori
+    asetuseditori.muokkaa_asetuksia(
+        stdscr, f"LLM-luokittelun asetukset — {tutkimus['LuokittelunNimi']}",
+        asetuseditori.LUOKITTELU_ASETUKSET,
+    )
+
+
+def _poista_testiajo(stdscr, tutkimus: dict) -> None:
+    from tietokanta import testimallit
+
+    ajot = testimallit.hae_testiajot_luokittelu(tutkimus["TID"])
+    if not ajot:
+        nayta_viesti(stdscr, "Ei luokittelun testiajoja tälle tutkimukselle.")
+        return
+    rivit = [
+        f"{a['Ajo']}  —  {a['Rivit']} kurssia (mukana {a['Mukana']}), "
+        f"eräkoko {a['Erakoko']}, {a['Malli'] or '?'}"
+        for a in ajot
+    ]
+    valinta = valitse_listasta(stdscr, "Poista testiajo — valitse", rivit)
+    if valinta is None:
+        return
+    ajo = ajot[valinta]["Ajo"]
+    varmistus = valitse_listasta(
+        stdscr, f"Poista testiajo {ajo}?",
+        [f"Poista {ajot[valinta]['Rivit']} riviä lopullisesti", "Peruuta"],
+    )
+    if varmistus != 0:
+        return
+    poistettu = testimallit.poista_testiajo_luokittelu(ajo)
+    nayta_viesti(stdscr, f"Poistettu {poistettu} riviä (ajo {ajo}).")
 
 
 def _nayta_tilanne(stdscr, tutkimus: dict) -> None:
