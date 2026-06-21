@@ -15,8 +15,9 @@ _ENV = {
 class TestKysy:
     @pytest.fixture(autouse=True)
     def uni(self):
-        """Nollaa viivetila ja korvaa time.sleep mockilla joka testissä."""
+        """Nollaa viive- ja tahdistustila ja korvaa time.sleep mockilla joka testissä."""
         kutsu._viive_s = kutsu._ALKUVIIVE_S
+        kutsu._edellinen_pyynto = 0.0
         with patch("llm.kutsu.time.sleep") as mock_uni:
             yield mock_uni
 
@@ -128,3 +129,50 @@ class TestKysy:
             with pytest.raises(RuntimeError):
                 kutsu.kysy("kysymys")
         assert mock_post.call_count == kutsu._MAX_YRITYKSET
+
+    # --- ennakoiva tahdistus (per kutsu, ennen retry-silmukkaa) ---
+
+    def test_free_malli_tahdistaa_hitaasti(self, uni):
+        """:free-malli odottaa free-välin verran ennen pyyntöä (OpenRouter 20/min)."""
+        kutsu._viive_s = 0.0  # eristä reaktiivinen backoff pois
+        kutsu._edellinen_pyynto = 100.0
+        env = {**_ENV, "LLM_MODEL": "openai/gpt-oss-120b:free"}
+        with patch.dict(os.environ, env), \
+             patch("llm.kutsu.time.monotonic", return_value=101.0), \
+             patch("llm.kutsu.requests.post", return_value=self._mock_vastaus("ok")):
+            kutsu.kysy("kysymys")
+        # kulunut 1.0 s, free-väli 3.5 s → nukutaan loppuosa 2.5 s
+        uni.assert_called_once_with(kutsu._TAHDISTUS_FREE_S - 1.0)
+
+    def test_maksullinen_malli_tahdistaa_nopeammin(self, uni):
+        """Ei-free-malli käyttää lyhyempää väliä → vähän suurempi nopeus."""
+        kutsu._viive_s = 0.0
+        kutsu._edellinen_pyynto = 100.0
+        env = {**_ENV, "LLM_MODEL": "openai/gpt-4o"}
+        with patch.dict(os.environ, env), \
+             patch("llm.kutsu.time.monotonic", return_value=100.0), \
+             patch("llm.kutsu.requests.post", return_value=self._mock_vastaus("ok")):
+            kutsu.kysy("kysymys")
+        uni.assert_called_once_with(kutsu._TAHDISTUS_MAKSU_S)
+
+    def test_tahdistus_ohitetaan_jos_aikaa_kulunut(self, uni):
+        """Jos edellisestä pyynnöstä on jo kulunut väliä enemmän, ei nukuta."""
+        kutsu._viive_s = 0.0
+        kutsu._edellinen_pyynto = 100.0
+        env = {**_ENV, "LLM_MODEL": "openai/gpt-oss-120b:free"}
+        with patch.dict(os.environ, env), \
+             patch("llm.kutsu.time.monotonic", return_value=200.0), \
+             patch("llm.kutsu.requests.post", return_value=self._mock_vastaus("ok")):
+            kutsu.kysy("kysymys")
+        uni.assert_not_called()
+
+    def test_free_vali_on_suurempi_kuin_maksullinen(self):
+        """Free-tahdistus on aina hitaampi kuin maksullisen."""
+        assert kutsu._TAHDISTUS_FREE_S > kutsu._TAHDISTUS_MAKSU_S
+        # free-väli pysyy OpenRouterin 20 pyyntöä/min (= 3.0 s) rajan turvallisella puolella
+        assert kutsu._TAHDISTUS_FREE_S >= 3.0
+
+    def test_on_free_malli_tunnistaa_suffiksin(self):
+        assert kutsu._on_free_malli("openai/gpt-oss-120b:free") is True
+        assert kutsu._on_free_malli("openai/gpt-4o") is False
+        assert kutsu._on_free_malli("") is False

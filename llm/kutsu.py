@@ -20,10 +20,41 @@ _MAKSIMIVIIVE_S = 64.0
 _MAX_YRITYKSET = 8
 _viive_s = 0.0
 
+# Ennakoiva tahdistus: vähimmäisväli peräkkäisten pyyntöjen välillä. Toisin kuin
+# yllä oleva reaktiivinen backoff (joka käynnistyy vasta 429:n jälkeen), tämä
+# pitää pyyntötahdin valmiiksi rajojen alapuolella eikä tuhlaa vrk-kiintiötä
+# 429-törmäyksiin. ":free"-mallit noudattavat OpenRouterin 20 pyyntöä/min -rajaa
+# (= 3.0 s/pyyntö); 3.5 s antaa turvamarginaalin (~17/min). Maksulliset mallit
+# saavat lyhyemmän välin, koska niiden rajat ovat korkeammat.
+_TAHDISTUS_FREE_S = 3.5
+_TAHDISTUS_MAKSU_S = 0.5
+_edellinen_pyynto = 0.0
+
 
 def hae_malli() -> str:
     """Palauttaa käytössä olevan LLM-mallin nimen."""
     return os.environ.get("LLM_MODEL", "")
+
+
+def _on_free_malli(malli: str) -> bool:
+    """Tunnistaa OpenRouterin ilmaismallit ":free"-suffiksista."""
+    return malli.strip().endswith(":free")
+
+
+def _tahdistusvali(malli: str) -> float:
+    """Vähimmäisväli pyyntöjen välillä mallin hintaluokan mukaan."""
+    return _TAHDISTUS_FREE_S if _on_free_malli(malli) else _TAHDISTUS_MAKSU_S
+
+
+def _tahdista(malli: str) -> None:
+    """Nukkuu tarvittaessa niin, että edellisestä pyynnöstä on kulunut
+    vähintään mallin tahdistusväli. Päivittää lähetyshetken globaaliin tilaan."""
+    global _edellinen_pyynto
+    vali = _tahdistusvali(malli)
+    kulunut = time.monotonic() - _edellinen_pyynto
+    if kulunut < vali:
+        time.sleep(vali - kulunut)
+    _edellinen_pyynto = time.monotonic()
 
 
 def _tekstilohko(teksti: str, kakku: bool = False) -> dict:
@@ -73,6 +104,7 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
         raise EnvironmentError(
             "LLM_PROVIDER, LLM_API_KEY tai LLM_MODEL puuttuu .env-tiedostosta"
         )
+    _tahdista(malli)
     for _ in range(_MAX_YRITYKSET):
         if _viive_s:
             time.sleep(_viive_s)
