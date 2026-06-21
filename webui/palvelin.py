@@ -1,4 +1,4 @@
-"""kyberESR web-käyttöliittymän FastAPI-palvelin."""
+"""Opserver web-käyttöliittymän FastAPI-palvelin."""
 import json
 import os
 import uuid
@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from tietokanta import mallit
 from llm import tiiviste, kehoteet
 
-sovellus = FastAPI(title="kyberESR")
+sovellus = FastAPI(title="Opserver")
 
 # --- Reaaliaikainen läsnäolo ja muokkaussessiot (WebSocket) ---
 

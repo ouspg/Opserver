@@ -57,7 +57,7 @@ function asetaEvaste(nimi, arvo, paivat = 30) {
 let omaProfiili = null;
 
 function lataaProfiili() {
-  const raw = lueEvaste("kyberesrKayttaja");
+  const raw = lueEvaste("opserverKayttaja");
   if (raw) {
     try {
       const p = JSON.parse(decodeURIComponent(raw));
@@ -71,7 +71,7 @@ function lataaProfiili() {
 }
 
 function tallennaProfiili() {
-  asetaEvaste("kyberesrKayttaja", encodeURIComponent(JSON.stringify(omaProfiili)));
+  asetaEvaste("opserverKayttaja", encodeURIComponent(JSON.stringify(omaProfiili)));
 }
 
 function arvoNimimerkki() {

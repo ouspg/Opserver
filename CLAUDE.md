@@ -1,4 +1,4 @@
-# kyberESR — Automaattinen kurssitutkimusputki
+# Opserver — Automaattinen kurssitutkimusputki
 
 ## Projektin tarkoitus
 
