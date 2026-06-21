@@ -59,6 +59,25 @@ def _rakenna_kysymysteksti(kysymykset: list[dict]) -> str:
     return "\n".join(rivit)
 
 
+def pura_vastaus(kysymys: dict, raw) -> tuple:
+    """Purkaa LLM:n raakavastauksen → (vastaus, pisteet, luokka, lista) kysymystyypin mukaan."""
+    luokittelu = kysymys.get("Luokittelu") or "vapaa_teksti"
+    pisteet = luokka = lista = None
+    if luokittelu == "luokittelu" and isinstance(raw, dict):
+        vastaus = raw.get("perustelu", "")
+        luokka = raw.get("luokka", "")
+    elif luokittelu == "asteikko" and isinstance(raw, dict):
+        vastaus = raw.get("perustelu", "")
+        pisteet = float(raw["pisteet"]) if raw.get("pisteet") is not None else None
+    elif luokittelu == "lista" and isinstance(raw, dict):
+        vastaus = raw.get("perustelu", "")
+        kohdat = raw.get("kohdat", [])
+        lista = [str(x) for x in kohdat] if isinstance(kohdat, list) else []
+    else:
+        vastaus = str(raw) if raw else ""
+    return vastaus, pisteet, luokka, lista
+
+
 def _tallenna_tulokset(tulokset: list[dict], kysymykset: list[dict], malli: str,
                        kys_tiiviste: dict | None = None) -> None:
     for tulos in tulokset:
@@ -66,22 +85,7 @@ def _tallenna_tulokset(tulokset: list[dict], kysymykset: list[dict], malli: str,
         for i, k in enumerate(kysymykset):
             vastaukset_lista = tulos.get("vastaukset", [])
             raw = vastaukset_lista[i] if i < len(vastaukset_lista) else ""
-            luokittelu = k.get("Luokittelu") or "vapaa_teksti"
-
-            pisteet = luokka = lista = None
-            if luokittelu == "luokittelu" and isinstance(raw, dict):
-                vastaus = raw.get("perustelu", "")
-                luokka = raw.get("luokka", "")
-            elif luokittelu == "asteikko" and isinstance(raw, dict):
-                vastaus = raw.get("perustelu", "")
-                pisteet = float(raw["pisteet"]) if raw.get("pisteet") is not None else None
-            elif luokittelu == "lista" and isinstance(raw, dict):
-                vastaus = raw.get("perustelu", "")
-                kohdat = raw.get("kohdat", [])
-                lista = [str(x) for x in kohdat] if isinstance(kohdat, list) else []
-            else:
-                vastaus = str(raw) if raw else ""
-
+            vastaus, pisteet, luokka, lista = pura_vastaus(k, raw)
             tiiv = (kys_tiiviste or {}).get(k["KysID"])
             mallit.aseta_vastaus(k["KysID"], kid, vastaus, malli,
                                  pisteet=pisteet, luokka=luokka, lista=lista, tiiviste=tiiv)
@@ -161,6 +165,25 @@ def laske_tyomaara(tutkimus: dict) -> tuple[int, int]:
     return uudet, vanhentuneet
 
 
+def rakenna_erat(tieto: dict, koko: int) -> list[tuple[list[dict], list[dict]]]:
+    """Ryhmittelee työn alla olevat kurssit tarvittavien kysymysten mukaan ja jakaa
+    `koko`-kokoisiin eriin, jotta yhdessä erässä kysytään vain sama kysymysjoukko.
+    Palauttaa listan (osa_kysymykset, erän_kurssit) -pareja."""
+    kysymykset = tieto["kysymykset"]
+    kurssi_kartta = tieto["kurssi_kartta"]
+    ryhmat: dict[tuple, list[dict]] = {}
+    for kid, kys_lista in tieto["tyo"].items():
+        avain = tuple(sorted(k["KysID"] for k in kys_lista))
+        ryhmat.setdefault(avain, []).append(kurssi_kartta[kid])
+
+    erat: list[tuple[list[dict], list[dict]]] = []
+    for avain, ryhman_kurssit in ryhmat.items():
+        osa_kysymykset = [k for k in kysymykset if k["KysID"] in avain]
+        for i in range(0, len(ryhman_kurssit), koko):
+            erat.append((osa_kysymykset, ryhman_kurssit[i:i + koko]))
+    return erat
+
+
 def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None) -> int:
     """Arvioi mukaan otetut kurssit LLM:llä. Palauttaa arvioitujen kurssien määrän.
 
@@ -175,26 +198,11 @@ def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None) -> int
     if not tyo:
         return 0
 
-    kysymykset = tieto["kysymykset"]
     arviointikehote = tieto["arviointikehote"]
     jarjestelma = tieto["jarjestelma"]
     kys_tiiviste = tieto["kys_tiiviste"]
-    kurssi_kartta = tieto["kurssi_kartta"]
 
-    # Ryhmittele kurssit tarvittavien kysymysten mukaan, jotta yhdessä erässä
-    # kysytään vain sama (mahdollisesti osittainen) kysymysjoukko.
-    ryhmat: dict[tuple, list[dict]] = {}
-    for kid, kys_lista in tyo.items():
-        avain = tuple(sorted(k["KysID"] for k in kys_lista))
-        ryhmat.setdefault(avain, []).append(kurssi_kartta[kid])
-
-    koko = erakoko()
-    erat: list[tuple[list[dict], list[dict]]] = []
-    for avain, ryhman_kurssit in ryhmat.items():
-        osa_kysymykset = [k for k in kysymykset if k["KysID"] in avain]
-        for i in range(0, len(ryhman_kurssit), koko):
-            erat.append((osa_kysymykset, ryhman_kurssit[i:i + koko]))
-
+    erat = rakenna_erat(tieto, erakoko())
     if max_erat is not None:
         erat = erat[:max_erat]
 
