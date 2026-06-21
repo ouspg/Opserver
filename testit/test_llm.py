@@ -176,3 +176,28 @@ class TestKysy:
         assert kutsu._on_free_malli("openai/gpt-oss-120b:free") is True
         assert kutsu._on_free_malli("openai/gpt-4o") is False
         assert kutsu._on_free_malli("") is False
+
+    # --- token-käytön talteenotto (testieriä varten) ---
+
+    def test_kysy_tallentaa_viimeisimman_kayton(self):
+        vastaus = MagicMock()
+        vastaus.status_code = 200
+        vastaus.json.return_value = {
+            "choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
+        }
+        with patch.dict(os.environ, _ENV), \
+             patch("llm.kutsu.requests.post", return_value=vastaus):
+            kutsu.kysy("kysymys")
+        kaytto = kutsu.hae_viimeisin_kaytto()
+        assert kaytto["prompt_tokens"] == 100
+        assert kaytto["completion_tokens"] == 50
+        assert kaytto["finish_reason"] == "stop"
+
+    def test_viimeisin_kaytto_puuttuva_usage_ei_kaada(self):
+        with patch.dict(os.environ, _ENV), \
+             patch("llm.kutsu.requests.post", return_value=self._mock_vastaus("ok")):
+            kutsu.kysy("kysymys")
+        kaytto = kutsu.hae_viimeisin_kaytto()
+        assert kaytto["finish_reason"] is None
+        assert "completion_tokens" not in kaytto

@@ -28,5 +28,26 @@ def paivita_env(avain: str, arvo: str, polku: str = _ENV_POLKU) -> None:
 
 def aseta_malli(malli: str) -> None:
     """Vaihtaa LLM_MODEL:n pysyvästi .env:iin ja päivittää ajossa olevan ympäristön."""
-    paivita_env("LLM_MODEL", malli, _ENV_POLKU)
-    os.environ["LLM_MODEL"] = malli
+    aseta_arvo("LLM_MODEL", malli)
+
+
+def aseta_arvo(avain: str, arvo: str) -> None:
+    """Asettaa minkä tahansa .env-avaimen pysyvästi ja päivittää ajossa olevan ympäristön."""
+    paivita_env(avain, arvo, _ENV_POLKU)
+    os.environ[avain] = arvo
+
+
+def lue_int(avain: str, oletus: int) -> int:
+    """Lukee kokonaisluvun ympäristöstä; oletus jos puuttuu tai kelvoton."""
+    try:
+        return int(os.environ[avain])
+    except (KeyError, ValueError):
+        return oletus
+
+
+def lue_float(avain: str, oletus: float) -> float:
+    """Lukee liukuluvun ympäristöstä; oletus jos puuttuu tai kelvoton."""
+    try:
+        return float(os.environ[avain])
+    except (KeyError, ValueError):
+        return oletus

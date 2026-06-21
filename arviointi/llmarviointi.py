@@ -1,9 +1,14 @@
 """LLM-arviointi: lähettää mukaan otetut kurssit LLM:lle kysymysvastauksiin."""
 import json
 from tietokanta import mallit
-from llm import kutsu, tiiviste, kehoteet, kurssimuoto
+from llm import kutsu, tiiviste, kehoteet, kurssimuoto, asetukset
 
-ERÄKOKO = 5
+_OLETUS_ERAKOKO = 5  # kursseja per LLM-kutsu; .env:n ARVIOINTI_ERAKOKO ohittaa
+
+
+def erakoko() -> int:
+    """Kursseja per LLM-kutsu (.env: ARVIOINTI_ERAKOKO)."""
+    return asetukset.lue_int("ARVIOINTI_ERAKOKO", _OLETUS_ERAKOKO)
 
 
 def _lue_jarjestelma_kehote() -> str:
@@ -183,11 +188,12 @@ def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None) -> int
         avain = tuple(sorted(k["KysID"] for k in kys_lista))
         ryhmat.setdefault(avain, []).append(kurssi_kartta[kid])
 
+    koko = erakoko()
     erat: list[tuple[list[dict], list[dict]]] = []
     for avain, ryhman_kurssit in ryhmat.items():
         osa_kysymykset = [k for k in kysymykset if k["KysID"] in avain]
-        for i in range(0, len(ryhman_kurssit), ERÄKOKO):
-            erat.append((osa_kysymykset, ryhman_kurssit[i:i + ERÄKOKO]))
+        for i in range(0, len(ryhman_kurssit), koko):
+            erat.append((osa_kysymykset, ryhman_kurssit[i:i + koko]))
 
     if max_erat is not None:
         erat = erat[:max_erat]

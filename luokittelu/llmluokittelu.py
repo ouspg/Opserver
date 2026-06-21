@@ -1,9 +1,14 @@
 """LLM-luokittelu: lähettää meta-suodatuksen läpäisseet kurssit LLM:lle."""
 import json
 from tietokanta import mallit
-from llm import kutsu, tiiviste, kehoteet, kurssimuoto
+from llm import kutsu, tiiviste, kehoteet, kurssimuoto, asetukset
 
-ERÄKOKO = 20  # kursseja per LLM-kutsu
+_OLETUS_ERAKOKO = 20  # kursseja per LLM-kutsu; .env:n LUOKITTELU_ERAKOKO ohittaa
+
+
+def erakoko() -> int:
+    """Kursseja per LLM-kutsu (.env: LUOKITTELU_ERAKOKO)."""
+    return asetukset.lue_int("LUOKITTELU_ERAKOKO", _OLETUS_ERAKOKO)
 
 
 def _lue_jarjestelma_kehote() -> str:
@@ -60,7 +65,8 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int]:
         return 0, 0
 
     malli = kutsu.hae_malli()
-    erat = [kandidaatit[i : i + ERÄKOKO] for i in range(0, len(kandidaatit), ERÄKOKO)]
+    koko = erakoko()
+    erat = [kandidaatit[i : i + koko] for i in range(0, len(kandidaatit), koko)]
     mukana = 0
     hylätty = 0
     käsitelty = 0

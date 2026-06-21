@@ -7,6 +7,7 @@ import os
 import time
 import requests
 from dotenv import load_dotenv
+from llm import asetukset
 
 load_dotenv()
 
@@ -30,10 +31,19 @@ _TAHDISTUS_FREE_S = 3.5
 _TAHDISTUS_MAKSU_S = 0.5
 _edellinen_pyynto = 0.0
 
+# Viimeisimmän onnistuneen pyynnön token-käyttö + finish_reason. Mittauksia
+# (esim. eräkoon viritys) varten; pipelinen logiikka ei riipu tästä.
+_viimeisin_kaytto: dict = {}
+
 
 def hae_malli() -> str:
     """Palauttaa käytössä olevan LLM-mallin nimen."""
     return os.environ.get("LLM_MODEL", "")
+
+
+def hae_viimeisin_kaytto() -> dict:
+    """Palauttaa viimeisimmän onnistuneen pyynnön usage-tiedot ja finish_reasonin."""
+    return dict(_viimeisin_kaytto)
 
 
 def _on_free_malli(malli: str) -> bool:
@@ -42,8 +52,10 @@ def _on_free_malli(malli: str) -> bool:
 
 
 def _tahdistusvali(malli: str) -> float:
-    """Vähimmäisväli pyyntöjen välillä mallin hintaluokan mukaan."""
-    return _TAHDISTUS_FREE_S if _on_free_malli(malli) else _TAHDISTUS_MAKSU_S
+    """Vähimmäisväli pyyntöjen välillä mallin hintaluokan mukaan (.env ohittaa oletuksen)."""
+    if _on_free_malli(malli):
+        return asetukset.lue_float("LLM_TAHDISTUS_FREE_S", _TAHDISTUS_FREE_S)
+    return asetukset.lue_float("LLM_TAHDISTUS_MAKSU_S", _TAHDISTUS_MAKSU_S)
 
 
 def _tahdista(malli: str) -> None:
@@ -96,7 +108,7 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
     kysymykset), joka merkitään kehotevälimuistiin. Kun useat erät jakavat saman
     etuliitteen, sitä ei laskuteta/prosessoida uudelleen tukevilla malleilla.
     """
-    global _viive_s
+    global _viive_s, _viimeisin_kaytto
     perus_url = os.environ.get("LLM_PROVIDER")
     api_avain = os.environ.get("LLM_API_KEY")
     malli = os.environ.get("LLM_MODEL")
@@ -110,7 +122,7 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
             time.sleep(_viive_s)
         runko = {
             "model": malli,
-            "max_tokens": _MAX_TOKENIT,
+            "max_tokens": asetukset.lue_int("LLM_MAX_TOKENIT", _MAX_TOKENIT),
             "messages": _rakenna_viestit(viesti, jarjestelma, vakaa_prefix),
         }
         if json_muoto:
@@ -142,5 +154,8 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
         if sisalto is None:
             finish = valinnat[0].get("finish_reason", "?")
             raise ValueError(f"LLM palautti tyhjän vastauksen (finish_reason: {finish})")
+        kaytto = dict(data.get("usage") or {})
+        kaytto["finish_reason"] = valinnat[0].get("finish_reason")
+        _viimeisin_kaytto = kaytto
         return sisalto
     raise RuntimeError(f"LLM-pyyntö epäonnistui: {_MAX_YRITYKSET} peräkkäistä 429-vastausta")
