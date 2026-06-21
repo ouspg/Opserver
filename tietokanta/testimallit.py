@@ -49,6 +49,26 @@ def poista_testiajo_luokittelu(ajo: str) -> int:
             return kursori.rowcount
 
 
+def siirra_testiajo_luokittelu(ajo: str) -> int:
+    """Siirtää testiajon luokitukset varsinaiseen Kurssiluokitus-tauluun (upsert).
+    Säilyttää Kehotetiivisteen, joten siirretyt tunnistetaan ajantasaisiksi.
+    Palauttaa siirrettyjen kurssien määrän."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute("SELECT COUNT(*) FROM Kurssiluokitus_testi WHERE Ajo = %s", (ajo,))
+            maara = kursori.fetchone()[0]
+            kursori.execute(
+                """INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste, Malli, Kehotetiiviste)
+                   SELECT TID, KID, Mukana, Luokitteluperuste, Malli, Kehotetiiviste
+                   FROM Kurssiluokitus_testi WHERE Ajo = %s
+                   ON DUPLICATE KEY UPDATE Mukana = VALUES(Mukana),
+                       Luokitteluperuste = VALUES(Luokitteluperuste), Malli = VALUES(Malli),
+                       Kehotetiiviste = VALUES(Kehotetiiviste)""",
+                (ajo,),
+            )
+            return maara
+
+
 # --- Arvioinnin testierät ---
 
 def aseta_testivastaus(ajo: str, erakoko: int, tid: int, kysid: int, kid: int, vastaus: str,
@@ -89,3 +109,23 @@ def poista_testiajo_arviointi(ajo: str) -> int:
         with yht.cursor() as kursori:
             kursori.execute("DELETE FROM Vastaukset_testi WHERE Ajo = %s", (ajo,))
             return kursori.rowcount
+
+
+def siirra_testiajo_arviointi(ajo: str) -> int:
+    """Siirtää testiajon vastaukset varsinaiseen Vastaukset-tauluun (upsert).
+    Säilyttää Kehotetiivisteen, joten siirretyt tunnistetaan ajantasaisiksi.
+    Palauttaa siirrettyjen vastausten määrän."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute("SELECT COUNT(*) FROM Vastaukset_testi WHERE Ajo = %s", (ajo,))
+            maara = kursori.fetchone()[0]
+            kursori.execute(
+                """INSERT INTO Vastaukset (KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)
+                   SELECT KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste
+                   FROM Vastaukset_testi WHERE Ajo = %s
+                   ON DUPLICATE KEY UPDATE Vastaus = VALUES(Vastaus), Malli = VALUES(Malli),
+                       Pisteet = VALUES(Pisteet), Luokka = VALUES(Luokka),
+                       Lista = VALUES(Lista), Kehotetiiviste = VALUES(Kehotetiiviste)""",
+                (ajo,),
+            )
+            return maara

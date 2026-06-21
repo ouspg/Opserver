@@ -22,6 +22,7 @@ def _luokittele(stdscr, tutkimus: dict) -> None:
         ("Aja LLM-luokittelu", _aja_llm),
         ("Aja LLM-testierä kirjaten tilastot", _aja_testiera),
         ("Muokkaa LLM-luokittelun asetuksia", _muokkaa_asetukset),
+        ("Siirrä testiajo varsinaiseen aineistoon", _siirra_testiajo),
         ("Poista testiajo", _poista_testiajo),
         ("Näytä tilanne", _nayta_tilanne),
     ]
@@ -205,30 +206,53 @@ def _muokkaa_asetukset(stdscr, tutkimus: dict) -> None:
     )
 
 
-def _poista_testiajo(stdscr, tutkimus: dict) -> None:
+def _valitse_testiajo(stdscr, tutkimus: dict, otsikko: str):
+    """Listaa luokittelun testiajot ja palauttaa valitun (tai None)."""
     from tietokanta import testimallit
 
     ajot = testimallit.hae_testiajot_luokittelu(tutkimus["TID"])
     if not ajot:
         nayta_viesti(stdscr, "Ei luokittelun testiajoja tälle tutkimukselle.")
-        return
+        return None
     rivit = [
         f"{a['Ajo']}  —  {a['Rivit']} kurssia (mukana {a['Mukana']}), "
         f"eräkoko {a['Erakoko']}, {a['Malli'] or '?'}"
         for a in ajot
     ]
-    valinta = valitse_listasta(stdscr, "Poista testiajo — valitse", rivit)
-    if valinta is None:
+    valinta = valitse_listasta(stdscr, otsikko, rivit)
+    return ajot[valinta] if valinta is not None else None
+
+
+def _siirra_testiajo(stdscr, tutkimus: dict) -> None:
+    from tietokanta import testimallit
+
+    ajo = _valitse_testiajo(stdscr, tutkimus, "Siirrä testiajo varsinaiseen aineistoon — valitse")
+    if ajo is None:
         return
-    ajo = ajot[valinta]["Ajo"]
     varmistus = valitse_listasta(
-        stdscr, f"Poista testiajo {ajo}?",
-        [f"Poista {ajot[valinta]['Rivit']} riviä lopullisesti", "Peruuta"],
+        stdscr, f"Siirrä ajo {ajo['Ajo']} ({ajo['Rivit']} kurssia) varsinaiseen aineistoon?",
+        [f"Siirrä — korvaa näiden kurssien aiemmat luokitukset", "Peruuta"],
     )
     if varmistus != 0:
         return
-    poistettu = testimallit.poista_testiajo_luokittelu(ajo)
-    nayta_viesti(stdscr, f"Poistettu {poistettu} riviä (ajo {ajo}).")
+    siirretty = testimallit.siirra_testiajo_luokittelu(ajo["Ajo"])
+    nayta_viesti(stdscr, f"Siirretty {siirretty} luokitusta varsinaiseen aineistoon (ajo {ajo['Ajo']}).")
+
+
+def _poista_testiajo(stdscr, tutkimus: dict) -> None:
+    from tietokanta import testimallit
+
+    ajo = _valitse_testiajo(stdscr, tutkimus, "Poista testiajo — valitse")
+    if ajo is None:
+        return
+    varmistus = valitse_listasta(
+        stdscr, f"Poista testiajo {ajo['Ajo']}?",
+        [f"Poista {ajo['Rivit']} riviä lopullisesti", "Peruuta"],
+    )
+    if varmistus != 0:
+        return
+    poistettu = testimallit.poista_testiajo_luokittelu(ajo["Ajo"])
+    nayta_viesti(stdscr, f"Poistettu {poistettu} riviä (ajo {ajo['Ajo']}).")
 
 
 def _nayta_tilanne(stdscr, tutkimus: dict) -> None:
