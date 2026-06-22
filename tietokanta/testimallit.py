@@ -27,6 +27,23 @@ def aseta_testiluokitus(ajo: str, erakoko: int, tid: int, kid: int, mukana: bool
             )
 
 
+def hae_siirrettavat_ajot_luokittelu(tid: int, tiiviste: str) -> list[str]:
+    """Testiajot (nykyisellä kehotetiivisteellä), joiden kursseja ei vielä ole
+    siirretty varsinaiseen tauluun samalla tiivisteellä → siirto säästäisi tokeneita."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                """SELECT DISTINCT tt.Ajo
+                   FROM Kurssiluokitus_testi tt
+                   LEFT JOIN Kurssiluokitus k
+                     ON k.TID = tt.TID AND k.KID = tt.KID AND k.Kehotetiiviste = tt.Kehotetiiviste
+                   WHERE tt.TID = %s AND tt.Kehotetiiviste = %s AND k.KLID IS NULL
+                   ORDER BY tt.Ajo""",
+                (tid, tiiviste),
+            )
+            return [r[0] for r in kursori.fetchall()]
+
+
 def hae_testiajot_luokittelu(tid: int) -> list[dict]:
     """Tutkimuksen luokittelun testiajot ryhmiteltynä (uusin ensin)."""
     with yhteys() as yht:
@@ -87,6 +104,26 @@ def aseta_testivastaus(ajo: str, erakoko: int, tid: int, kysid: int, kid: int, v
                        Lista = VALUES(Lista), Kehotetiiviste = VALUES(Kehotetiiviste)""",
                 (ajo, erakoko, tid, kysid, kid, vastaus, malli, pisteet, luokka, lista_json, tiiviste),
             )
+
+
+def hae_siirrettavat_ajot_arviointi(tid: int, tiivisteet: list[str]) -> list[str]:
+    """Testiajot, joiden vastauksia (nykyisillä kysymystiivisteillä) ei vielä ole
+    siirretty varsinaiseen Vastaukset-tauluun → siirto säästäisi tokeneita."""
+    if not tiivisteet:
+        return []
+    paikat = ",".join(["%s"] * len(tiivisteet))
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                f"""SELECT DISTINCT vt.Ajo
+                    FROM Vastaukset_testi vt
+                    LEFT JOIN Vastaukset v
+                      ON v.KysID = vt.KysID AND v.KID = vt.KID AND v.Kehotetiiviste = vt.Kehotetiiviste
+                    WHERE vt.TID = %s AND vt.Kehotetiiviste IN ({paikat}) AND v.VasID IS NULL
+                    ORDER BY vt.Ajo""",
+                (tid, *tiivisteet),
+            )
+            return [r[0] for r in kursori.fetchall()]
 
 
 def hae_testiajot_arviointi(tid: int) -> list[dict]:

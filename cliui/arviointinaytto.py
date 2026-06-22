@@ -40,8 +40,30 @@ def _arvioi(stdscr, tutkimus: dict) -> None:
 def _aja_llm(stdscr, tutkimus: dict, vain_yksi_era: bool = False) -> None:
     from arviointi import llmarviointi
     from llm import mallitiedot
+    from tietokanta import testimallit
     otsikko = "LLM-arviointi (yksi erä)" if vain_yksi_era else "LLM-arviointi"
     piirra_otsikko(stdscr, f"{otsikko} — {tutkimus['LuokittelunNimi']}")
+
+    # Varoita siirtämättömistä testiajoista: ne käsiteltäisiin nyt uudelleen,
+    # ellei niitä siirretä ensin varsinaiseen aineistoon.
+    tiivisteet = list(llmarviointi._selvita_tyo(tutkimus)["kys_tiiviste"].values())
+    siirrettavat = testimallit.hae_siirrettavat_ajot_arviointi(tutkimus["TID"], tiivisteet)
+    if siirrettavat:
+        valinta = valitse_listasta(
+            stdscr,
+            f"Siirtämättömiä testiajoja: {len(siirrettavat)} — niiden vastaukset käsiteltäisiin uudelleen",
+            [
+                "Siirrä testiajot ensin (säästää tokeneita)",
+                "Aja silti (testiajot käsitellään uudelleen)",
+                "Peruuta",
+            ],
+        )
+        if valinta is None or valinta == 2:
+            return
+        if valinta == 0:
+            siirretty = sum(testimallit.siirra_testiajo_arviointi(a) for a in siirrettavat)
+            nayta_viesti(stdscr, f"Siirretty {siirretty} vastausta {len(siirrettavat)} testiajosta.")
+            piirra_otsikko(stdscr, f"{otsikko} — {tutkimus['LuokittelunNimi']}")
 
     uudet, vanhentuneet = llmarviointi.laske_tyomaara(tutkimus)
     if uudet + vanhentuneet == 0:

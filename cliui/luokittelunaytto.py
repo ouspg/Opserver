@@ -79,10 +79,32 @@ def _aja_meta(stdscr, tutkimus: dict) -> None:
 def _aja_llm(stdscr, tutkimus: dict) -> None:
     from luokittelu import llmluokittelu
     from llm import mallitiedot
+    from tietokanta import testimallit
     piirra_otsikko(stdscr, f"LLM-luokittelu — {tutkimus['LuokittelunNimi']}")
 
     tid = tutkimus["TID"]
     tiiv = llmluokittelu.laske_tiiviste(tutkimus)
+
+    # Varoita siirtämättömistä testiajoista: ne käsiteltäisiin nyt uudelleen
+    # (tokeneita hukkaan), ellei niitä siirretä ensin varsinaiseen aineistoon.
+    siirrettavat = testimallit.hae_siirrettavat_ajot_luokittelu(tid, tiiv)
+    if siirrettavat:
+        valinta = valitse_listasta(
+            stdscr,
+            f"Siirtämättömiä testiajoja: {len(siirrettavat)} — niiden kurssit käsiteltäisiin uudelleen",
+            [
+                "Siirrä testiajot ensin (säästää tokeneita)",
+                "Aja silti (testiajot käsitellään uudelleen)",
+                "Peruuta",
+            ],
+        )
+        if valinta is None or valinta == 2:
+            return
+        if valinta == 0:
+            siirretty = sum(testimallit.siirra_testiajo_luokittelu(a) for a in siirrettavat)
+            nayta_viesti(stdscr, f"Siirretty {siirretty} luokitusta {len(siirrettavat)} testiajosta.")
+            piirra_otsikko(stdscr, f"LLM-luokittelu — {tutkimus['LuokittelunNimi']}")
+
     uudet = len(mallit.hae_luokittelemattomat(tid))            # ei vielä LLM-luokiteltu
     kaikki = len(mallit.hae_luokittelemattomat(tid, tiiv))     # + vanhentuneen kehotteen tulokset
     vanhentuneet = kaikki - uudet
