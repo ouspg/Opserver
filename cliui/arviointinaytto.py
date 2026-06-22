@@ -131,28 +131,51 @@ def _aja_testiera(stdscr, tutkimus: dict) -> None:
         nayta_viesti(stdscr, f"Virhe testierässä: {e}")
         return
 
-    piirra_otsikko(stdscr, "LLM-testierä — valmis")
-    stdscr.addstr(3, 0, f"Ajotunnus: {tulos['ajo_id']}   (eräkoko {erakoko})")
-    for i, rivi in enumerate(_testiera_yhteenveto(tulos["tietueet"]), 4):
-        stdscr.addstr(i, 0, rivi[:stdscr.getmaxyx()[1] - 1])
-    stdscr.addstr(8, 0, f"Tilastot: {tulos['tilastopolku']}")
-    nayta_viesti(stdscr, "", 10)
+    if not tulos["tietueet"]:
+        nayta_viesti(stdscr, "Ei eriä ajettu (ei arvioimattomia kursseja?).")
+        return
+
+    from tietokanta import testimallit
+    valinta = valitse_listasta(
+        stdscr,
+        "LLM-testierä valmis — siirretäänkö tulokset varsinaiseen aineistoon?",
+        ["Siirrä varsinaiseen aineistoon", "Älä siirrä (säilyy testiajona)"],
+        kiintea_otsikko=_testiera_raportti(tulos, erakoko),
+    )
+    if valinta == 0:
+        siirretty = testimallit.siirra_testiajo_arviointi(tulos["ajo_id"])
+        nayta_viesti(stdscr, f"Siirretty {siirretty} vastausta varsinaiseen aineistoon (ajo {tulos['ajo_id']}).")
+    else:
+        nayta_viesti(stdscr, f"Ei siirretty. Testiajo {tulos['ajo_id']} säilyy (siirrä/poista myöhemmin valikosta).")
 
 
-def _testiera_yhteenveto(tietueet: list[dict]) -> list[str]:
-    """Tiivis yhteenveto eräkoon viritystä varten."""
-    if not tietueet:
-        return ["Ei eriä ajettu (ei arvioimattomia kursseja?)."]
-    tayttoasteet = [t["ulostulo_tayttoaste"] for t in tietueet if t["ulostulo_tayttoaste"] is not None]
-    katkesi = sum(1 for t in tietueet if t["finish_reason"] == "length")
-    pudonneet = sum(t["pudonneet"] for t in tietueet)
-    epaonnistui = sum(1 for t in tietueet if t["jasennys"] != "ok")
-    maks_taytto = f"{max(tayttoasteet):.0%}" if tayttoasteet else "?"
-    return [
-        f"Eriä: {len(tietueet)}  |  suurin ulostulon täyttöaste: {maks_taytto}",
-        f"Katkesi (finish_reason=length): {katkesi}  |  pudonneita kursseja: {pudonneet}",
-        f"Jäsennys ei-ok: {epaonnistui}  (uusinta/epäonnistui)",
+def _testiera_raportti(tulos: dict, erakoko: int) -> list[str]:
+    """Per-erä raportti eräkoon viritystä ja siirtopäätöstä varten."""
+    tietueet = tulos["tietueet"]
+    rivit = [
+        f"Ajotunnus {tulos['ajo_id']}  ·  eräkoko {erakoko}  ·  {tulos['eria']} erää",
+        "",
+        "Erä  Kurss  Kysym  Täyttö  finish   Pudon  Kesto",
+        "---  -----  -----  ------  -------  -----  ------",
     ]
+    for t in tietueet:
+        ta = f"{t['ulostulo_tayttoaste']:.0%}" if t["ulostulo_tayttoaste"] is not None else "?"
+        rivit.append(
+            f"{t['era_nro']:<3}  {t['kursseja_lahetetty']:<5}  {t['kysymyksia']:<5}  "
+            f"{ta:>5}   {(t['finish_reason'] or '?'):<7}  {t['pudonneet']:<5}  {t['kesto_s']}s"
+        )
+    kurss = sum(t["kursseja_lahetetty"] for t in tietueet)
+    pud = sum(t["pudonneet"] for t in tietueet)
+    tayt = [t["ulostulo_tayttoaste"] for t in tietueet if t["ulostulo_tayttoaste"] is not None]
+    maxt = f"{max(tayt):.0%}" if tayt else "?"
+    katk = sum(1 for t in tietueet if t["finish_reason"] == "length")
+    rivit += [
+        "",
+        f"Yht: {kurss} kurssia · pudonneita {pud}",
+        f"Suurin täyttöaste {maxt} (katto {tietueet[0]['ulostulo_katto']}) · katkesi {katk}",
+        f"Tilastot: {tulos['tilastopolku']}",
+    ]
+    return rivit
 
 
 def _muokkaa_asetukset(stdscr, tutkimus: dict) -> None:

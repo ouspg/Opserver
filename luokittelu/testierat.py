@@ -9,6 +9,7 @@ tiedostoon vertailtaviksi.
 """
 import json
 import os
+import random
 import time
 from datetime import datetime
 
@@ -91,8 +92,9 @@ def aja_testierat(tutkimus: dict, erakoko: int, montako_era: int,
     tiiv = tiiviste.luokittelu(luokittelukehote, jarjestelma)
     malli = kutsu.hae_malli()
 
+    # Satunnaisotos ilman takaisinpanoa → sama kurssi ei voi osua kahteen erään.
     kandidaatit = mallit.hae_luokittelemattomat(tid, tiiv)
-    otos = kandidaatit[: erakoko * montako_era]
+    otos = random.sample(kandidaatit, min(erakoko * montako_era, len(kandidaatit)))
     erat = [otos[i : i + erakoko] for i in range(0, len(otos), erakoko)]
 
     ajo_id = datetime.now().strftime("%Y%m%dT%H%M%S")

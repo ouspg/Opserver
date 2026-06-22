@@ -86,6 +86,21 @@ def test_kirjaa_tulokset_testitauluun_ajotunnuksella(tmp_path, mockit):
     assert ajot == {tulos["ajo_id"]}
 
 
+def test_sama_kurssi_ei_osu_kahteen_eraan(tmp_path):
+    """Satunnaisotos ilman takaisinpanoa: kukin kurssi enintään yhdessä erässä."""
+    with patch("luokittelu.testierat.mallit.hae_luokittelemattomat", return_value=_kurssit(20)), \
+         patch("luokittelu.testierat.testimallit.aseta_testiluokitus") as aseta, \
+         patch("luokittelu.testierat.llmluokittelu._lue_jarjestelma_kehote", return_value="JARJ"), \
+         patch("luokittelu.testierat.tiiviste.luokittelu", return_value="TIIV"), \
+         patch("luokittelu.testierat.kutsu.hae_malli", return_value="m"), \
+         patch("luokittelu.testierat.kutsu.hae_viimeisin_kaytto", return_value={"finish_reason": "stop"}), \
+         patch("luokittelu.testierat.kutsu.kysy", side_effect=_kaiuta_kysy):
+        testierat.aja_testierat(_TUTKIMUS, erakoko=3, montako_era=3, tilastopolku=str(tmp_path / "t.jsonl"))
+    kidt = [c.kwargs["kid"] for c in aseta.call_args_list]
+    assert len(kidt) == 9              # 3 × 3 eri kurssia
+    assert len(set(kidt)) == len(kidt)  # ei duplikaatteja
+
+
 def test_pudonneet_kurssit_lasketaan(tmp_path):
     polku = tmp_path / "tilastot.jsonl"
     with patch("luokittelu.testierat.mallit.hae_luokittelemattomat", return_value=_kurssit(2)), \

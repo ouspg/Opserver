@@ -8,6 +8,7 @@ JSONL-tiedostoon, joten uusi ajo ei pyyhi aiempia.
 """
 import json
 import os
+import random
 import time
 from datetime import datetime
 
@@ -113,6 +114,11 @@ def aja_testierat(tutkimus: dict, erakoko: int, montako_era: int,
     kys_tiiviste = tieto["kys_tiiviste"]
     malli = kutsu.hae_malli()
 
+    # Satunnaisotos työn alla olevista kursseista ilman takaisinpanoa → sama
+    # kurssi ei voi osua kahteen erään. Ryhmittely kysymysjoukon mukaan säilyy.
+    tyo_kohteet = list(tieto["tyo"].keys())
+    valitut = set(random.sample(tyo_kohteet, min(erakoko * montako_era, len(tyo_kohteet))))
+    tieto["tyo"] = {kid: v for kid, v in tieto["tyo"].items() if kid in valitut}
     erat = llmarviointi.rakenna_erat(tieto, erakoko)[:montako_era]
     tietueet = []
     for era_nro, (osa_kysymykset, era) in enumerate(erat, 1):
