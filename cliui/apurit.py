@@ -27,52 +27,138 @@ def nayta_viesti(stdscr, teksti: str, rivi: int = -1) -> None:
     stdscr.getch()
 
 
-def lue_teksti(stdscr, kehote: str, rivi: int, oletus: str = "") -> str:
-    """Lukee tekstirivin readline-tyylisillä pikanäppäimillä.
+def _sana_eteen(buffer: list[str], pos: int) -> int:
+    """Seuraavan sanan loppu (Option-F / Option-oikea)."""
+    n = len(buffer)
+    while pos < n and not buffer[pos].isalnum():
+        pos += 1
+    while pos < n and buffer[pos].isalnum():
+        pos += 1
+    return pos
 
-    Tuetut komennot:
-      ← → / Ctrl-B/F   merkki kerrallaan
-      Ctrl-A / Ctrl-E   rivin alkuun / loppuun
-      Option-B / Option-F  sana taaksepäin / eteenpäin
-      Backspace / Ctrl-H   poista edeltävä merkki
-      Ctrl-D / Del      poista seuraava merkki
-      Ctrl-K            tyhjennä kursorista loppuun
-      Ctrl-U            tyhjennä koko rivi
-      Ctrl-W            poista edeltävä sana
-      Enter             hyväksy
+
+def _sana_taakse(buffer: list[str], pos: int) -> int:
+    """Edellisen sanan alku (Option-B / Option-vasen)."""
+    while pos > 0 and not buffer[pos - 1].isalnum():
+        pos -= 1
+    while pos > 0 and buffer[pos - 1].isalnum():
+        pos -= 1
+    return pos
+
+
+def _rivita(buffer: list[str], etuliite: int, leveys: int) -> list[int]:
+    """Pehmeä rivitys: palauttaa kunkin näyttörivin alkavan merkki-indeksin.
+
+    Ensimmäinen rivi alkaa sarakkeesta `etuliite` (kehotteen jälkeen), loput
+    sarakkeesta 0. Rivitys tehdään sanarajoilla kun mahdollista, muuten kovasti.
     """
-    _, leveys = stdscr.getmaxyx()
+    n = len(buffer)
+    alut = [0]
+    rivin_alku = 0
+    kapasiteetti = max(1, leveys - etuliite)
+    i = 0
+    while i < n:
+        if i - rivin_alku >= kapasiteetti:
+            # Yritä peräytyä viimeiseen välilyöntiin (sanaraja)
+            katko = i
+            j = i
+            while j > rivin_alku and buffer[j - 1] != " ":
+                j -= 1
+            if j > rivin_alku:
+                katko = j
+            alut.append(katko)
+            rivin_alku = katko
+            kapasiteetti = max(1, leveys)
+            i = katko
+        else:
+            i += 1
+    return alut
+
+
+def lue_teksti(stdscr, kehote: str, rivi: int, oletus: str = "") -> str:
+    """Lukee tekstin pehmeällä rivityksellä (textarea-tyyli) ja readline-näppäimillä.
+
+    Pitkä teksti rivittyy automaattisesti useammalle näyttöriville alkaen rivistä
+    `rivi`; lyhyt teksti mahtuu yhdelle riville kuten ennen. Tuetut komennot:
+      ← → / Ctrl-B/F          merkki kerrallaan (rivien yli)
+      ↑ ↓                     näyttörivi ylös/alas (sama sarake)
+      Ctrl-A / Ctrl-E         näyttörivin alkuun / loppuun
+      Option-← → / Option-B/F sana taaksepäin / eteenpäin
+      Backspace / Ctrl-H      poista edeltävä merkki
+      Ctrl-D / Del            poista seuraava merkki
+      Ctrl-K                  tyhjennä kursorista loppuun
+      Ctrl-U                  tyhjennä koko teksti
+      Ctrl-W                  poista edeltävä sana
+      Enter                   hyväksy
+    """
+    korkeus, leveys = stdscr.getmaxyx()
     kehote_teksti = kehote + ": "
-    kentan_leveys = max(1, leveys - len(kehote_teksti) - 1)
+    etuliite = len(kehote_teksti)
+    leveys = max(etuliite + 1, leveys)
 
     buffer: list[str] = list(oletus)
     pos = len(buffer)
-    offset = max(0, pos - kentan_leveys + 1)
 
     curses.noecho()
     curses.curs_set(1)
 
-    def paivita() -> None:
-        nonlocal offset
-        if pos < offset:
-            offset = pos
-        elif pos >= offset + kentan_leveys:
-            offset = pos - kentan_leveys + 1
-        stdscr.move(rivi, 0)
-        stdscr.clrtoeol()
-        stdscr.addstr(rivi, 0, kehote_teksti)
-        naytetty = "".join(buffer[offset:offset + kentan_leveys])
+    def rivi_ja_sarake(p: int, alut: list[int]) -> tuple[int, int]:
+        """Merkki-indeksi → (näyttörivi-indeksi, sarake ruudulla)."""
+        r = 0
+        for k in range(len(alut) - 1, -1, -1):
+            if p >= alut[k]:
+                r = k
+                break
+        sar = (etuliite if r == 0 else 0) + (p - alut[r])
+        return r, sar
+
+    def paivita() -> int:
+        alut = _rivita(buffer, etuliite, leveys)
+        nakyvat = max(1, korkeus - rivi - 1)
+        kur_r, kur_s = rivi_ja_sarake(pos, alut)
+        for nayttorivi in range(nakyvat):
+            stdscr.move(rivi + nayttorivi, 0)
+            stdscr.clrtoeol()
+        for nayttorivi in range(min(len(alut), nakyvat)):
+            a = alut[nayttorivi]
+            loppu = alut[nayttorivi + 1] if nayttorivi + 1 < len(alut) else len(buffer)
+            teksti = "".join(buffer[a:loppu])
+            sar = etuliite if nayttorivi == 0 else 0
+            try:
+                if nayttorivi == 0:
+                    stdscr.addstr(rivi, 0, kehote_teksti)
+                stdscr.addstr(rivi + nayttorivi, sar, teksti[: leveys - sar])
+            except curses.error:
+                pass
         try:
-            stdscr.addstr(rivi, len(kehote_teksti), naytetty)
-        except curses.error:
-            pass
-        try:
-            stdscr.move(rivi, len(kehote_teksti) + pos - offset)
+            if kur_r < nakyvat:
+                stdscr.move(rivi + kur_r, min(kur_s, leveys - 1))
         except curses.error:
             pass
         stdscr.refresh()
+        return len(alut)
 
     paivita()
+
+    def siirra_pystyyn(suunta: int) -> None:
+        nonlocal pos
+        alut = _rivita(buffer, etuliite, leveys)
+        r, sar = rivi_ja_sarake(pos, alut)
+        kohde = r + suunta
+        if kohde < 0 or kohde >= len(alut):
+            return
+        a = alut[kohde]
+        loppu = alut[kohde + 1] if kohde + 1 < len(alut) else len(buffer)
+        sar_alku = etuliite if kohde == 0 else 0
+        haluttu = max(0, sar - sar_alku)
+        pos = min(a + haluttu, loppu)
+
+    def rivin_rajat() -> tuple[int, int]:
+        alut = _rivita(buffer, etuliite, leveys)
+        r, _ = rivi_ja_sarake(pos, alut)
+        a = alut[r]
+        loppu = alut[r + 1] if r + 1 < len(alut) else len(buffer)
+        return a, loppu
 
     while True:
         try:
@@ -83,25 +169,22 @@ def lue_teksti(stdscr, kehote: str, rivi: int, oletus: str = "") -> str:
         if isinstance(ch, str):
             if ch in ("\n", "\r"):
                 break
-            elif ch == "\x01":                  # Ctrl-A: rivin alkuun
-                pos = 0
-            elif ch == "\x05":                  # Ctrl-E: rivin loppuun
-                pos = len(buffer)
+            elif ch == "\x01":                  # Ctrl-A: näyttörivin alkuun
+                pos, _ = rivin_rajat()
+            elif ch == "\x05":                  # Ctrl-E: näyttörivin loppuun
+                _, pos = rivin_rajat()
             elif ch == "\x02":                  # Ctrl-B: merkki taaksepäin
                 pos = max(0, pos - 1)
             elif ch == "\x06":                  # Ctrl-F: merkki eteenpäin
                 pos = min(len(buffer), pos + 1)
             elif ch == "\x0b":                  # Ctrl-K: tyhjennä loppuun
                 del buffer[pos:]
-            elif ch == "\x15":                  # Ctrl-U: tyhjennä koko rivi
+            elif ch == "\x15":                  # Ctrl-U: tyhjennä koko teksti
                 del buffer[:]
                 pos = 0
             elif ch == "\x17":                  # Ctrl-W: poista edeltävä sana
                 end = pos
-                while pos > 0 and buffer[pos - 1] == " ":
-                    pos -= 1
-                while pos > 0 and buffer[pos - 1] != " ":
-                    pos -= 1
+                pos = _sana_taakse(buffer, pos)
                 del buffer[pos:end]
             elif ch in ("\x08", "\x7f"):        # Ctrl-H / BS
                 if pos > 0:
@@ -110,20 +193,25 @@ def lue_teksti(stdscr, kehote: str, rivi: int, oletus: str = "") -> str:
             elif ch == "\x04":                  # Ctrl-D: poista seuraava
                 if pos < len(buffer):
                     del buffer[pos]
-            elif ch == "\x1b":                  # ESC / Option+kirjain
+            elif ch == "\x1b":                  # ESC / Option+näppäin
                 stdscr.nodelay(True)
                 try:
                     nc = stdscr.get_wch()
-                    if nc == "f" or nc == "F":  # Option-F: sana eteenpäin
-                        while pos < len(buffer) and not buffer[pos].isalnum():
-                            pos += 1
-                        while pos < len(buffer) and buffer[pos].isalnum():
-                            pos += 1
-                    elif nc == "b" or nc == "B":  # Option-B: sana taaksepäin
-                        while pos > 0 and not buffer[pos - 1].isalnum():
-                            pos -= 1
-                        while pos > 0 and buffer[pos - 1].isalnum():
-                            pos -= 1
+                    if nc in ("f", "F"):
+                        pos = _sana_eteen(buffer, pos)
+                    elif nc in ("b", "B"):
+                        pos = _sana_taakse(buffer, pos)
+                    elif nc == "[":             # ESC[1;3C/D = Option+nuoli
+                        loput = ""
+                        for _ in range(4):
+                            try:
+                                loput += stdscr.get_wch()
+                            except curses.error:
+                                break
+                        if loput.endswith("C"):
+                            pos = _sana_eteen(buffer, pos)
+                        elif loput.endswith("D"):
+                            pos = _sana_taakse(buffer, pos)
                 except curses.error:
                     pass
                 finally:
@@ -131,7 +219,7 @@ def lue_teksti(stdscr, kehote: str, rivi: int, oletus: str = "") -> str:
             elif ch.isprintable():
                 buffer.insert(pos, ch)
                 pos += 1
-        else:                                   # kokonaisluku: erikoisnäppäin
+        else:                                   # erikoisnäppäin
             if ch in (curses.KEY_BACKSPACE, 127):
                 if pos > 0:
                     del buffer[pos - 1]
@@ -143,6 +231,10 @@ def lue_teksti(stdscr, kehote: str, rivi: int, oletus: str = "") -> str:
                 pos = max(0, pos - 1)
             elif ch == curses.KEY_RIGHT:
                 pos = min(len(buffer), pos + 1)
+            elif ch == curses.KEY_UP:
+                siirra_pystyyn(-1)
+            elif ch == curses.KEY_DOWN:
+                siirra_pystyyn(1)
             elif ch == curses.KEY_HOME:
                 pos = 0
             elif ch == curses.KEY_END:
