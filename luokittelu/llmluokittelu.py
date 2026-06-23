@@ -48,10 +48,12 @@ def laske_tiiviste(tutkimus: dict) -> str:
     return tiiviste.luokittelu(tutkimus["Luokittelukehote"], _lue_jarjestelma_kehote())
 
 
-def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int]:
+def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int, int]:
     """Luokittelee meta-suodatuksen läpäisseet kurssit LLM:llä.
 
-    Palauttaa (mukana, hylätty). Idempotentti.
+    Palauttaa (mukana, hylätty, virhe_erat). Idempotentti. Yksittäisen erän
+    epäonnistuminen (esim. katkennut/viallinen LLM-JSON) ei kaada koko ajoa:
+    erä ohitetaan ja sen kurssit tulevat mukaan seuraavalla ajolla.
     """
     tid = tutkimus["TID"]
     luokittelukehote = tutkimus["Luokittelukehote"]
@@ -62,19 +64,26 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int]:
     # mutta ei jo täsmäävän kehotteen tuloksia (säästää LLM-kuluja).
     kandidaatit = mallit.hae_luokittelemattomat(tid, tiiv)
     if not kandidaatit:
-        return 0, 0
+        return 0, 0, 0
 
     malli = kutsu.hae_malli()
     koko = erakoko()
     erat = [kandidaatit[i : i + koko] for i in range(0, len(kandidaatit), koko)]
     mukana = 0
     hylätty = 0
+    virhe_erat = 0
     käsitelty = 0
 
     for erä_nro, erä in enumerate(erat, 1):
-        tulokset = _luokittele_erä(erä, luokittelukehote, jarjestelma)
+        try:
+            tulokset = _luokittele_erä(erä, luokittelukehote, jarjestelma)
+        except Exception:
+            virhe_erat += 1  # viallinen erä ohitetaan; kurssit jäävät seuraavalle ajolle
+            tulokset = []
         for tulos in tulokset:
-            kid = tulos["id"]
+            kid = tulos.get("id")
+            if kid is None:
+                continue
             on_mukana = bool(tulos.get("mukana"))
             perustelu = tulos.get("perustelu", "")
             mallit.aseta_luokitus(tid, kid, on_mukana, perustelu, malli, tiiviste=tiiv)
@@ -86,4 +95,4 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int]:
         if edistyminen_cb:
             edistyminen_cb(käsitelty, len(kandidaatit), erä_nro, len(erat))
 
-    return mukana, hylätty
+    return mukana, hylätty, virhe_erat

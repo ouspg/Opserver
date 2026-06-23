@@ -146,9 +146,10 @@ class TestLlmluokittelu:
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=self.LLM_VASTAUS), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
              patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
-            mukana, hylätty = llmluokittelu.aja(tutkimus)
+            mukana, hylätty, virheet = llmluokittelu.aja(tutkimus)
         assert mukana == 1
         assert hylätty == 1
+        assert virheet == 0
         assert mock_aseta.call_count == 2
         # Kandidaatit haetaan tiivisteellä, jotta vanhentunut kehote ajetaan uudelleen
         tiiv = mock_hae.call_args.args[1]
@@ -156,6 +157,22 @@ class TestLlmluokittelu:
         # Tulokset tallennetaan samalla tiivisteellä
         for c in mock_aseta.call_args_list:
             assert c.kwargs["tiiviste"] == tiiv
+
+    def test_aja_viallinen_era_ei_kaada_ajoa(self):
+        """Katkennut/viallinen LLM-JSON ohitetaan: virhe lasketaan, ajo jatkuu."""
+        kandidaatit = [
+            {"KID": 1, "KurssiNimi": "A", "Koodi": "X1", "Taso": "aine",
+             "Oppiaine": "IT", "Opetusvuosi": "2025-2026", "OpsKuvaus": None},
+        ]
+        tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
+        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
+             patch("luokittelu.llmluokittelu.kutsu.kysy", return_value="ei kelvollista jsonia"), \
+             patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
+             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+            mukana, hylätty, virheet = llmluokittelu.aja(tutkimus)
+        assert (mukana, hylätty) == (0, 0)
+        assert virheet == 1
+        assert mock_aseta.call_count == 0
 
     def test_aja_tiiviste_muuttuu_kehotteesta(self):
         from llm import tiiviste

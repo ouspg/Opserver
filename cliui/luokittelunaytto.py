@@ -141,11 +141,13 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
         stdscr.refresh()
 
     try:
-        mukana, hylätty = llmluokittelu.aja(tutkimus, edistyminen)
+        mukana, hylätty, virheet = llmluokittelu.aja(tutkimus, edistyminen)
         piirra_otsikko(stdscr, "LLM-luokittelu — valmis")
         stdscr.addstr(3, 0, f"Mukaan otettu: {mukana}")
         stdscr.addstr(4, 0, f"Hylätty:       {hylätty}")
-        nayta_viesti(stdscr, "", 6)
+        if virheet:
+            stdscr.addstr(5, 0, f"Ohitettuja viallisia eriä: {virheet} (kurssit tulevat seuraavalla ajolla)")
+        nayta_viesti(stdscr, "", 7)
     except EnvironmentError as e:
         nayta_viesti(stdscr, f"Virhe: {e}")
     except Exception as e:
@@ -306,7 +308,7 @@ def _nayta_tilanne(stdscr, tutkimus: dict) -> None:
     tid = tutkimus["TID"]
     t = mallit.hae_tutkimuksen_tilanne(tid)
     arvioimattomat = len(mallit.hae_arvioimattomat(tid))
-    arvioitu = t["hyvaksytty"] - arvioimattomat
+    arvioitu = max(0, t["hyvaksytty"] - arvioimattomat)
 
     piirra_otsikko(stdscr, f"Tilanne — {tutkimus['LuokittelunNimi']}")
     korkeus, leveys = stdscr.getmaxyx()

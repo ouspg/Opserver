@@ -214,8 +214,12 @@ def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None) -> int
     for erä_nro, (osa_kysymykset, erä) in enumerate(erat, 1):
         if edistyminen_cb:
             edistyminen_cb(käsitelty, yhteensa, erä_nro, len(erat))
-        tulokset = _arvioi_erä(erä, arviointikehote, osa_kysymykset, jarjestelma)
-        _tallenna_tulokset(tulokset, osa_kysymykset, malli, kys_tiiviste)
+        try:
+            tulokset = _arvioi_erä(erä, arviointikehote, osa_kysymykset, jarjestelma)
+            _tallenna_tulokset(tulokset, osa_kysymykset, malli, kys_tiiviste)
+        except Exception:
+            # Viallinen erä ohitetaan; sen kurssit jäävät seuraavalle ajolle (idempotenssi).
+            tulokset = []
         for t in tulokset:
             arvioidut.add(t.get("id"))
         käsitelty += len(erä)
