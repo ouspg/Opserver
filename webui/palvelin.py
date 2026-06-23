@@ -246,21 +246,26 @@ def api_tutkimus_kurssit(slug: str) -> list[dict]:
 
 
 @sovellus.get("/api/tutkimukset/{slug}/luokitukset/maarat")
-def api_tutkimus_luokitukset_maarat(slug: str) -> dict:
+def api_tutkimus_luokitukset_maarat(slug: str, kkid: Optional[int] = None,
+                                    taso: Optional[str] = None,
+                                    hakusana: Optional[str] = None) -> dict:
     tutkimus = mallit.hae_tutkimus_slugilla(slug)
     if tutkimus is None:
         raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
-    return mallit.hae_tutkimuksen_tilamaarat(tutkimus["TID"])
+    return mallit.hae_tutkimuksen_tilamaarat(tutkimus["TID"], kkid=kkid, taso=taso, hakusana=hakusana)
 
 
 @sovellus.get("/api/tutkimukset/{slug}/luokitukset")
 def api_tutkimus_luokitukset(slug: str, tila: Optional[str] = None,
-                             sivu: int = 0, koko: int = 200) -> list[dict]:
+                             sivu: int = 0, koko: int = 200,
+                             kkid: Optional[int] = None, taso: Optional[str] = None,
+                             hakusana: Optional[str] = None) -> list[dict]:
     tutkimus = mallit.hae_tutkimus_slugilla(slug)
     if tutkimus is None:
         raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     tid = tutkimus["TID"]
-    rivit = mallit.hae_kurssit_luokituksilla(tid, tila=tila, sivu=sivu, koko=koko)
+    rivit = mallit.hae_kurssit_luokituksilla(tid, tila=tila, sivu=sivu, koko=koko,
+                                             kkid=kkid, taso=taso, hakusana=hakusana)
 
     # Ryhmittele HITL-historia kursseittain (vanhimmasta uusimpaan)
     historia: dict[int, list[dict]] = {}

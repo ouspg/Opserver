@@ -510,6 +510,25 @@ def hae_luokittelemattomat(tid: int, tiiviste: str | None = None) -> list[dict]:
 _TILA_EHTO = {"mukana": "kl.Mukana = 1", "odottaa": "kl.Mukana IS NULL", "hylätty": "kl.Mukana = 0"}
 
 
+def _kurssi_suodatin_sql(kkid: int | None, taso: str | None,
+                         hakusana: str | None) -> tuple[str, list]:
+    """Yhteinen suodatin (yliopisto/taso/hakusana) Kurssi-alias k:lle. Hakusana
+    osuu kurssin nimeen tai koodiin (osajono, kirjainkoosta riippumaton)."""
+    ehdot, params = [], []
+    if kkid is not None:
+        ehdot.append("k.KKID = %s")
+        params.append(kkid)
+    if taso:
+        ehdot.append("k.Taso = %s")
+        params.append(taso)
+    if hakusana and hakusana.strip():
+        ehdot.append("(k.KurssiNimi LIKE %s OR k.Koodi LIKE %s)")
+        kuvio = f"%{hakusana.strip()}%"
+        params.extend([kuvio, kuvio])
+    sql = (" AND " + " AND ".join(ehdot)) if ehdot else ""
+    return sql, params
+
+
 def _vuosi_kattaa_sql(sarake: str, lukuvuosi: str) -> tuple[str, list]:
     """SQL-ehto + parametrit: OPS-kausi (sarake "YYYY-YYYY"/"YYYY-YY") kattaa
     lukuvuoden. Peilaa luokittelu/lukuvuosi.kattaa-logiikkaa, jotta vuosirajaus
@@ -540,20 +559,23 @@ def _tutkimus_kurssi_scope(tid: int) -> tuple[str | None, list]:
     return where, [*korkeakoulut, *vuosi_params]
 
 
-def hae_tutkimuksen_tilamaarat(tid: int) -> dict:
+def hae_tutkimuksen_tilamaarat(tid: int, kkid: int | None = None, taso: str | None = None,
+                               hakusana: str | None = None) -> dict:
     """Tutkimuksen kurssimäärät tiloittain (mukana/odottaa/hylätty), rajattuna
-    korkeakouluihin ja lukuvuoteen. Kevyt COUNT — välilehtien lukuihin."""
+    korkeakouluihin ja lukuvuoteen. Valinnainen yliopisto/taso/hakusana-suodatus
+    (samat kuin listauksessa, jotta välilehtien luvut vastaavat näkymää)."""
     maarat = {"mukana": 0, "odottaa": 0, "hylätty": 0}
     where, params = _tutkimus_kurssi_scope(tid)
     if where is None:
         return maarat
+    suod_sql, suod_params = _kurssi_suodatin_sql(kkid, taso, hakusana)
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
                 f"SELECT kl.Mukana, COUNT(*) FROM Kurssi k "
                 f"LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s "
-                f"WHERE {where} GROUP BY kl.Mukana",
-                (tid, *params),
+                f"WHERE {where}{suod_sql} GROUP BY kl.Mukana",
+                (tid, *params, *suod_params),
             )
             for mukana, n in kursori.fetchall():
                 if mukana is None:
@@ -566,15 +588,18 @@ def hae_tutkimuksen_tilamaarat(tid: int) -> dict:
 
 
 def hae_kurssit_luokituksilla(tid: int, tila: str | None = None,
-                              sivu: int = 0, koko: int | None = None) -> list[dict]:
+                              sivu: int = 0, koko: int | None = None,
+                              kkid: int | None = None, taso: str | None = None,
+                              hakusana: str | None = None) -> list[dict]:
     """Tutkimuksen kurssit luokitustiloineen — rajattuna korkeakouluihin ja
-    lukuvuoteen. Valinnainen tila-välilehti (mukana/odottaa/hylätty) ja sivutus
-    (koko=None palauttaa kaikki). Lukuvuosi on kova rajaus.
+    lukuvuoteen. Valinnainen tila-välilehti (mukana/odottaa/hylätty), sivutus
+    (koko=None palauttaa kaikki) sekä yliopisto/taso/hakusana-suodatus.
     """
     where, params = _tutkimus_kurssi_scope(tid)
     if where is None:
         return []
     tila_sql = f" AND {_TILA_EHTO[tila]}" if tila in _TILA_EHTO else ""
+    suod_sql, suod_params = _kurssi_suodatin_sql(kkid, taso, hakusana)
     raja_sql, raja_params = "", []
     if koko:
         raja_sql = " LIMIT %s OFFSET %s"
@@ -585,8 +610,8 @@ def hae_kurssit_luokituksilla(tid: int, tila: str | None = None,
                 f"SELECT k.KID, k.KKID, k.LahdeId, k.KurssiNimi, k.Koodi, k.Taso, k.Oppiaine, "
                 f"k.Opintopisteet, k.Opetusvuosi, kl.Mukana, kl.Luokitteluperuste "
                 f"FROM Kurssi k LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s "
-                f"WHERE {where}{tila_sql} ORDER BY k.KurssiNimi{raja_sql}",
-                (tid, *params, *raja_params),
+                f"WHERE {where}{tila_sql}{suod_sql} ORDER BY k.KurssiNimi{raja_sql}",
+                (tid, *params, *suod_params, *raja_params),
             )
             return _rivit_dikteina(kursori)
 
