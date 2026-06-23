@@ -1,4 +1,5 @@
 """Tutkimuksen tarkentavien kysymysten hallinta."""
+import textwrap
 from tietokanta import mallit
 from cliui.apurit import piirra_otsikko, nayta_viesti, lue_teksti, valitse_listasta
 
@@ -16,6 +17,37 @@ def _tyyppimerkki(luokittelu: str | None) -> str:
 
 def _lyhenna(teksti: str) -> str:
     return teksti[:_KATKAISU] + "…" if len(teksti) > _KATKAISU else teksti
+
+
+def _maarittely_rivit(tyyppi: str, maar: dict | None) -> list[str]:
+    """Tyypin lisämääritykset luettavina riveinä (luokat/asteikko/lista)."""
+    maar = maar or {}
+    rivit = []
+    if tyyppi == "luokittelu":
+        for l in maar.get("luokat", []):
+            rivit.append(f"  - {l.get('nimi', '?')}: {l.get('kuvaus', '')}")
+    elif tyyppi == "asteikko":
+        rivit.append(f"  Asteikko {maar.get('minimi', '?')}–{maar.get('maksimi', '?')}")
+        for p in maar.get("pisteet", []):
+            rivit.append(f"  - {p.get('arvo')}: {p.get('kuvaus', '')}")
+    elif tyyppi == "lista":
+        mk = maar.get("max_kohdat")
+        rivit.append(f"  Kohtien yläraja: {mk}" if mk else "  Kohtien yläraja: ei rajaa")
+    return rivit
+
+
+def _tiedot_rivit(kysymys: dict) -> list[str]:
+    """Kysymyksen nykyinen teksti, tyyppi ja lisämääritykset kiinteäksi otsikoksi."""
+    tyyppi = kysymys.get("Luokittelu") or "vapaa_teksti"
+    rivit = ["Teksti:"]
+    rivit += ["  " + r for r in textwrap.wrap(kysymys["Kysymys"], 74)] or ["  (tyhjä)"]
+    rivit.append(f"Tyyppi: {_TYYPPI_NIMI.get(tyyppi, 'TEKSTI')}")
+    maar_rivit = _maarittely_rivit(tyyppi, kysymys.get("LuokitteluMaarittely"))
+    if maar_rivit:
+        rivit.append("Määrittely:")
+        rivit += maar_rivit
+    rivit.append("")  # erotin valikon yläpuolelle
+    return rivit
 
 
 def nayta(stdscr, tutkimus: dict) -> None:
@@ -59,8 +91,9 @@ def _lisaa(stdscr, tid: int) -> None:
 def _muokkaa_tai_poista(stdscr, kysymys: dict) -> None:
     valinta = valitse_listasta(
         stdscr,
-        _lyhenna(kysymys["Kysymys"]),
+        "Kysymyksen tiedot",
         ["Muokkaa teksti", "Muokkaa tyyppi ja määritelmä", "Poista"],
+        kiintea_otsikko=_tiedot_rivit(kysymys),
     )
     if valinta is None:
         return
