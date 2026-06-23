@@ -42,3 +42,21 @@ class TestSananavigointi:
 
     def test_sana_taakse_alussa(self):
         assert apurit._sana_taakse(list("hei"), 0) == 0
+
+
+class TestOptionSuunta:
+    def test_meta_kirjaimet(self):
+        assert apurit._option_suunta("f") == 1
+        assert apurit._option_suunta("b") == -1
+        assert apurit._option_suunta("F") == 1
+        assert apurit._option_suunta("B") == -1
+
+    def test_csi_sekvenssit(self):
+        assert apurit._option_suunta("[1;3C") == 1   # Option+oikea
+        assert apurit._option_suunta("[1;3D") == -1  # Option+vasen
+        assert apurit._option_suunta("[1;9C") == 1   # iTerm Esc+
+        assert apurit._option_suunta("OC") == 1      # SS3-muoto
+
+    def test_tuntematon_ja_tyhja(self):
+        assert apurit._option_suunta("") == 0
+        assert apurit._option_suunta("[5~") == 0

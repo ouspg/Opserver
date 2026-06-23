@@ -46,6 +46,24 @@ def _sana_taakse(buffer: list[str], pos: int) -> int:
     return pos
 
 
+def _option_suunta(merkit: str) -> int:
+    """Option/Alt-näppäilystä luettu sekvenssi → sanasiirron suunta.
+
+    +1 = eteenpäin, -1 = taaksepäin, 0 = ei tunnistettu. Kattaa eri terminaalit:
+    ESC b / ESC f (Meta), ESC[1;3C/D ja ESC O C/D (CSI/SS3 + modifier)."""
+    if not merkit:
+        return 0
+    if merkit.endswith(("C", "f", "F")):
+        return 1
+    if merkit.endswith(("D", "b", "B")):
+        return -1
+    return 0
+
+
+_OPTION_OIKEA = (b"kRIT3", b"kRIT4", b"kRIT5", b"kRIT6", b"kRIT7")
+_OPTION_VASEN = (b"kLFT3", b"kLFT4", b"kLFT5", b"kLFT6", b"kLFT7")
+
+
 def _rivita(buffer: list[str], etuliite: int, leveys: int) -> list[int]:
     """Pehmeä rivitys: palauttaa kunkin näyttörivin alkavan merkki-indeksin.
 
@@ -193,34 +211,38 @@ def lue_teksti(stdscr, kehote: str, rivi: int, oletus: str = "") -> str:
             elif ch == "\x04":                  # Ctrl-D: poista seuraava
                 if pos < len(buffer):
                     del buffer[pos]
-            elif ch == "\x1b":                  # ESC / Option+näppäin
-                stdscr.nodelay(True)
+            elif ch == "\x1b":                  # ESC: Option/Alt-sekvenssi (ESC b, ESC[1;3C, …)
+                seq = ""
+                stdscr.timeout(60)
                 try:
-                    nc = stdscr.get_wch()
-                    if nc in ("f", "F"):
-                        pos = _sana_eteen(buffer, pos)
-                    elif nc in ("b", "B"):
-                        pos = _sana_taakse(buffer, pos)
-                    elif nc == "[":             # ESC[1;3C/D = Option+nuoli
-                        loput = ""
-                        for _ in range(4):
-                            try:
-                                loput += stdscr.get_wch()
-                            except curses.error:
-                                break
-                        if loput.endswith("C"):
-                            pos = _sana_eteen(buffer, pos)
-                        elif loput.endswith("D"):
-                            pos = _sana_taakse(buffer, pos)
-                except curses.error:
-                    pass
+                    while len(seq) < 8:
+                        try:
+                            c = stdscr.get_wch()
+                        except curses.error:
+                            break
+                        if isinstance(c, int):
+                            break
+                        seq += c
                 finally:
-                    stdscr.nodelay(False)
+                    stdscr.timeout(-1)
+                suunta = _option_suunta(seq)
+                if suunta > 0:
+                    pos = _sana_eteen(buffer, pos)
+                elif suunta < 0:
+                    pos = _sana_taakse(buffer, pos)
             elif ch.isprintable():
                 buffer.insert(pos, ch)
                 pos += 1
         else:                                   # erikoisnäppäin
-            if ch in (curses.KEY_BACKSPACE, 127):
+            try:
+                nimi = curses.keyname(ch)
+            except (ValueError, OverflowError, curses.error):
+                nimi = b""
+            if nimi in _OPTION_OIKEA:           # Option/Alt + oikea: sana eteen
+                pos = _sana_eteen(buffer, pos)
+            elif nimi in _OPTION_VASEN:         # Option/Alt + vasen: sana taakse
+                pos = _sana_taakse(buffer, pos)
+            elif ch in (curses.KEY_BACKSPACE, 127):
                 if pos > 0:
                     del buffer[pos - 1]
                     pos -= 1
