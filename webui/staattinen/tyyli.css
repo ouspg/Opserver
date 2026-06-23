@@ -103,6 +103,30 @@ main { padding: 1.5rem; }
 
 .lkm { color: #666; font-size: 0.9rem; }
 
+.suodattimet input.suod-haku {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  background: #fff;
+  min-width: 16rem;
+}
+
+/* Tutkimuksen tiedot: arviointikysymysten tyyppi + määrittely */
+.kys-lista li { margin-bottom: 0.75rem; }
+.kys-teksti { font-weight: 600; }
+.kys-tyyppi {
+  display: inline-block;
+  font-size: 0.8rem;
+  color: #555;
+  background: #eef;
+  border-radius: 4px;
+  padding: 0.05rem 0.4rem;
+  margin: 0.15rem 0;
+}
+.kys-maar { font-size: 0.9rem; color: #444; margin: 0.2rem 0 0 0.5rem; }
+.kys-maar ul { margin: 0.2rem 0 0 1rem; }
+
 /* Taulukot */
 table {
   width: 100%;

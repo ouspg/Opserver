@@ -485,9 +485,28 @@ function verkkosivuIkoni(url) {
   return `<a href="${url}" target="_blank" rel="noopener" class="ops-linkki" title="${url}">🌐</a>`;
 }
 
+const KYS_TYYPPI_NIMI = { vapaa_teksti: "Vapaa teksti", luokittelu: "Luokittelu", asteikko: "Asteikko", lista: "Lista" };
+
+function _kysymysMaarittelyHtml(k) {
+  const tyyppi = k.Luokittelu || "vapaa_teksti";
+  const m = k.LuokitteluMaarittely || {};
+  let maar = "";
+  if (tyyppi === "luokittelu" && Array.isArray(m.luokat)) {
+    maar = `<ul class="kys-maar">${m.luokat.map((l) => `<li><strong>${escapeHtml(l.nimi || "")}</strong>: ${escapeHtml(l.kuvaus || "")}</li>`).join("")}</ul>`;
+  } else if (tyyppi === "asteikko") {
+    const pisteet = Array.isArray(m.pisteet) ? m.pisteet : [];
+    maar = `<div class="kys-maar">Asteikko ${m.minimi ?? "?"}–${m.maksimi ?? "?"}`
+      + (pisteet.length ? `<ul>${pisteet.map((p) => `<li>${escapeHtml(String(p.arvo))}: ${escapeHtml(p.kuvaus || "")}</li>`).join("")}</ul>` : "")
+      + `</div>`;
+  } else if (tyyppi === "lista") {
+    maar = `<div class="kys-maar">Kohtien yläraja: ${m.max_kohdat ? escapeHtml(String(m.max_kohdat)) : "ei rajaa"}</div>`;
+  }
+  return `<span class="kys-tyyppi">${KYS_TYYPPI_NIMI[tyyppi] || tyyppi}</span>${maar}`;
+}
+
 function renderTutkimusTiedot(t) {
   const kysymysLista = (t.Kysymykset && t.Kysymykset.length > 0)
-    ? `<ol>${t.Kysymykset.map((k) => `<li>${k.Kysymys}</li>`).join("")}</ol>`
+    ? `<ol class="kys-lista">${t.Kysymykset.map((k) => `<li><div class="kys-teksti">${escapeHtml(k.Kysymys)}</div>${_kysymysMaarittelyHtml(k)}</li>`).join("")}</ol>`
     : `<p class="tulossa">Ei arviointikysymyksiä.</p>`;
   document.getElementById("tutkimus-tiedot-sisalto").innerHTML = `
     <h2>${t.LuokittelunNimi}</h2>
@@ -589,15 +608,71 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
 const TUTKIMUS_KURSSIT_KOKO = 100;
 let tutkimus_maarat = { mukana: 0, odottaa: 0, "hylätty": 0 };
 let tutkimus_sivu = 0;
+let luokitus_suodatin = { kkid: null, taso: null, hakusana: null };
+
+// --- Jaettu suodatinpalkki (yliopisto + taso + hakusana) — DRY ---
+
+let _suodKoulut = null, _suodTasot = null;
+
+async function _suodatinData() {
+  if (!_suodKoulut) _suodKoulut = await fetch("/api/korkeakoulut").then((r) => r.json());
+  if (!_suodTasot) _suodTasot = await fetch("/api/tasot").then((r) => r.json());
+  return { koulut: _suodKoulut, tasot: _suodTasot };
+}
+
+function _suodatinParams(tila) {
+  const p = new URLSearchParams();
+  if (tila.kkid) p.set("kkid", tila.kkid);
+  if (tila.taso) p.set("taso", tila.taso);
+  if (tila.hakusana) p.set("hakusana", tila.hakusana);
+  return p.toString();
+}
+
+// Rakentaa suodatinkontrollit elementtiin ja kutsuu onChange muutoksilla.
+async function rakennaSuodatinPalkki(el, tila, onChange) {
+  const { koulut, tasot } = await _suodatinData();
+  el.innerHTML =
+    `<select class="suod-koulu" title="Yliopisto"><option value="">Kaikki yliopistot</option>`
+    + koulut.map((k) => `<option value="${k.KKID}">${escapeHtml(koulunLyhenne(k) || k.KouluNimi)}</option>`).join("")
+    + `</select>`
+    + `<select class="suod-taso" title="Taso"><option value="">Kaikki tasot</option>`
+    + tasot.map((x) => `<option value="${escapeHtml(x)}">${escapeHtml(TASO_SUOMI[x] || x)}</option>`).join("")
+    + `</select>`
+    + `<input class="suod-haku" type="search" placeholder="Hae nimestä tai koodista…" />`;
+  const koulu = el.querySelector(".suod-koulu");
+  const taso = el.querySelector(".suod-taso");
+  const haku = el.querySelector(".suod-haku");
+  koulu.value = tila.kkid || ""; taso.value = tila.taso || ""; haku.value = tila.hakusana || "";
+  koulu.onchange = () => { tila.kkid = koulu.value || null; onChange(); };
+  taso.onchange = () => { tila.taso = taso.value || null; onChange(); };
+  let viive;
+  haku.oninput = () => {
+    clearTimeout(viive);
+    viive = setTimeout(() => { tila.hakusana = haku.value.trim() || null; onChange(); }, 300);
+  };
+}
 
 async function renderTutkimusKurssit(slug, nimi) {
   document.getElementById("tutkimus-kurssit-otsikko").textContent = `${nimi} — kurssit`;
-  tutkimus_maarat = await fetch(`/api/tutkimukset/${slug}/luokitukset/maarat`).then((r) => r.json());
+  luokitus_suodatin = { kkid: null, taso: null, hakusana: null };
+  await rakennaSuodatinPalkki(
+    document.getElementById("tutkimus-kurssit-suodatin"),
+    luokitus_suodatin,
+    () => { tutkimus_sivu = 0; paivitaLuokitusMaaratJaSivu(); },
+  );
+  tutkimus_sivu = 0;
+  await paivitaLuokitusMaaratJaSivu();
+}
+
+// Hae tilamäärät (suodatettuna) ja nykyinen sivu
+async function paivitaLuokitusMaaratJaSivu() {
+  const slug = aktiivinen_tutkimus.Slug;
+  const p = _suodatinParams(luokitus_suodatin);
+  tutkimus_maarat = await fetch(`/api/tutkimukset/${slug}/luokitukset/maarat?${p}`).then((r) => r.json());
   const nimet = { mukana: "Mukana", odottaa: "Odottaa", "hylätty": "Hylätty" };
   document.querySelectorAll(".tila-nappi").forEach((b) => {
     b.textContent = `${nimet[b.dataset.tila]} (${tutkimus_maarat[b.dataset.tila] ?? 0})`;
   });
-  tutkimus_sivu = 0;
   await lataaTilaSivu();
 }
 
@@ -607,8 +682,9 @@ async function lataaTilaSivu() {
     b.classList.toggle("aktiivinen", b.dataset.tila === aktiivinen_tila);
   });
   const slug = aktiivinen_tutkimus.Slug;
+  const p = _suodatinParams(luokitus_suodatin);
   const url = `/api/tutkimukset/${slug}/luokitukset?tila=${encodeURIComponent(aktiivinen_tila)}`
-    + `&sivu=${tutkimus_sivu}&koko=${TUTKIMUS_KURSSIT_KOKO}`;
+    + `&sivu=${tutkimus_sivu}&koko=${TUTKIMUS_KURSSIT_KOKO}` + (p ? `&${p}` : "");
   tutkimus_luokitukset = await fetch(url).then((r) => r.json());
   renderTutkimusKurssitRivit(tutkimus_luokitukset);
   renderTutkimusKurssitSivutus();
@@ -739,24 +815,49 @@ function _vastusOnAnnettu(v) {
   return !!(v?.vastaus || v?.luokka || v?.pisteet != null || (Array.isArray(v?.lista) && v.lista.length));
 }
 
+let arvioinnit_data = null;
+let arvioinnit_suodatin = { kkid: null, taso: null, hakusana: null };
+
 async function renderTutkimusArvioinnit(slug, nimi) {
   document.getElementById("tutkimus-arvioinnit-otsikko").textContent = `${nimi} — arvioinnit`;
-  const data = await fetch(`/api/tutkimukset/${slug}/arvioinnit`).then((r) => r.json());
-  const { kysymykset, kurssit } = data;
+  arvioinnit_data = await fetch(`/api/tutkimukset/${slug}/arvioinnit`).then((r) => r.json());
+  arvioinnit_suodatin = { kkid: null, taso: null, hakusana: null };
   const sisalto = document.getElementById("tutkimus-arvioinnit-sisalto");
-  const lkm = document.getElementById("tutkimus-arvioinnit-lkm");
+  const suodatinEl = document.getElementById("tutkimus-arvioinnit-suodatin");
 
-  if (!kysymykset.length) {
-    lkm.textContent = "";
+  if (!arvioinnit_data.kysymykset.length) {
+    document.getElementById("tutkimus-arvioinnit-lkm").textContent = "";
+    suodatinEl.innerHTML = "";
     sisalto.innerHTML = '<p class="tulossa">Ei arviointikysymyksiä — lisää kysymyksiä tutkimukselle.</p>';
     return;
   }
+  await rakennaSuodatinPalkki(suodatinEl, arvioinnit_suodatin, renderArvioinnitTaulu);
+  renderArvioinnitTaulu();
+}
+
+function _arvioinnitSuodatetut() {
+  const s = arvioinnit_suodatin;
+  const haku = (s.hakusana || "").toLowerCase();
+  return arvioinnit_data.kurssit.filter((k) => {
+    if (s.kkid && String(k.KKID) !== String(s.kkid)) return false;
+    if (s.taso && (k.Taso || "") !== s.taso) return false;
+    if (haku && !((k.KurssiNimi || "").toLowerCase().includes(haku)
+                  || (k.Koodi || "").toLowerCase().includes(haku))) return false;
+    return true;
+  });
+}
+
+function renderArvioinnitTaulu() {
+  const { kysymykset } = arvioinnit_data;
+  const kurssit = _arvioinnitSuodatetut();
+  const sisalto = document.getElementById("tutkimus-arvioinnit-sisalto");
+  const lkm = document.getElementById("tutkimus-arvioinnit-lkm");
 
   const arvioitu = kurssit.filter((k) => k.vastaukset.some(_vastusOnAnnettu)).length;
   lkm.textContent = `${arvioitu} / ${kurssit.length} kurssia arvioitu`;
 
   if (!kurssit.length) {
-    sisalto.innerHTML = '<p class="tulossa">Ei mukaan otettuja kursseja.</p>';
+    sisalto.innerHTML = '<p class="tulossa">Ei kursseja suodatuksella.</p>';
     return;
   }
 
