@@ -5,23 +5,63 @@ täytyy saada käyttöönsä kaikki opinto-oppaassa näkyvä tieto — kuvaus on
 tieto, jonka perusteella luokittelu ja arviointi tehdään.
 """
 import json
+import re
+
+# Sisu KORI -course-unit -objektin tekstikentät (avain → otsikko kehotteeseen).
+_SISU_KENTAT = [
+    ("tweetText", "Tiivistelmä"),
+    ("outcomes", "Osaamistavoitteet"),
+    ("content", "Sisältö"),
+    ("prerequisites", "Esitiedot"),
+    ("additional", "Lisätiedot"),
+]
+
+
+def _monikielinen_teksti(arvo) -> str:
+    """Sisun monikielinen kenttä ({fi/en: html}) → suomenkielinen teksti ilman HTML:ää."""
+    if not isinstance(arvo, dict):
+        return ""
+    teksti = arvo.get("fi") or arvo.get("en") or ""
+    return re.sub(r"<[^>]+>", " ", teksti).strip()
+
+
+def _peppi_kuvaus(data: dict) -> str:
+    osat = []
+    for osio in data.get("contentList", []):
+        otsikko = (osio.get("title") or {}).get("valueFi", "")
+        teksti = ((osio.get("content") or {}).get("valueFi") or "").strip()
+        if teksti:
+            osat.append(f"{otsikko}: {teksti}" if otsikko else teksti)
+    return "\n".join(osat)
+
+
+def _sisu_kuvaus(data: dict) -> str:
+    osat = []
+    for avain, otsikko in _SISU_KENTAT:
+        teksti = _monikielinen_teksti(data.get(avain))
+        if teksti:
+            osat.append(f"{otsikko}: {teksti}")
+    return "\n".join(osat)
 
 
 def kuvaus_tekstina(ops_kuvaus: str | None) -> str:
-    """Muuntaa Peppi/Sisu-OpsKuvaus-JSONin luettavaksi tekstiksi kokonaisuudessaan."""
+    """Muuntaa Peppi- tai Sisu-OpsKuvaus-JSONin luettavaksi tekstiksi.
+
+    Peppi: contentList-rakenne. Sisu (KORI): course-unit -objektin tekstikentät
+    (tweetText/outcomes/content/prerequisites/additional). Ilman Sisu-haaraa
+    Sisu-kurssit päätyisivät LLM:lle ilman kuvausta.
+    """
     if not ops_kuvaus:
         return ""
     try:
         data = json.loads(ops_kuvaus)
-        osat = []
-        for osio in data.get("contentList", []):
-            otsikko = (osio.get("title") or {}).get("valueFi", "")
-            teksti = ((osio.get("content") or {}).get("valueFi") or "").strip()
-            if teksti:
-                osat.append(f"{otsikko}: {teksti}" if otsikko else teksti)
-        return "\n".join(osat)
-    except (ValueError, AttributeError):
+    except (ValueError, TypeError):
         return str(ops_kuvaus)
+    if not isinstance(data, dict):
+        return str(ops_kuvaus)
+    if "contentList" in data:
+        return _peppi_kuvaus(data)
+    return _sisu_kuvaus(data)
 
 
 def kurssi_json_promptiin(kurssi: dict) -> dict:

@@ -43,6 +43,31 @@ class TestKuvausTekstina:
         raaka = "Ei JSON-muodossa. " + "B" * 2000
         assert kurssimuoto.kuvaus_tekstina(raaka) == raaka
 
+    def test_jasentaa_sisu_kori_rakenteen(self):
+        """Sisu (KORI) course-unit: tekstikentät monikielisinä, HTML riisuttuna."""
+        ops = json.dumps({
+            "code": "TIES001",
+            "outcomes": {"fi": "<p>Opiskelija osaa kryptografian perusteet.</p>"},
+            "content": {"fi": "Symmetrinen ja epäsymmetrinen salaus."},
+            "prerequisites": {"fi": ""},
+            "tweetText": {"fi": "Johdatus salaukseen"},
+        })
+        teksti = kurssimuoto.kuvaus_tekstina(ops)
+        assert "Osaamistavoitteet: Opiskelija osaa kryptografian perusteet." in teksti
+        assert "Sisältö: Symmetrinen ja epäsymmetrinen salaus." in teksti
+        assert "Tiivistelmä: Johdatus salaukseen" in teksti
+        assert "<p>" not in teksti          # HTML riisuttu
+        assert "Esitiedot" not in teksti    # tyhjä kenttä jätetään pois
+
+    def test_sisu_kayttaa_englantia_jos_suomi_puuttuu(self):
+        ops = json.dumps({"content": {"en": "Basics of cryptography."}})
+        assert "Sisältö: Basics of cryptography." in kurssimuoto.kuvaus_tekstina(ops)
+
+    def test_sisu_ilman_tekstikenttia_palauttaa_tyhjan(self):
+        # Aidosti kuvaukseton Sisu-kurssi (riittämätön opinto-opas) → tyhjä, ei raaka JSON
+        ops = json.dumps({"code": "X", "credits": {"min": 5}, "outcomes": None})
+        assert kurssimuoto.kuvaus_tekstina(ops) == ""
+
 
 class TestKurssiJsonPromptiin:
     def test_rakentaa_kentat_ja_taydellisen_kuvauksen(self):
