@@ -126,12 +126,14 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
         if valinta != 0:
             return
 
-    # Esitarkistus: malli on saatavilla ennen kuin aloitetaan LLM-kutsut
-    try:
-        mallitiedot.tarkista_saatavuus()
-    except Exception as e:
-        nayta_viesti(stdscr, f"Mallia ei voi käyttää: {e}")
-        return
+    # Esitarkistus: malli on saatavilla ennen kuin aloitetaan LLM-kutsut.
+    # Ohitetaan jos valintakehote on tyhjä → meta-luokittelu ei käytä LLM:ää.
+    if (tutkimus.get("Luokittelukehote") or "").strip():
+        try:
+            mallitiedot.tarkista_saatavuus()
+        except Exception as e:
+            nayta_viesti(stdscr, f"Mallia ei voi käyttää: {e}")
+            return
 
     stdscr.addstr(3, 0, "Yhdistetään LLM:ään...")
     stdscr.refresh()

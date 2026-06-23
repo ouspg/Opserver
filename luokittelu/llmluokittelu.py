@@ -66,6 +66,17 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int, int]:
     if not kandidaatit:
         return 0, 0, 0
 
+    # Tyhjä valintakehote → meta-luokittelu: hyväksy kaikki meta-läpäisseet
+    # kurssit suoraan ilman LLM-vaihetta. (Meta-hylätyt eivät ole ehdokkaita.)
+    if not (luokittelukehote or "").strip():
+        for n, k in enumerate(kandidaatit, 1):
+            mallit.aseta_luokitus(tid, k["KID"], True,
+                                  "Valittu meta-tietojen perusteella (ei valintakehotetta).",
+                                  "", tiiviste=tiiv)
+            if edistyminen_cb:
+                edistyminen_cb(n, len(kandidaatit), 1, 1)
+        return len(kandidaatit), 0, 0
+
     malli = kutsu.hae_malli()
     koko = erakoko()
     erat = [kandidaatit[i : i + koko] for i in range(0, len(kandidaatit), koko)]

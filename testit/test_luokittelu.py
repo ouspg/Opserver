@@ -158,6 +158,23 @@ class TestLlmluokittelu:
         for c in mock_aseta.call_args_list:
             assert c.kwargs["tiiviste"] == tiiv
 
+    def test_aja_tyhja_kehote_hyvaksyy_meta_ilman_llm(self):
+        """Tyhjä valintakehote → kaikki meta-läpäisseet mukaan ilman LLM-kutsuja."""
+        kandidaatit = [
+            {"KID": 1, "KurssiNimi": "A", "OpsKuvaus": None},
+            {"KID": 2, "KurssiNimi": "B", "OpsKuvaus": None},
+        ]
+        tutkimus = {"TID": 1, "Luokittelukehote": "   "}  # tyhjä/whitespace
+        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
+             patch("luokittelu.llmluokittelu.kutsu.kysy") as mock_kysy, \
+             patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
+             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+            mukana, hylätty, virheet = llmluokittelu.aja(tutkimus)
+        assert (mukana, hylätty, virheet) == (2, 0, 0)
+        assert mock_kysy.call_count == 0                  # ei LLM-kutsuja
+        assert mock_aseta.call_count == 2
+        assert all(c.args[2] is True for c in mock_aseta.call_args_list)  # kaikki mukaan
+
     def test_aja_viallinen_era_ei_kaada_ajoa(self):
         """Katkennut/viallinen LLM-JSON ohitetaan: virhe lasketaan, ajo jatkuu."""
         kandidaatit = [
