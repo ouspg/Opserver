@@ -4,7 +4,8 @@ import re
 
 from tietokanta import mallit
 from cliui import kysymysnaytto
-from cliui.apurit import piirra_otsikko, nayta_viesti, lue_teksti, valitse_listasta, valitse_monivalinta
+from cliui.apurit import (piirra_otsikko, nayta_viesti, lue_teksti, valitse_listasta,
+                          valitse_monivalinta, muokkaa_lomake)
 
 _SLUG_KAAVA = re.compile(r'^[a-z0-9][a-z0-9_-]*$')
 _LUKUVUOSI_KAAVA = re.compile(r'^\d{4}-\d{4}$')
@@ -101,40 +102,52 @@ def _valitse_tutkimus(stdscr, otsikko: str) -> dict | None:
     return tutkimukset[indeksi] if indeksi is not None else None
 
 
+def _tutkimus_lomake(stdscr, otsikko: str, tutkimus: dict | None = None) -> dict | None:
+    """Yhteinen lomake tutkimuksen lisäykseen ja muokkaukseen (DRY). Kaikki kentät
+    näkyvissä yhtä aikaa; iso tekstikenttä avautuu rivittyvänä editorina. Palauttaa
+    arvot-sanakirjan tai None jos peruutettu."""
+    t = tutkimus or {}
+    kkid_alku = mallit.hae_tutkimuksen_korkeakoulut(t["TID"]) if tutkimus else []
+    pakollinen = lambda nimi: (lambda v: None if (v or "").strip() else f"{nimi} on pakollinen.")
+    kentat = [
+        {"avain": "nimi", "otsikko": "Tutkimuksen nimi", "arvo": t.get("LuokittelunNimi", ""),
+         "validoi": pakollinen("Nimi")},
+        {"avain": "slug", "otsikko": "Slug (a-z, 0-9, - ja _)", "arvo": t.get("Slug", ""),
+         "validoi": lambda v: None if v and _validoi_slug(v) else "Slug: vain a-z 0-9 - _ (pakollinen)."},
+        {"avain": "lukuvuosi", "otsikko": "Lukuvuosi (esim. 2024-2025)", "arvo": t.get("Lukuvuosi") or "",
+         "validoi": lambda v: None if _validoi_lukuvuosi(v) else "Lukuvuosi muodossa YYYY-YYYY (pakollinen)."},
+        {"avain": "verkkosivu", "otsikko": "Verkkosivu (URL, tyhjä = ei)", "arvo": t.get("Verkkosivu") or ""},
+        {"avain": "luokittelukehote", "otsikko": "Valintakehote", "arvo": t.get("Luokittelukehote", ""),
+         "validoi": pakollinen("Valintakehote")},
+        {"avain": "arviointikehote", "otsikko": "Arviointikehote", "arvo": t.get("Arviointikehote", ""),
+         "validoi": pakollinen("Arviointikehote")},
+        {"avain": "raportointikehote", "otsikko": "Raportointikehote (tyhjä = ei)",
+         "arvo": t.get("Raportointikehote") or ""},
+        {"avain": "tasorajaus", "otsikko": "Tasorajaus", "arvo": t.get("Tasorajaus") or "",
+         "muokkain": lambda s, v, a: _valitse_tasot(s, v),
+         "esikatselu": lambda v: v or "(kaikki tasot)"},
+        {"avain": "korkeakoulut", "otsikko": "Korkeakoulut", "arvo": kkid_alku,
+         "muokkain": lambda s, v, a: _valitse_korkeakoulut(s, v),
+         "esikatselu": lambda v: f"{len(v)} korkeakoulua valittu" if v else "(ei valittu)",
+         "validoi": lambda v: None if v else "Valitse vähintään yksi korkeakoulu."},
+        {"avain": "oppiainerajaus", "otsikko": "Oppiainerajaus", "arvo": t.get("Oppiainerajaus") or "",
+         "muokkain": lambda s, v, a: _valitse_oppiaineet(s, a["korkeakoulut"], v),
+         "esikatselu": lambda v: v or "(kaikki oppiaineet)"},
+    ]
+    return muokkaa_lomake(stdscr, otsikko, kentat)
+
+
 def _lisaa(stdscr) -> None:
+    arvot = _tutkimus_lomake(stdscr, "Lisää tutkimus")
+    if arvot is None:
+        return
+    tid = mallit.lisaa_tutkimus(
+        arvot["nimi"], arvot["slug"], arvot["lukuvuosi"], arvot["luokittelukehote"],
+        arvot["tasorajaus"], arvot["oppiainerajaus"], arvot["arviointikehote"],
+        arvot["raportointikehote"], verkkosivu=arvot["verkkosivu"])
+    mallit.aseta_tutkimuksen_korkeakoulut(tid, arvot["korkeakoulut"])
     piirra_otsikko(stdscr, "Lisää tutkimus")
-    nimi = lue_teksti(stdscr, "Tutkimuksen nimi", 3)
-    if not nimi:
-        nayta_viesti(stdscr, "Peruutettu (nimi pakollinen).")
-        return
-    slug = lue_teksti(stdscr, "Slug (a-z, 0-9, - ja _)", 4)
-    if not slug or not _validoi_slug(slug):
-        nayta_viesti(stdscr, "Peruutettu (slug pakollinen, vain: a-z 0-9 - _).")
-        return
-    lukuvuosi = lue_teksti(stdscr, "Lukuvuosi (esim. 2024-2025)", 5)
-    if not _validoi_lukuvuosi(lukuvuosi):
-        nayta_viesti(stdscr, "Peruutettu (lukuvuosi pakollinen, muoto YYYY-YYYY).")
-        return
-    verkkosivu = lue_teksti(stdscr, "Verkkosivu (URL, tyhjä = ei)", 6)
-    luokittelukehote = lue_teksti(stdscr, "Valintakehote", 7)
-    if not luokittelukehote:
-        nayta_viesti(stdscr, "Peruutettu (valintakehote pakollinen).")
-        return
-    arviointikehote = lue_teksti(stdscr, "Arviointikehote", 8)
-    if not arviointikehote:
-        nayta_viesti(stdscr, "Peruutettu (arviointikehote pakollinen).")
-        return
-    raportointikehote = lue_teksti(stdscr, "Raportointikehote (tyhjä = ei)", 9)
-    tasorajaus = _valitse_tasot(stdscr)
-    korkeakoulut = _valitse_korkeakoulut(stdscr)
-    if not korkeakoulut:
-        nayta_viesti(stdscr, "Peruutettu (valitse vähintään yksi korkeakoulu).")
-        return
-    oppiainerajaus = _valitse_oppiaineet(stdscr, korkeakoulut)
-    tid = mallit.lisaa_tutkimus(nimi, slug, lukuvuosi, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote, verkkosivu=verkkosivu)
-    mallit.aseta_tutkimuksen_korkeakoulut(tid, korkeakoulut)
-    piirra_otsikko(stdscr, "Lisää tutkimus")
-    nayta_viesti(stdscr, f"Lisätty: {nimi} ({slug})")
+    nayta_viesti(stdscr, f"Lisätty: {arvot['nimi']} ({arvot['slug']})")
 
 
 def _monista(stdscr) -> None:
@@ -162,30 +175,16 @@ def _muokkaa(stdscr) -> None:
     tutkimus = _valitse_tutkimus(stdscr, "Muokkaa tutkimusta")
     if tutkimus is None:
         return
-    piirra_otsikko(stdscr, f"Muokkaa: {tutkimus['LuokittelunNimi']}")
-    nimi = lue_teksti(stdscr, "Tutkimuksen nimi", 3, tutkimus["LuokittelunNimi"])
-    slug = lue_teksti(stdscr, "Slug", 4, tutkimus["Slug"])
-    if not slug or not _validoi_slug(slug):
-        nayta_viesti(stdscr, "Peruutettu (slug virheellinen).")
+    arvot = _tutkimus_lomake(stdscr, f"Muokkaa: {tutkimus['LuokittelunNimi']}", tutkimus)
+    if arvot is None:
         return
-    lukuvuosi = lue_teksti(stdscr, "Lukuvuosi (esim. 2024-2025)", 5, tutkimus.get("Lukuvuosi") or "")
-    if not _validoi_lukuvuosi(lukuvuosi):
-        nayta_viesti(stdscr, "Peruutettu (lukuvuosi pakollinen, muoto YYYY-YYYY).")
-        return
-    verkkosivu = lue_teksti(stdscr, "Verkkosivu (URL, tyhjä = ei)", 6, tutkimus.get("Verkkosivu") or "")
-    luokittelukehote = lue_teksti(stdscr, "Valintakehote", 7, tutkimus["Luokittelukehote"])
-    arviointikehote = lue_teksti(stdscr, "Arviointikehote", 8, tutkimus["Arviointikehote"])
-    raportointikehote = lue_teksti(stdscr, "Raportointikehote", 9, tutkimus.get("Raportointikehote") or "")
-    tasorajaus = _valitse_tasot(stdscr, tutkimus["Tasorajaus"] or "")
-    korkeakoulut = _valitse_korkeakoulut(stdscr, mallit.hae_tutkimuksen_korkeakoulut(tutkimus["TID"]))
-    if not korkeakoulut:
-        nayta_viesti(stdscr, "Peruutettu (valitse vähintään yksi korkeakoulu).")
-        return
-    oppiainerajaus = _valitse_oppiaineet(stdscr, korkeakoulut, tutkimus["Oppiainerajaus"] or "")
-    mallit.paivita_tutkimus(tutkimus["TID"], nimi, slug, lukuvuosi, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote, verkkosivu=verkkosivu)
-    mallit.aseta_tutkimuksen_korkeakoulut(tutkimus["TID"], korkeakoulut)
+    mallit.paivita_tutkimus(
+        tutkimus["TID"], arvot["nimi"], arvot["slug"], arvot["lukuvuosi"],
+        arvot["luokittelukehote"], arvot["tasorajaus"], arvot["oppiainerajaus"],
+        arvot["arviointikehote"], arvot["raportointikehote"], verkkosivu=arvot["verkkosivu"])
+    mallit.aseta_tutkimuksen_korkeakoulut(tutkimus["TID"], arvot["korkeakoulut"])
     piirra_otsikko(stdscr, "Muokkaa tutkimusta")
-    nayta_viesti(stdscr, f"Päivitetty: {nimi}")
+    nayta_viesti(stdscr, f"Päivitetty: {arvot['nimi']}")
 
 
 def _poista(stdscr) -> None:
