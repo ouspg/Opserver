@@ -55,6 +55,8 @@ Automaattinen pipeline suomalaisten yliopistojen opinto-oppaiden läpikäymiseen
 
 Käyttöliittymät ovat toisistaan riippumattomia: curses-UI ohjaa pipelinen suoritusta; web-UI on vain tulosten ja annotointien luku/kirjoitusliittymä.
 
+WebUI:n esittely yleisölle (seminaari-lähiverkko ja etäkokous-Tailscale Funnel) sekä suojaus (HTTP Basic Auth, `WEBUI_AUTH_*`): ks. **`DEMO.md`**. Suositus: aja demo aina Funnelin (HTTPS) kautta, jolloin Basic Auth on turvallinen.
+
 ## Kehityskäytännöt
 
 - Python-projekti; pidä riippuvuudet minimissä ja kirjaa ne `requirements.txt`-tiedostoon
