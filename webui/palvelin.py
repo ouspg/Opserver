@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from tietokanta import mallit
+from tietokanta.valimuisti import ttl_valimuisti
 from llm import tiiviste, kehoteet
 
 
@@ -246,8 +247,15 @@ _NO_STORE = {"Cache-Control": "no-store"}
 _KURSSI_LISTA_KENTAT = {"OpsKuvaus"}
 
 
-@sovellus.get("/api/korkeakoulut")
-def api_korkeakoulut() -> list[dict]:
+# --- Staattisten referenssikyselyjen TTL-välimuisti ---
+# Vain demon aikana muuttumaton data (kurssikatalogi, korkeakoulut, lukuvuodet,
+# tasot). EI annotointiriippuvaista dataa (luokitukset/arvioinnit) — ne pidetään
+# tuoreina reaaliaikaista yhteisöllistä annotointia varten.
+_VALIMUISTI_TTL = float(os.environ.get("WEBUI_VALIMUISTI_TTL", "60"))
+
+
+@ttl_valimuisti(_VALIMUISTI_TTL)
+def _korkeakoulut_valimuistissa() -> list[dict]:
     koulut = mallit.hae_korkeakoulut()
     maarat = mallit.hae_kurssimaarat_kouluittain()
     for k in koulut:
@@ -255,20 +263,50 @@ def api_korkeakoulut() -> list[dict]:
     return koulut
 
 
+@ttl_valimuisti(_VALIMUISTI_TTL)
+def _lukuvuodet_valimuistissa() -> list[str]:
+    return mallit.hae_lukuvuodet()
+
+
+@ttl_valimuisti(_VALIMUISTI_TTL)
+def _tasot_valimuistissa(kkid, lukuvuosi) -> list[str]:
+    return mallit.hae_tasot(kkid=kkid, lukuvuosi=lukuvuosi)
+
+
+@ttl_valimuisti(_VALIMUISTI_TTL)
+def _kurssit_valimuistissa(kkid, lukuvuosi) -> list[dict]:
+    rivit = mallit.hae_kurssit(kkid=kkid, lukuvuosi=lukuvuosi)
+    return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
+
+
+_VALIMUISTIT = [_korkeakoulut_valimuistissa, _lukuvuodet_valimuistissa,
+                _tasot_valimuistissa, _kurssit_valimuistissa]
+
+
+def tyhjenna_valimuistit() -> None:
+    """Nollaa kaikki staattiset välimuistit (esim. hakurobotin ajon jälkeen / testit)."""
+    for f in _VALIMUISTIT:
+        f.tyhjenna()
+
+
+@sovellus.get("/api/korkeakoulut")
+def api_korkeakoulut() -> list[dict]:
+    return _korkeakoulut_valimuistissa()
+
+
 @sovellus.get("/api/lukuvuodet")
 def api_lukuvuodet() -> list[str]:
-    return mallit.hae_lukuvuodet()
+    return _lukuvuodet_valimuistissa()
 
 
 @sovellus.get("/api/tasot")
 def api_tasot(kkid: Optional[int] = None, lukuvuosi: Optional[str] = None) -> list[str]:
-    return mallit.hae_tasot(kkid=kkid, lukuvuosi=lukuvuosi)
+    return _tasot_valimuistissa(kkid, lukuvuosi)
 
 
 @sovellus.get("/api/kurssit")
 def api_kurssit(kkid: Optional[int] = None, lukuvuosi: Optional[str] = None) -> list[dict]:
-    rivit = mallit.hae_kurssit(kkid=kkid, lukuvuosi=lukuvuosi)
-    return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
+    return _kurssit_valimuistissa(kkid, lukuvuosi)
 
 
 @sovellus.get("/api/kurssit/{kid}")

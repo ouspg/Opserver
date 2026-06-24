@@ -1,6 +1,7 @@
 from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
+from webui import palvelin
 from webui.palvelin import sovellus
 
 asiakas = TestClient(sovellus)
@@ -8,9 +9,13 @@ asiakas = TestClient(sovellus)
 
 @pytest.fixture(autouse=True)
 def _auth_pois(monkeypatch):
-    """API-testit ajetaan ilman Basic Authia (LAN-oletus); estää .env-saastumisen."""
+    """API-testit ajetaan ilman Basic Authia (LAN-oletus); estää .env-saastumisen.
+    Tyhjentää myös staattiset välimuistit, ettei testi näe edellisen tulosta."""
     monkeypatch.delenv("WEBUI_AUTH_KAYTTAJA", raising=False)
     monkeypatch.delenv("WEBUI_AUTH_SALASANA", raising=False)
+    palvelin.tyhjenna_valimuistit()
+    yield
+    palvelin.tyhjenna_valimuistit()
 
 KURSSI = {
     "KID": 1, "KKID": 1, "LahdeId": "45690", "Koodi": "IC00AU61",
@@ -22,7 +27,8 @@ KURSSI = {
 
 def test_api_korkeakoulut_palauttaa_listan():
     rivit = [{"KKID": 1, "KouluNimi": "Tampereen yliopisto", "OpsOsoite": "https://esim.fi", "OpsTyyppi": "Peppi"}]
-    with patch("webui.palvelin.mallit.hae_korkeakoulut", return_value=rivit):
+    with patch("webui.palvelin.mallit.hae_korkeakoulut", return_value=rivit), \
+         patch("webui.palvelin.mallit.hae_kurssimaarat_kouluittain", return_value={}):
         vastaus = asiakas.get("/api/korkeakoulut")
     assert vastaus.status_code == 200
     assert vastaus.json()[0]["KouluNimi"] == "Tampereen yliopisto"
@@ -90,7 +96,8 @@ def test_api_tutkimukset_palauttaa_listan():
 
 
 def test_api_tutkimus_slugilla_palauttaa_yhden():
-    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS):
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_kysymykset", return_value=[]):
         vastaus = asiakas.get("/api/tutkimukset/kyber-2025")
     assert vastaus.status_code == 200
     assert vastaus.json()["LuokittelunNimi"] == "Kyber 2025"
@@ -304,3 +311,21 @@ def test_auth_pois_paalta_kun_env_tyhja():
     with patch("webui.palvelin.mallit.hae_tutkimukset_yhteenvedolla", return_value=[]):
         vastaus = asiakas.get("/api/tutkimukset")
     assert vastaus.status_code == 200
+
+
+# --- Staattisten kyselyjen TTL-välimuisti ---
+
+def test_lukuvuodet_valimuistitetaan():
+    with patch("webui.palvelin.mallit.hae_lukuvuodet", return_value=["2025-2026"]) as mock:
+        v1 = asiakas.get("/api/lukuvuodet")
+        v2 = asiakas.get("/api/lukuvuodet")
+    assert v1.json() == v2.json() == ["2025-2026"]
+    assert mock.call_count == 1  # toinen pyyntö palvellaan välimuistista
+
+
+def test_tasot_valimuisti_eri_argumentit_erikseen():
+    with patch("webui.palvelin.mallit.hae_tasot", return_value=["perus"]) as mock:
+        asiakas.get("/api/tasot")
+        asiakas.get("/api/tasot")            # sama → välimuistista
+        asiakas.get("/api/tasot?kkid=2")     # eri argumentti → uusi kysely
+    assert mock.call_count == 2
