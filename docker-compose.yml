@@ -31,6 +31,8 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
+      WEBUI_AUTH_KAYTTAJA: ${WEBUI_AUTH_KAYTTAJA:-}
+      WEBUI_AUTH_SALASANA: ${WEBUI_AUTH_SALASANA:-}
     restart: unless-stopped
     depends_on:
       mysql:
