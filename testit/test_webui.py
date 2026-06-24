@@ -1,8 +1,16 @@
 from unittest.mock import patch
+import pytest
 from fastapi.testclient import TestClient
 from webui.palvelin import sovellus
 
 asiakas = TestClient(sovellus)
+
+
+@pytest.fixture(autouse=True)
+def _auth_pois(monkeypatch):
+    """API-testit ajetaan ilman Basic Authia (LAN-oletus); estää .env-saastumisen."""
+    monkeypatch.delenv("WEBUI_AUTH_KAYTTAJA", raising=False)
+    monkeypatch.delenv("WEBUI_AUTH_SALASANA", raising=False)
 
 KURSSI = {
     "KID": 1, "KKID": 1, "LahdeId": "45690", "Koodi": "IC00AU61",
@@ -262,3 +270,37 @@ def test_api_raportti_tilastot_404_kun_tutkimusta_ei_loydy():
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=None):
         vastaus = asiakas.get("/api/tutkimukset/ei-ole/raportti/tilastot")
     assert vastaus.status_code == 404
+
+
+# --- HTTP Basic Auth -välikerros (demosuojaus) ---
+
+def _aseta_auth(monkeypatch):
+    monkeypatch.setenv("WEBUI_AUTH_KAYTTAJA", "demo")
+    monkeypatch.setenv("WEBUI_AUTH_SALASANA", "salainen")
+
+
+def test_auth_estaa_pyynnon_ilman_tunnuksia(monkeypatch):
+    _aseta_auth(monkeypatch)
+    vastaus = asiakas.get("/api/tutkimukset")
+    assert vastaus.status_code == 401
+    assert "www-authenticate" in {k.lower() for k in vastaus.headers}
+
+
+def test_auth_hylkaa_vaarat_tunnukset(monkeypatch):
+    _aseta_auth(monkeypatch)
+    vastaus = asiakas.get("/api/tutkimukset", auth=("demo", "vaara"))
+    assert vastaus.status_code == 401
+
+
+def test_auth_paastaa_oikeilla_tunnuksilla(monkeypatch):
+    _aseta_auth(monkeypatch)
+    with patch("webui.palvelin.mallit.hae_tutkimukset_yhteenvedolla", return_value=[]):
+        vastaus = asiakas.get("/api/tutkimukset", auth=("demo", "salainen"))
+    assert vastaus.status_code == 200
+
+
+def test_auth_pois_paalta_kun_env_tyhja():
+    # Ilman WEBUI_AUTH-muuttujia (autouse-fixture poistanut) → ei vaadita tunnuksia
+    with patch("webui.palvelin.mallit.hae_tutkimukset_yhteenvedolla", return_value=[]):
+        vastaus = asiakas.get("/api/tutkimukset")
+    assert vastaus.status_code == 200

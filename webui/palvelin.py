@@ -1,6 +1,8 @@
 """Opserver web-käyttöliittymän FastAPI-palvelin."""
+import base64
 import json
 import os
+import secrets
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -12,7 +14,53 @@ from pydantic import BaseModel
 from tietokanta import mallit
 from llm import tiiviste, kehoteet
 
+
+class PerusAutentikointi:
+    """HTTP Basic Auth -välikerros demojen suojaukseen (esim. Tailscale Funnel).
+
+    Aktivoituu vain kun .env:ssä on sekä WEBUI_AUTH_KAYTTAJA että
+    WEBUI_AUTH_SALASANA; tyhjänä = pois päältä (LAN-oletus muuttumaton). Suojaa
+    sekä HTTP- että WebSocket-yhteydet. Tunnusvertailu on vakioaikainen
+    (secrets.compare_digest). Turvallinen vain HTTPS:n yli (Funnel päättää TLS:n).
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+        kayttaja = os.environ.get("WEBUI_AUTH_KAYTTAJA", "")
+        salasana = os.environ.get("WEBUI_AUTH_SALASANA", "")
+        if not (kayttaja and salasana) or self._kelpaa(scope, kayttaja, salasana):
+            await self.app(scope, receive, send)
+            return
+        if scope["type"] == "websocket":
+            await send({"type": "websocket.close", "code": 1008})
+        else:
+            await send({"type": "http.response.start", "status": 401, "headers": [
+                (b"www-authenticate", b'Basic realm="Opserver"'),
+                (b"content-type", b"text/plain; charset=utf-8"),
+            ]})
+            await send({"type": "http.response.body", "body": "Kirjautuminen vaaditaan.".encode()})
+
+    @staticmethod
+    def _kelpaa(scope, kayttaja: str, salasana: str) -> bool:
+        otsikot = dict(scope.get("headers") or [])
+        auth = otsikot.get(b"authorization", b"").decode("latin-1")
+        if not auth.startswith("Basic "):
+            return False
+        try:
+            nimi, _, sala = base64.b64decode(auth[6:]).decode("utf-8").partition(":")
+        except (ValueError, UnicodeDecodeError):
+            return False
+        return (secrets.compare_digest(nimi, kayttaja)
+                and secrets.compare_digest(sala, salasana))
+
+
 sovellus = FastAPI(title="Opserver")
+sovellus.add_middleware(PerusAutentikointi)
 
 # --- Reaaliaikainen läsnäolo ja muokkaussessiot (WebSocket) ---
 
