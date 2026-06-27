@@ -105,3 +105,35 @@ def test_valitse_monivalinta_ei_kirjoita_ruudun_ulkopuolelle_pitkalla_listalla()
     nappaimet = [curses.KEY_DOWN] * 200 + [ord(" "), 10]
     scr = _FakeScr(korkeus=24, leveys=80, nappaimet=nappaimet)
     assert valitse_monivalinta(scr, "Otsikko", vaihtoehdot) == [vaihtoehdot[200]]
+
+
+def test_aja_llm_tyhjentaa_ruudun_vahvistusvalikon_jalkeen():
+    """Regressio: 'kehote muuttunut' -vahvistusvalikon jälkeen ruutu on
+    tyhjennettävä (piirra_otsikko) ennen ajonäkymää, muuten valikkojäänne
+    ('… uudelleen (kehote muuttui) …') jää 'Yhdistetään LLM:ään…' -rivin päälle."""
+    from unittest.mock import patch
+    from cliui import luokittelunaytto as ln
+
+    class _Scr:
+        def addstr(self, *a, **k): pass
+        def refresh(self): pass
+
+    tutkimus = {"TID": 1, "LuokittelunNimi": "Testi", "Luokittelukehote": "kehote"}
+    tapahtumat = []
+
+    with patch.object(ln, "piirra_otsikko", side_effect=lambda *a, **k: tapahtumat.append("otsikko")), \
+         patch.object(ln, "nayta_viesti"), \
+         patch.object(ln, "valitse_listasta", side_effect=lambda *a, **k: tapahtumat.append("valikko") or 0), \
+         patch.object(ln.mallit, "hae_luokittelemattomat",
+                      side_effect=[[{"KID": 1}], [{"KID": 1}, {"KID": 2}]]), \
+         patch("luokittelu.llmluokittelu.laske_tiiviste", return_value="tiiv"), \
+         patch("tietokanta.testimallit.hae_siirrettavat_ajot_luokittelu", return_value=[]), \
+         patch("llm.mallitiedot.tarkista_saatavuus"), \
+         patch("luokittelu.llmluokittelu.aja",
+               side_effect=lambda *a, **k: tapahtumat.append("ajo") or (1, 1, 0)):
+        ln._aja_llm(_Scr(), tutkimus)
+
+    # Joukossa on piirra_otsikko, joka tulee vahvistusvalikon JÄLKEEN ja ennen ajoa.
+    viim_valikko = max(i for i, t in enumerate(tapahtumat) if t == "valikko")
+    ajo = tapahtumat.index("ajo")
+    assert any(t == "otsikko" for t in tapahtumat[viim_valikko + 1:ajo]), tapahtumat

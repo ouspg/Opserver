@@ -135,6 +135,8 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
             nayta_viesti(stdscr, f"Mallia ei voi käyttää: {e}")
             return
 
+    # Tyhjennä vahvistusvalikon / testiajovaroituksen jäänteet ennen ajonäkymää.
+    piirra_otsikko(stdscr, f"LLM-luokittelu — {tutkimus['LuokittelunNimi']}")
     stdscr.addstr(3, 0, "Yhdistetään LLM:ään...")
     stdscr.refresh()
 
