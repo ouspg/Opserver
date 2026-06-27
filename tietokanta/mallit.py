@@ -479,30 +479,37 @@ def hae_luokittelemattomat(tid: int, tiiviste: str | None = None) -> list[dict]:
     Jos tiiviste annetaan: lisäksi aiemmin LLM-luokitellut kurssit, joiden
     tallennettu Kehotetiiviste eroaa nykyisestä (kehote on muuttunut) — pois
     lukien ihmisen HITL-korjaamat, joiden päätös säilytetään.
+
+    Ehdokkaat rajataan tutkimuksen lukuvuoteen ja korkeakouluihin samoin kuin
+    meta-suodatuksessa — muuten rajauksen ulkopuoliset kurssit (väärä vuosi /
+    korkeakoulu) joutuisivat LLM-ajoon, koska niillä ei ole meta-riviä.
     """
+    scope_where, scope_params = _tutkimus_kurssi_scope(tid)
+    scope_sql = f" AND {scope_where}" if scope_where else ""
+    sp = scope_params or []
     with yhteys() as yht:
         with yht.cursor() as kursori:
             if tiiviste is None:
-                kursori.execute("""
+                kursori.execute(f"""
                     SELECT k.*
                     FROM Kurssi k
                     LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
-                    WHERE kl.KID IS NULL OR kl.Mukana IS NULL
+                    WHERE (kl.KID IS NULL OR kl.Mukana IS NULL){scope_sql}
                     ORDER BY k.KurssiNimi
-                """, (tid,))
+                """, (tid, *sp))
             else:
-                kursori.execute("""
+                kursori.execute(f"""
                     SELECT k.*
                     FROM Kurssi k
                     LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
-                    WHERE kl.KID IS NULL
+                    WHERE (kl.KID IS NULL
                        OR kl.Mukana IS NULL
                        OR (kl.Kehotetiiviste IS NOT NULL
                            AND NOT (kl.Kehotetiiviste <=> %s)
                            AND NOT EXISTS (SELECT 1 FROM HitlKorjaus h
-                                           WHERE h.TID = %s AND h.KID = k.KID))
+                                           WHERE h.TID = %s AND h.KID = k.KID))){scope_sql}
                     ORDER BY k.KurssiNimi
-                """, (tid, tiiviste, tid))
+                """, (tid, tiiviste, tid, *sp))
             return _rivit_dikteina(kursori)
 
 

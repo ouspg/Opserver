@@ -111,6 +111,47 @@ class TestKurssi:
         assert tulos["KurssiNimi"] == "Kurssi"
 
 
+class TestHaeLuokittelemattomat:
+    """LLM-luokittelun ehdokasjoukon täytyy noudattaa tutkimuksen rajausta
+    (lukuvuosi + korkeakoulut) samoin kuin meta-suodatus ja tilastopaneeli —
+    muuten rajauksen ulkopuoliset kurssit päätyisivät LLM-ajoon."""
+
+    def test_soveltaa_tutkimuksen_rajausta(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        with patch("tietokanta.mallit._tutkimus_kurssi_scope",
+                   return_value=("k.KKID IN (%s,%s) AND vuosirajaus", [2, 3, 2024, 2025])):
+            mallit.hae_luokittelemattomat(1)
+        sql, params = kursori.execute.call_args[0]
+        assert "k.KKID IN" in sql and "vuosirajaus" in sql
+        # rajausparametrit threadattu JOIN-tid:n jälkeen, oikeassa järjestyksessä
+        assert list(params) == [1, 2, 3, 2024, 2025]
+
+    def test_tiivisteella_soveltaa_rajausta_ja_threadaa_parametrit(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        with patch("tietokanta.mallit._tutkimus_kurssi_scope",
+                   return_value=("k.KKID IN (%s)", [5])):
+            mallit.hae_luokittelemattomat(1, "tiiv-abc")
+        sql, params = kursori.execute.call_args[0]
+        assert "k.KKID IN" in sql and "Kehotetiiviste" in sql
+        # tid (JOIN), tiiviste (<=>), tid (EXISTS), sitten rajausparametrit
+        assert list(params) == [1, "tiiv-abc", 1, 5]
+
+    def test_ilman_rajausta_ei_lisaa_scope_ehtoa(self, mock_yhteys):
+        # Jos tutkimukselta puuttuu lukuvuosi/korkeakoulu → ei rajausta (entinen käytös)
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
+            mallit.hae_luokittelemattomat(1)
+        sql, params = kursori.execute.call_args[0]
+        assert "KKID" not in sql
+        assert list(params) == [1]
+
+
 class TestTutkimus:
     def test_lisaa_tutkimus_palauttaa_id(self, mock_yhteys):
         yht, kursori = mock_yhteys
