@@ -68,6 +68,62 @@ class TestKuvausTekstina:
         ops = json.dumps({"code": "X", "credits": {"min": 5}, "outcomes": None})
         assert kurssimuoto.kuvaus_tekstina(ops) == ""
 
+    def test_sisu_lisaa_suoritustavat(self):
+        """completionMethods (jo tallennettu KORI-data) → 'Suoritustavat'-osio."""
+        ops = json.dumps({
+            "content": {"fi": "Salausoppi."},
+            "completionMethods": [{
+                "studyType": "DEGREE_STUDIES",
+                "description": {"fi": "<p>Luento-opetus ja lopputentti.</p>"},
+                "evaluationCriteria": {"fi": "Hyväksytty edellyttää 50 % pisteistä."},
+            }],
+        })
+        teksti = kurssimuoto.kuvaus_tekstina(ops)
+        assert "Suoritustavat:" in teksti
+        assert "Luento-opetus ja lopputentti." in teksti
+        assert "Arviointi: Hyväksytty edellyttää 50 % pisteistä." in teksti
+        assert "<p>" not in teksti  # HTML riisuttu
+
+    def test_sisu_merkitsee_avoimen_yliopiston_suoritustavan(self):
+        """studyType=OPEN_UNIVERSITY_STUDIES → eksplisiittinen avoimen yo:n merkintä (ESR-signaali)."""
+        ops = json.dumps({
+            "completionMethods": [{
+                "studyType": "OPEN_UNIVERSITY_STUDIES",
+                "description": {"fi": "Verkkokurssi, jatkuva ilmoittautuminen."},
+            }],
+        })
+        teksti = kurssimuoto.kuvaus_tekstina(ops)
+        assert "Avoimen yliopiston suoritustapa: kyllä" in teksti
+        assert "avoin yliopisto" in teksti
+
+    def test_sisu_tutkintokurssi_ei_merkitse_avointa_yliopistoa(self):
+        ops = json.dumps({
+            "completionMethods": [{
+                "studyType": "DEGREE_STUDIES",
+                "description": {"fi": "Luento-opetus."},
+            }],
+        })
+        teksti = kurssimuoto.kuvaus_tekstina(ops)
+        assert "Avoimen yliopiston suoritustapa" not in teksti
+
+    def test_sisu_sivuuttaa_tekstittomat_suoritustavat(self):
+        """Suoritustapa ilman kuvausta/kriteereitä ei tuota tyhjää 'Suoritustavat'-osiota..."""
+        ops = json.dumps({
+            "content": {"fi": "Salausoppi."},
+            "completionMethods": [{"studyType": "DEGREE_STUDIES", "description": {"fi": ""}}],
+        })
+        teksti = kurssimuoto.kuvaus_tekstina(ops)
+        assert "Suoritustavat:" not in teksti
+
+    def test_sisu_avoin_yliopisto_merkitaan_vaikka_kuvaus_puuttuu(self):
+        """...mutta avoimen yo:n signaali säilyy, vaikka kuvausteksti puuttuisi."""
+        ops = json.dumps({
+            "content": {"fi": "Salausoppi."},
+            "completionMethods": [{"studyType": "OPEN_UNIVERSITY_STUDIES", "description": {"fi": ""}}],
+        })
+        teksti = kurssimuoto.kuvaus_tekstina(ops)
+        assert "Avoimen yliopiston suoritustapa: kyllä" in teksti
+
 
 class TestKurssiJsonPromptiin:
     def test_rakentaa_kentat_ja_taydellisen_kuvauksen(self):

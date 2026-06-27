@@ -16,6 +16,13 @@ _SISU_KENTAT = [
     ("additional", "Lisätiedot"),
 ]
 
+# completionMethods.studyType → suomenkielinen opintotyyppi (tunnistamaton jätetään pois).
+_SUORITUS_TYYPPI = {
+    "DEGREE_STUDIES": "tutkinto-opinnot",
+    "OPEN_UNIVERSITY_STUDIES": "avoin yliopisto",
+    "SEPARATE_STUDIES": "erillisopinnot",
+}
+
 
 def _monikielinen_teksti(arvo) -> str:
     """Sisun monikielinen kenttä ({fi/en: html}) → suomenkielinen teksti ilman HTML:ää."""
@@ -35,12 +42,49 @@ def _peppi_kuvaus(data: dict) -> str:
     return "\n".join(osat)
 
 
+def _sisu_suoritustavat(data: dict) -> str:
+    """Sisun completionMethods → 'Suoritustavat'-osio + avoimen yo:n merkintä.
+
+    Suoritustavat ovat jo tallennetussa KORI-objektissa, joten tämä ei vaadi
+    lisäpyyntöjä. Mukaan tulee kunkin tavan opintotyyppi, kuvaus ja
+    arviointikriteerit; avoimen yliopiston suoritustapa merkitään erikseen
+    (keskeinen signaali jatkuvan oppimisen / ESR-tutkimuksen kannalta).
+    """
+    rivit = []
+    avoin = False
+    for tapa in data.get("completionMethods") or []:
+        if tapa.get("studyType") == "OPEN_UNIVERSITY_STUDIES":
+            avoin = True
+        kuvaus = _monikielinen_teksti(tapa.get("description"))
+        kriteerit = _monikielinen_teksti(tapa.get("evaluationCriteria"))
+        if not (kuvaus or kriteerit):
+            continue
+        osat = []
+        tyyppi = _SUORITUS_TYYPPI.get(tapa.get("studyType"))
+        if tyyppi:
+            osat.append(f"({tyyppi})")
+        if kuvaus:
+            osat.append(kuvaus)
+        if kriteerit:
+            osat.append(f"Arviointi: {kriteerit}")
+        rivit.append("- " + " ".join(osat))
+    tulos = []
+    if rivit:
+        tulos.append("Suoritustavat:\n" + "\n".join(rivit))
+    if avoin:
+        tulos.append("Avoimen yliopiston suoritustapa: kyllä")
+    return "\n".join(tulos)
+
+
 def _sisu_kuvaus(data: dict) -> str:
     osat = []
     for avain, otsikko in _SISU_KENTAT:
         teksti = _monikielinen_teksti(data.get(avain))
         if teksti:
             osat.append(f"{otsikko}: {teksti}")
+    suoritustavat = _sisu_suoritustavat(data)
+    if suoritustavat:
+        osat.append(suoritustavat)
     return "\n".join(osat)
 
 
