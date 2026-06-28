@@ -140,8 +140,11 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
     stdscr.addstr(3, 0, "Yhdistetään LLM:ään...")
     stdscr.refresh()
 
-    def edistyminen(n, yht, erä, erat):
+    def edistyminen(n, yht, erä, erat, mukana, hylätty):
+        osuus = f" (mukaan {mukana/(mukana + hylätty):.0%})" if (mukana + hylätty) else ""
         stdscr.addstr(4, 0, f"  Erä {erä}/{erat} — {n}/{yht} kurssia käsitelty")
+        stdscr.addstr(5, 0, f"  Mukaan: {mukana}   Hylätty: {hylätty}{osuus}")
+        stdscr.clrtoeol()
         stdscr.refresh()
 
     try:

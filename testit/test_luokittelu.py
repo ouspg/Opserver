@@ -197,6 +197,27 @@ class TestLlmluokittelu:
         t2 = llmluokittelu.tiiviste.luokittelu("kehote B", "system")
         assert t1 != t2 == tiiviste.luokittelu("kehote B", "system")
 
+    def test_aja_edistyminen_saa_juoksevat_mukana_ja_hylatty(self):
+        """Edistymis-callback saa kumulatiiviset mukaan/hylätty-määrät, jotta
+        operaattori näkee ajon aikana jakautuman (esim. kaikki samaan koriin)."""
+        kandidaatit = [
+            {"KID": 1, "KurssiNimi": "A", "Koodi": "X1", "Taso": "aine",
+             "Oppiaine": "IT", "Opetusvuosi": "2025-2026", "OpsKuvaus": None},
+            {"KID": 2, "KurssiNimi": "B", "Koodi": "X2", "Taso": "perus",
+             "Oppiaine": "FY", "Opetusvuosi": "2025-2026", "OpsKuvaus": None},
+        ]
+        tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
+        kutsut = []
+        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
+             patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=self.LLM_VASTAUS), \
+             patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
+             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+            llmluokittelu.aja(tutkimus, edistyminen_cb=lambda *a: kutsut.append(a))
+        # (käsitelty, yhteensä, valmiit, erät, mukana, hylätty)
+        viimeinen = kutsut[-1]
+        assert viimeinen[4] == 1   # mukaan (id 1)
+        assert viimeinen[5] == 1   # hylätty (id 2)
+
     def test_rinnakkaisuus_oletus_ja_ymparisto(self, monkeypatch):
         monkeypatch.delenv("LLM_RINNAKKAISUUS", raising=False)
         assert llmluokittelu.rinnakkaisuus() == 5            # oletus

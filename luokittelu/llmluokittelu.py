@@ -81,7 +81,7 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int, int]:
                                   "Valittu meta-tietojen perusteella (ei valintakehotetta).",
                                   "", tiiviste=tiiv)
             if edistyminen_cb:
-                edistyminen_cb(n, len(kandidaatit), 1, 1)
+                edistyminen_cb(n, len(kandidaatit), 1, 1, n, 0)  # kaikki mukaan
         return len(kandidaatit), 0, 0
 
     malli = kutsu.hae_malli()
@@ -122,6 +122,6 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int, int]:
             käsitelty += len(erä)
             valmiit += 1
             if edistyminen_cb:
-                edistyminen_cb(käsitelty, len(kandidaatit), valmiit, len(erat))
+                edistyminen_cb(käsitelty, len(kandidaatit), valmiit, len(erat), mukana, hylätty)
 
     return mukana, hylätty, virhe_erat
