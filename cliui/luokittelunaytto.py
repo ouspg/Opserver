@@ -325,17 +325,18 @@ def _nayta_tilanne(stdscr, tutkimus: dict) -> None:
             teksti = f"{label:<28}: {arvo}{lisa}"
             stdscr.addstr(3 + nro, 0, teksti[:leveys - 1])
 
-    # Suppilo: vuosi- ja oppilaitosrajaus karsivat ehdokasjoukon,
-    # meta- ja LLM-luokitus jakavat loput.
+    # Suppilo: jokainen vaihe näyttää läpäisseiden määrän päälukuna ja
+    # karsiutuneet (hylätyt / vielä odottavat) suluissa.
+    meta_lapi = t["oppilaitos_lapi"] - t["odottaa_meta"] - t["hyl_meta"]
     rivi(0, "Kursseja yhteensä", t["kursseja_yht"])
     rivi(1, "Kursseja (vuosirajaus)", t["vuosi_lapi"], f"   ({t['vuosi_hyl']} hylätty)")
     rivi(2, "Kursseja (oppilaitosrajaus)", t["oppilaitos_lapi"], f"   ({t['oppilaitos_hyl']} hylätty)")
-    rivi(3, "Odottaa metaluokitusta", t["odottaa_meta"])
-    rivi(4, "Hylätty metaluokituksella", t["hyl_meta"])
-    rivi(5, "Odottaa LLM-luokitusta", t["odottaa_llm"])
-    rivi(6, "Hylätty LLM-luokituksella", t["hyl_llm"])
-    rivi(7, "Hyväksytty tutkimukseen", t["hyvaksytty"])
-    # Vaihe 3 (arviointi) hyväksytyille
-    rivi(9, "LLM-arvioitu", f"{arvioitu} / {t['hyvaksytty']}")
-    rivi(10, "Odottaa arviointia", arvioimattomat)
+    rivi(3, "Kursseja (metaluokitus)", meta_lapi,
+         f"   ({t['hyl_meta']} hylätty, {t['odottaa_meta']} odottaa luokitusta)")
+    rivi(4, "Kursseja (LLM-luokitus)", t["hyvaksytty"],
+         f"   ({t['hyl_llm']} hylätty, {t['odottaa_llm']} odottaa luokitusta)")
+    # Vaihe 3 (arviointi) hyväksytyille — tyhjä rivi erottaa suppilosta.
+    rivi(6, "Hyväksytty tutkimukseen", t["hyvaksytty"])
+    rivi(7, "LLM-arvioitu", f"{arvioitu} / {t['hyvaksytty']}")
+    rivi(8, "Odottaa arviointia", arvioimattomat)
     nayta_viesti(stdscr, "")

@@ -107,6 +107,36 @@ def test_valitse_monivalinta_ei_kirjoita_ruudun_ulkopuolelle_pitkalla_listalla()
     assert valitse_monivalinta(scr, "Otsikko", vaihtoehdot) == [vaihtoehdot[200]]
 
 
+def test_nayta_tilanne_yhdenmukainen_suppilo():
+    """Tilannenäkymä esittää meta- ja LLM-vaiheet samalla suppiloperiaatteella
+    kuin rajausrivit: läpäisseet päälukuna, hylätyt + odottavat suluissa."""
+    from unittest.mock import patch
+    from cliui import luokittelunaytto as ln
+
+    tilanne = {
+        "kursseja_yht": 42533,
+        "vuosi_lapi": 33716, "vuosi_hyl": 8817,
+        "oppilaitos_lapi": 33716, "oppilaitos_hyl": 0,
+        "odottaa_meta": 1, "hyl_meta": 26016,
+        "odottaa_llm": 1210, "hyl_llm": 6337, "hyvaksytty": 152,
+    }
+    scr = _FakeScr(korkeus=24, leveys=120, nappaimet=[ord("q")])
+    with patch.object(ln.mallit, "hae_tutkimuksen_tilanne", return_value=tilanne), \
+         patch.object(ln.mallit, "hae_arvioimattomat", return_value=[{}] * 162):
+        ln._nayta_tilanne(scr, {"TID": 1, "LuokittelunNimi": "Testi"})
+    teksti = "\n".join(t for _, t in scr.piirretyt)
+
+    # Meta: läpäisi 33716 − 1 − 26016 = 7699; LLM: läpäisi (= hyväksytty) 152
+    assert "Kursseja (metaluokitus)" in teksti and "7699" in teksti
+    assert "(26016 hylätty, 1 odottaa luokitusta)" in teksti
+    assert "Kursseja (LLM-luokitus)" in teksti
+    assert "(6337 hylätty, 1210 odottaa luokitusta)" in teksti
+    # Vanhat erilliset odottaa/hylätty-rivit poistettu
+    for vanha in ("Odottaa metaluokitusta", "Hylätty metaluokituksella",
+                  "Odottaa LLM-luokitusta", "Hylätty LLM-luokituksella"):
+        assert vanha not in teksti
+
+
 def test_aja_llm_tyhjentaa_ruudun_vahvistusvalikon_jalkeen():
     """Regressio: 'kehote muuttunut' -vahvistusvalikon jälkeen ruutu on
     tyhjennettävä (piirra_otsikko) ennen ajonäkymää, muuten valikkojäänne
