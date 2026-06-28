@@ -707,10 +707,18 @@ def hae_tutkimuksen_tilanne(tid: int) -> dict:
 
 
 def hae_arvioimattomat(tid: int) -> list[dict]:
-    """Mukaan otetut kurssit, joille ei vielä ole kaikkia ei-tyhjiä vastauksia tässä tutkimuksessa."""
+    """Mukaan otetut kurssit, joille ei vielä ole kaikkia ei-tyhjiä vastauksia tässä tutkimuksessa.
+
+    Rajataan tutkimuksen lukuvuoteen ja korkeakouluihin samoin kuin luokittelu
+    ja tilastopaneeli — muuten vanhojen ajojen rajauksen ulkopuoliset hyväksynnät
+    (väärä vuosi / korkeakoulu) menisivät turhaan LLM-arviointiin.
+    """
+    scope_where, scope_params = _tutkimus_kurssi_scope(tid)
+    scope_sql = f" AND {scope_where}" if scope_where else ""
+    sp = scope_params or []
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute("""
+            kursori.execute(f"""
                 SELECT k.*
                 FROM Kurssi k
                 JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s AND kl.Mukana = 1
@@ -718,9 +726,9 @@ def hae_arvioimattomat(tid: int) -> list[dict]:
                     SELECT COUNT(*) FROM Vastaukset v
                     JOIN Kysymykset ky ON v.KysID = ky.KysID
                     WHERE ky.TID = %s AND v.KID = k.KID AND v.Vastaus != ''
-                ) < (SELECT COUNT(*) FROM Kysymykset WHERE TID = %s)
+                ) < (SELECT COUNT(*) FROM Kysymykset WHERE TID = %s){scope_sql}
                 ORDER BY k.KurssiNimi
-            """, (tid, tid, tid))
+            """, (tid, tid, tid, *sp))
             return _rivit_dikteina(kursori)
 
 

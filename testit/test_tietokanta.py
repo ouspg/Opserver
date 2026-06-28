@@ -111,6 +111,34 @@ class TestKurssi:
         assert tulos["KurssiNimi"] == "Kurssi"
 
 
+class TestHaeArvioimattomat:
+    """LLM-arvioinnin ehdokasjoukon täytyy noudattaa tutkimuksen rajausta —
+    muuten vanhojen ajojen rajauksen ulkopuoliset hyväksynnät menisivät
+    arviointiin (sama bugiluokka kuin hae_luokittelemattomat)."""
+
+    def test_soveltaa_tutkimuksen_rajausta(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        with patch("tietokanta.mallit._tutkimus_kurssi_scope",
+                   return_value=("k.KKID IN (%s) AND vuosirajaus", [4, 2024, 2025])):
+            mallit.hae_arvioimattomat(1)
+        sql, params = kursori.execute.call_args[0]
+        assert "k.KKID IN" in sql and "vuosirajaus" in sql
+        # kolme tid:tä (JOIN + 2 alikyselyä), sitten rajausparametrit
+        assert list(params) == [1, 1, 1, 4, 2024, 2025]
+
+    def test_ilman_rajausta_ei_lisaa_scope_ehtoa(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
+            mallit.hae_arvioimattomat(1)
+        sql, params = kursori.execute.call_args[0]
+        assert "KKID" not in sql
+        assert list(params) == [1, 1, 1]
+
+
 class TestHaeLuokittelemattomat:
     """LLM-luokittelun ehdokasjoukon täytyy noudattaa tutkimuksen rajausta
     (lukuvuosi + korkeakoulut) samoin kuin meta-suodatus ja tilastopaneeli —
