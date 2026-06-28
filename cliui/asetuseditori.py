@@ -38,6 +38,7 @@ _JAETUT = [
 
 LUOKITTELU_ASETUKSET = [
     {"avain": "LUOKITTELU_ERAKOKO", "kuvaus": "Eräkoko (kursseja per LLM-kutsu)", "tyyppi": "int", "oletus": 20},
+    {"avain": "LLM_RINNAKKAISUUS", "kuvaus": "Rinnakkaisia LLM-kutsuja", "tyyppi": "int", "oletus": 5},
     *_JAETUT,
 ]
 

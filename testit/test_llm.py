@@ -130,6 +130,29 @@ class TestKysy:
                 kutsu.kysy("kysymys")
         assert mock_post.call_count == kutsu._MAX_YRITYKSET
 
+    def test_kysy_rinnakkaisilla_saikeilla_ei_lukkiudu(self, uni):
+        """Rinnakkaiset kutsut jakavat tahdistus-/backoff-tilan säieturvallisesti
+        (lukko): kaikki palaavat eikä synny lukkiumaa."""
+        import threading
+        tulokset, virheet = [], []
+
+        def aja():
+            try:
+                tulokset.append(kutsu.kysy("kysymys"))
+            except Exception as e:  # pragma: no cover
+                virheet.append(e)
+
+        with patch.dict(os.environ, _ENV), \
+             patch("llm.kutsu.requests.post", return_value=self._mock_vastaus("ok")):
+            saikeet = [threading.Thread(target=aja) for _ in range(8)]
+            for s in saikeet:
+                s.start()
+            for s in saikeet:
+                s.join(timeout=5)
+        assert not any(s.is_alive() for s in saikeet)   # ei lukkiumaa
+        assert not virheet
+        assert tulokset == ["ok"] * 8
+
     # --- ennakoiva tahdistus (per kutsu, ennen retry-silmukkaa) ---
 
     def test_free_malli_tahdistaa_hitaasti(self, uni):

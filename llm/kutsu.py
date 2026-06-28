@@ -4,6 +4,7 @@ Käyttää OpenAI-yhteensopivaa chat completions -rajapintaa, joten mikä tahans
 sellaista tarjoava palvelu (OpenRouter, OpenAI, paikallinen palvelin) käy.
 """
 import os
+import threading
 import time
 import requests
 from dotenv import load_dotenv
@@ -13,6 +14,12 @@ load_dotenv()
 
 _MAX_TOKENIT = 4096
 _AIKAKATKAISU_S = 120
+
+# Suojaa globaalin tahdistus-/backoff-tilan, kun useat säikeet (rinnakkainen
+# eräajo) kutsuvat kysy():tä samanaikaisesti. Vain pienet tilapäivitykset ja
+# tahdistus-uni pidetään lukon sisällä; itse HTTP-pyyntö tehdään lukon
+# ulkopuolella, jotta kutsut etenevät rinnakkain.
+_lukko = threading.Lock()
 
 # TCP slow start -tyylinen pyyntövälin säätö: jokainen onnistunut pyyntö
 # puolittaa viiveen, 429 tuplaa sen ja pyyntö yritetään uudelleen.
@@ -60,13 +67,18 @@ def _tahdistusvali(malli: str) -> float:
 
 def _tahdista(malli: str) -> None:
     """Nukkuu tarvittaessa niin, että edellisestä pyynnöstä on kulunut
-    vähintään mallin tahdistusväli. Päivittää lähetyshetken globaaliin tilaan."""
+    vähintään mallin tahdistusväli. Päivittää lähetyshetken globaaliin tilaan.
+
+    Lukko pidetään unen ajan, jolloin rinnakkaisetkin säikeet läpäisevät portin
+    yksitellen vähintään tahdistusvälin päässä toisistaan → kokonaispyyntötahti
+    pysyy rajan alapuolella riippumatta rinnakkaisuusasteesta."""
     global _edellinen_pyynto
     vali = _tahdistusvali(malli)
-    kulunut = time.monotonic() - _edellinen_pyynto
-    if kulunut < vali:
-        time.sleep(vali - kulunut)
-    _edellinen_pyynto = time.monotonic()
+    with _lukko:
+        kulunut = time.monotonic() - _edellinen_pyynto
+        if kulunut < vali:
+            time.sleep(vali - kulunut)
+        _edellinen_pyynto = time.monotonic()
 
 
 def _tekstilohko(teksti: str, kakku: bool = False) -> dict:
@@ -118,8 +130,10 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
         )
     _tahdista(malli)
     for _ in range(_MAX_YRITYKSET):
-        if _viive_s:
-            time.sleep(_viive_s)
+        with _lukko:
+            viive = _viive_s
+        if viive:
+            time.sleep(viive)
         runko = {
             "model": malli,
             "max_tokens": asetukset.lue_int("LLM_MAX_TOKENIT", _MAX_TOKENIT),
@@ -134,17 +148,20 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
             timeout=_AIKAKATKAISU_S,
         )
         if vastaus.status_code == 429:
-            _viive_s = min(max(_viive_s * 2, _ALKUVIIVE_S), _MAKSIMIVIIVE_S)
+            with _lukko:
+                _viive_s = min(max(_viive_s * 2, _ALKUVIIVE_S), _MAKSIMIVIIVE_S)
             continue
         vastaus.raise_for_status()
-        _viive_s = _viive_s / 2
+        with _lukko:
+            _viive_s = _viive_s / 2
         data = vastaus.json()
         if "error" in data:
             virhe = data["error"]
             koodi = virhe.get("code", 0)
             viesti_teksti = virhe.get("message", str(virhe))
             if koodi == 429:
-                _viive_s = min(max(_viive_s * 2, _ALKUVIIVE_S), _MAKSIMIVIIVE_S)
+                with _lukko:
+                    _viive_s = min(max(_viive_s * 2, _ALKUVIIVE_S), _MAKSIMIVIIVE_S)
                 continue
             raise RuntimeError(f"OpenRouter-virhe ({koodi}): {viesti_teksti}")
         valinnat = data.get("choices") or []
@@ -156,6 +173,7 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
             raise ValueError(f"LLM palautti tyhjän vastauksen (finish_reason: {finish})")
         kaytto = dict(data.get("usage") or {})
         kaytto["finish_reason"] = valinnat[0].get("finish_reason")
-        _viimeisin_kaytto = kaytto
+        with _lukko:
+            _viimeisin_kaytto = kaytto
         return sisalto
     raise RuntimeError(f"LLM-pyyntö epäonnistui: {_MAX_YRITYKSET} peräkkäistä 429-vastausta")

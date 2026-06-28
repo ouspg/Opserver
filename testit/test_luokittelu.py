@@ -196,3 +196,34 @@ class TestLlmluokittelu:
         t1 = llmluokittelu.tiiviste.luokittelu("kehote A", "system")
         t2 = llmluokittelu.tiiviste.luokittelu("kehote B", "system")
         assert t1 != t2 == tiiviste.luokittelu("kehote B", "system")
+
+    def test_rinnakkaisuus_oletus_ja_ymparisto(self, monkeypatch):
+        monkeypatch.delenv("LLM_RINNAKKAISUUS", raising=False)
+        assert llmluokittelu.rinnakkaisuus() == 5            # oletus
+        monkeypatch.setenv("LLM_RINNAKKAISUUS", "9")
+        assert llmluokittelu.rinnakkaisuus() == 9            # ympäristö ohittaa
+        monkeypatch.setenv("LLM_RINNAKKAISUUS", "0")
+        assert llmluokittelu.rinnakkaisuus() == 1            # vähintään 1
+
+    def test_aja_kayttaa_konfiguroitua_rinnakkaisuutta(self, monkeypatch):
+        """Eräajo käynnistetään säikein, joiden määrä tulee LLM_RINNAKKAISUUS-asetuksesta."""
+        monkeypatch.setenv("LLM_RINNAKKAISUUS", "7")
+        kandidaatit = [
+            {"KID": 1, "KurssiNimi": "A", "Koodi": "X1", "Taso": "aine",
+             "Oppiaine": "IT", "Opetusvuosi": "2025-2026", "OpsKuvaus": None},
+        ]
+        tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
+        nahdyt = {}
+        oikea = llmluokittelu.ThreadPoolExecutor
+
+        def vakooja(*a, max_workers=None, **k):
+            nahdyt["max_workers"] = max_workers
+            return oikea(*a, max_workers=max_workers, **k)
+
+        with patch("luokittelu.llmluokittelu.ThreadPoolExecutor", side_effect=vakooja), \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
+             patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=self.LLM_VASTAUS), \
+             patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
+             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+            llmluokittelu.aja(tutkimus)
+        assert nahdyt["max_workers"] == 7

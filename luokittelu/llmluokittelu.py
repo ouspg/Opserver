@@ -1,14 +1,21 @@
 """LLM-luokittelu: lähettää meta-suodatuksen läpäisseet kurssit LLM:lle."""
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from tietokanta import mallit
 from llm import kutsu, tiiviste, kehoteet, kurssimuoto, asetukset
 
 _OLETUS_ERAKOKO = 20  # kursseja per LLM-kutsu; .env:n LUOKITTELU_ERAKOKO ohittaa
+_OLETUS_RINNAKKAISUUS = 5  # rinnakkaisia LLM-kutsuja; .env:n LLM_RINNAKKAISUUS ohittaa
 
 
 def erakoko() -> int:
     """Kursseja per LLM-kutsu (.env: LUOKITTELU_ERAKOKO)."""
     return asetukset.lue_int("LUOKITTELU_ERAKOKO", _OLETUS_ERAKOKO)
+
+
+def rinnakkaisuus() -> int:
+    """Rinnakkaisten LLM-kutsujen määrä (.env: LLM_RINNAKKAISUUS). Vähintään 1."""
+    return max(1, asetukset.lue_int("LLM_RINNAKKAISUUS", _OLETUS_RINNAKKAISUUS))
 
 
 def _lue_jarjestelma_kehote() -> str:
@@ -84,26 +91,37 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int, int]:
     hylätty = 0
     virhe_erat = 0
     käsitelty = 0
+    valmiit = 0
 
-    for erä_nro, erä in enumerate(erat, 1):
-        try:
-            tulokset = _luokittele_erä(erä, luokittelukehote, jarjestelma)
-        except Exception:
-            virhe_erat += 1  # viallinen erä ohitetaan; kurssit jäävät seuraavalle ajolle
-            tulokset = []
-        for tulos in tulokset:
-            kid = tulos.get("id")
-            if kid is None:
-                continue
-            on_mukana = bool(tulos.get("mukana"))
-            perustelu = tulos.get("perustelu", "")
-            mallit.aseta_luokitus(tid, kid, on_mukana, perustelu, malli, tiiviste=tiiv)
-            if on_mukana:
-                mukana += 1
-            else:
-                hylätty += 1
-        käsitelty += len(erä)
-        if edistyminen_cb:
-            edistyminen_cb(käsitelty, len(kandidaatit), erä_nro, len(erat))
+    # LLM-kutsut ajetaan rinnakkain (säikeissä), mutta tietokantakirjoitukset
+    # tehdään pääsäikeessä erien valmistuessa — yhteyttä ei jaeta säikeiden
+    # kesken. kutsu.py tahdistaa ja backoffaa säieturvallisesti yli kutsujen.
+    with ThreadPoolExecutor(max_workers=rinnakkaisuus()) as suoritin:
+        tulevat = {
+            suoritin.submit(_luokittele_erä, erä, luokittelukehote, jarjestelma): erä
+            for erä in erat
+        }
+        for tuleva in as_completed(tulevat):
+            erä = tulevat[tuleva]
+            try:
+                tulokset = tuleva.result()
+            except Exception:
+                virhe_erat += 1  # viallinen erä ohitetaan; kurssit jäävät seuraavalle ajolle
+                tulokset = []
+            for tulos in tulokset:
+                kid = tulos.get("id")
+                if kid is None:
+                    continue
+                on_mukana = bool(tulos.get("mukana"))
+                perustelu = tulos.get("perustelu", "")
+                mallit.aseta_luokitus(tid, kid, on_mukana, perustelu, malli, tiiviste=tiiv)
+                if on_mukana:
+                    mukana += 1
+                else:
+                    hylätty += 1
+            käsitelty += len(erä)
+            valmiit += 1
+            if edistyminen_cb:
+                edistyminen_cb(käsitelty, len(kandidaatit), valmiit, len(erat))
 
     return mukana, hylätty, virhe_erat
