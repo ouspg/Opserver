@@ -13,6 +13,7 @@ def _auth_pois(monkeypatch):
     Tyhjentää myös staattiset välimuistit, ettei testi näe edellisen tulosta."""
     monkeypatch.delenv("WEBUI_AUTH_KAYTTAJA", raising=False)
     monkeypatch.delenv("WEBUI_AUTH_SALASANA", raising=False)
+    asiakas.cookies.clear()  # estä auth-evästeen vuoto testien välillä
     palvelin.tyhjenna_valimuistit()
     yield
     palvelin.tyhjenna_valimuistit()
@@ -311,6 +312,40 @@ def test_auth_pois_paalta_kun_env_tyhja():
     with patch("webui.palvelin.mallit.hae_tutkimukset_yhteenvedolla", return_value=[]):
         vastaus = asiakas.get("/api/tutkimukset")
     assert vastaus.status_code == 200
+
+
+# --- WebSocket-todennus Basic Authin alla (eväste, koska selain ei lähetä
+#     Authorization-otsikkoa WS-kättelyssä) ---
+
+def test_auth_asettaa_evasteen_oikeilla_tunnuksilla(monkeypatch):
+    _aseta_auth(monkeypatch)
+    with patch("webui.palvelin.mallit.hae_tutkimukset_yhteenvedolla", return_value=[]):
+        vastaus = asiakas.get("/api/tutkimukset", auth=("demo", "salainen"))
+    assert vastaus.status_code == 200
+    assert vastaus.cookies.get("opserver_auth") == palvelin._auth_token("demo", "salainen")
+
+
+def test_ws_kelpaa_auth_evasteella(monkeypatch):
+    _aseta_auth(monkeypatch)
+    token = palvelin._auth_token("demo", "salainen")
+    with asiakas.websocket_connect("/ws", headers={"cookie": f"opserver_auth={token}"}) as ws:
+        viesti = ws.receive_json()
+    assert viesti["tyyppi"] == "oma-id"
+
+
+def test_ws_hylataan_ilman_auth_evastetta(monkeypatch):
+    _aseta_auth(monkeypatch)
+    from starlette.websockets import WebSocketDisconnect
+    with pytest.raises(WebSocketDisconnect):
+        with asiakas.websocket_connect("/ws") as ws:
+            ws.receive_json()
+
+
+def test_ws_toimii_ilman_authia():
+    # Ilman WEBUI_AUTH-muuttujia WS toimii normaalisti (LAN-oletus)
+    with asiakas.websocket_connect("/ws") as ws:
+        viesti = ws.receive_json()
+    assert viesti["tyyppi"] == "oma-id"
 
 
 # --- Staattisten kyselyjen TTL-välimuisti ---
