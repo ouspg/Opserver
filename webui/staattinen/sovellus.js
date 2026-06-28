@@ -596,7 +596,7 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
     const toiminto = hitl_uusi_tila ? "sisällytti" : "poisti";
     const tutkimusNimi = aktiivinen_tutkimus?.LuokittelunNimi || aktiivinen_tutkimus?.Slug || "";
     window.lahetaUutinen?.(`${window.omaNimimerkki?.()} ${toiminto} kurssin "${hitl_kurssiniimi}" tutkimuksesta ${tutkimusNimi}`);
-    await renderTutkimusKurssit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi);
+    await renderTutkimusKurssit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
   } catch (_) {
     nappi.textContent = "Virhe — yritä uudelleen";
     nappi.disabled = false;
@@ -653,15 +653,19 @@ async function rakennaSuodatinPalkki(el, tila, onChange) {
   };
 }
 
-async function renderTutkimusKurssit(slug, nimi) {
+async function renderTutkimusKurssit(slug, nimi, sailyta = false) {
   document.getElementById("tutkimus-kurssit-otsikko").textContent = `${nimi} — kurssit`;
-  luokitus_suodatin = { kkid: null, taso: null, hakusana: null };
-  await rakennaSuodatinPalkki(
-    document.getElementById("tutkimus-kurssit-suodatin"),
-    luokitus_suodatin,
-    () => { tutkimus_sivu = 0; paivitaLuokitusMaaratJaSivu(); },
-  );
-  tutkimus_sivu = 0;
+  // Pollaus / annotoinnin jälkeinen päivitys (sailyta=true) päivittää vain datan
+  // — ei nollaa käyttäjän suodatinvalintaa eikä sivua eikä rakenna palkkia uusiksi.
+  if (!sailyta) {
+    luokitus_suodatin = { kkid: null, taso: null, hakusana: null };
+    await rakennaSuodatinPalkki(
+      document.getElementById("tutkimus-kurssit-suodatin"),
+      luokitus_suodatin,
+      () => { tutkimus_sivu = 0; paivitaLuokitusMaaratJaSivu(); },
+    );
+    tutkimus_sivu = 0;
+  }
   await paivitaLuokitusMaaratJaSivu();
 }
 
@@ -819,10 +823,9 @@ function _vastusOnAnnettu(v) {
 let arvioinnit_data = null;
 let arvioinnit_suodatin = { kkid: null, taso: null, hakusana: null };
 
-async function renderTutkimusArvioinnit(slug, nimi) {
+async function renderTutkimusArvioinnit(slug, nimi, sailyta = false) {
   document.getElementById("tutkimus-arvioinnit-otsikko").textContent = `${nimi} — arvioinnit`;
   arvioinnit_data = await fetch(`/api/tutkimukset/${slug}/arvioinnit`).then((r) => r.json());
-  arvioinnit_suodatin = { kkid: null, taso: null, hakusana: null };
   const sisalto = document.getElementById("tutkimus-arvioinnit-sisalto");
   const suodatinEl = document.getElementById("tutkimus-arvioinnit-suodatin");
 
@@ -832,7 +835,11 @@ async function renderTutkimusArvioinnit(slug, nimi) {
     sisalto.innerHTML = '<p class="tulossa">Ei arviointikysymyksiä — lisää kysymyksiä tutkimukselle.</p>';
     return;
   }
-  await rakennaSuodatinPalkki(suodatinEl, arvioinnit_suodatin, renderArvioinnitTaulu);
+  // sailyta=true (pollaus): päivitä vain data, säilytä suodatinvalinta.
+  if (!sailyta) {
+    arvioinnit_suodatin = { kkid: null, taso: null, hakusana: null };
+    await rakennaSuodatinPalkki(suodatinEl, arvioinnit_suodatin, renderArvioinnitTaulu);
+  }
   renderArvioinnitTaulu();
 }
 
@@ -1062,9 +1069,9 @@ async function paivitaNakyma() {
   try {
     if (r.sivu === "tutkimukset" && r.slug && aktiivinen_tutkimus) {
       if (r.alasivu === "kurssit") {
-        await renderTutkimusKurssit(r.slug, aktiivinen_tutkimus.LuokittelunNimi);
+        await renderTutkimusKurssit(r.slug, aktiivinen_tutkimus.LuokittelunNimi, true);
       } else if (r.alasivu === "arvioinnit") {
-        await renderTutkimusArvioinnit(r.slug, aktiivinen_tutkimus.LuokittelunNimi);
+        await renderTutkimusArvioinnit(r.slug, aktiivinen_tutkimus.LuokittelunNimi, true);
       } else if (r.alasivu === "raportti") {
         await renderTutkimusRaportti(r.slug, aktiivinen_tutkimus);
       } else if (r.alasivu === "tiedot") {
