@@ -470,15 +470,13 @@ def hae_vastaukset(tid: int) -> list[dict]:
 
 # --- Luokittelun apufunktiot ---
 
-def hae_luokittelemattomat(tid: int, tiiviste: str | None = None) -> list[dict]:
-    """Kurssit, jotka odottavat LLM-seulontaa.
+def _luokittelemattomat_ehto(tid: int, tiiviste: str | None) -> tuple[str, tuple]:
+    """Jaettu FROM+JOIN+WHERE + parametrit luokittelemattomille kursseille.
 
     Aina mukana: kurssit joilla ei ole luokitusriviä tai Mukana IS NULL
-    (meta-suodatuksen läpäisseet, jotka odottavat LLM:ää).
-
-    Jos tiiviste annetaan: lisäksi aiemmin LLM-luokitellut kurssit, joiden
-    tallennettu Kehotetiiviste eroaa nykyisestä (kehote on muuttunut) — pois
-    lukien ihmisen HITL-korjaamat, joiden päätös säilytetään.
+    (meta-suodatuksen läpäisseet, jotka odottavat LLM:ää). Jos tiiviste annetaan:
+    lisäksi aiemmin LLM-luokitellut kurssit, joiden tallennettu Kehotetiiviste
+    eroaa nykyisestä (kehote muuttunut), pois lukien ihmisen HITL-korjaamat.
 
     Ehdokkaat rajataan tutkimuksen lukuvuoteen ja korkeakouluihin samoin kuin
     meta-suodatuksessa — muuten rajauksen ulkopuoliset kurssit (väärä vuosi /
@@ -487,30 +485,51 @@ def hae_luokittelemattomat(tid: int, tiiviste: str | None = None) -> list[dict]:
     scope_where, scope_params = _tutkimus_kurssi_scope(tid)
     scope_sql = f" AND {scope_where}" if scope_where else ""
     sp = scope_params or []
+    if tiiviste is None:
+        ehto = f"""
+            FROM Kurssi k
+            LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
+            WHERE (kl.KID IS NULL OR kl.Mukana IS NULL){scope_sql}
+        """
+        return ehto, (tid, *sp)
+    ehto = f"""
+        FROM Kurssi k
+        LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
+        WHERE (kl.KID IS NULL
+           OR kl.Mukana IS NULL
+           OR (kl.Kehotetiiviste IS NOT NULL
+               AND NOT (kl.Kehotetiiviste <=> %s)
+               AND NOT EXISTS (SELECT 1 FROM HitlKorjaus h
+                               WHERE h.TID = %s AND h.KID = k.KID))){scope_sql}
+    """
+    return ehto, (tid, tiiviste, tid, *sp)
+
+
+def hae_luokittelemattomat(tid: int, tiiviste: str | None = None) -> list[dict]:
+    """LLM-seulontaa odottavat kurssit (täydet rivit, sis. OpsKuvaus LLM:lle).
+
+    Pelkkään lukumäärään käytä laske_luokittelemattomat — se ei nouda raskasta
+    OpsKuvaus-kenttää. Ehdokasehto: ks. _luokittelemattomat_ehto.
+    """
+    ehto, params = _luokittelemattomat_ehto(tid, tiiviste)
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            if tiiviste is None:
-                kursori.execute(f"""
-                    SELECT k.*
-                    FROM Kurssi k
-                    LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
-                    WHERE (kl.KID IS NULL OR kl.Mukana IS NULL){scope_sql}
-                    ORDER BY k.KurssiNimi
-                """, (tid, *sp))
-            else:
-                kursori.execute(f"""
-                    SELECT k.*
-                    FROM Kurssi k
-                    LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s
-                    WHERE (kl.KID IS NULL
-                       OR kl.Mukana IS NULL
-                       OR (kl.Kehotetiiviste IS NOT NULL
-                           AND NOT (kl.Kehotetiiviste <=> %s)
-                           AND NOT EXISTS (SELECT 1 FROM HitlKorjaus h
-                                           WHERE h.TID = %s AND h.KID = k.KID))){scope_sql}
-                    ORDER BY k.KurssiNimi
-                """, (tid, tiiviste, tid, *sp))
+            kursori.execute(f"SELECT k.* {ehto} ORDER BY k.KurssiNimi", params)
             return _rivit_dikteina(kursori)
+
+
+def laske_luokittelemattomat(tid: int, tiiviste: str | None = None) -> int:
+    """LLM-seulontaa odottavien kurssien lukumäärä (COUNT(*), ei rivinoutoa).
+
+    Erillinen hae_luokittelemattomat:sta, jottei OpsKuvaus-kenttää (~satoja MB
+    koko aineistossa) ladata pelkkää laskentaa varten — tämä hidasti aiemmin
+    LLM-näkymän avaamista, koska näkymä laskee sekä uudet että vanhentuneet.
+    """
+    ehto, params = _luokittelemattomat_ehto(tid, tiiviste)
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(f"SELECT COUNT(*) {ehto}", params)
+            return kursori.fetchone()[0]
 
 
 # Tila-välilehden ehto Kurssiluokitus.Mukana-arvosta.

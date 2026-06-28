@@ -111,6 +111,33 @@ class TestKurssi:
         assert tulos["KurssiNimi"] == "Kurssi"
 
 
+class TestLaskeLuokittelemattomat:
+    """Lukumäärä lasketaan COUNT(*):lla — ei haeta rivejä (raskas OpsKuvaus)
+    pelkkää laskentaa varten, mikä hidasti LLM-näkymän avaamista."""
+
+    def test_kayttaa_count_eika_hae_rivejä(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchone.return_value = (7,)
+        with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
+            n = mallit.laske_luokittelemattomat(1)
+        sql, params = kursori.execute.call_args[0]
+        assert "COUNT(*)" in sql
+        assert "k.*" not in sql and "OpsKuvaus" not in sql
+        assert "ORDER BY" not in sql        # laskentaan ei tarvita lajittelua
+        assert n == 7
+        assert list(params) == [1]
+
+    def test_soveltaa_rajausta_ja_tiivistetta(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchone.return_value = (3,)
+        with patch("tietokanta.mallit._tutkimus_kurssi_scope",
+                   return_value=("k.KKID IN (%s)", [5])):
+            mallit.laske_luokittelemattomat(1, "tiiv-x")
+        sql, params = kursori.execute.call_args[0]
+        assert "COUNT(*)" in sql and "Kehotetiiviste" in sql and "k.KKID IN" in sql
+        assert list(params) == [1, "tiiv-x", 1, 5]
+
+
 class TestHaeArvioimattomat:
     """LLM-arvioinnin ehdokasjoukon täytyy noudattaa tutkimuksen rajausta —
     muuten vanhojen ajojen rajauksen ulkopuoliset hyväksynnät menisivät

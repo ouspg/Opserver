@@ -154,8 +154,7 @@ def test_aja_llm_tyhjentaa_ruudun_vahvistusvalikon_jalkeen():
     with patch.object(ln, "piirra_otsikko", side_effect=lambda *a, **k: tapahtumat.append("otsikko")), \
          patch.object(ln, "nayta_viesti"), \
          patch.object(ln, "valitse_listasta", side_effect=lambda *a, **k: tapahtumat.append("valikko") or 0), \
-         patch.object(ln.mallit, "hae_luokittelemattomat",
-                      side_effect=[[{"KID": 1}], [{"KID": 1}, {"KID": 2}]]), \
+         patch.object(ln.mallit, "laske_luokittelemattomat", side_effect=[1, 2]), \
          patch("luokittelu.llmluokittelu.laske_tiiviste", return_value="tiiv"), \
          patch("tietokanta.testimallit.hae_siirrettavat_ajot_luokittelu", return_value=[]), \
          patch("llm.mallitiedot.tarkista_saatavuus"), \

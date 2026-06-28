@@ -105,8 +105,8 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
             nayta_viesti(stdscr, f"Siirretty {siirretty} luokitusta {len(siirrettavat)} testiajosta.")
             piirra_otsikko(stdscr, f"LLM-luokittelu — {tutkimus['LuokittelunNimi']}")
 
-    uudet = len(mallit.hae_luokittelemattomat(tid))            # ei vielä LLM-luokiteltu
-    kaikki = len(mallit.hae_luokittelemattomat(tid, tiiv))     # + vanhentuneen kehotteen tulokset
+    uudet = mallit.laske_luokittelemattomat(tid)            # ei vielä LLM-luokiteltu
+    kaikki = mallit.laske_luokittelemattomat(tid, tiiv)     # + vanhentuneen kehotteen tulokset
     vanhentuneet = kaikki - uudet
 
     if kaikki == 0:
