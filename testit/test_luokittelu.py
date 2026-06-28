@@ -213,10 +213,28 @@ class TestLlmluokittelu:
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
              patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
             llmluokittelu.aja(tutkimus, edistyminen_cb=lambda *a: kutsut.append(a))
-        # (käsitelty, yhteensä, valmiit, erät, mukana, hylätty)
+        # (käsitelty, yhteensä, valmiit, erät, mukana, hylätty, epäonnistunut)
         viimeinen = kutsut[-1]
         assert viimeinen[4] == 1   # mukaan (id 1)
         assert viimeinen[5] == 1   # hylätty (id 2)
+        assert viimeinen[6] == 0   # epäonnistunut (kaikki saivat päätöksen)
+
+    def test_aja_edistyminen_laskee_epaonnistuneet_kurssit(self):
+        """Viallisen erän kurssit raportoidaan callbackissa epäonnistuneina,
+        jotta operaattorin ei tarvitse laskea käsitelty − mukaan − hylätty."""
+        kandidaatit = [
+            {"KID": 1, "KurssiNimi": "A", "Koodi": "X1", "Taso": "aine",
+             "Oppiaine": "IT", "Opetusvuosi": "2025-2026", "OpsKuvaus": None},
+        ]
+        tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
+        kutsut = []
+        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
+             patch("luokittelu.llmluokittelu.kutsu.kysy", return_value="ei kelvollista jsonia"), \
+             patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
+             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+            llmluokittelu.aja(tutkimus, edistyminen_cb=lambda *a: kutsut.append(a))
+        viimeinen = kutsut[-1]
+        assert (viimeinen[4], viimeinen[5], viimeinen[6]) == (0, 0, 1)  # mukaan, hylätty, epäonnistunut
 
     def test_rinnakkaisuus_oletus_ja_ymparisto(self, monkeypatch):
         monkeypatch.delenv("LLM_RINNAKKAISUUS", raising=False)
