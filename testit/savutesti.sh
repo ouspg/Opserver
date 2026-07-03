@@ -8,16 +8,47 @@ set -euo pipefail
 WEBUI="http://localhost:12121"
 PROJO_JUURI="$(cd "$(dirname "$0")/.." && pwd)"
 VIRHEET=0
+AUTH_ARGS=()
 
 ok()   { printf "[OK]   %s\n" "$1"; }
 fail() { printf "[FAIL] %s\n" "$1"; VIRHEET=$((VIRHEET + 1)); }
+info() { printf "[INFO] %s\n" "$1"; }
+
+# curl-kääre: lisää Basic Auth -tunnukset, jos autentikointi todettiin käytössä.
+hae() {
+    if [[ ${#AUTH_ARGS[@]} -gt 0 ]]; then
+        curl -sf --max-time 5 "${AUTH_ARGS[@]}" "$@"
+    else
+        curl -sf --max-time 5 "$@"
+    fi
+}
+
+# Probe: kokeile etusivua ilman tunnuksia. 401 => autentikointi päällä =>
+# lataa WEBUI_AUTH_* .env:stä ja ota käyttöön lopuille pyynnöille.
+maarita_autentikointi() {
+    local koodi env_tiedosto kayttaja salasana
+    koodi=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$WEBUI/" 2>/dev/null) || koodi=000
+    if [[ "$koodi" != "401" ]]; then
+        info "Autentikointi ei käytössä (etusivu palautti $koodi)"
+        return
+    fi
+    env_tiedosto="$PROJO_JUURI/.env"
+    kayttaja=$(grep -E '^WEBUI_AUTH_KAYTTAJA=' "$env_tiedosto" | cut -d= -f2-) || true
+    salasana=$(grep -E '^WEBUI_AUTH_SALASANA=' "$env_tiedosto" | cut -d= -f2-) || true
+    if [[ -n "$kayttaja" && -n "$salasana" ]]; then
+        AUTH_ARGS=(-u "$kayttaja:$salasana")
+        info "Autentikointi käytössä — käytetään .env:n tunnuksia"
+    else
+        fail "Autentikointi käytössä (401), mutta WEBUI_AUTH_* puuttuu .env:stä"
+    fi
+}
 
 tarkista_http() {
     local kuvaus=$1
     local url=$2
     local odotettu_sisalto=${3:-}
 
-    vastaus=$(curl -sf --max-time 5 "$url" 2>/dev/null) || { fail "$kuvaus — ei vastausta ($url)"; return; }
+    vastaus=$(hae "$url" 2>/dev/null) || { fail "$kuvaus — ei vastausta ($url)"; return; }
 
     if [[ -n "$odotettu_sisalto" ]] && ! echo "$vastaus" | grep -q "$odotettu_sisalto"; then
         fail "$kuvaus — vastaus ei sisällä '$odotettu_sisalto'"
@@ -71,6 +102,11 @@ tarkista_kontti "WebUI-kontti käynnissä"  "webui"
 
 echo ""
 
+# Autentikoinnin tunnistus: probe ilman tunnuksia, lataa .env:n tunnukset jos 401
+maarita_autentikointi
+
+echo ""
+
 # 2. WebUI HTTP
 tarkista_http "WebUI etusivu"                "$WEBUI/"                     "Opserver"
 tarkista_http "API /korkeakoulut vastaa"     "$WEBUI/api/korkeakoulut"     ""
@@ -78,14 +114,14 @@ tarkista_http "API /kurssit vastaa"          "$WEBUI/api/kurssit"          ""
 tarkista_http "API /tutkimukset vastaa"      "$WEBUI/api/tutkimukset"      ""
 
 # Raportti-endpoint: tarkistetaan jokaiselle tutkimukselle (jos niitä on)
-tutkimukset_json=$(curl -sf --max-time 5 "$WEBUI/api/tutkimukset" 2>/dev/null) || tutkimukset_json="[]"
+tutkimukset_json=$(hae "$WEBUI/api/tutkimukset" 2>/dev/null) || tutkimukset_json="[]"
 slugit=$(printf '%s' "$tutkimukset_json" | python3 -c "import sys,json; [print(t['Slug']) for t in json.load(sys.stdin)]" 2>/dev/null) || slugit=""
 if [[ -z "$slugit" ]]; then
     ok "API /raportti — ei tutkimuksia tarkistettavana"
 else
     raportti_ok=true
     while IFS= read -r slug; do
-        vastaus=$(curl -sf --max-time 5 "$WEBUI/api/tutkimukset/$slug/raportti" 2>/dev/null) || { raportti_ok=false; break; }
+        vastaus=$(hae "$WEBUI/api/tutkimukset/$slug/raportti" 2>/dev/null) || { raportti_ok=false; break; }
         printf '%s' "$vastaus" | python3 -c "import sys,json; d=json.load(sys.stdin); assert 'osiot' in d" 2>/dev/null || { raportti_ok=false; break; }
     done <<< "$slugit"
     if $raportti_ok; then
@@ -104,7 +140,7 @@ echo ""
 
 # 4. MySQL-yhteys: kurssit-endpoint tekee DB-kyselyn — jo testattu yllä.
 #    Lisätarkistus: tarkistetaan, että korkeakoulut-vastaus on JSON-taulukko.
-vastaus_kk=$(curl -sf --max-time 5 "$WEBUI/api/korkeakoulut" 2>/dev/null) || vastaus_kk=""
+vastaus_kk=$(hae "$WEBUI/api/korkeakoulut" 2>/dev/null) || vastaus_kk=""
 if printf '%s' "$vastaus_kk" | python3 -c "import sys,json; d=json.load(sys.stdin); assert isinstance(d,list)" 2>/dev/null; then
     ok "MySQL-yhteys toimii (korkeakoulut palautti JSON-taulukon)"
 else
