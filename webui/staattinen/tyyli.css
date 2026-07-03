@@ -393,8 +393,8 @@ td.arviointi-vastaus {
   border-radius: 0 4px 4px 0;
 }
 
-
-td.toiminto { text-align: right; white-space: nowrap; }
+/* HITL-toimintonappi Perustelu-sarakkeessa pylpyröiden alla. */
+.perustelu-toiminto { margin-top: 0.4rem; }
 
 .nappi-vaara {
   background: #fff0f0;

@@ -201,12 +201,25 @@ function koulunLyhenne(koulu) {
   } catch { return ""; }
 }
 
-function kurssiLinkki(kurssi) {
+// Opinto-opas-linkki (🌐 lyhenne · tyyppi) tai "" jos osoitetta ei ole.
+function kurssiOpasLinkki(kurssi) {
   const url = kurssiUrl(kurssi);
-  if (!url) return kurssi.KurssiNimi;
+  if (!url) return "";
   const koulu = kaikki_koulut.find((k) => k.KKID === kurssi.KKID);
-  if (!koulu) return kurssi.KurssiNimi;
-  return `${kurssi.KurssiNimi} <a href="${url}" target="_blank" rel="noopener" class="ops-linkki">🌐 ${koulunLyhenne(koulu)} · ${koulu.OpsTyyppi}</a>`;
+  if (!koulu) return "";
+  return `<a href="${url}" target="_blank" rel="noopener" class="ops-linkki">🌐 ${koulunLyhenne(koulu)} · ${koulu.OpsTyyppi}</a>`;
+}
+
+// Koodi-solun sisältö: kurssikoodi + opinto-opaslinkki seuraavalla rivillä.
+function koodiJaOpasLinkki(kurssi) {
+  const linkki = kurssiOpasLinkki(kurssi);
+  return `${kurssi.Koodi || ""}${linkki ? `<br>${linkki}` : ""}`;
+}
+
+// Nimi + opas-linkki samassa solussa (näkymät joissa ei ole Koodi-saraketta).
+function kurssiLinkki(kurssi) {
+  const linkki = kurssiOpasLinkki(kurssi);
+  return linkki ? `${kurssi.KurssiNimi} ${linkki}` : kurssi.KurssiNimi;
 }
 
 function ryhmitaKurssit(kurssit) {
@@ -282,8 +295,8 @@ function renderKurssit() {
       vuosiSolmu = uusin.Opetusvuosi;
     }
     rivi.innerHTML = `
-      <td>${kurssiLinkki(uusin)}</td>
-      <td class="koodi">${uusin.Koodi || ""}</td>
+      <td>${uusin.KurssiNimi}</td>
+      <td class="koodi">${koodiJaOpasLinkki(uusin)}</td>
       <td>${uusin.Taso ? TASO_SUOMI[uusin.Taso] || uusin.Taso : "—"}</td>
       <td>${uusin.Oppiaine || "—"}</td>
       <td class="op">${uusin.Opintopisteet ?? "—"}</td>
@@ -766,7 +779,7 @@ function renderTutkimusKurssitRivit(rivit) {
   const runko = document.getElementById("tutkimus-kurssit-rungot");
   runko.innerHTML = "";
   if (rivit.length === 0) {
-    runko.innerHTML = `<tr><td colspan="7">Ei kursseja tässä kategoriassa.</td></tr>`;
+    runko.innerHTML = `<tr><td colspan="6">Ei kursseja tässä kategoriassa.</td></tr>`;
     return;
   }
   for (const k of rivit) {
@@ -774,21 +787,20 @@ function renderTutkimusKurssitRivit(rivit) {
 
     let toimintoHtml = "";
     if (aktiivinen_tila === "mukana") {
-      toimintoHtml = `<button class="nappi-pieni nappi-vaara hitl-nappi" data-kid="${k.KID}" data-nimi="${escapeHtml(k.KurssiNimi)}" data-perustelu="${escapeHtml(k.Luokitteluperuste || "")}" data-tila="0">Poista tutkimuksesta</button>`;
+      toimintoHtml = `<button class="nappi-pieni nappi-vaara hitl-nappi" data-kid="${k.KID}" data-nimi="${escapeHtml(k.KurssiNimi)}" data-perustelu="${escapeHtml(k.Luokitteluperuste || "")}" data-tila="0">Hylkää</button>`;
     } else if (aktiivinen_tila === "hylätty") {
-      toimintoHtml = `<button class="nappi-pieni nappi-hyva hitl-nappi" data-kid="${k.KID}" data-nimi="${escapeHtml(k.KurssiNimi)}" data-perustelu="${escapeHtml(k.Luokitteluperuste || "")}" data-tila="1">Sisällytä tutkimukseen</button>`;
+      toimintoHtml = `<button class="nappi-pieni nappi-hyva hitl-nappi" data-kid="${k.KID}" data-nimi="${escapeHtml(k.KurssiNimi)}" data-perustelu="${escapeHtml(k.Luokitteluperuste || "")}" data-tila="1">Sisällytä</button>`;
     }
 
     const rivi = document.createElement("tr");
     rivi.className = "kurssi-rivi";
     rivi.innerHTML = `
-      <td>${kurssiLinkki(k)}</td>
-      <td class="koodi">${k.Koodi || ""}</td>
+      <td>${k.KurssiNimi}</td>
+      <td class="koodi">${koodiJaOpasLinkki(k)}</td>
       <td>${k.Taso ? TASO_SUOMI[k.Taso] || k.Taso : "—"}</td>
       <td>${k.Oppiaine || "—"}</td>
       <td class="op">${k.Opintopisteet ?? "—"}</td>
-      <td class="perustelu">${perusteluHtml}</td>
-      <td class="toiminto">${toimintoHtml}</td>`;
+      <td class="perustelu">${perusteluHtml}${toimintoHtml ? `<div class="perustelu-toiminto">${toimintoHtml}</div>` : ""}</td>`;
     rivi.querySelector("a.ops-linkki")?.addEventListener("click", (e) => e.stopPropagation());
     rivi.addEventListener("click", () => avaaModaali(k.KID));
     runko.appendChild(rivi);
