@@ -733,7 +733,7 @@ function metaPerusteluYstavallinen(teksti) {
 // hoverilla/fokuksella/klikkauksella. detaljiOnHtml=true => detalji valmista HTML:ää.
 function perusteluPylpyra(lahde, vari, detalji, detaljiOnHtml = false) {
   const sisalto = detaljiOnHtml ? detalji : escapeHtml(detalji || "—");
-  return `<span class="perustelu-pylpyra ${vari}" tabindex="0" role="button">(${lahde})`
+  return `<span class="perustelu-pylpyra ${vari}" tabindex="0" role="button">${lahde}`
        + `<span class="perustelu-detalji">${sisalto}</span></span>`;
 }
 
