@@ -6,7 +6,19 @@
 set -euo pipefail
 
 WEBUI="http://localhost:12121"
-PROJO_JUURI="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Projektin juuri = lähin hakemisto (nykyhakemistosta ylöspäin), jossa on
+# docker-compose.yml. Riippumaton siitä miten skripti käynnistetään (suoraan
+# testit/-alta, repo-juuresta tai status-wräpperin kautta sourcaten).
+PROJO_JUURI="$PWD"
+while [[ "$PROJO_JUURI" != "/" && ! -f "$PROJO_JUURI/docker-compose.yml" ]]; do
+    PROJO_JUURI="$(dirname "$PROJO_JUURI")"
+done
+[[ -f "$PROJO_JUURI/docker-compose.yml" ]] || {
+    echo "Ei löytynyt projektin juurta (docker-compose.yml) hakemistosta $PWD ylöspäin."
+    exit 1
+}
+
 VIRHEET=0
 AUTH_ARGS=()
 
