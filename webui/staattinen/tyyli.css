@@ -270,6 +270,50 @@ td.perustelu {
   word-break: break-word;
 }
 
+/* Perustelu-pylpyrät: kompakti lähde-merkki (meta/LLM/HITL), väri = tila
+   (vihreä mukana / punainen hylätty / harmaa ohitettu tai odottaa). Tarkat
+   perusteet auki hoverilla, fokuksella tai klikkauksella (.auki, kosketus). */
+.perustelu-pylpyra {
+  position: relative;
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  border-radius: 10px;
+  margin: 0.1rem 0.2rem 0.1rem 0;
+  color: #fff;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.perustelu-pylpyra.punainen { background: #b23b3b; }
+.perustelu-pylpyra.vihrea   { background: #2e7d4f; }
+.perustelu-pylpyra.harmaa   { background: #888; }
+.perustelu-detalji {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 100%;
+  z-index: 20;
+  margin-top: 0.25rem;
+  width: max-content;
+  max-width: 320px;
+  background: #16213e;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1.35;
+  padding: 0.5rem 0.6rem;
+  border-radius: 5px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+  white-space: normal;
+  text-align: left;
+}
+.perustelu-pylpyra:hover .perustelu-detalji,
+.perustelu-pylpyra:focus .perustelu-detalji,
+.perustelu-pylpyra:focus-within .perustelu-detalji,
+.perustelu-pylpyra.auki .perustelu-detalji { display: block; }
+
 .tutkimus-nimi-solu { cursor: pointer; }
 .tutkimus-nimi-solu:hover { text-decoration: underline; color: #16213e; }
 
@@ -349,15 +393,6 @@ td.arviointi-vastaus {
   border-radius: 0 4px 4px 0;
 }
 
-.ai-perustelu { display: block; color: #555; font-size: 0.82rem; }
-
-.hitl-perustelu {
-  display: block;
-  color: #c73050;
-  font-size: 0.82rem;
-  margin-top: 0.3rem;
-  font-style: italic;
-}
 
 td.toiminto { text-align: right; white-space: nowrap; }
 

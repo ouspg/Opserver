@@ -714,6 +714,54 @@ function renderTutkimusKurssitSivutus() {
   });
 }
 
+// Meta-perustelun (metasuodatus.py) ystävällinen esitys: säilytä kurssin oma
+// taso/oppiaine, mutta pudota koko rajauslista (voi olla satoja alkioita).
+function metaPerusteluYstavallinen(teksti) {
+  const runko = String(teksti || "").replace(/^meta:\s*/, "");
+  const osat = [];
+  // taso käyttää '∉'-merkkiä, oppiaine '≉'-merkkiä (metasuodatus.py). Geneerinen
+  // teksti — kurssin oma taso/oppiaine näkyy jo rivin omissa sarakkeissa, eikä
+  // koko rajauslistaa (voi olla tuhansia merkkejä) toisteta tähän.
+  if (runko.includes("∉")) osat.push("Taso ei ole tutkimukseen rajattujen tasojen joukossa.");
+  if (runko.includes("≉")) osat.push("Oppiaine ei ole tutkimukseen listattujen oppiaineiden listalla.");
+  if (osat.length) return osat.join(" ");
+  if (runko.startsWith("odottaa LLM")) return "Odottaa LLM-seulontaa.";
+  return runko;
+}
+
+// Yksi perustelu-pylpyrä: lähde-merkki + värikoodi; tarkat perusteet auki
+// hoverilla/fokuksella/klikkauksella. detaljiOnHtml=true => detalji valmista HTML:ää.
+function perusteluPylpyra(lahde, vari, detalji, detaljiOnHtml = false) {
+  const sisalto = detaljiOnHtml ? detalji : escapeHtml(detalji || "—");
+  return `<span class="perustelu-pylpyra ${vari}" tabindex="0" role="button">(${lahde})`
+       + `<span class="perustelu-detalji">${sisalto}</span></span>`;
+}
+
+// Perustelu-solun sisältö: pohja (meta/LLM) + mahdollinen HITL-pylpyrä.
+// Väri = sivun tila (vihreä mukana / punainen hylätty). Kun HITL on ohittanut,
+// pohjapylpyrä on harmaa (ohitettu) ja HITL saa sivun värin.
+function perusteluSolu(k) {
+  const korjaukset = k.HitlKorjaukset || [];
+  const korjattu = korjaukset.length > 0;
+  const sivuVari = aktiivinen_tila === "mukana" ? "vihrea"
+                 : aktiivinen_tila === "hylätty" ? "punainen" : "harmaa";
+  const peruste = k.Luokitteluperuste || "";
+  const onMeta = peruste.startsWith("meta:");
+  const lahde = onMeta ? "meta" : "LLM";
+  const perusteTeksti = onMeta ? metaPerusteluYstavallinen(peruste) : peruste;
+
+  let html = perusteluPylpyra(lahde, korjattu ? "harmaa" : sivuVari, perusteTeksti);
+  if (korjattu) {
+    const detalji = korjaukset.map((h) => {
+      const nimi = h.KayttajaNimi ? ` — ${escapeHtml(h.KayttajaNimi)}` : "";
+      const tila = h.UusiTila ? "sisällytti" : "poisti";
+      return `<div>${tila}: ${escapeHtml(h.Perustelu || "")}${nimi}</div>`;
+    }).join("");
+    html += perusteluPylpyra("HITL", sivuVari, detalji, true);
+  }
+  return html;
+}
+
 function renderTutkimusKurssitRivit(rivit) {
   const runko = document.getElementById("tutkimus-kurssit-rungot");
   runko.innerHTML = "";
@@ -722,22 +770,7 @@ function renderTutkimusKurssitRivit(rivit) {
     return;
   }
   for (const k of rivit) {
-    let perusteluHtml = "";
-    const korjaukset = k.HitlKorjaukset || [];
-    if (korjaukset.length > 0) {
-      const aiTila = k.AiMukana ? "mukana" : "hylkäys";
-      const aiOsa = k.Luokitteluperuste
-        ? `<span class="ai-perustelu">Tekoäly (${aiTila}): ${escapeHtml(k.Luokitteluperuste)}</span>`
-        : "";
-      const korjausOsat = korjaukset.map((h) => {
-        const tila = h.UusiTila ? "mukana" : "hylkäys";
-        const nimi = h.KayttajaNimi ? ` (${escapeHtml(h.KayttajaNimi)})` : "";
-        return `<span class="hitl-perustelu">Ihminen (${tila}): ${escapeHtml(h.Perustelu)}${nimi}</span>`;
-      }).join("");
-      perusteluHtml = aiOsa + korjausOsat;
-    } else {
-      perusteluHtml = escapeHtml(k.Luokitteluperuste || "");
-    }
+    const perusteluHtml = perusteluSolu(k);
 
     let toimintoHtml = "";
     if (aktiivinen_tila === "mukana") {
@@ -770,6 +803,13 @@ function renderTutkimusKurssitRivit(rivit) {
         nappi.dataset.perustelu,
         nappi.dataset.tila === "1",
       );
+    });
+  });
+
+  runko.querySelectorAll(".perustelu-pylpyra").forEach((p) => {
+    p.addEventListener("click", (e) => {
+      e.stopPropagation();
+      p.classList.toggle("auki");
     });
   });
 }
