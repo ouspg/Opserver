@@ -613,19 +613,32 @@ def hae_tutkimuksen_tilamaarat(tid: int, kkid: int | None = None, taso: str | No
     return maarat
 
 
+# Sallitut järjestyssarakkeet (WebUI ▲▼-napit) — valkolista suojaa SQL-injektiolta.
+_LUOKITUS_JARJESTYS = {
+    "nimi": "k.KurssiNimi", "koodi": "k.Koodi", "taso": "k.Taso",
+    "oppiaine": "k.Oppiaine", "op": "k.Opintopisteet",
+}
+
+
 def hae_kurssit_luokituksilla(tid: int, tila: str | None = None,
                               sivu: int = 0, koko: int | None = None,
                               kkid: int | None = None, taso: str | None = None,
-                              hakusana: str | None = None) -> list[dict]:
+                              hakusana: str | None = None,
+                              jarjesta: str | None = None,
+                              suunta: str | None = None) -> list[dict]:
     """Tutkimuksen kurssit luokitustiloineen — rajattuna korkeakouluihin ja
     lukuvuoteen. Valinnainen tila-välilehti (mukana/odottaa/hylätty), sivutus
-    (koko=None palauttaa kaikki) sekä yliopisto/taso/hakusana-suodatus.
+    (koko=None palauttaa kaikki), yliopisto/taso/hakusana-suodatus sekä
+    sarakejärjestys (jarjesta = valkolistattu sarake, suunta = nouseva/laskeva).
     """
     where, params = _tutkimus_kurssi_scope(tid)
     if where is None:
         return []
     tila_sql = f" AND {_TILA_EHTO[tila]}" if tila in _TILA_EHTO else ""
     suod_sql, suod_params = _kurssi_suodatin_sql(kkid, taso, hakusana)
+    sarake_sql = _LUOKITUS_JARJESTYS.get(jarjesta or "", "k.KurssiNimi")
+    suunta_sql = "DESC" if (suunta or "").lower() == "laskeva" else "ASC"
+    jarj_sql = f" ORDER BY {sarake_sql} {suunta_sql}, k.KurssiNimi"
     raja_sql, raja_params = "", []
     if koko:
         raja_sql = " LIMIT %s OFFSET %s"
@@ -636,7 +649,7 @@ def hae_kurssit_luokituksilla(tid: int, tila: str | None = None,
                 f"SELECT k.KID, k.KKID, k.LahdeId, k.KurssiNimi, k.Koodi, k.Taso, k.Oppiaine, "
                 f"k.Opintopisteet, k.Opetusvuosi, kl.Mukana, kl.Luokitteluperuste "
                 f"FROM Kurssi k LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s "
-                f"WHERE {where}{tila_sql}{suod_sql} ORDER BY k.KurssiNimi{raja_sql}",
+                f"WHERE {where}{tila_sql}{suod_sql}{jarj_sql}{raja_sql}",
                 (tid, *params, *suod_params, *raja_params),
             )
             return _rivit_dikteina(kursori)

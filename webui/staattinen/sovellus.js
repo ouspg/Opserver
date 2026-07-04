@@ -8,6 +8,78 @@ function escapeHtml(arvo) {
 }
 window.escapeHtml = escapeHtml;
 
+// --- Otsikon sovitus yhdelle riville ---
+
+// Pienennä otsikon fonttia kunnes se mahtuu yhdelle riville; alaraja 16px.
+function sovitaOtsikko(el) {
+  if (!el || !el.textContent.trim()) return;
+  el.style.whiteSpace = "nowrap";
+  el.style.fontSize = "";
+  let koko = parseFloat(getComputedStyle(el).fontSize) || 24;
+  el.style.fontSize = koko + "px";
+  while (koko > 16 && el.scrollWidth > el.clientWidth) {
+    koko -= 1;
+    el.style.fontSize = koko + "px";
+  }
+}
+
+function sovitaAktiivisetOtsikot() {
+  document.querySelectorAll(".nakyma.aktiivinen h2").forEach(sovitaOtsikko);
+}
+window.addEventListener("resize", sovitaAktiivisetOtsikot);
+
+// --- Taulukoiden järjestäminen (sarakeotsikoiden ▲/▼-napit) ---
+
+const KURSSI_SARAKKEET = {
+  nimi:     { avain: "KurssiNimi",    tyyppi: "teksti" },
+  koodi:    { avain: "Koodi",         tyyppi: "teksti" },
+  taso:     { avain: "Taso",          tyyppi: "teksti" },
+  oppiaine: { avain: "Oppiaine",      tyyppi: "teksti" },
+  op:       { avain: "Opintopisteet", tyyppi: "numero" },
+};
+
+// Vertailufunktio kurssiobjekteille valitun sarakkeen ja suunnan mukaan.
+function vertaaKursseja(sarake, suunta) {
+  const s = KURSSI_SARAKKEET[sarake];
+  const kerroin = suunta === "laskeva" ? -1 : 1;
+  return (a, b) => {
+    if (s.tyyppi === "numero") {
+      const av = a[s.avain] ?? -Infinity, bv = b[s.avain] ?? -Infinity;
+      return (av - bv) * kerroin;
+    }
+    return String(a[s.avain] ?? "").localeCompare(String(b[s.avain] ?? ""), "fi") * kerroin;
+  };
+}
+
+// Lisää (kerran) ja aktivoi ▲▼-napit sarakeotsikoihin (th[data-jarjesta]).
+// tila-objektia ({ sarake, suunta }) mutatoidaan klikillä, minkä jälkeen
+// paivita() renderöi taulukon uudelleen.
+function varustaJarjestys(thead, tila, paivita) {
+  thead.querySelectorAll("th[data-jarjesta]").forEach((th) => {
+    const sarake = th.dataset.jarjesta;
+    let napit = th.querySelector(".jarjesta-napit");
+    if (!napit) {
+      napit = document.createElement("span");
+      napit.className = "jarjesta-napit";
+      napit.innerHTML =
+        `<button class="jarjesta-nappi" data-suunta="nouseva" title="Järjestä nousevasti">▲</button>`
+        + `<button class="jarjesta-nappi" data-suunta="laskeva" title="Järjestä laskevasti">▼</button>`;
+      th.appendChild(napit);
+      napit.querySelectorAll(".jarjesta-nappi").forEach((b) => {
+        b.addEventListener("click", (e) => {
+          e.stopPropagation();
+          tila.sarake = sarake;
+          tila.suunta = b.dataset.suunta;
+          paivita();
+        });
+      });
+    }
+    napit.querySelectorAll(".jarjesta-nappi").forEach((b) => {
+      b.classList.toggle("aktiivinen", tila.sarake === sarake && tila.suunta === b.dataset.suunta);
+    });
+  });
+}
+
 // --- Reititys ---
 
 function navigoi(polku) {
@@ -52,6 +124,7 @@ async function renderoi() {
       laataaTutkimukset();
     }
   }
+  sovitaAktiivisetOtsikot();
   merkitsePaivitetty();
 }
 
@@ -183,6 +256,7 @@ const TASO_SUOMI = {
 
 let kaikki_kurssit = [];
 let kaikki_koulut = [];
+let kurssit_jarjestys = { sarake: null, suunta: null };
 
 function kurssiUrl(kurssi) {
   const koulu = kaikki_koulut.find((k) => k.KKID === kurssi.KKID);
@@ -278,12 +352,18 @@ function renderKurssit() {
   const runko = document.getElementById("kurssit-rungot");
   const lkm = Object.keys(ryhmat).length;
   document.getElementById("kurssit-lkm").textContent = `${lkm} kurssia`;
+  varustaJarjestys(document.querySelector("#s-kurssit thead"), kurssit_jarjestys, renderKurssit);
   runko.innerHTML = "";
   if (lkm === 0) {
     runko.innerHTML = '<tr><td colspan="6">Ei kursseja.</td></tr>';
     return;
   }
-  for (const versiot of Object.values(ryhmat)) {
+  const ryhmatLista = Object.values(ryhmat);
+  if (kurssit_jarjestys.sarake) {
+    const vertaa = vertaaKursseja(kurssit_jarjestys.sarake, kurssit_jarjestys.suunta);
+    ryhmatLista.sort((a, b) => vertaa(a[0], b[0]));
+  }
+  for (const versiot of ryhmatLista) {
     const uusin = versiot[0];
     const rivi = document.createElement("tr");
     rivi.className = "kurssi-rivi";
@@ -623,6 +703,7 @@ const TUTKIMUS_KURSSIT_KOKO = 100;
 let tutkimus_maarat = { mukana: 0, odottaa: 0, "hylätty": 0 };
 let tutkimus_sivu = 0;
 let luokitus_suodatin = { kkid: null, taso: null, hakusana: null };
+let luokitus_jarjestys = { sarake: null, suunta: null };
 
 // --- Jaettu suodatinpalkki (yliopisto + taso + hakusana) — DRY ---
 
@@ -672,6 +753,7 @@ async function renderTutkimusKurssit(slug, nimi, sailyta = false) {
   // — ei nollaa käyttäjän suodatinvalintaa eikä sivua eikä rakenna palkkia uusiksi.
   if (!sailyta) {
     luokitus_suodatin = { kkid: null, taso: null, hakusana: null };
+    luokitus_jarjestys = { sarake: null, suunta: null };
     await rakennaSuodatinPalkki(
       document.getElementById("tutkimus-kurssit-suodatin"),
       luokitus_suodatin,
@@ -699,10 +781,17 @@ async function lataaTilaSivu() {
   document.querySelectorAll(".tila-nappi, .tila-nappi-nav").forEach((b) => {
     b.classList.toggle("aktiivinen", b.dataset.tila === aktiivinen_tila);
   });
+  varustaJarjestys(
+    document.querySelector("#s-tutkimus-kurssit thead"),
+    luokitus_jarjestys,
+    () => { tutkimus_sivu = 0; lataaTilaSivu(); window.scrollTo(0, 0); },
+  );
   const slug = aktiivinen_tutkimus.Slug;
   const p = _suodatinParams(luokitus_suodatin);
+  const j = luokitus_jarjestys.sarake
+    ? `&jarjesta=${luokitus_jarjestys.sarake}&suunta=${luokitus_jarjestys.suunta}` : "";
   const url = `/api/tutkimukset/${slug}/luokitukset?tila=${encodeURIComponent(aktiivinen_tila)}`
-    + `&sivu=${tutkimus_sivu}&koko=${TUTKIMUS_KURSSIT_KOKO}` + (p ? `&${p}` : "");
+    + `&sivu=${tutkimus_sivu}&koko=${TUTKIMUS_KURSSIT_KOKO}` + (p ? `&${p}` : "") + j;
   tutkimus_luokitukset = await fetch(url).then((r) => r.json());
   renderTutkimusKurssitRivit(tutkimus_luokitukset);
   renderTutkimusKurssitSivutus();
@@ -874,6 +963,7 @@ function _vastusOnAnnettu(v) {
 
 let arvioinnit_data = null;
 let arvioinnit_suodatin = { kkid: null, taso: null, hakusana: null };
+let arvioinnit_jarjestys = { sarake: null, suunta: null };
 
 async function renderTutkimusArvioinnit(slug, nimi, sailyta = false) {
   document.getElementById("tutkimus-arvioinnit-otsikko").textContent = `${nimi} — arvioinnit`;
@@ -890,6 +980,7 @@ async function renderTutkimusArvioinnit(slug, nimi, sailyta = false) {
   // sailyta=true (pollaus): päivitä vain data, säilytä suodatinvalinta.
   if (!sailyta) {
     arvioinnit_suodatin = { kkid: null, taso: null, hakusana: null };
+    arvioinnit_jarjestys = { sarake: null, suunta: null };
     await rakennaSuodatinPalkki(suodatinEl, arvioinnit_suodatin, renderArvioinnitTaulu);
   }
   renderArvioinnitTaulu();
@@ -907,9 +998,14 @@ function _arvioinnitSuodatetut() {
   });
 }
 
+const ARVIOINTI_SARAKKEET = { Nimi: "nimi", Taso: "taso", op: "op" };
+
 function renderArvioinnitTaulu() {
   const { kysymykset } = arvioinnit_data;
   const kurssit = _arvioinnitSuodatetut();
+  if (arvioinnit_jarjestys.sarake) {
+    kurssit.sort(vertaaKursseja(arvioinnit_jarjestys.sarake, arvioinnit_jarjestys.suunta));
+  }
   const sisalto = document.getElementById("tutkimus-arvioinnit-sisalto");
   const lkm = document.getElementById("tutkimus-arvioinnit-lkm");
 
@@ -928,6 +1024,7 @@ function renderArvioinnitTaulu() {
   for (const teksti of ["Nimi", "Taso", "op"]) {
     const th = document.createElement("th");
     th.textContent = teksti;
+    th.dataset.jarjesta = ARVIOINTI_SARAKKEET[teksti];
     otsikkorivi.appendChild(th);
   }
   for (const k of kysymykset) {
@@ -938,6 +1035,7 @@ function renderArvioinnitTaulu() {
     th.title = k.Kysymys;
     otsikkorivi.appendChild(th);
   }
+  varustaJarjestys(thead, arvioinnit_jarjestys, renderArvioinnitTaulu);
 
   const tid = aktiivinen_tutkimus?.TID;
   const tbody = taulu.createTBody();

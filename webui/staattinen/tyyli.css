@@ -22,6 +22,17 @@ header h1.logo img { height: 2.5rem; width: auto; display: block; }
 
 .paivitysaika { display: none; }
 
+/* Navigaation automaattinen piilotus: hiirilaitteilla valikkorivit piiloutuvat
+   kun hiiri ei ole yläpalkissa, ja tulevat näkyviin kun hiiri tuodaan sinne.
+   Kosketuslaitteilla (puhelimet, seminaariyleisö) valikko pysyy aina näkyvissä. */
+@media (hover: hover) and (pointer: fine) {
+  header:not(:hover):not(:focus-within) #paanav,
+  header:not(:hover):not(:focus-within) #tutkimus-nav,
+  header:not(:hover):not(:focus-within) #uutispalkki {
+    display: none;
+  }
+}
+
 #paanav button, #tutkimus-nav button {
   background: transparent;
   border: none;
@@ -143,6 +154,26 @@ th, td {
 
 th { background: #ececf4; }
 
+/* Järjestysnapit sarakeotsikoissa (▲ nouseva / ▼ laskeva). */
+.jarjesta-napit {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: middle;
+  margin-left: 0.3rem;
+  line-height: 0.7;
+}
+.jarjesta-nappi {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #aab;
+  font-size: 0.6rem;
+  padding: 0;
+  line-height: 0.85;
+}
+.jarjesta-nappi:hover { color: #555; }
+.jarjesta-nappi.aktiivinen { color: #16213e; }
+
 /* Korkeakoulut-taulu: 2 ensimmäistä saraketta yhteensä alle puolet leveydestä,
    vuosisarakkeet keskitettyinä oikealla. */
 .korkeakoulut-taulu .kk-nimi { width: 22%; font-weight: 600; }
@@ -234,7 +265,8 @@ td.op { text-align: right; }
 
 .tulossa { color: #888; font-style: italic; }
 
-.tutkimus-toiminnot { white-space: nowrap; }
+/* Toimintonapit saavat rivittyä, ettei taulukko leviä sivun yli (vrt. /kurssit). */
+.tutkimus-toiminnot .nappi-pieni { margin-bottom: 0.25rem; }
 
 .nappi-pieni {
   background: #ececf4;
@@ -394,7 +426,7 @@ td.arviointi-vastaus {
 }
 
 /* HITL-toimintonappi Perustelu-sarakkeessa pylpyröiden alla. */
-.perustelu-toiminto { margin-top: 0.4rem; }
+.perustelu-toiminto { margin-top: 0.15rem; }
 
 .nappi-vaara {
   background: #fff0f0;

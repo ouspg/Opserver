@@ -393,13 +393,16 @@ def api_tutkimus_luokitukset_maarat(slug: str, kkid: Optional[int] = None,
 def api_tutkimus_luokitukset(slug: str, tila: Optional[str] = None,
                              sivu: int = 0, koko: int = 200,
                              kkid: Optional[int] = None, taso: Optional[str] = None,
-                             hakusana: Optional[str] = None) -> list[dict]:
+                             hakusana: Optional[str] = None,
+                             jarjesta: Optional[str] = None,
+                             suunta: Optional[str] = None) -> list[dict]:
     tutkimus = mallit.hae_tutkimus_slugilla(slug)
     if tutkimus is None:
         raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     tid = tutkimus["TID"]
     rivit = mallit.hae_kurssit_luokituksilla(tid, tila=tila, sivu=sivu, koko=koko,
-                                             kkid=kkid, taso=taso, hakusana=hakusana)
+                                             kkid=kkid, taso=taso, hakusana=hakusana,
+                                             jarjesta=jarjesta, suunta=suunta)
 
     # Ryhmittele HITL-historia kursseittain (vanhimmasta uusimpaan)
     historia: dict[int, list[dict]] = {}
