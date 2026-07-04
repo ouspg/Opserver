@@ -110,6 +110,18 @@ def test_api_tutkimus_404_kun_ei_loydy():
     assert vastaus.status_code == 404
 
 
+def test_api_luokitukset_valittaa_jarjestyksen():
+    """▲▼-napit lähettävät jarjesta+suunta, jotka välitetään malleille."""
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_kurssit_luokituksilla", return_value=[]) as mock, \
+         patch("webui.palvelin.mallit.hae_hitl_historia", return_value=[]):
+        vastaus = asiakas.get(
+            "/api/tutkimukset/kyber-2025/luokitukset?tila=mukana&jarjesta=op&suunta=laskeva")
+    assert vastaus.status_code == 200
+    assert mock.call_args.kwargs["jarjesta"] == "op"
+    assert mock.call_args.kwargs["suunta"] == "laskeva"
+
+
 KURSSI_MUKANA = {
     "KID": 1, "KKID": 1, "LahdeId": "45690", "Koodi": "IC00AU61",
     "KurssiNimi": "Kyberturvallisuuden perusteet", "Taso": "aine",
