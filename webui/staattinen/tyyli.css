@@ -324,7 +324,7 @@ td.perustelu {
 .perustelu-detalji {
   display: none;
   position: absolute;
-  left: 0;
+  right: 0;
   top: 100%;
   z-index: 20;
   margin-top: 0.25rem;
