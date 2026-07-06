@@ -3,7 +3,11 @@
 # Aja: ./testit/savutesti.sh
 # Oletus: kontit ovat jo käynnissä (docker compose up -d).
 
-set -euo pipefail
+# EI set -e: savutesti kerää virheet itse (VIRHEET-laskuri) ja raportoi lopussa.
+# set -e abortoisi ensimmäisen kaatuvan komennon kohdalla ENNEN yhteenvetoa —
+# ja sourcattuna (esim. ./status) veisi koko interaktiivisen shellin hiljaa alas,
+# jolloin "ei tulosta mitään". Ilman -e jokainen tarkistus ajetaan ja [FAIL]it näkyvät.
+set -uo pipefail
 
 WEBUI="http://localhost:12121"
 
