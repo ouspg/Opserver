@@ -122,7 +122,7 @@ def test_nayta_tilanne_yhdenmukainen_suppilo():
     }
     scr = _FakeScr(korkeus=24, leveys=120, nappaimet=[ord("q")])
     with patch.object(ln.mallit, "hae_tutkimuksen_tilanne", return_value=tilanne), \
-         patch.object(ln.mallit, "hae_arvioimattomat", return_value=[{}] * 162):
+         patch.object(ln.mallit, "laske_arvioimattomat", return_value=162):
         ln._nayta_tilanne(scr, {"TID": 1, "LuokittelunNimi": "Testi"})
     teksti = "\n".join(t for _, t in scr.piirretyt)
 

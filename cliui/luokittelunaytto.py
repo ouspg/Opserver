@@ -364,7 +364,7 @@ def _poista_testiajo(stdscr, tutkimus: dict) -> None:
 def _nayta_tilanne(stdscr, tutkimus: dict) -> None:
     tid = tutkimus["TID"]
     t = mallit.hae_tutkimuksen_tilanne(tid)
-    arvioimattomat = len(mallit.hae_arvioimattomat(tid))
+    arvioimattomat = mallit.laske_arvioimattomat(tid)
     arvioitu = max(0, t["hyvaksytty"] - arvioimattomat)
 
     piirra_otsikko(stdscr, f"Tilanne — {tutkimus['LuokittelunNimi']}")

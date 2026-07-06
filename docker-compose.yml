@@ -3,6 +3,10 @@ name: opserver
 services:
   mysql:
     image: mysql:8.4
+    # skip-name-resolve: älä tee käänteistä DNS-hakua joka yhteydelle.
+    # Ilman tätä jokainen tuore yhteys (isännältä porttiin 21212) jumittaa
+    # sekunnin+ macOS/Docker-gatewayn IP:n reverse-DNS:ssä — hidastaa jokaista näkymän avausta.
+    command: ["--skip-name-resolve"]
     ports:
       - "21212:3306"
     environment:

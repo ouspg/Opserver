@@ -165,6 +165,48 @@ class TestHaeArvioimattomat:
         assert "KKID" not in sql
         assert list(params) == [1, 1, 1]
 
+    def test_laske_arvioimattomat_laskee_ei_hae_riveja(self, mock_yhteys):
+        """Tilannesivu tarvitsee vain lukumäärän → COUNT(*), ei SELECT k.* (ei vedä
+        OpsKuvaus-tekstejä verkon yli). Sama WHERE-ehto kuin rivihaussa."""
+        yht, kursori = mock_yhteys
+        kursori.fetchone.return_value = (7,)
+        with patch("tietokanta.mallit._tutkimus_kurssi_scope",
+                   return_value=("k.KKID IN (%s) AND vuosirajaus", [4, 2024, 2025])):
+            tulos = mallit.laske_arvioimattomat(1)
+        assert tulos == 7
+        sql, params = kursori.execute.call_args[0]
+        assert "SELECT COUNT(*)" in sql and "SELECT k.*" not in sql
+        assert list(params) == [1, 1, 1, 4, 2024, 2025]
+
+
+class TestHaeTutkimuksenTilanne:
+    """Suppilo lasketaan SQL-aggregaateilla yhdessä yhteydessä (ei vedä kaikkia
+    kursseja/luokituksia Pythoniin) — etäpalvelimella siirtomäärä ratkaisee."""
+
+    def test_kokoaa_suppilon_aggregaateista(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        # järjestys: COUNT(*) Kurssi, Lukuvuosi, (KKID via fetchall), kurssi-agg, luokitus-agg
+        kursori.fetchone.side_effect = [
+            (100,), ("2025-2026",), (80, 65), (10, 5, 30, 15, 60),
+        ]
+        kursori.fetchall.return_value = [(1,), (2,)]
+        t = mallit.hae_tutkimuksen_tilanne(1)
+        assert t == {
+            "kursseja_yht": 100,
+            "vuosi_lapi": 80, "vuosi_hyl": 20,
+            "oppilaitos_lapi": 65, "oppilaitos_hyl": 15,
+            "odottaa_meta": 5,          # in_scope 65 − luok 60
+            "hyl_meta": 30, "odottaa_llm": 5, "hyl_llm": 15, "hyvaksytty": 10,
+        }
+
+    def test_ilman_lukuvuotta_kaikki_vuosihylattyja(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchone.side_effect = [(100,), (None,)]   # kursseja_yht, lukuvuosi=NULL
+        kursori.fetchall.return_value = []
+        t = mallit.hae_tutkimuksen_tilanne(1)
+        assert t["kursseja_yht"] == 100 and t["vuosi_hyl"] == 100
+        assert t["vuosi_lapi"] == 0 and t["hyvaksytty"] == 0
+
 
 class TestHaeLuokittelemattomat:
     """LLM-luokittelun ehdokasjoukon täytyy noudattaa tutkimuksen rajausta
@@ -388,36 +430,23 @@ class TestTilamaarat:
 
 
 class TestTutkimuksenTilanne:
-    def test_funnel_jakaa_kurssit_vaiheittain(self):
-        kurssit = [
-            {"KID": 1, "KKID": 1, "Opetusvuosi": "2025-2026"},  # in-scope → hyväksytty
-            {"KID": 2, "KKID": 1, "Opetusvuosi": "2025-2026"},  # in-scope → odottaa LLM
-            {"KID": 3, "KKID": 1, "Opetusvuosi": "2025-2026"},  # in-scope → hyl meta
-            {"KID": 4, "KKID": 1, "Opetusvuosi": "2025-2026"},  # in-scope → hyl LLM
-            {"KID": 5, "KKID": 1, "Opetusvuosi": "2025-2026"},  # in-scope → odottaa meta (ei riviä)
-            {"KID": 6, "KKID": 1, "Opetusvuosi": "2024-2025"},  # väärä vuosi
-            {"KID": 7, "KKID": 2, "Opetusvuosi": "2025-2026"},  # väärä oppilaitos
+    def test_funnel_jakaa_kurssit_vaiheittain(self, mock_yhteys):
+        """7 kurssin skenaario: 6 vuosirajaus läpi, 5 in-scope, näistä
+        hyväksytty/odottaa/meta-hyl/LLM-hyl/odottaa-meta yksi kutakin. Aggregaatti-
+        SQL:n TUOTTAMAT luvut on syötetty kursorille; testaa Python-kokoonpanon.
+        (SQL:n semantiikka varmennettu erikseen MySQL:ää vasten.)"""
+        yht, kursori = mock_yhteys
+        # järjestys: COUNT(*) Kurssi, Lukuvuosi, (KKID fetchall), kurssi-agg, luokitus-agg
+        kursori.fetchone.side_effect = [
+            (7,), ("2025-2026",), (6, 5), (1, 1, 1, 1, 4),
         ]
-        luok = [
-            {"KID": 1, "Mukana": 1, "Luokitteluperuste": "LLM: relevantti"},
-            {"KID": 2, "Mukana": None, "Luokitteluperuste": "meta: odottaa LLM-seulontaa"},
-            {"KID": 3, "Mukana": 0, "Luokitteluperuste": "meta: oppiaine ei täsmää"},
-            {"KID": 4, "Mukana": 0, "Luokitteluperuste": "LLM: ei liity aiheeseen"},
-            {"KID": 99, "Mukana": 1, "Luokitteluperuste": "x"},  # ulkopuolinen → ohitetaan
-        ]
-        with patch.object(mallit, "hae_tutkimus", return_value={"TID": 1, "Lukuvuosi": "2025-2026"}), \
-             patch.object(mallit, "hae_tutkimuksen_korkeakoulut", return_value=[1]), \
-             patch.object(mallit, "hae_kurssit", return_value=kurssit), \
-             patch.object(mallit, "hae_luokitukset", return_value=luok):
-            t = mallit.hae_tutkimuksen_tilanne(1)
+        kursori.fetchall.return_value = [(1,)]
+        t = mallit.hae_tutkimuksen_tilanne(1)
         assert t["kursseja_yht"] == 7
         assert (t["vuosi_lapi"], t["vuosi_hyl"]) == (6, 1)
         assert (t["oppilaitos_lapi"], t["oppilaitos_hyl"]) == (5, 1)
-        assert t["odottaa_meta"] == 1
-        assert t["hyl_meta"] == 1
-        assert t["odottaa_llm"] == 1
-        assert t["hyl_llm"] == 1
-        assert t["hyvaksytty"] == 1
+        assert t["odottaa_meta"] == 1        # in_scope 5 − luok 4
+        assert (t["hyl_meta"], t["odottaa_llm"], t["hyl_llm"], t["hyvaksytty"]) == (1, 1, 1, 1)
         # in-scope-summa täsmää
         assert (t["odottaa_meta"] + t["hyl_meta"] + t["odottaa_llm"]
                 + t["hyl_llm"] + t["hyvaksytty"]) == t["oppilaitos_lapi"]
