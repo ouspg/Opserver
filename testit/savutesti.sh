@@ -9,8 +9,6 @@
 # jolloin "ei tulosta mitään". Ilman -e jokainen tarkistus ajetaan ja [FAIL]it näkyvät.
 set -uo pipefail
 
-WEBUI="http://localhost:12121"
-
 # Projektin juuri = lähin hakemisto (nykyhakemistosta ylöspäin), jossa on
 # docker-compose.yml. Riippumaton siitä miten skripti käynnistetään (suoraan
 # testit/-alta, repo-juuresta tai status-wräpperin kautta sourcaten).
@@ -22,6 +20,12 @@ done
     echo "Ei löytynyt projektin juurta (docker-compose.yml) hakemistosta $PWD ylöspäin."
     exit 1
 }
+
+# WebUI-osoite: sama WEBUI_OSOITE-muuttuja kuin cliui (cliui/tutkimusnaytto.py).
+# Ympäristö ohittaa .env:n, .env ohittaa oletuksen; loppukauttaviiva pois.
+WEBUI="${WEBUI_OSOITE:-$(grep -E '^WEBUI_OSOITE=' "$PROJO_JUURI/.env" 2>/dev/null | tail -1 | cut -d= -f2-)}"
+WEBUI="${WEBUI:-http://localhost:12121}"
+WEBUI="${WEBUI%/}"
 
 VIRHEET=0
 AUTH_ARGS=()
