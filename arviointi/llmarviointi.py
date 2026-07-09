@@ -148,10 +148,25 @@ def _selvita_tyo(tutkimus: dict) -> dict:
             "olemassa": olemassa, "tyo": tyo}
 
 
-def laske_tyomaara(tutkimus: dict) -> tuple[int, int]:
+def _kysymystiivisteet(tutkimus: dict) -> dict:
+    """Kysymyskohtaiset kehotetiivisteet {KysID: tiiviste} ILMAN kurssien/vastausten
+    hakua — kevyt versio _selvita_työ:stä siirrettävien testajojen tunnistukseen.
+    (Täysi _selvita_tyo vetäisi kaikki mukana-kurssit ja vastaustiivisteet turhaan.)"""
+    kysymykset = mallit.hae_kysymykset(tutkimus["TID"])
+    if not kysymykset:
+        return {}
+    return tiiviste.kysymystiivisteet(
+        tutkimus["Arviointikehote"], _lue_jarjestelma_kehote(), kysymykset)
+
+
+def laske_tyomaara(tutkimus: dict, tieto: dict | None = None) -> tuple[int, int]:
     """(uudet, vanhentuneet) — montako mukana-kurssia arvioidaan: täysin uudet
-    (ei aiempia vastauksia) vs. osin vanhentuneet (kehote/kysymys muuttunut)."""
-    tieto = _selvita_tyo(tutkimus)
+    (ei aiempia vastauksia) vs. osin vanhentuneet (kehote/kysymys muuttunut).
+
+    tieto: esilaskettu _selvita_tyo-tulos — annettuna vältetään kurssien ja
+    vastaustiivisteiden uudelleenhaku (merkitsevää etäpalvelimella)."""
+    if tieto is None:
+        tieto = _selvita_tyo(tutkimus)
     uudet = vanhentuneet = 0
     for kid in tieto["tyo"]:
         oli_vastauksia = any(
@@ -184,7 +199,8 @@ def rakenna_erat(tieto: dict, koko: int) -> list[tuple[list[dict], list[dict]]]:
     return erat
 
 
-def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None) -> int:
+def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None,
+        tieto: dict | None = None) -> int:
     """Arvioi mukaan otetut kurssit LLM:llä. Palauttaa arvioitujen kurssien määrän.
 
     Idempotentti ja kehotetietoinen: kysyy LLM:ltä vain ne (kurssi, kysymys) -parit,
@@ -192,8 +208,10 @@ def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None) -> int
 
     max_erat: jos annettu, ajetaan korkeintaan tämän verran eräpyyntöjä (esim. 1 =
     yksi LLM-pyyntö, kätevä testaukseen). Loput jäävät seuraavalle ajolle.
+    tieto: esilaskettu _selvita_tyo-tulos — annettuna vältetään uudelleenhaku.
     """
-    tieto = _selvita_tyo(tutkimus)
+    if tieto is None:
+        tieto = _selvita_tyo(tutkimus)
     tyo = tieto["tyo"]
     if not tyo:
         return 0

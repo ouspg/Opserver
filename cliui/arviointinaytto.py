@@ -45,8 +45,9 @@ def _aja_llm(stdscr, tutkimus: dict, vain_yksi_era: bool = False) -> None:
     piirra_otsikko(stdscr, f"{otsikko} — {tutkimus['LuokittelunNimi']}")
 
     # Varoita siirtämättömistä testiajoista: ne käsiteltäisiin nyt uudelleen,
-    # ellei niitä siirretä ensin varsinaiseen aineistoon.
-    tiivisteet = list(llmarviointi._selvita_tyo(tutkimus)["kys_tiiviste"].values())
+    # ellei niitä siirretä ensin varsinaiseen aineistoon. Kevyt tiivistehaku
+    # (ei vedä kursseja/vastauksia — täysi _selvita_tyo lasketaan vasta alempana).
+    tiivisteet = list(llmarviointi._kysymystiivisteet(tutkimus).values())
     siirrettavat = testimallit.hae_siirrettavat_ajot_arviointi(tutkimus["TID"], tiivisteet)
     if siirrettavat:
         valinta = valitse_listasta(
@@ -65,7 +66,11 @@ def _aja_llm(stdscr, tutkimus: dict, vain_yksi_era: bool = False) -> None:
             nayta_viesti(stdscr, f"Siirretty {siirretty} vastausta {len(siirrettavat)} testiajosta.")
             piirra_otsikko(stdscr, f"{otsikko} — {tutkimus['LuokittelunNimi']}")
 
-    uudet, vanhentuneet = llmarviointi.laske_tyomaara(tutkimus)
+    # Selvitä työ KERRAN (mahdollisen testajosiirron jälkeen) ja jaa se
+    # työmäärälaskennalle ja ajolle — muuten _selvita_tyo (kaikki kurssit +
+    # vastaustiivisteet) ajettaisiin 2–3 kertaa peräkkäin etäpalvelinta vasten.
+    tieto = llmarviointi._selvita_tyo(tutkimus)
+    uudet, vanhentuneet = llmarviointi.laske_tyomaara(tutkimus, tieto=tieto)
     if uudet + vanhentuneet == 0:
         nayta_viesti(stdscr, "Kaikki mukana olevat kurssit on jo arvioitu nykyisellä kehotteella ja kysymyksillä.")
         return
@@ -105,7 +110,8 @@ def _aja_llm(stdscr, tutkimus: dict, vain_yksi_era: bool = False) -> None:
         stdscr.refresh()
 
     try:
-        arvioitu = llmarviointi.aja(tutkimus, edistyminen, max_erat=1 if vain_yksi_era else None)
+        arvioitu = llmarviointi.aja(tutkimus, edistyminen,
+                                    max_erat=1 if vain_yksi_era else None, tieto=tieto)
         piirra_otsikko(stdscr, "LLM-arviointi — valmis")
         stdscr.addstr(3, 0, f"Arvioitu: {arvioitu}")
         if vain_yksi_era and arvioitu < uudet + vanhentuneet:
@@ -259,13 +265,14 @@ def _poista_testiajo(stdscr, tutkimus: dict) -> None:
 
 def _nayta_tilanne(stdscr, tutkimus: dict) -> None:
     tid = tutkimus["TID"]
-    mukana_kurssit = mallit.hae_luokitukset(tid, mukana=True)
-    arvioimattomat = mallit.hae_arvioimattomat(tid)
-    mukana_lkm = len(mukana_kurssit)
-    arvioitu_lkm = mukana_lkm - len(arvioimattomat)
+    # COUNT(*) eikä rivinouto: aiemmin haki kaikkien mukana-kurssien ja
+    # arvioimattomien täydet rivit (OpsKuvaus-tekstit) pelkkään len()-laskentaan.
+    mukana_lkm = mallit.laske_luokitukset(tid, mukana=True)
+    arvioimatta_lkm = mallit.laske_arvioimattomat(tid)
+    arvioitu_lkm = mukana_lkm - arvioimatta_lkm
 
     piirra_otsikko(stdscr, f"Tilanne — {tutkimus['LuokittelunNimi']}")
     stdscr.addstr(3, 0, f"Mukaan otettuja kursseja: {mukana_lkm}")
     stdscr.addstr(4, 0, f"Arvioitu:                 {arvioitu_lkm}")
-    stdscr.addstr(5, 0, f"Odottaa arviointia:       {len(arvioimattomat)}")
+    stdscr.addstr(5, 0, f"Odottaa arviointia:       {arvioimatta_lkm}")
     nayta_viesti(stdscr, "", 7)

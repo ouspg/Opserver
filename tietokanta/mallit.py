@@ -693,6 +693,19 @@ def hae_luokitukset(tid: int, mukana: bool | None = None) -> list[dict]:
             return _rivit_dikteina(kursori)
 
 
+def laske_luokitukset(tid: int, mukana: bool | None = None) -> int:
+    """Luokitusrivien lukumäärä (COUNT(*), ei rivinoutoa). Erillinen
+    hae_luokitukset:sta, jottei Luokitteluperuste-tekstejä ladata verkon yli
+    pelkkää laskentaa varten (arvioinnin tilannesivu etäpalvelimella)."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            if mukana is None:
+                kursori.execute("SELECT COUNT(*) FROM Kurssiluokitus WHERE TID = %s", (tid,))
+            else:
+                kursori.execute("SELECT COUNT(*) FROM Kurssiluokitus WHERE TID = %s AND Mukana = %s", (tid, mukana))
+            return int(kursori.fetchone()[0])
+
+
 def hae_tutkimuksen_tilanne(tid: int) -> dict:
     """Tutkimuksen suppilo (funnel): kuinka kurssit karsiutuvat vaihe vaiheelta.
 
