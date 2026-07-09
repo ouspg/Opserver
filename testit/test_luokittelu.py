@@ -142,14 +142,16 @@ class TestLlmluokittelu:
              "Oppiaine": "FY", "Opintopisteet": 3, "Opetusvuosi": "2025-2026", "OpsKuvaus": None},
         ]
         tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi kyberturvallisuusrelevanssi."}
-        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit) as mock_hae, \
+        # Ensin ehdokkaat, sitten tyhjä → simuloi tietokannan tyhjenemistä passien välissä
+        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat",
+                   side_effect=[kandidaatit, []]) as mock_hae, \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=self.LLM_VASTAUS), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
              patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
-            mukana, hylätty, virheet = llmluokittelu.aja(tutkimus)
+            mukana, hylätty, luokittelematta = llmluokittelu.aja(tutkimus)
         assert mukana == 1
         assert hylätty == 1
-        assert virheet == 0
+        assert luokittelematta == 0
         assert mock_aseta.call_count == 2
         # Kandidaatit haetaan tiivisteellä, jotta vanhentunut kehote ajetaan uudelleen
         tiiv = mock_hae.call_args.args[1]
@@ -169,14 +171,14 @@ class TestLlmluokittelu:
              patch("luokittelu.llmluokittelu.kutsu.kysy") as mock_kysy, \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
              patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
-            mukana, hylätty, virheet = llmluokittelu.aja(tutkimus)
-        assert (mukana, hylätty, virheet) == (2, 0, 0)
+            mukana, hylätty, luokittelematta = llmluokittelu.aja(tutkimus)
+        assert (mukana, hylätty, luokittelematta) == (2, 0, 0)
         assert mock_kysy.call_count == 0                  # ei LLM-kutsuja
         assert mock_aseta.call_count == 2
         assert all(c.args[2] is True for c in mock_aseta.call_args_list)  # kaikki mukaan
 
     def test_aja_viallinen_era_ei_kaada_ajoa(self):
-        """Katkennut/viallinen LLM-JSON ohitetaan: virhe lasketaan, ajo jatkuu."""
+        """Katkennut/viallinen LLM-JSON ohitetaan: kurssi jää luokittelematta, ajo ei kaadu."""
         kandidaatit = [
             {"KID": 1, "KurssiNimi": "A", "Koodi": "X1", "Taso": "aine",
              "Oppiaine": "IT", "Opetusvuosi": "2025-2026", "OpsKuvaus": None},
@@ -186,9 +188,9 @@ class TestLlmluokittelu:
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value="ei kelvollista jsonia"), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
              patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
-            mukana, hylätty, virheet = llmluokittelu.aja(tutkimus)
+            mukana, hylätty, luokittelematta = llmluokittelu.aja(tutkimus)
         assert (mukana, hylätty) == (0, 0)
-        assert virheet == 1
+        assert luokittelematta == 1  # ainoa kurssi jäi ilman päätöstä
         assert mock_aseta.call_count == 0
 
     def test_aja_tiiviste_muuttuu_kehotteesta(self):
@@ -208,7 +210,8 @@ class TestLlmluokittelu:
         ]
         tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
         kutsut = []
-        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
+        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat",
+                   side_effect=[kandidaatit, []]), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=self.LLM_VASTAUS), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
              patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
@@ -236,6 +239,65 @@ class TestLlmluokittelu:
         viimeinen = kutsut[-1]
         assert (viimeinen[4], viimeinen[5], viimeinen[6]) == (0, 0, 1)  # mukaan, hylätty, epäonnistunut
 
+    def test_aja_tilasto_erottaa_menetetyn_eran(self):
+        """Kokonaan katkennut LLM-JSON kirjataan tilastoon menetettynä eränä,
+        ei yksittäisinä ilman-vastausta-kursseina (ohjaa oikeaan korjaukseen)."""
+        kandidaatit = [
+            {"KID": 1, "KurssiNimi": "A", "Koodi": "X1", "Taso": "aine",
+             "Oppiaine": "IT", "Opetusvuosi": "2025-2026", "OpsKuvaus": None},
+        ]
+        tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
+        kutsut = []
+        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
+             patch("luokittelu.llmluokittelu.kutsu.kysy", return_value="ei kelvollista jsonia"), \
+             patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
+             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+            llmluokittelu.aja(tutkimus, edistyminen_cb=lambda *a: kutsut.append(a))
+        tilasto = kutsut[-1][7]
+        assert tilasto == {"menetetyt_erat": 1, "menetetyt_kurssit": 1, "ilman_vastausta": 0}
+
+    def test_aja_tilasto_laskee_ilman_vastausta_kurssit(self):
+        """Kelvollinen erä, josta LLM jätti kurssin pois → ilman_vastausta, ei
+        menetetty erä. (Vastaus kattaa vain id 1:n; id 2 jää ilman päätöstä.)"""
+        kandidaatit = [
+            {"KID": 1, "KurssiNimi": "A", "Koodi": "X1", "Taso": "aine",
+             "Oppiaine": "IT", "Opetusvuosi": "2025-2026", "OpsKuvaus": None},
+            {"KID": 2, "KurssiNimi": "B", "Koodi": "X2", "Taso": "aine",
+             "Oppiaine": "IT", "Opetusvuosi": "2025-2026", "OpsKuvaus": None},
+        ]
+        tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
+        vain_id1 = '[{"id": 1, "mukana": true, "perustelu": "ok"}]'
+        kutsut = []
+        # koko=2 → yksi erä; toinen passi saa tyhjän hausta → silmukka päättyy
+        with patch("luokittelu.llmluokittelu.erakoko", return_value=2), \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", side_effect=[kandidaatit, []]), \
+             patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=vain_id1), \
+             patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
+             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+            llmluokittelu.aja(tutkimus, edistyminen_cb=lambda *a: kutsut.append(a))
+        tilasto = kutsut[-1][7]
+        assert tilasto == {"menetetyt_erat": 0, "menetetyt_kurssit": 0, "ilman_vastausta": 1}
+
+    def test_aja_keskeytys_lopettaa_ja_sailyttaa_tehdyt(self, monkeypatch):
+        """Callbackin truthy-paluu keskeyttää ajon: loppuja eriä ei enää
+        käsitellä, mutta ensimmäisen erän luokitukset on jo tallennettu."""
+        monkeypatch.setenv("LLM_RINNAKKAISUUS", "1")   # deterministinen: yksi erä kerrallaan
+        kandidaatit = [
+            {"KID": i, "KurssiNimi": "A", "Koodi": f"X{i}", "Taso": "aine",
+             "Oppiaine": "IT", "Opetusvuosi": "2025-2026", "OpsKuvaus": None}
+            for i in (1, 2, 3)
+        ]
+        tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
+        yksi = '[{"id": 1, "mukana": true, "perustelu": "ok"}]'
+        with patch("luokittelu.llmluokittelu.erakoko", return_value=1), \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
+             patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=yksi), \
+             patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
+             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+            # Callback pyytää heti keskeytystä (palauttaa True ensimmäisellä kutsulla)
+            mukana, hylätty, _ = llmluokittelu.aja(tutkimus, edistyminen_cb=lambda *a: True)
+        assert mock_aseta.call_count == 1   # vain ensimmäinen erä ehti tallentua
+
     def test_rinnakkaisuus_oletus_ja_ymparisto(self, monkeypatch):
         monkeypatch.delenv("LLM_RINNAKKAISUUS", raising=False)
         assert llmluokittelu.rinnakkaisuus() == 5            # oletus
@@ -260,7 +322,7 @@ class TestLlmluokittelu:
             return oikea(*a, max_workers=max_workers, **k)
 
         with patch("luokittelu.llmluokittelu.ThreadPoolExecutor", side_effect=vakooja), \
-             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", side_effect=[kandidaatit, []]), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=self.LLM_VASTAUS), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
              patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):

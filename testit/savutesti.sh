@@ -3,9 +3,11 @@
 # Aja: ./testit/savutesti.sh
 # Oletus: kontit ovat jo käynnissä (docker compose up -d).
 
-set -euo pipefail
-
-WEBUI="http://localhost:12121"
+# EI set -e: savutesti kerää virheet itse (VIRHEET-laskuri) ja raportoi lopussa.
+# set -e abortoisi ensimmäisen kaatuvan komennon kohdalla ENNEN yhteenvetoa —
+# ja sourcattuna (esim. ./status) veisi koko interaktiivisen shellin hiljaa alas,
+# jolloin "ei tulosta mitään". Ilman -e jokainen tarkistus ajetaan ja [FAIL]it näkyvät.
+set -uo pipefail
 
 # Projektin juuri = lähin hakemisto (nykyhakemistosta ylöspäin), jossa on
 # docker-compose.yml. Riippumaton siitä miten skripti käynnistetään (suoraan
@@ -18,6 +20,12 @@ done
     echo "Ei löytynyt projektin juurta (docker-compose.yml) hakemistosta $PWD ylöspäin."
     exit 1
 }
+
+# WebUI-osoite: sama WEBUI_OSOITE-muuttuja kuin cliui (cliui/tutkimusnaytto.py).
+# Ympäristö ohittaa .env:n, .env ohittaa oletuksen; loppukauttaviiva pois.
+WEBUI="${WEBUI_OSOITE:-$(grep -E '^WEBUI_OSOITE=' "$PROJO_JUURI/.env" 2>/dev/null | tail -1 | cut -d= -f2-)}"
+WEBUI="${WEBUI:-http://localhost:12121}"
+WEBUI="${WEBUI%/}"
 
 VIRHEET=0
 AUTH_ARGS=()

@@ -700,42 +700,89 @@ def hae_tutkimuksen_tilanne(tid: int) -> dict:
     LLM-luokitus jakavat in-scope-kurssit odottaviin/hylättyihin/hyväksyttyihin.
     Meta- ja LLM-hylkäys erotetaan Luokitteluperusteen "meta:"-etuliitteestä.
     """
-    tutkimus = hae_tutkimus(tid)
-    lukuvuosi = (tutkimus or {}).get("Lukuvuosi")
-    korkeakoulut = set(hae_tutkimuksen_korkeakoulut(tid))
-    kurssit = hae_kurssit()
-    kursseja_yht = len(kurssit)
+    # Suppilo lasketaan SQL-aggregaateilla yhdessä yhteydessä. Aiemmin tämä veti
+    # kaikki kurssit ja luokitukset Pythoniin (4 yhteyttä + ~12000 riviä) — halpaa
+    # localhostilla mutta hidasta etäpalvelimella (geopalvelin1). Nyt: 1 yhteys,
+    # muutama COUNT-rivi.
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute("SELECT COUNT(*) FROM Kurssi")
+            kursseja_yht = int(kursori.fetchone()[0])
 
-    vuosi_lapi = [k for k in kurssit
-                  if lukuvuosi and _kattaa_turvallinen(k.get("Opetusvuosi"), lukuvuosi)]
-    in_scope = [k for k in vuosi_lapi if k["KKID"] in korkeakoulut]
-    in_scope_kid = {k["KID"] for k in in_scope}
+            kursori.execute("SELECT Lukuvuosi FROM Tutkimus WHERE TID = %s", (tid,))
+            rivi = kursori.fetchone()
+            lukuvuosi = rivi[0] if rivi else None
 
-    luok = {l["KID"]: l for l in hae_luokitukset(tid) if l["KID"] in in_scope_kid}
-    hyl_meta = hyl_llm = odottaa_llm = hyvaksytty = 0
-    for l in luok.values():
-        mukana = l.get("Mukana")
-        if mukana in (1, True):
-            hyvaksytty += 1
-        elif mukana is None:
-            odottaa_llm += 1
-        elif (l.get("Luokitteluperuste") or "").startswith("meta:"):
-            hyl_meta += 1
-        else:
-            hyl_llm += 1
+            kursori.execute("SELECT KKID FROM TutkimusKorkeakoulu WHERE TID = %s", (tid,))
+            korkeakoulut = [r[0] for r in kursori.fetchall()]
+
+            # Ilman lukuvuotta koko in-scope-joukko on tyhjä (kuten Python-versiossa).
+            if not lukuvuosi:
+                return {"kursseja_yht": kursseja_yht, "vuosi_lapi": 0,
+                        "vuosi_hyl": kursseja_yht, "oppilaitos_lapi": 0,
+                        "oppilaitos_hyl": 0, "odottaa_meta": 0, "hyl_meta": 0,
+                        "odottaa_llm": 0, "hyl_llm": 0, "hyvaksytty": 0}
+
+            vuosi_sql, vp = _vuosi_kattaa_sql("k.Opetusvuosi", lukuvuosi)
+            kk = ",".join(["%s"] * len(korkeakoulut)) if korkeakoulut else "NULL"
+
+            # Kurssipuoli: vuosirajaus läpäisseet + niistä valittuihin korkeakouluihin osuvat.
+            kursori.execute(
+                f"""SELECT COALESCE(SUM({vuosi_sql}), 0),
+                           COALESCE(SUM(CASE WHEN ({vuosi_sql}) AND k.KKID IN ({kk})
+                                            THEN 1 ELSE 0 END), 0)
+                    FROM Kurssi k""",
+                (*vp, *vp, *korkeakoulut),
+            )
+            vuosi_lapi, in_scope = (int(x) for x in kursori.fetchone())
+
+            # Luokituspuoli in-scope-kursseille: mukaan / odottaa / meta-hylätty / LLM-hylätty.
+            # Meta- ja LLM-hylkäys erotetaan Luokitteluperusteen "meta:"-etuliitteestä.
+            kursori.execute(
+                f"""SELECT COALESCE(SUM(kl.Mukana = 1), 0),
+                           COALESCE(SUM(kl.Mukana IS NULL), 0),
+                           COALESCE(SUM(kl.Mukana = 0 AND kl.Luokitteluperuste LIKE 'meta:%%'), 0),
+                           COALESCE(SUM(kl.Mukana = 0 AND (kl.Luokitteluperuste NOT LIKE 'meta:%%'
+                                        OR kl.Luokitteluperuste IS NULL)), 0),
+                           COUNT(*)
+                    FROM Kurssiluokitus kl
+                    JOIN Kurssi k ON k.KID = kl.KID
+                    WHERE kl.TID = %s AND ({vuosi_sql}) AND k.KKID IN ({kk})""",
+                (tid, *vp, *korkeakoulut),
+            )
+            hyvaksytty, odottaa_llm, hyl_meta, hyl_llm, luok_maara = (
+                int(x) for x in kursori.fetchone())
 
     return {
         "kursseja_yht": kursseja_yht,
-        "vuosi_lapi": len(vuosi_lapi),
-        "vuosi_hyl": kursseja_yht - len(vuosi_lapi),
-        "oppilaitos_lapi": len(in_scope),
-        "oppilaitos_hyl": len(vuosi_lapi) - len(in_scope),
-        "odottaa_meta": len(in_scope) - len(luok),
+        "vuosi_lapi": vuosi_lapi,
+        "vuosi_hyl": kursseja_yht - vuosi_lapi,
+        "oppilaitos_lapi": in_scope,
+        "oppilaitos_hyl": vuosi_lapi - in_scope,
+        "odottaa_meta": in_scope - luok_maara,
         "hyl_meta": hyl_meta,
         "odottaa_llm": odottaa_llm,
         "hyl_llm": hyl_llm,
         "hyvaksytty": hyvaksytty,
     }
+
+
+def _arvioimattomat_ehto(tid: int) -> tuple[str, tuple]:
+    """FROM+WHERE (ja parametrit) mukaan otetuille kursseille, joilta puuttuu
+    vielä ei-tyhjiä vastauksia. Jaettu rivihaun ja lukumäärän kesken (DRY)."""
+    scope_where, scope_params = _tutkimus_kurssi_scope(tid)
+    scope_sql = f" AND {scope_where}" if scope_where else ""
+    sp = scope_params or []
+    ehto = f"""
+        FROM Kurssi k
+        JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s AND kl.Mukana = 1
+        WHERE (
+            SELECT COUNT(*) FROM Vastaukset v
+            JOIN Kysymykset ky ON v.KysID = ky.KysID
+            WHERE ky.TID = %s AND v.KID = k.KID AND v.Vastaus != ''
+        ) < (SELECT COUNT(*) FROM Kysymykset WHERE TID = %s){scope_sql}
+    """
+    return ehto, (tid, tid, tid, *sp)
 
 
 def hae_arvioimattomat(tid: int) -> list[dict]:
@@ -745,23 +792,22 @@ def hae_arvioimattomat(tid: int) -> list[dict]:
     ja tilastopaneeli — muuten vanhojen ajojen rajauksen ulkopuoliset hyväksynnät
     (väärä vuosi / korkeakoulu) menisivät turhaan LLM-arviointiin.
     """
-    scope_where, scope_params = _tutkimus_kurssi_scope(tid)
-    scope_sql = f" AND {scope_where}" if scope_where else ""
-    sp = scope_params or []
+    ehto, params = _arvioimattomat_ehto(tid)
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute(f"""
-                SELECT k.*
-                FROM Kurssi k
-                JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s AND kl.Mukana = 1
-                WHERE (
-                    SELECT COUNT(*) FROM Vastaukset v
-                    JOIN Kysymykset ky ON v.KysID = ky.KysID
-                    WHERE ky.TID = %s AND v.KID = k.KID AND v.Vastaus != ''
-                ) < (SELECT COUNT(*) FROM Kysymykset WHERE TID = %s){scope_sql}
-                ORDER BY k.KurssiNimi
-            """, (tid, tid, tid, *sp))
+            kursori.execute(f"SELECT k.* {ehto} ORDER BY k.KurssiNimi", params)
             return _rivit_dikteina(kursori)
+
+
+def laske_arvioimattomat(tid: int) -> int:
+    """Arvioimattomien kurssien lukumäärä. Erillinen hae_arvioimattomat'sta, jotta
+    tilannesivu ei vedä kaikkien hyväksyttyjen kurssien täysiä rivejä (OpsKuvaus-
+    tekstit) verkon yli pelkkää len()-laskentaa varten — merkitsevää etäpalvelimella."""
+    ehto, params = _arvioimattomat_ehto(tid)
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(f"SELECT COUNT(*) {ehto}", params)
+            return int(kursori.fetchone()[0])
 
 
 # --- HITL-korjaukset ---

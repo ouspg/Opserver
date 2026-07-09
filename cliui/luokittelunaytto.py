@@ -140,25 +140,75 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
     stdscr.addstr(3, 0, "Yhdistetään LLM:ään...")
     stdscr.refresh()
 
-    def edistyminen(n, yht, erä, erat, mukana, hylätty, epaonnistunut):
-        osuus = f" (mukaan {mukana/(mukana + hylätty):.0%})" if (mukana + hylätty) else ""
-        stdscr.addstr(4, 0, f"  Erä {erä}/{erat} — {n}/{yht} kurssia käsitelty")
-        stdscr.addstr(5, 0, f"  Mukaan: {mukana}   Hylätty: {hylätty}   Epäonnistunut: {epaonnistunut}{osuus}")
-        stdscr.clrtoeol()
-        stdscr.refresh()
+    keskeytetty = [False]
+    ctrl_s_kaytossa = [False]
 
+    def rivi(nro: int, teksti: str) -> None:
+        stdscr.addstr(nro, 0, teksti)
+        stdscr.clrtoeol()
+
+    def edistyminen(n, yht, erä, erat, mukana, hylätty, epaonnistunut, tilasto):
+        osuus = f" (mukaan {mukana/(mukana + hylätty):.0%})" if (mukana + hylätty) else ""
+        rivi(4, f"  Erä {erä}/{erat} — {n}/{yht} kurssia käsitelty")
+        rivi(5, f"  Mukaan: {mukana}   Hylätty: {hylätty}   Epäonnistunut: {epaonnistunut}{osuus}")
+        me, mk, iv = tilasto["menetetyt_erat"], tilasto["menetetyt_kurssit"], tilasto["ilman_vastausta"]
+        if me or iv:
+            rivi(6, "  Epäonnistuneista:")
+            rivi(7, f"  - täysin menetettyjä eriä: {me} erää, {mk} kurssia (harkitse eräkoon pienentämistä)" if me else "")
+            rivi(8, f"  - kursseja ilman vastausta: {iv} kpl" if iv else "")
+        else:
+            rivi(6, ""); rivi(7, ""); rivi(8, "")
+        if ctrl_s_kaytossa[0]:
+            rivi(10, " Paina ctrl-s keskeyttääksesi ajon (jo tehtyjä luokitteluja ei menetetä!) ja muokataksesi asetuksia")
+        stdscr.refresh()
+        if ctrl_s_kaytossa[0] and stdscr.getch() == 19:  # ctrl-s
+            keskeytetty[0] = True
+            return True
+        return False
+
+    # ctrl-s pitää saada ajon aikana getch:lle: nodelay tekee pollauksesta
+    # estämättömän, ja IXON pois estää päätettä nielemästä ctrl-s:ää virtaus-
+    # kontrollina. Molemmat palautetaan finally-lohkossa. Jos stdin ei ole aito
+    # pääte (esim. testit), keskeytys jää pois käytöstä mutta ajo etenee normaalisti.
+    import sys, termios
+    fd = vanha_termios = None
     try:
-        mukana, hylätty, virheet = llmluokittelu.aja(tutkimus, edistyminen)
-        piirra_otsikko(stdscr, "LLM-luokittelu — valmis")
-        stdscr.addstr(3, 0, f"Mukaan otettu: {mukana}")
-        stdscr.addstr(4, 0, f"Hylätty:       {hylätty}")
-        if virheet:
-            stdscr.addstr(5, 0, f"Ohitettuja viallisia eriä: {virheet} (kurssit tulevat seuraavalla ajolla)")
-        nayta_viesti(stdscr, "", 7)
+        fd = sys.stdin.fileno()
+        vanha_termios = termios.tcgetattr(fd)
+        muokattu = termios.tcgetattr(fd)
+        muokattu[0] &= ~termios.IXON
+        termios.tcsetattr(fd, termios.TCSANOW, muokattu)
+        stdscr.nodelay(True)
+        ctrl_s_kaytossa[0] = True
+    except Exception:
+        fd = vanha_termios = None  # ctrl-s pois päältä; getch ei kysele
+    try:
+        mukana, hylätty, luokittelematta = llmluokittelu.aja(tutkimus, edistyminen)
     except EnvironmentError as e:
         nayta_viesti(stdscr, f"Virhe: {e}")
+        return
     except Exception as e:
         nayta_viesti(stdscr, f"LLM-virhe: {e}")
+        return
+    finally:
+        if vanha_termios is not None:
+            stdscr.nodelay(False)
+            termios.tcsetattr(fd, termios.TCSANOW, vanha_termios)
+
+    if keskeytetty[0]:
+        piirra_otsikko(stdscr, "LLM-luokittelu — keskeytetty")
+        stdscr.addstr(3, 0, f"Mukaan otettu: {mukana}   Hylätty: {hylätty}")
+        stdscr.addstr(4, 0, "Jo tehdyt luokitukset on tallennettu — työ jatkuu mihin jäi.")
+        stdscr.addstr(5, 0, "Muokkaa asetuksia (esim. eräkoko) ja aja uudelleen.")
+        nayta_viesti(stdscr, "", 7)
+        return
+
+    piirra_otsikko(stdscr, "LLM-luokittelu — valmis")
+    stdscr.addstr(3, 0, f"Mukaan otettu: {mukana}")
+    stdscr.addstr(4, 0, f"Hylätty:       {hylätty}")
+    if luokittelematta:
+        stdscr.addstr(5, 0, f"Luokittelematta jäi: {luokittelematta} (LLM ei antanut päätöstä — pienennä LUOKITTELU_ERAKOKO)")
+    nayta_viesti(stdscr, "", 7)
 
 
 def _kysy_luvut(stdscr, otsikko: str) -> tuple[int, int] | None:
@@ -314,7 +364,7 @@ def _poista_testiajo(stdscr, tutkimus: dict) -> None:
 def _nayta_tilanne(stdscr, tutkimus: dict) -> None:
     tid = tutkimus["TID"]
     t = mallit.hae_tutkimuksen_tilanne(tid)
-    arvioimattomat = len(mallit.hae_arvioimattomat(tid))
+    arvioimattomat = mallit.laske_arvioimattomat(tid)
     arvioitu = max(0, t["hyvaksytty"] - arvioimattomat)
 
     piirra_otsikko(stdscr, f"Tilanne — {tutkimus['LuokittelunNimi']}")
