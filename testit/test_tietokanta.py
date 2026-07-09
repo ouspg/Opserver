@@ -646,6 +646,22 @@ class TestKurssiluokitus:
         assert "TID" in sql
         assert "Mukana" in sql
 
+    def test_laske_luokitukset_mukana_count_ei_riveja(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchone.return_value = (12,)
+        assert mallit.laske_luokitukset(1, mukana=True) == 12
+        sql, params = kursori.execute.call_args[0]
+        assert "COUNT(*)" in sql and "Mukana = %s" in sql
+        assert list(params) == [1, True]
+
+    def test_laske_luokitukset_ilman_mukana(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchone.return_value = (30,)
+        assert mallit.laske_luokitukset(1) == 30
+        sql, params = kursori.execute.call_args[0]
+        assert "COUNT(*)" in sql and "Mukana" not in sql
+        assert list(params) == [1]
+
 
 class TestHitlKorjaus:
     def test_tallenna_hitl_korjaus_tekee_insert_ja_update(self, mock_yhteys):

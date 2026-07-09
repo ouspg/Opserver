@@ -208,6 +208,50 @@ class TestAja:
         assert uudet == 1
         assert vanhentuneet == 1
 
+    def test_kysymystiivisteet_ei_hae_kursseja_eika_vastauksia(self):
+        """Kevyt tiivistehaku käyttää vain hae_kysymykset — ei kurssien/vastausten
+        latausta (jota täysi _selvita_tyo tekisi turhaan tiivisteitä varten)."""
+        with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+             patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit") as mock_kurssit, \
+             patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet") as mock_vast, \
+             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value="system"):
+            tiivisteet = llmarviointi._kysymystiivisteet(TUTKIMUS)
+        assert set(tiivisteet) == {10, 11}                       # KysID:t
+        assert all(len(t) == 64 for t in tiivisteet.values())
+        mock_kurssit.assert_not_called()
+        mock_vast.assert_not_called()
+
+    def test_laske_tyomaara_esilasketulla_tiedolla_ei_hae_uudelleen(self):
+        """Annettu tieto → ei uutta _selvita_tyo-hakua (ei kurssien/vastausten latausta)."""
+        tieto = {"kysymykset": KYSYMYKSET,
+                 "olemassa": {(1, 10): {"tiiviste": "x", "vastattu": True}},
+                 "tyo": {1: [KYSYMYKSET[1]], 2: list(KYSYMYKSET)}}
+        with patch("arviointi.llmarviointi._selvita_tyo") as mock_selvita:
+            uudet, vanhentuneet = llmarviointi.laske_tyomaara(TUTKIMUS, tieto=tieto)
+        mock_selvita.assert_not_called()
+        assert (uudet, vanhentuneet) == (1, 1)   # kurssi 1: oli vastauksia; kurssi 2: uusi
+
+    def test_aja_esilasketulla_tiedolla_ei_hae_kursseja(self):
+        """aja(tieto=...) ei kutsu _selvita_tyo:tä → ei hae_valitut_kurssit-latausta."""
+        jarj = "system"
+        kys_tiiviste = {k["KysID"]: llmarviointi.tiiviste.kysymys(
+            TUTKIMUS["Arviointikehote"], jarj, k) for k in KYSYMYKSET}
+        tieto = {"kysymykset": KYSYMYKSET, "jarjestelma": jarj, "kys_tiiviste": kys_tiiviste,
+                 "arviointikehote": TUTKIMUS["Arviointikehote"],
+                 "kurssi_kartta": {k["KID"]: k for k in KURSSIT},
+                 "olemassa": {}, "tyo": {1: list(KYSYMYKSET), 2: list(KYSYMYKSET)}}
+        with patch("arviointi.llmarviointi.mallit.hae_kysymykset") as mk, \
+             patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit") as mvk, \
+             patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet") as mvt, \
+             patch("arviointi.llmarviointi.kutsu.kysy", return_value=LLM_VASTAUS), \
+             patch("arviointi.llmarviointi.kutsu.hae_malli", return_value="m"), \
+             patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta, \
+             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value=jarj):
+            arvioitu = llmarviointi.aja(TUTKIMUS, tieto=tieto)
+        assert arvioitu == 2
+        assert mock_aseta.call_count == 4          # 2 kurssia × 2 kysymystä
+        mk.assert_not_called(); mvk.assert_not_called(); mvt.assert_not_called()
+
 
 KYSYMYKSET_MONITYYPPI = [
     {"KysID": 10, "TID": 1, "Kysymys": "Kuvaile kurssia.",
