@@ -33,7 +33,7 @@ Automaattinen pipeline suomalaisten yliopistojen opinto-oppaiden läpikäymiseen
 ## Tietovirrat
 
 - **Syöte:** opinto-oppaiden URL:t + suodatusasetukset (tiedekunta, taso, aihe)
-- **Tallennus:** MySQL Docker-kontti (portti 21212) — kurssitiedot, LLM-vastaukset, mukaan/pois-päätökset
+- **Tallennus:** MySQL (portti 21212; nyk. etäpalvelin geopalvelin1 / Tailscale — ks. Kehityskäytännöt) — kurssitiedot, LLM-vastaukset, mukaan/pois-päätökset
 - **LLM-kutsut:** seulontakysymyssarja (vaihe 2), arviointikysymyssarja (vaihe 3)
 - **Tuloste:** jäsennelty raportti + tilastot oppaiden laadusta
 
@@ -60,7 +60,8 @@ WebUI:n esittely yleisölle (seminaari-lähiverkko ja etäkokous-Tailscale Funne
 ## Kehityskäytännöt
 
 - Python-projekti; pidä riippuvuudet minimissä ja kirjaa ne `requirements.txt`-tiedostoon
-- MySQL Docker-kontissa (portti 21212) kaikelle pysyvyydelle; WebUI Docker-kontissa (portti 12121)
+- MySQL kaikelle pysyvyydelle portissa 21212; WebUI Docker-kontissa (portti 12121)
+  - **Huom:** jaettu/tuotanto-MySQL on migroitu etäpalvelin **geopalvelin1**:lle (Tailscale-osoite `100.123.32.101:21212`, korkea/piikikäs latenssi) — **ei enää paikallinen Docker-kontti**. Yhteysasetukset `.env`:stä (`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`); `docker-compose.yml`:n mysql-palvelu jää paikalliskehitykseen. Kirjoita tietokantakoodi etälatenssia varten: yhteyspooli (`tietokanta/yhteys.py`), `COUNT`/aggregaatit rivinouton sijaan, älä toista raskaita hakuja.
 - LLM-kutsut kulkevat yhden ohuen kääreen kautta (`llm/kutsu.py`), jotta malli/palveluntarjoaja voidaan vaihtaa — OpenAI-yhteensopiva rajapinta, konfiguraatio `.env`:ssä (`LLM_PROVIDER` = perus-URL, `LLM_API_KEY`, `LLM_MODEL`)
 - Promptit sijaitsevat omissa tiedostoissaan (ei koodin sisällä), jotta niitä voi iteroida koskematta logiikkaan
 - Hakurobottien täytyy olla kohteliaita: noudata `robots.txt`:ää, lisää viiveet, älä kuormita palvelimia
