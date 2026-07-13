@@ -12,6 +12,29 @@ def erakoko() -> int:
     return asetukset.lue_int("ARVIOINTI_ERAKOKO", _OLETUS_ERAKOKO)
 
 
+def _kirjaa(viesti: str) -> None:
+    """Lisää aikaleimattu rivi loki.log:iin (eräkohtaiset virheet/varoitukset)."""
+    with open("loki.log", "a", encoding="utf-8") as f:
+        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} [arviointi] {viesti}\n")
+
+
+def _siivoa_tulokset(raaka: list[dict], odotetut: set) -> list[dict]:
+    """Suodattaa mallin tulokset vain erän kursseihin ja normalisoi id:t kokonaisluvuiksi.
+
+    Torjuu hallusinoidut / väärät id:t ennen tallennusta (opas: 'IDs must exist') —
+    muuten aseta_vastaus INSERTtäisi rivin kurssille jota erässä ei ollut.
+    """
+    siivotut = []
+    for t in raaka:
+        try:
+            kid = int(t.get("id"))
+        except (TypeError, ValueError):
+            continue
+        if kid in odotetut:
+            siivotut.append({**t, "id": kid})
+    return siivotut
+
+
 def _lue_jarjestelma_kehote() -> str:
     return kehoteet.lue("arviointi_jarjestelma.txt")
 
@@ -235,16 +258,19 @@ def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None,
     for erä_nro, (osa_kysymykset, erä) in enumerate(erat, 1):
         if edistyminen_cb:
             edistyminen_cb(käsitelty, yhteensa, erä_nro, len(erat))
+        odotetut = {k["KID"] for k in erä}
         try:
-            tulokset = _arvioi_erä(erä, arviointikehote, osa_kysymykset, jarjestelma)
+            raaka = _arvioi_erä(erä, arviointikehote, osa_kysymykset, jarjestelma)
+            tulokset = _siivoa_tulokset(raaka, odotetut)
             _tallenna_tulokset(tulokset, osa_kysymykset, malli, kys_tiiviste)
+            puuttuvat = odotetut - {t["id"] for t in tulokset}
+            if puuttuvat:
+                _kirjaa(f"erä {erä_nro}/{len(erat)}: malli palautti {len(tulokset)}/{len(odotetut)} "
+                        f"kurssia; puuttuvat {sorted(puuttuvat)} jäävät seuraavalle ajolle")
         except Exception as e:
             # Viallinen erä ohitetaan; sen kurssit jäävät seuraavalle ajolle (idempotenssi).
-            kidt = [k.get("KID") for k in erä]
-            with open("loki.log", "a", encoding="utf-8") as f:
-                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} [arviointi] "
-                        f"erä {erä_nro}/{len(erat)} epäonnistui ({type(e).__name__}: {e}); "
-                        f"kurssit {kidt} jäävät seuraavalle ajolle\n")
+            _kirjaa(f"erä {erä_nro}/{len(erat)} epäonnistui ({type(e).__name__}: {e}); "
+                    f"kurssit {sorted(odotetut)} jäävät seuraavalle ajolle")
             tulokset = []
         for t in tulokset:
             arvioidut.add(t.get("id"))

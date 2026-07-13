@@ -369,3 +369,19 @@ class TestTallennaTulokset:
             ]
             llmarviointi._tallenna_tulokset(tulokset, ks, "m")
         assert mock_aseta.call_count == 4
+
+
+class TestSiivoaTulokset:
+    """Kohta 6: torju hallusinoidut/väärät id:t, säilytä vain erän kurssit."""
+
+    def test_suodattaa_vieraan_idn(self):
+        raaka = [{"id": 1, "vastaukset": []}, {"id": 999, "vastaukset": []}]
+        assert llmarviointi._siivoa_tulokset(raaka, {1, 2}) == [{"id": 1, "vastaukset": []}]
+
+    def test_normalisoi_merkkijono_idn(self):
+        tulos = llmarviointi._siivoa_tulokset([{"id": "2", "vastaukset": []}], {1, 2})
+        assert tulos == [{"id": 2, "vastaukset": []}]
+
+    def test_ohittaa_puuttuvan_tai_kelvottoman_idn(self):
+        raaka = [{"vastaukset": []}, {"id": None, "vastaukset": []}, {"id": "abc"}]
+        assert llmarviointi._siivoa_tulokset(raaka, {1, 2}) == []
