@@ -2,6 +2,45 @@
 from tietokanta import mallit
 from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta, lue_teksti
 
+# Tilaston rivit: (avain aja()n tilastodictissä, näyttöteksti). Sama järjestys
+# elävässä edistymisnäytössä ja loppuyhteenvedossa.
+_TILASTORIVIT = [
+    ("onnistuneet", "Onnistuneita arviointeja"),
+    ("max_tokens", "Epäonnistuneita arviointeja (max tokens)"),
+    ("virhe_502", "Epäonnistuneita arviointeja (502 virhe)"),
+    ("tyhja", "Epäonnistuneita arviointeja (tyhjä vastaus)"),
+    ("muoto", "Epäonnistuneita arviointeja (vastaus ei oikean muotoinen)"),
+]
+_TYHJA_TILASTO = {avain: 0 for avain, _ in _TILASTORIVIT}
+
+
+def _piirra_tilasto(stdscr, tilasto: dict, alkurivi: int) -> None:
+    for i, (avain, nimi) in enumerate(_TILASTORIVIT):
+        stdscr.addstr(alkurivi + i, 0, f"  *  {tilasto.get(avain, 0):>3}  {nimi}")
+
+
+def _piirra_edistyminen(stdscr, otsikko: str, tila_rivi: str, tilasto: dict) -> None:
+    """Tyhjentää ja piirtää koko edistymisnäytön (ei jää roikkumaan vanhaa tekstiä)."""
+    stdscr.erase()
+    piirra_otsikko(stdscr, otsikko)
+    stdscr.addstr(3, 0, "Yhdistetään LLM:ään...")
+    stdscr.addstr(4, 0, f"  {tila_rivi}")
+    _piirra_tilasto(stdscr, tilasto, 6)
+    stdscr.addstr(6 + len(_TILASTORIVIT) + 1, 0, "paina q keskeyttääksesi")
+    stdscr.refresh()
+
+
+def _nayta_yhteenveto(stdscr, otsikko: str, keskeytetty: bool, tilasto: dict, yhteensa: int) -> None:
+    stdscr.erase()
+    piirra_otsikko(stdscr, f"{otsikko} — {'keskeytetty' if keskeytetty else 'valmis'}")
+    _piirra_tilasto(stdscr, tilasto, 3)
+    rivi = 3 + len(_TILASTORIVIT) + 1
+    kesken = yhteensa - tilasto.get("onnistuneet", 0)
+    if kesken > 0:
+        stdscr.addstr(rivi, 0, f"Jäljellä vielä {kesken} kurssia (aja uudelleen jatkaaksesi).")
+        rivi += 1
+    nayta_viesti(stdscr, "", rivi + 1)
+
 
 def nayta(stdscr) -> None:
     tutkimukset = mallit.hae_tutkimukset()
@@ -70,19 +109,20 @@ def _aja_llm(stdscr, tutkimus: dict, vain_yksi_era: bool = False) -> None:
     # työmäärälaskennalle ja ajolle — muuten _selvita_tyo (kaikki kurssit +
     # vastaustiivisteet) ajettaisiin 2–3 kertaa peräkkäin etäpalvelinta vasten.
     tieto = llmarviointi._selvita_tyo(tutkimus)
-    uudet, vanhentuneet = llmarviointi.laske_tyomaara(tutkimus, tieto=tieto)
-    if uudet + vanhentuneet == 0:
+    uudet, taydennettavat, muuttuneet = llmarviointi.laske_tyomaara(tutkimus, tieto=tieto)
+    yhteensa = uudet + taydennettavat + muuttuneet
+    if yhteensa == 0:
         nayta_viesti(stdscr, "Kaikki mukana olevat kurssit on jo arvioitu nykyisellä kehotteella ja kysymyksillä.")
         return
 
-    # Yhden erän testiajo: ohitetaan kustannusvaroitus (yksi pyyntö on tarkoituksellisen pieni).
-    # Täysajossa varoitetaan, jos kehote/kysymys on muuttunut (uudelleenajo maksaa).
-    if not vain_yksi_era and vanhentuneet > 0:
+    # Varoitetaan vain jos kehote/kysymys OIKEASTI muuttui (uudelleenajo maksaa).
+    # Pelkkä täydennys (puuttuvia vastauksia) ei ole muutos → ei varoitusta.
+    if not vain_yksi_era and muuttuneet > 0:
         valinta = valitse_listasta(
             stdscr,
             "LLM-arviointi — kehote tai kysymys on muuttunut",
             [
-                f"Aja LLM: {uudet} uutta + {vanhentuneet} uudelleen (muutos) — vain muuttuneet kysymykset",
+                f"Aja LLM: {uudet} uutta + {taydennettavat} täydennys + {muuttuneet} uudelleen (muutos)",
                 "Peruuta",
             ],
         )
@@ -96,32 +136,37 @@ def _aja_llm(stdscr, tutkimus: dict, vain_yksi_era: bool = False) -> None:
         nayta_viesti(stdscr, f"Mallia ei voi käyttää: {e}")
         return
 
-    stdscr.addstr(3, 0, "Yhdistetään LLM:ään...")
-    stdscr.refresh()
+    otsikko_ajo = f"{otsikko} — {tutkimus['LuokittelunNimi']}"
+    saatu = [dict(_TYHJA_TILASTO)]  # viimeisin tilasto talteen loppunäyttöä varten
+    keskeytetty = [False]
 
-    _odottaa = [True]
+    def edistyminen(n, yht, erä, erat, tilasto):
+        saatu[0] = tilasto
+        _piirra_edistyminen(stdscr, otsikko_ajo, f"Erä {erä}/{erat} — lähettää... ({n}/{yht} käsitelty)", tilasto)
 
-    def edistyminen(n, yht, erä, erat):
-        if _odottaa[0]:
-            stdscr.addstr(4, 0, f"  Erä {erä}/{erat} — lähettää... ({n}/{yht} käsitelty)  ")
-        else:
-            stdscr.addstr(4, 0, f"  Erä {erä}/{erat} — {n}/{yht} käsitelty               ")
-        _odottaa[0] = not _odottaa[0]
-        stdscr.refresh()
+    def keskeyta():
+        if stdscr.getch() in (ord("q"), ord("Q")):
+            keskeytetty[0] = True
+            return True
+        return False
 
+    # nodelay(True): getch ei blokkaa → 'q' luetaan erien välissä keskeyttämättä ajoa.
+    stdscr.nodelay(True)
+    virhe = None
     try:
-        arvioitu = llmarviointi.aja(tutkimus, edistyminen,
-                                    max_erat=1 if vain_yksi_era else None, tieto=tieto)
-        piirra_otsikko(stdscr, "LLM-arviointi — valmis")
-        stdscr.addstr(3, 0, f"Arvioitu: {arvioitu}")
-        if vain_yksi_era and arvioitu < uudet + vanhentuneet:
-            jaljella = uudet + vanhentuneet - arvioitu
-            stdscr.addstr(4, 0, f"Jäljellä vielä {jaljella} kurssia (aja uudelleen jatkaaksesi).")
-        nayta_viesti(stdscr, "", 6)
+        llmarviointi.aja(tutkimus, edistyminen, max_erat=1 if vain_yksi_era else None,
+                         tieto=tieto, keskeyta_cb=keskeyta)
     except EnvironmentError as e:
-        nayta_viesti(stdscr, f"Virhe: {e}")
+        virhe = f"Virhe: {e}"
     except Exception as e:
-        nayta_viesti(stdscr, f"LLM-virhe: {e}")
+        virhe = f"LLM-virhe: {e}"
+    finally:
+        stdscr.nodelay(False)
+
+    if virhe:
+        nayta_viesti(stdscr, virhe)
+        return
+    _nayta_yhteenveto(stdscr, otsikko, keskeytetty[0], saatu[0], yhteensa)
 
 
 def _aja_testiera(stdscr, tutkimus: dict) -> None:
