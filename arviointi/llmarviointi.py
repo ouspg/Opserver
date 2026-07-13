@@ -23,7 +23,9 @@ def _erittele_json(teksti: str) -> list[dict]:
     if alku != -1:
         loppu = teksti.rfind("}")
         if loppu != -1:
-            data = json.loads(teksti[alku:loppu + 1])
+            # strict=False sallii raa'at ohjausmerkit (\n, \t) merkkijonoissa —
+            # malli laittaa niitä perusteluihin, ei syytä hylätä muuten kelvollista JSONia.
+            data = json.loads(teksti[alku:loppu + 1], strict=False)
             for arvo in data.values():
                 if isinstance(arvo, list):
                     return arvo
