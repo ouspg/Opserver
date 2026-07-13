@@ -67,6 +67,39 @@ def tukee_valimuistia(malli_tiedot: dict) -> bool:
     return "input_cache_read" in (malli_tiedot.get("pricing") or {})
 
 
+def muoto_kentta(malli_tiedot: dict) -> str:
+    """Lyhyt merkintä mallin rakenteisen ulostulon tuesta (OpenRouterin
+    supported_parameters) — vahvin ensin. Tyhjä kenttä → '?' (ei tietoa)."""
+    tuetut = malli_tiedot.get("supported_parameters")
+    if not tuetut:
+        return "?"
+    tuetut = set(tuetut)
+    if "structured_outputs" in tuetut:
+        return "skeema"
+    if "response_format" in tuetut:
+        return "json"
+    if "tools" in tuetut:
+        return "tools"
+    return "—"
+
+
+def muototuki_varoitus(malli: str | None = None) -> str | None:
+    """Varoitusteksti jos malli EI ilmoita tukevansa response_formatia, muuten None.
+
+    Perustuu jo haetun /models-listan supported_parameters-kenttään — ei uutta
+    pyyntöä. Palauttaa None jos mallia ei löydy tai kenttää ei ole (ei voida
+    päätellä; saatavuus tarkistetaan erikseen)."""
+    malli = malli or os.environ.get("LLM_MODEL", "")
+    tiedot = hae_malli_tiedot(malli)
+    tuetut = tiedot.get("supported_parameters") if tiedot else None
+    if not tuetut:
+        return None
+    if "response_format" not in set(tuetut):
+        return ("Malli ei ilmoita tukevansa response_formatia — JSON-tila ei "
+                "välttämättä toimi. Valitse malli jonka 'muoto?' on json tai skeema.")
+    return None
+
+
 def _hinta_per_milj(arvo: str | None) -> float:
     """OpenRouterin per-token-hinta ($/token) → $/miljoona tokenia."""
     try:
@@ -75,20 +108,21 @@ def _hinta_per_milj(arvo: str | None) -> float:
         return 0.0
 
 
-_SARAKEOTSIKOT = ("Mallin nimi", "Hinta", "konteksti", "välimuisti?")
+_SARAKEOTSIKOT = ("Mallin nimi", "Hinta", "konteksti", "muoto?", "välimuisti?")
 _EROTIN = "  |  "
 
 
-def _mallin_kentat(malli_tiedot: dict) -> tuple[str, str, str, str]:
-    """Yhden mallin sarakearvot: (id, hinta, konteksti, välimuisti)."""
+def _mallin_kentat(malli_tiedot: dict) -> tuple[str, str, str, str, str]:
+    """Yhden mallin sarakearvot: (id, hinta, konteksti, muoto, välimuisti)."""
     pricing = malli_tiedot.get("pricing") or {}
     sisaan = _hinta_per_milj(pricing.get("prompt"))
     ulos = _hinta_per_milj(pricing.get("completion"))
     hinta = "ilmainen" if sisaan == 0 and ulos == 0 else f"${sisaan:.2f}/${ulos:.2f} per Mtok"
     ctx = malli_tiedot.get("context_length") or 0
     konteksti = f"{ctx // 1000}k" if ctx else "?"
+    muoto = muoto_kentta(malli_tiedot)
     valimuisti = "kyllä" if tukee_valimuistia(malli_tiedot) else "—"
-    return malli_tiedot.get("id", "?"), hinta, konteksti, valimuisti
+    return malli_tiedot.get("id", "?"), hinta, konteksti, muoto, valimuisti
 
 
 def muotoile_taulukko(mallit: list[dict]) -> tuple[list[str], list[str]]:
@@ -99,14 +133,15 @@ def muotoile_taulukko(mallit: list[dict]) -> tuple[list[str], list[str]]:
     keskelle, välimuisti vasemmalle (viimeinen sarake). Kaikki rivit ovat samanlevyisiä.
     """
     kentat = [_mallin_kentat(m) for m in mallit]
-    lev = [len(_SARAKEOTSIKOT[s]) for s in range(4)]
+    n = len(_SARAKEOTSIKOT)
+    lev = [len(_SARAKEOTSIKOT[s]) for s in range(n)]
     for rivi in kentat:
-        for s in range(4):
+        for s in range(n):
             lev[s] = max(lev[s], len(rivi[s]))
 
-    def koosta(nimi, hinta, ktx, valimuisti):
+    def koosta(nimi, hinta, ktx, muoto, valimuisti):
         return _EROTIN.join([nimi.ljust(lev[0]), hinta.ljust(lev[1]),
-                             ktx.center(lev[2]), valimuisti.ljust(lev[3])])
+                             ktx.center(lev[2]), muoto.ljust(lev[3]), valimuisti.ljust(lev[4])])
 
     otsikkorivi = koosta(*_SARAKEOTSIKOT)
     viiva = "-" * len(otsikkorivi)

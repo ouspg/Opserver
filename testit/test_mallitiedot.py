@@ -102,12 +102,41 @@ class TestTukeeValimuistia:
         assert mallitiedot.tukee_valimuistia(_DATA[0]) is False
 
 
+class TestMuoto:
+    def test_muoto_kentta_vahvin_ensin(self):
+        assert mallitiedot.muoto_kentta({"supported_parameters": ["response_format", "structured_outputs"]}) == "skeema"
+        assert mallitiedot.muoto_kentta({"supported_parameters": ["response_format"]}) == "json"
+        assert mallitiedot.muoto_kentta({"supported_parameters": ["tools", "tool_choice"]}) == "tools"
+        assert mallitiedot.muoto_kentta({"supported_parameters": ["temperature"]}) == "—"
+
+    def test_muoto_kentta_tuntematon_kun_kentta_puuttuu(self):
+        assert mallitiedot.muoto_kentta({}) == "?"
+
+    def test_varoitus_kun_ei_response_formatia(self):
+        data = [{"id": "m/x", "supported_parameters": ["tools"]}]
+        with patch.dict(os.environ, {**_ENV, "LLM_MODEL": "m/x"}), \
+             patch("llm.mallitiedot.requests.get", return_value=_mock_get(data)):
+            assert mallitiedot.muototuki_varoitus() is not None
+
+    def test_ei_varoitusta_kun_response_format_tuettu(self):
+        data = [{"id": "m/x", "supported_parameters": ["response_format"]}]
+        with patch.dict(os.environ, {**_ENV, "LLM_MODEL": "m/x"}), \
+             patch("llm.mallitiedot.requests.get", return_value=_mock_get(data)):
+            assert mallitiedot.muototuki_varoitus() is None
+
+    def test_ei_varoitusta_kun_tietoa_ei_ole(self):
+        data = [{"id": "m/x"}]  # ei supported_parameters -kenttää
+        with patch.dict(os.environ, {**_ENV, "LLM_MODEL": "m/x"}), \
+             patch("llm.mallitiedot.requests.get", return_value=_mock_get(data)):
+            assert mallitiedot.muototuki_varoitus() is None
+
+
 class TestTaulukko:
     def test_otsikkorivit_sisaltavat_sarakeotsikot_ja_viivan(self):
         otsikkorivit, _ = mallitiedot.muotoile_taulukko(_DATA)
         assert len(otsikkorivit) == 2
         otsikko, viiva = otsikkorivit
-        for sarake in ("Mallin nimi", "Hinta", "konteksti", "välimuisti?"):
+        for sarake in ("Mallin nimi", "Hinta", "konteksti", "muoto?", "välimuisti?"):
             assert sarake in otsikko
         assert set(viiva) == {"-"}            # erotinviiva pelkkiä viivoja
         assert len(viiva) == len(otsikko)     # yhtä leveä kuin otsikkorivi
