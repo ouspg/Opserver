@@ -1,5 +1,6 @@
 """LLM-arviointi: lähettää mukaan otetut kurssit LLM:lle kysymysvastauksiin."""
 import json
+import time
 from tietokanta import mallit
 from llm import kutsu, tiiviste, kehoteet, kurssimuoto, asetukset
 
@@ -235,8 +236,13 @@ def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None,
         try:
             tulokset = _arvioi_erä(erä, arviointikehote, osa_kysymykset, jarjestelma)
             _tallenna_tulokset(tulokset, osa_kysymykset, malli, kys_tiiviste)
-        except Exception:
+        except Exception as e:
             # Viallinen erä ohitetaan; sen kurssit jäävät seuraavalle ajolle (idempotenssi).
+            kidt = [k.get("KID") for k in erä]
+            with open("loki.log", "a", encoding="utf-8") as f:
+                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} [arviointi] "
+                        f"erä {erä_nro}/{len(erat)} epäonnistui ({type(e).__name__}: {e}); "
+                        f"kurssit {kidt} jäävät seuraavalle ajolle\n")
             tulokset = []
         for t in tulokset:
             arvioidut.add(t.get("id"))
