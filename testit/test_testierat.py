@@ -37,7 +37,7 @@ def mockit():
     """Mockaa kanta, LLM-kutsu ja kehotteet — ei verkkoa, ei tiedostoja."""
     with patch("luokittelu.testierat.mallit.hae_luokittelemattomat", return_value=_kurssit(4)), \
          patch("luokittelu.testierat.testimallit.aseta_testiluokitus") as aseta, \
-         patch("luokittelu.testierat.llmluokittelu._lue_jarjestelma_kehote", return_value="JARJ"), \
+         patch("luokittelu.testierat.llmluokittelu._lue_jarjestelmakehote", return_value="JARJ"), \
          patch("luokittelu.testierat.tiiviste.luokittelu", return_value="TIIV"), \
          patch("luokittelu.testierat.kutsu.hae_malli", return_value="openai/gpt-oss-120b:free"), \
          patch("luokittelu.testierat.kutsu.hae_viimeisin_kaytto",
@@ -90,7 +90,7 @@ def test_sama_kurssi_ei_osu_kahteen_eraan(tmp_path):
     """Satunnaisotos ilman takaisinpanoa: kukin kurssi enintään yhdessä erässä."""
     with patch("luokittelu.testierat.mallit.hae_luokittelemattomat", return_value=_kurssit(20)), \
          patch("luokittelu.testierat.testimallit.aseta_testiluokitus") as aseta, \
-         patch("luokittelu.testierat.llmluokittelu._lue_jarjestelma_kehote", return_value="JARJ"), \
+         patch("luokittelu.testierat.llmluokittelu._lue_jarjestelmakehote", return_value="JARJ"), \
          patch("luokittelu.testierat.tiiviste.luokittelu", return_value="TIIV"), \
          patch("luokittelu.testierat.kutsu.hae_malli", return_value="m"), \
          patch("luokittelu.testierat.kutsu.hae_viimeisin_kaytto", return_value={"finish_reason": "stop"}), \
@@ -105,7 +105,7 @@ def test_pudonneet_kurssit_lasketaan(tmp_path):
     polku = tmp_path / "tilastot.jsonl"
     with patch("luokittelu.testierat.mallit.hae_luokittelemattomat", return_value=_kurssit(2)), \
          patch("luokittelu.testierat.testimallit.aseta_testiluokitus"), \
-         patch("luokittelu.testierat.llmluokittelu._lue_jarjestelma_kehote", return_value="JARJ"), \
+         patch("luokittelu.testierat.llmluokittelu._lue_jarjestelmakehote", return_value="JARJ"), \
          patch("luokittelu.testierat.tiiviste.luokittelu", return_value="TIIV"), \
          patch("luokittelu.testierat.kutsu.hae_malli", return_value="m"), \
          patch("luokittelu.testierat.kutsu.hae_viimeisin_kaytto", return_value={"finish_reason": "stop"}), \
@@ -121,7 +121,7 @@ def test_jasennys_epaonnistuu_merkitaan(tmp_path):
     polku = tmp_path / "tilastot.jsonl"
     with patch("luokittelu.testierat.mallit.hae_luokittelemattomat", return_value=_kurssit(2)), \
          patch("luokittelu.testierat.testimallit.aseta_testiluokitus"), \
-         patch("luokittelu.testierat.llmluokittelu._lue_jarjestelma_kehote", return_value="JARJ"), \
+         patch("luokittelu.testierat.llmluokittelu._lue_jarjestelmakehote", return_value="JARJ"), \
          patch("luokittelu.testierat.tiiviste.luokittelu", return_value="TIIV"), \
          patch("luokittelu.testierat.kutsu.hae_malli", return_value="m"), \
          patch("luokittelu.testierat.kutsu.hae_viimeisin_kaytto", return_value={"finish_reason": "length"}), \

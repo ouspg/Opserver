@@ -6,7 +6,7 @@ from llm import kutsu
 OSIOT = ["johdanto", "kurssit", "arvioinnit"]
 
 
-def _lue_jarjestelma_kehote() -> str:
+def _lue_jarjestelmakehote() -> str:
     polku = os.path.join(os.path.dirname(__file__), "..", "kehotteet", "raporttijarjestelma.txt")
     with open(polku, encoding="utf-8") as f:
         return f.read().strip()
@@ -104,7 +104,7 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> int:
     Palauttaa generoitujen osioiden määrän. Idempotentti — korvaa olemassa olevat.
     """
     tid = tutkimus["TID"]
-    jarjestelma = _lue_jarjestelma_kehote()
+    jarjestelma = _lue_jarjestelmakehote()
     tilastot = mallit.hae_tilastot_yliopistoittain(tid)
     kysymykset = mallit.hae_kysymykset(tid)
 

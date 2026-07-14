@@ -51,7 +51,7 @@ def _luokittele_virhe(e: Exception) -> str:
     return "muoto"
 
 
-def _lue_jarjestelma_kehote() -> str:
+def _lue_jarjestelmakehote() -> str:
     return kehotteet.lue("arviointijarjestelma.txt")
 
 
@@ -170,7 +170,7 @@ def _selvita_tyo(tutkimus: dict) -> dict:
         return {"kysymykset": [], "jarjestelma": "", "kys_tiiviste": {},
                 "arviointikehote": arviointikehote, "kurssi_kartta": {}, "olemassa": {}, "tyo": {}}
 
-    jarjestelma = _lue_jarjestelma_kehote()
+    jarjestelma = _lue_jarjestelmakehote()
     kys_tiiviste = tiiviste.kysymystiivisteet(arviointikehote, jarjestelma, kysymykset)
     kurssit = mallit.hae_valitut_kurssit(tid)
     olemassa = mallit.hae_vastaus_tiivisteet(tid)
@@ -198,7 +198,7 @@ def _kysymystiivisteet(tutkimus: dict) -> dict:
     if not kysymykset:
         return {}
     return tiiviste.kysymystiivisteet(
-        tutkimus["Arviointikehote"], _lue_jarjestelma_kehote(), kysymykset)
+        tutkimus["Arviointikehote"], _lue_jarjestelmakehote(), kysymykset)
 
 
 def laske_tyomaara(tutkimus: dict, tieto: dict | None = None) -> tuple[int, int, int]:

@@ -147,7 +147,7 @@ class TestLlmluokittelu:
                    side_effect=[kandidaatit, []]) as mock_hae, \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=self.LLM_VASTAUS), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
-             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+             patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
             mukana, hylätty, luokittelematta = llmluokittelu.aja(tutkimus)
         assert mukana == 1
         assert hylätty == 1
@@ -170,7 +170,7 @@ class TestLlmluokittelu:
         with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
              patch("luokittelu.llmluokittelu.kutsu.kysy") as mock_kysy, \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
-             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+             patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
             mukana, hylätty, luokittelematta = llmluokittelu.aja(tutkimus)
         assert (mukana, hylätty, luokittelematta) == (2, 0, 0)
         assert mock_kysy.call_count == 0                  # ei LLM-kutsuja
@@ -187,7 +187,7 @@ class TestLlmluokittelu:
         with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value="ei kelvollista jsonia"), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
-             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+             patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
             mukana, hylätty, luokittelematta = llmluokittelu.aja(tutkimus)
         assert (mukana, hylätty) == (0, 0)
         assert luokittelematta == 1  # ainoa kurssi jäi ilman päätöstä
@@ -214,7 +214,7 @@ class TestLlmluokittelu:
                    side_effect=[kandidaatit, []]), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=self.LLM_VASTAUS), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
-             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+             patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
             llmluokittelu.aja(tutkimus, edistyminen_cb=lambda *a: kutsut.append(a))
         # (käsitelty, yhteensä, valmiit, erät, mukana, hylätty, epäonnistunut)
         viimeinen = kutsut[-1]
@@ -234,7 +234,7 @@ class TestLlmluokittelu:
         with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value="ei kelvollista jsonia"), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
-             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+             patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
             llmluokittelu.aja(tutkimus, edistyminen_cb=lambda *a: kutsut.append(a))
         viimeinen = kutsut[-1]
         assert (viimeinen[4], viimeinen[5], viimeinen[6]) == (0, 0, 1)  # mukaan, hylätty, epäonnistunut
@@ -251,7 +251,7 @@ class TestLlmluokittelu:
         with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value="ei kelvollista jsonia"), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
-             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+             patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
             llmluokittelu.aja(tutkimus, edistyminen_cb=lambda *a: kutsut.append(a))
         tilasto = kutsut[-1][7]
         assert tilasto == {"menetetyt_erat": 1, "menetetyt_kurssit": 1, "ilman_vastausta": 0}
@@ -273,7 +273,7 @@ class TestLlmluokittelu:
              patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", side_effect=[kandidaatit, []]), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=vain_id1), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
-             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+             patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
             llmluokittelu.aja(tutkimus, edistyminen_cb=lambda *a: kutsut.append(a))
         tilasto = kutsut[-1][7]
         assert tilasto == {"menetetyt_erat": 0, "menetetyt_kurssit": 0, "ilman_vastausta": 1}
@@ -293,7 +293,7 @@ class TestLlmluokittelu:
              patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=yksi), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
-             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+             patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
             # Callback pyytää heti keskeytystä (palauttaa True ensimmäisellä kutsulla)
             mukana, hylätty, _ = llmluokittelu.aja(tutkimus, edistyminen_cb=lambda *a: True)
         assert mock_aseta.call_count == 1   # vain ensimmäinen erä ehti tallentua
@@ -325,6 +325,6 @@ class TestLlmluokittelu:
              patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", side_effect=[kandidaatit, []]), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=self.LLM_VASTAUS), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
-             patch("luokittelu.llmluokittelu._lue_jarjestelma_kehote", return_value="system"):
+             patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
             llmluokittelu.aja(tutkimus)
         assert nahdyt["max_workers"] == 7

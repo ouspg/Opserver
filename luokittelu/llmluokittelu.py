@@ -18,7 +18,7 @@ def rinnakkaisuus() -> int:
     return max(1, asetukset.lue_int("LLM_RINNAKKAISUUS", _OLETUS_RINNAKKAISUUS))
 
 
-def _lue_jarjestelma_kehote() -> str:
+def _lue_jarjestelmakehote() -> str:
     return kehotteet.lue("luokittelujarjestelma.txt")
 
 
@@ -52,7 +52,7 @@ def _luokittele_erä(erä: list[dict], luokittelukehote: str, jarjestelma: str) 
 
 def laske_tiiviste(tutkimus: dict) -> str:
     """Nykyisen luokittelukehotteen tiiviste (kehote + järjestelmäkehote)."""
-    return tiiviste.luokittelu(tutkimus["Luokittelukehote"], _lue_jarjestelma_kehote())
+    return tiiviste.luokittelu(tutkimus["Luokittelukehote"], _lue_jarjestelmakehote())
 
 
 def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int, int]:
@@ -71,7 +71,7 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int, int]:
     """
     tid = tutkimus["TID"]
     luokittelukehote = tutkimus["Luokittelukehote"]
-    jarjestelma = _lue_jarjestelma_kehote()
+    jarjestelma = _lue_jarjestelmakehote()
     tiiv = tiiviste.luokittelu(luokittelukehote, jarjestelma)
 
     # Tiiviste mukana → ajaa myös vanhentuneen kehotteen tulokset uudelleen,
