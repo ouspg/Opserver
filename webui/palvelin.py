@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from tietokanta import mallit
 from tietokanta.valimuisti import ttl_valimuisti
-from llm import tiiviste, kehoteet
+from llm import tiiviste, kehotteet
 
 
 _AUTH_EVASTE = "opserver_auth"
@@ -441,7 +441,7 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
 
     # Nykyiset kysymystiivisteet: tunnistavat vastaukset jotka on generoitu
     # vanhentuneeseen kysymykseen/kehotteeseen (ennen seuraavaa LLM-ajoa).
-    jarjestelma = kehoteet.lue("arviointi_jarjestelma.txt")
+    jarjestelma = kehotteet.lue("arviointijarjestelma.txt")
     nyky_tiiviste = tiiviste.kysymystiivisteet(
         tutkimus.get("Arviointikehote") or "", jarjestelma, kysymykset
     )

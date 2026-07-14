@@ -2,7 +2,7 @@
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tietokanta import mallit
-from llm import kutsu, tiiviste, kehoteet, kurssimuoto, asetukset
+from llm import kutsu, tiiviste, kehotteet, kurssimuoto, asetukset
 
 _OLETUS_ERAKOKO = 20  # kursseja per LLM-kutsu; .env:n LUOKITTELU_ERAKOKO ohittaa
 _OLETUS_RINNAKKAISUUS = 5  # rinnakkaisia LLM-kutsuja; .env:n LLM_RINNAKKAISUUS ohittaa
@@ -19,7 +19,7 @@ def rinnakkaisuus() -> int:
 
 
 def _lue_jarjestelma_kehote() -> str:
-    return kehoteet.lue("luokittelu_jarjestelma.txt")
+    return kehotteet.lue("luokittelujarjestelma.txt")
 
 
 def _erittele_json(teksti: str) -> list[dict]:

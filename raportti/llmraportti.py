@@ -7,7 +7,7 @@ OSIOT = ["johdanto", "kurssit", "arvioinnit"]
 
 
 def _lue_jarjestelma_kehote() -> str:
-    polku = os.path.join(os.path.dirname(__file__), "..", "kehoteet", "raportti_jarjestelma.txt")
+    polku = os.path.join(os.path.dirname(__file__), "..", "kehotteet", "raporttijarjestelma.txt")
     with open(polku, encoding="utf-8") as f:
         return f.read().strip()
 

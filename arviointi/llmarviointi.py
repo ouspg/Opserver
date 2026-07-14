@@ -2,7 +2,7 @@
 import json
 import time
 from tietokanta import mallit
-from llm import kutsu, tiiviste, kehoteet, kurssimuoto, asetukset
+from llm import kutsu, tiiviste, kehotteet, kurssimuoto, asetukset
 
 _OLETUS_ERAKOKO = 5  # kursseja per LLM-kutsu; .env:n ARVIOINTI_ERAKOKO ohittaa
 
@@ -52,7 +52,7 @@ def _luokittele_virhe(e: Exception) -> str:
 
 
 def _lue_jarjestelma_kehote() -> str:
-    return kehoteet.lue("arviointi_jarjestelma.txt")
+    return kehotteet.lue("arviointijarjestelma.txt")
 
 
 def _erittele_json(teksti: str) -> list[dict]:
