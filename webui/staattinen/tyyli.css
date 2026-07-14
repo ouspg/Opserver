@@ -31,6 +31,28 @@ header h1.logo img { height: 2.5rem; width: auto; display: block; }
   header:not(:hover):not(:focus-within) #uutispalkki {
     display: none;
   }
+  /* Vihje: valikko piilossa → hampurilaisympyrä yläpalkin alalaidan keskelle.
+     Sama ehto kuin piilotuksella, joten katoaa itsestään kun valikko ilmestyy. */
+  header:not(:hover):not(:focus-within)::after {
+    content: "☰";
+    position: absolute;
+    left: 50%;
+    bottom: -13px;
+    transform: translateX(-50%);
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #0e214b;
+    border: 2px solid #fff;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    line-height: 1;
+    z-index: 11;
+    pointer-events: none;
+  }
 }
 
 #paanav button, #tutkimus-nav button {
@@ -153,6 +175,16 @@ th, td {
 }
 
 th { background: #ececf4; }
+
+/* Taulukoiden otsikkorivit pysyvät näkyvissä selattaessa. Yläpalkki on sticky ja
+   sen korkeus vaihtelee (navin piilotus), joten offset luetaan JS:n asettamasta
+   muuttujasta. box-shadow, koska border katoaa position:sticky + border-collapse. */
+thead th {
+  position: sticky;
+  top: var(--otsikkokorkeus, 0px);
+  z-index: 5;
+  box-shadow: inset 0 -1px 0 #e0e0ec;
+}
 
 /* Järjestysnapit sarakeotsikoissa (▲ nouseva / ▼ laskeva). */
 .jarjesta-napit {

@@ -1238,6 +1238,15 @@ async function paivitaNakyma() {
 
 setInterval(paivitaNakyma, PAIVITYSVALI_MS);
 
+// Pidä sticky-otsikoiden offset ajan tasalla yläpalkin korkeuden mukaan
+// (nav piiloutuu/näkyy hiirilaitteilla → korkeus muuttuu).
+const _ylapalkki = document.querySelector("header");
+if (_ylapalkki && window.ResizeObserver) {
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty("--otsikkokorkeus", _ylapalkki.offsetHeight + "px");
+  }).observe(_ylapalkki);
+}
+
 // --- Käynnistys ---
 
 lataaKorkeakoulut();
