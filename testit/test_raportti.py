@@ -111,7 +111,7 @@ class TestAja:
              patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio") as mock_aseta, \
              patch("raportti.llmraportti.kutsu.kysy", return_value="LLM-teksti") as mock_kysy, \
-             patch("raportti.llmraportti._lue_jarjestelma_kehote", return_value="jarj"):
+             patch("raportti.llmraportti._lue_jarjestelmakehote", return_value="jarj"):
             lkm = llmraportti.aja(TUTKIMUS)
 
         assert lkm == 3
@@ -127,7 +127,7 @@ class TestAja:
              patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio") as mock_aseta, \
              patch("raportti.llmraportti.kutsu.kysy", return_value="Generoitu teksti"), \
-             patch("raportti.llmraportti._lue_jarjestelma_kehote", return_value="jarj"):
+             patch("raportti.llmraportti._lue_jarjestelmakehote", return_value="jarj"):
             llmraportti.aja(TUTKIMUS)
 
         mock_aseta.assert_any_call(1, "johdanto", "Generoitu teksti")
@@ -142,7 +142,7 @@ class TestAja:
              patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio"), \
              patch("raportti.llmraportti.kutsu.kysy", return_value="teksti"), \
-             patch("raportti.llmraportti._lue_jarjestelma_kehote", return_value="jarj"):
+             patch("raportti.llmraportti._lue_jarjestelmakehote", return_value="jarj"):
             llmraportti.aja(TUTKIMUS, edistyminen)
 
         # 3 osio-callbackia + 1 "valmis"
@@ -157,7 +157,7 @@ class TestAja:
              patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio") as mock_aseta, \
              patch("raportti.llmraportti.kutsu.kysy", return_value="teksti"), \
-             patch("raportti.llmraportti._lue_jarjestelma_kehote", return_value="jarj"):
+             patch("raportti.llmraportti._lue_jarjestelmakehote", return_value="jarj"):
             llmraportti.aja(TUTKIMUS)
             llmraportti.aja(TUTKIMUS)
 

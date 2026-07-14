@@ -1,11 +1,11 @@
-"""Järjestelmäkehotteiden lukeminen kehoteet/-kansiosta.
+"""Järjestelmäkehotteiden lukeminen kehotteet/-kansiosta.
 
 Jaettu lukija, jotta sekä pipeline (luokittelu/arviointi) että WebUI voivat
 laskea kehotetiivisteet samasta lähteestä ilman koodin kahdentamista.
 """
 import os
 
-_KANSIO = os.path.join(os.path.dirname(__file__), "..", "kehoteet")
+_KANSIO = os.path.join(os.path.dirname(__file__), "..", "kehotteet")
 
 
 def lue(tiedosto: str) -> str:

@@ -141,6 +141,10 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
         }
         if json_muoto:
             runko["response_format"] = {"type": "json_object"}
+            # Reititä vain tarjoajille jotka oikeasti tukevat response_formatia —
+            # muuten OpenRouter voi valita tarjoajan joka ohittaa sen ja palauttaa
+            # roskaa/tyhjää (ks. lokin "OpenInference"-502:t). OpenRouter-kohtainen.
+            runko["provider"] = {"require_parameters": True}
         vastaus = requests.post(
             f"{perus_url.rstrip('/')}/chat/completions",
             headers={"Authorization": f"Bearer {api_avain}"},

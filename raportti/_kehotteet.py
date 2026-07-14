@@ -30,7 +30,7 @@ if tutkimus is None:
 tid = tutkimus["TID"]
 tilastot = mallit.hae_tilastot_yliopistoittain(tid)
 kysymykset = mallit.hae_kysymykset(tid)
-jarjestelma = llmraportti._lue_jarjestelma_kehote()
+jarjestelma = llmraportti._lue_jarjestelmakehote()
 
 viestirakentajat = {
     "johdanto":   lambda: llmraportti._rakenna_johdanto_viesti(tutkimus, tilastot),

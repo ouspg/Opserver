@@ -1,7 +1,8 @@
 """LLM-arviointi: lähettää mukaan otetut kurssit LLM:lle kysymysvastauksiin."""
 import json
+import time
 from tietokanta import mallit
-from llm import kutsu, tiiviste, kehoteet, kurssimuoto, asetukset
+from llm import kutsu, tiiviste, kehotteet, kurssimuoto, asetukset
 
 _OLETUS_ERAKOKO = 5  # kursseja per LLM-kutsu; .env:n ARVIOINTI_ERAKOKO ohittaa
 
@@ -11,8 +12,47 @@ def erakoko() -> int:
     return asetukset.lue_int("ARVIOINTI_ERAKOKO", _OLETUS_ERAKOKO)
 
 
-def _lue_jarjestelma_kehote() -> str:
-    return kehoteet.lue("arviointi_jarjestelma.txt")
+def _kirjaa(viesti: str) -> None:
+    """Lisää aikaleimattu rivi loki.log:iin (eräkohtaiset virheet/varoitukset)."""
+    with open("loki.log", "a", encoding="utf-8") as f:
+        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} [arviointi] {viesti}\n")
+
+
+def _siivoa_tulokset(raaka: list[dict], odotetut: set) -> list[dict]:
+    """Suodattaa mallin tulokset vain erän kursseihin ja normalisoi id:t kokonaisluvuiksi.
+
+    Torjuu hallusinoidut / väärät id:t ennen tallennusta (opas: 'IDs must exist') —
+    muuten aseta_vastaus INSERTtäisi rivin kurssille jota erässä ei ollut.
+    """
+    siivotut = []
+    for t in raaka:
+        try:
+            kid = int(t.get("id"))
+        except (TypeError, ValueError):
+            continue
+        if kid in odotetut:
+            siivotut.append({**t, "id": kid})
+    return siivotut
+
+
+def _luokittele_virhe(e: Exception) -> str:
+    """Eräkohtainen virhe → tilastoluokka (max_tokens / virhe_502 / tyhja / muoto).
+
+    max_tokens tunnistetaan viimeisimmän kutsun finish_reasonista ('length') —
+    vastaus tuli, mutta katkesi token-kattoon → JSON jää vajaaksi. Tarkistetaan
+    vasta muut luokat suljettua, jolloin finish_reason on tuoreesta pyynnöstä."""
+    teksti = str(e)
+    if "tyhjän vastauksen" in teksti or "tyhjän choices" in teksti:
+        return "tyhja"
+    if "502" in teksti or isinstance(e, RuntimeError):
+        return "virhe_502"
+    if kutsu.hae_viimeisin_kaytto().get("finish_reason") == "length":
+        return "max_tokens"
+    return "muoto"
+
+
+def _lue_jarjestelmakehote() -> str:
+    return kehotteet.lue("arviointijarjestelma.txt")
 
 
 def _erittele_json(teksti: str) -> list[dict]:
@@ -22,7 +62,9 @@ def _erittele_json(teksti: str) -> list[dict]:
     if alku != -1:
         loppu = teksti.rfind("}")
         if loppu != -1:
-            data = json.loads(teksti[alku:loppu + 1])
+            # strict=False sallii raa'at ohjausmerkit (\n, \t) merkkijonoissa —
+            # malli laittaa niitä perusteluihin, ei syytä hylätä muuten kelvollista JSONia.
+            data = json.loads(teksti[alku:loppu + 1], strict=False)
             for arvo in data.values():
                 if isinstance(arvo, list):
                     return arvo
@@ -128,7 +170,7 @@ def _selvita_tyo(tutkimus: dict) -> dict:
         return {"kysymykset": [], "jarjestelma": "", "kys_tiiviste": {},
                 "arviointikehote": arviointikehote, "kurssi_kartta": {}, "olemassa": {}, "tyo": {}}
 
-    jarjestelma = _lue_jarjestelma_kehote()
+    jarjestelma = _lue_jarjestelmakehote()
     kys_tiiviste = tiiviste.kysymystiivisteet(arviointikehote, jarjestelma, kysymykset)
     kurssit = mallit.hae_valitut_kurssit(tid)
     olemassa = mallit.hae_vastaus_tiivisteet(tid)
@@ -156,28 +198,39 @@ def _kysymystiivisteet(tutkimus: dict) -> dict:
     if not kysymykset:
         return {}
     return tiiviste.kysymystiivisteet(
-        tutkimus["Arviointikehote"], _lue_jarjestelma_kehote(), kysymykset)
+        tutkimus["Arviointikehote"], _lue_jarjestelmakehote(), kysymykset)
 
 
-def laske_tyomaara(tutkimus: dict, tieto: dict | None = None) -> tuple[int, int]:
-    """(uudet, vanhentuneet) — montako mukana-kurssia arvioidaan: täysin uudet
-    (ei aiempia vastauksia) vs. osin vanhentuneet (kehote/kysymys muuttunut).
+def laske_tyomaara(tutkimus: dict, tieto: dict | None = None) -> tuple[int, int, int]:
+    """(uudet, täydennettävät, muuttuneet) — montako mukana-kurssia arvioidaan:
+    - uudet: ei aiempia vastauksia lainkaan
+    - täydennettävät: osa vastauksista on, puuttuvat kysymykset vain täytetään
+      (kehote/kysymys EI muuttunut) — esim. malli palautti erässä vajaat tulokset
+    - muuttuneet: jokin jo vastattu kysymys on vanhentunut (kehote/kysymys muuttui)
 
     tieto: esilaskettu _selvita_tyo-tulos — annettuna vältetään kurssien ja
     vastaustiivisteiden uudelleenhaku (merkitsevää etäpalvelimella)."""
     if tieto is None:
         tieto = _selvita_tyo(tutkimus)
-    uudet = vanhentuneet = 0
-    for kid in tieto["tyo"]:
+    olemassa = tieto["olemassa"]
+    kys_tiiviste = tieto["kys_tiiviste"]
+    uudet = taydennettavat = muuttuneet = 0
+    for kid, tarvittavat in tieto["tyo"].items():
         oli_vastauksia = any(
-            (s := tieto["olemassa"].get((kid, k["KysID"]))) and s["vastattu"]
+            (s := olemassa.get((kid, k["KysID"]))) and s["vastattu"]
             for k in tieto["kysymykset"]
         )
-        if oli_vastauksia:
-            vanhentuneet += 1
-        else:
+        if not oli_vastauksia:
             uudet += 1
-    return uudet, vanhentuneet
+        elif any(
+            (s := olemassa.get((kid, k["KysID"]))) and s["vastattu"]
+            and s["tiiviste"] != kys_tiiviste[k["KysID"]]
+            for k in tarvittavat
+        ):
+            muuttuneet += 1
+        else:
+            taydennettavat += 1
+    return uudet, taydennettavat, muuttuneet
 
 
 def rakenna_erat(tieto: dict, koko: int) -> list[tuple[list[dict], list[dict]]]:
@@ -200,7 +253,7 @@ def rakenna_erat(tieto: dict, koko: int) -> list[tuple[list[dict], list[dict]]]:
 
 
 def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None,
-        tieto: dict | None = None) -> int:
+        tieto: dict | None = None, keskeyta_cb=None) -> int:
     """Arvioi mukaan otetut kurssit LLM:llä. Palauttaa arvioitujen kurssien määrän.
 
     Idempotentti ja kehotetietoinen: kysyy LLM:ltä vain ne (kurssi, kysymys) -parit,
@@ -209,6 +262,10 @@ def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None,
     max_erat: jos annettu, ajetaan korkeintaan tämän verran eräpyyntöjä (esim. 1 =
     yksi LLM-pyyntö, kätevä testaukseen). Loput jäävät seuraavalle ajolle.
     tieto: esilaskettu _selvita_tyo-tulos — annettuna vältetään uudelleenhaku.
+    keskeyta_cb: jos annettu ja palauttaa True erien välissä, ajo lopetetaan
+    siististi (loput jäävät seuraavalle ajolle).
+    edistyminen_cb(käsitelty, yhteensa, erä_nro, erien_maara, tilasto): tilasto on
+    elävä dict {onnistuneet, max_tokens, virhe_502, tyhja, muoto}.
     """
     if tieto is None:
         tieto = _selvita_tyo(tutkimus)
@@ -228,20 +285,34 @@ def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None,
     yhteensa = sum(len(erä) for _, erä in erat)
     arvioidut: set = set()
     käsitelty = 0
+    tilasto = {"onnistuneet": 0, "max_tokens": 0, "virhe_502": 0, "tyhja": 0, "muoto": 0}
 
     for erä_nro, (osa_kysymykset, erä) in enumerate(erat, 1):
+        if keskeyta_cb and keskeyta_cb():
+            break
         if edistyminen_cb:
-            edistyminen_cb(käsitelty, yhteensa, erä_nro, len(erat))
+            edistyminen_cb(käsitelty, yhteensa, erä_nro, len(erat), tilasto)
+        odotetut = {k["KID"] for k in erä}
         try:
-            tulokset = _arvioi_erä(erä, arviointikehote, osa_kysymykset, jarjestelma)
+            raaka = _arvioi_erä(erä, arviointikehote, osa_kysymykset, jarjestelma)
+            tulokset = _siivoa_tulokset(raaka, odotetut)
             _tallenna_tulokset(tulokset, osa_kysymykset, malli, kys_tiiviste)
-        except Exception:
+            puuttuvat = odotetut - {t["id"] for t in tulokset}
+            if puuttuvat:
+                _kirjaa(f"erä {erä_nro}/{len(erat)}: malli palautti {len(tulokset)}/{len(odotetut)} "
+                        f"kurssia; puuttuvat {sorted(puuttuvat)} jäävät seuraavalle ajolle")
+        except Exception as e:
             # Viallinen erä ohitetaan; sen kurssit jäävät seuraavalle ajolle (idempotenssi).
+            kategoria = _luokittele_virhe(e)
+            tilasto[kategoria] += len(erä)
+            _kirjaa(f"erä {erä_nro}/{len(erat)} epäonnistui ({type(e).__name__}: {e}); "
+                    f"kurssit {sorted(odotetut)} jäävät seuraavalle ajolle [{kategoria}]")
             tulokset = []
         for t in tulokset:
-            arvioidut.add(t.get("id"))
+            arvioidut.add(t["id"])
+        tilasto["onnistuneet"] = len(arvioidut)
         käsitelty += len(erä)
         if edistyminen_cb:
-            edistyminen_cb(käsitelty, yhteensa, erä_nro, len(erat))
+            edistyminen_cb(käsitelty, yhteensa, erä_nro, len(erat), tilasto)
 
     return len(arvioidut)

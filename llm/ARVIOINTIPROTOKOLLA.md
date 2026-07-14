@@ -14,7 +14,7 @@ LLM:lle lähetetään yksi pyyntö per erä kursseja. Viesti koostuu neljästä 
 ### 1. Järjestelmäkehote
 
 Vakioteksti, joka asettaa LLM:n rooliin ja määrittelee vastausformaatin (JSON).
-Tallennetaan tiedostoon `kehoteet/jarjestelma.txt`.
+Tallennetaan tiedostoon `kehotteet/jarjestelma.txt`.
 
 ### 2. Arviointikehote
 

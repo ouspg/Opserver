@@ -34,9 +34,16 @@ def _tarkista(stdscr) -> None:
     stdscr.refresh()
     try:
         mallitiedot.tarkista_saatavuus()
-        nayta_viesti(stdscr, f"Malli '{kutsu.hae_malli()}' on saatavilla.", 4)
     except Exception as e:
         nayta_viesti(stdscr, f"Ei saatavilla: {e}", 4)
+        return
+    rivit = [f"Malli '{kutsu.hae_malli()}' on saatavilla."]
+    varoitus = mallitiedot.muototuki_varoitus()
+    if varoitus:
+        rivit += ["", f"VAROITUS: {varoitus}"]
+    for i, teksti in enumerate(rivit):
+        stdscr.addstr(4 + i, 0, teksti)
+    nayta_viesti(stdscr, "", 4 + len(rivit) + 1)
 
 
 def _paivita_lista(stdscr) -> None:

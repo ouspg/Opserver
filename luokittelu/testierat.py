@@ -88,7 +88,7 @@ def aja_testierat(tutkimus: dict, erakoko: int, montako_era: int,
     polku = tilastopolku or TILASTOPOLKU
     tid = tutkimus["TID"]
     luokittelukehote = tutkimus["Luokittelukehote"]
-    jarjestelma = llmluokittelu._lue_jarjestelma_kehote()
+    jarjestelma = llmluokittelu._lue_jarjestelmakehote()
     tiiv = tiiviste.luokittelu(luokittelukehote, jarjestelma)
     malli = kutsu.hae_malli()
 

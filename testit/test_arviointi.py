@@ -23,6 +23,13 @@ KURSSIT = [
 TUTKIMUS = {"TID": 1, "LuokittelunNimi": "Testi", "Arviointikehote": "Arvioi kyberturvallisuusrelevanssi."}
 
 
+@pytest.fixture(autouse=True)
+def _ei_kirjoita_lokia():
+    """Estää testejä kirjoittamasta loki.log:ia työhakemistoon (aja() kirjaa siihen)."""
+    with patch("arviointi.llmarviointi._kirjaa"):
+        yield
+
+
 class TestErittelleJson:
     def test_erittele_json_puhdas(self):
         tulos = llmarviointi._erittele_json(LLM_VASTAUS)
@@ -57,7 +64,7 @@ class TestAja:
              patch("arviointi.llmarviointi.kutsu.kysy", return_value=LLM_VASTAUS), \
              patch("arviointi.llmarviointi.kutsu.hae_malli", return_value="testimalli"), \
              patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta, \
-             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value="system"):
+             patch("arviointi.llmarviointi._lue_jarjestelmakehote", return_value="system"):
             arvioitu = llmarviointi.aja(TUTKIMUS)
 
         assert arvioitu == 2
@@ -81,7 +88,7 @@ class TestAja:
              patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value=olemassa), \
              patch("arviointi.llmarviointi.kutsu.kysy") as mock_kysy, \
              patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta, \
-             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value=jarj):
+             patch("arviointi.llmarviointi._lue_jarjestelmakehote", return_value=jarj):
             arvioitu = llmarviointi.aja(TUTKIMUS)
         assert arvioitu == 0
         mock_kysy.assert_not_called()
@@ -103,7 +110,7 @@ class TestAja:
              patch("arviointi.llmarviointi.kutsu.kysy", return_value=vastaus) as mock_kysy, \
              patch("arviointi.llmarviointi.kutsu.hae_malli", return_value="m"), \
              patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta, \
-             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value=jarj):
+             patch("arviointi.llmarviointi._lue_jarjestelmakehote", return_value=jarj):
             llmarviointi.aja(TUTKIMUS)
         viesti = mock_kysy.call_args.args[0]
         assert "Soveltuuko" in viesti          # kysymys 11 mukana
@@ -122,7 +129,7 @@ class TestAja:
         with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
              patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=[]), \
              patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value={}), \
-             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value="system"), \
+             patch("arviointi.llmarviointi._lue_jarjestelmakehote", return_value="system"), \
              patch("arviointi.llmarviointi.kutsu.kysy") as mock_kysy:
             arvioitu = llmarviointi.aja(TUTKIMUS)
         assert arvioitu == 0
@@ -135,14 +142,14 @@ class TestAja:
              patch("arviointi.llmarviointi.kutsu.kysy", return_value=LLM_VASTAUS) as mock_kysy, \
              patch("arviointi.llmarviointi.kutsu.hae_malli", return_value="m"), \
              patch("arviointi.llmarviointi.mallit.aseta_vastaus"), \
-             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value="system"):
+             patch("arviointi.llmarviointi._lue_jarjestelmakehote", return_value="system"):
             llmarviointi.aja(TUTKIMUS)
         _, kwargs = mock_kysy.call_args
         assert kwargs.get("json_muoto") is True
 
     def test_aja_kutsuu_edistyminen_cb(self):
         tapahtumat = []
-        def edistyminen(n, yht, erä, erat):
+        def edistyminen(n, yht, erä, erat, tilasto):
             tapahtumat.append((n, yht, erä, erat))
 
         with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
@@ -151,7 +158,7 @@ class TestAja:
              patch("arviointi.llmarviointi.kutsu.kysy", return_value=LLM_VASTAUS), \
              patch("arviointi.llmarviointi.kutsu.hae_malli", return_value="m"), \
              patch("arviointi.llmarviointi.mallit.aseta_vastaus"), \
-             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value="system"):
+             patch("arviointi.llmarviointi._lue_jarjestelmakehote", return_value="system"):
             llmarviointi.aja(TUTKIMUS, edistyminen)
 
         # Pre-batch (0 käsitelty) ja post-batch (2 käsitelty) — yhteensä 2 tapahtumaa
@@ -172,8 +179,8 @@ class TestAja:
              patch("arviointi.llmarviointi.kutsu.kysy", return_value=vastaus) as mock_kysy, \
              patch("arviointi.llmarviointi.kutsu.hae_malli", return_value="m"), \
              patch("arviointi.llmarviointi.mallit.aseta_vastaus"), \
-             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value="system"):
-            llmarviointi.aja(TUTKIMUS, lambda n, y, e, et: tapahtumat.append(et), max_erat=1)
+             patch("arviointi.llmarviointi._lue_jarjestelmakehote", return_value="system"):
+            llmarviointi.aja(TUTKIMUS, lambda n, y, e, et, ti: tapahtumat.append(et), max_erat=1)
         assert mock_kysy.call_count == 1
         assert all(et == 1 for et in tapahtumat)  # eräkokonaismäärä näkyy rajattuna
 
@@ -188,7 +195,7 @@ class TestAja:
              patch("arviointi.llmarviointi.kutsu.kysy", return_value=vastaus) as mock_kysy, \
              patch("arviointi.llmarviointi.kutsu.hae_malli", return_value="m"), \
              patch("arviointi.llmarviointi.mallit.aseta_vastaus"), \
-             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value="system"):
+             patch("arviointi.llmarviointi._lue_jarjestelmakehote", return_value="system"):
             llmarviointi.aja(TUTKIMUS)
         assert mock_kysy.call_count == 2
 
@@ -203,10 +210,11 @@ class TestAja:
         with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
              patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=KURSSIT), \
              patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value=olemassa), \
-             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value=jarj):
-            uudet, vanhentuneet = llmarviointi.laske_tyomaara(TUTKIMUS)
-        assert uudet == 1
-        assert vanhentuneet == 1
+             patch("arviointi.llmarviointi._lue_jarjestelmakehote", return_value=jarj):
+            uudet, taydennettavat, muuttuneet = llmarviointi.laske_tyomaara(TUTKIMUS)
+        assert uudet == 1          # kurssi 2: ei vastauksia
+        assert taydennettavat == 0
+        assert muuttuneet == 1     # kurssi 1: kysymys 11 vanhentunut (tiiviste eroaa)
 
     def test_kysymystiivisteet_ei_hae_kursseja_eika_vastauksia(self):
         """Kevyt tiivistehaku käyttää vain hae_kysymykset — ei kurssien/vastausten
@@ -214,7 +222,7 @@ class TestAja:
         with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
              patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit") as mock_kurssit, \
              patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet") as mock_vast, \
-             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value="system"):
+             patch("arviointi.llmarviointi._lue_jarjestelmakehote", return_value="system"):
             tiivisteet = llmarviointi._kysymystiivisteet(TUTKIMUS)
         assert set(tiivisteet) == {10, 11}                       # KysID:t
         assert all(len(t) == 64 for t in tiivisteet.values())
@@ -224,12 +232,14 @@ class TestAja:
     def test_laske_tyomaara_esilasketulla_tiedolla_ei_hae_uudelleen(self):
         """Annettu tieto → ei uutta _selvita_tyo-hakua (ei kurssien/vastausten latausta)."""
         tieto = {"kysymykset": KYSYMYKSET,
-                 "olemassa": {(1, 10): {"tiiviste": "x", "vastattu": True}},
+                 "kys_tiiviste": {10: "x10", 11: "x11"},
+                 "olemassa": {(1, 10): {"tiiviste": "x10", "vastattu": True}},
                  "tyo": {1: [KYSYMYKSET[1]], 2: list(KYSYMYKSET)}}
         with patch("arviointi.llmarviointi._selvita_tyo") as mock_selvita:
-            uudet, vanhentuneet = llmarviointi.laske_tyomaara(TUTKIMUS, tieto=tieto)
+            uudet, taydennettavat, muuttuneet = llmarviointi.laske_tyomaara(TUTKIMUS, tieto=tieto)
         mock_selvita.assert_not_called()
-        assert (uudet, vanhentuneet) == (1, 1)   # kurssi 1: oli vastauksia; kurssi 2: uusi
+        # kurssi 1: kysymys 11 vain puuttuu (10 ajan tasalla) → täydennys; kurssi 2: uusi
+        assert (uudet, taydennettavat, muuttuneet) == (1, 1, 0)
 
     def test_aja_esilasketulla_tiedolla_ei_hae_kursseja(self):
         """aja(tieto=...) ei kutsu _selvita_tyo:tä → ei hae_valitut_kurssit-latausta."""
@@ -246,11 +256,68 @@ class TestAja:
              patch("arviointi.llmarviointi.kutsu.kysy", return_value=LLM_VASTAUS), \
              patch("arviointi.llmarviointi.kutsu.hae_malli", return_value="m"), \
              patch("arviointi.llmarviointi.mallit.aseta_vastaus") as mock_aseta, \
-             patch("arviointi.llmarviointi._lue_jarjestelma_kehote", return_value=jarj):
+             patch("arviointi.llmarviointi._lue_jarjestelmakehote", return_value=jarj):
             arvioitu = llmarviointi.aja(TUTKIMUS, tieto=tieto)
         assert arvioitu == 2
         assert mock_aseta.call_count == 4          # 2 kurssia × 2 kysymystä
         mk.assert_not_called(); mvk.assert_not_called(); mvt.assert_not_called()
+
+
+class TestLuokitteleVirhe:
+    def test_tyhja_vastaus(self):
+        e = ValueError("LLM palautti tyhjän vastauksen (finish_reason: stop)")
+        assert llmarviointi._luokittele_virhe(e) == "tyhja"
+
+    def test_502(self):
+        e = RuntimeError("OpenRouter-virhe (502): Upstream error")
+        assert llmarviointi._luokittele_virhe(e) == "virhe_502"
+
+    def test_max_tokens_finish_reasonista(self):
+        import json as _json
+        e = _json.JSONDecodeError("Unterminated string", "doc", 5)
+        with patch("arviointi.llmarviointi.kutsu.hae_viimeisin_kaytto",
+                   return_value={"finish_reason": "length"}):
+            assert llmarviointi._luokittele_virhe(e) == "max_tokens"
+
+    def test_muoto_kun_ei_length(self):
+        e = ValueError("Ei JSON-objektia vastauksessa: xyz")
+        with patch("arviointi.llmarviointi.kutsu.hae_viimeisin_kaytto",
+                   return_value={"finish_reason": "stop"}):
+            assert llmarviointi._luokittele_virhe(e) == "muoto"
+
+
+@pytest.fixture
+def aja_ymparisto():
+    """Mockaa aja():n DB- ja kehote-riippuvuudet; testi asettaa vain kutsu.kysy:n."""
+    with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+         patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=KURSSIT), \
+         patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value={}), \
+         patch("arviointi.llmarviointi.kutsu.hae_malli", return_value="m"), \
+         patch("arviointi.llmarviointi.mallit.aseta_vastaus"), \
+         patch("arviointi.llmarviointi._lue_jarjestelmakehote", return_value="system"):
+        yield
+
+
+class TestAjaTilastoJaKeskeytys:
+    def test_tilasto_kirjaa_onnistuneet(self, aja_ymparisto):
+        tilastot = []
+        with patch("arviointi.llmarviointi.kutsu.kysy", return_value=LLM_VASTAUS):
+            llmarviointi.aja(TUTKIMUS, lambda n, y, e, et, ti: tilastot.append(dict(ti)))
+        assert tilastot[-1]["onnistuneet"] == 2
+
+    def test_tilasto_luokittelee_epaonnistuneen_eran(self, aja_ymparisto):
+        tilastot = []
+        with patch("arviointi.llmarviointi.kutsu.kysy",
+                   side_effect=RuntimeError("OpenRouter-virhe (502): Upstream")):
+            llmarviointi.aja(TUTKIMUS, lambda n, y, e, et, ti: tilastot.append(dict(ti)))
+        assert tilastot[-1]["virhe_502"] == 2   # 2 kurssia yhdessä erässä
+        assert tilastot[-1]["onnistuneet"] == 0
+
+    def test_keskeyta_cb_lopettaa_ennen_eria(self, aja_ymparisto):
+        with patch("arviointi.llmarviointi.kutsu.kysy", return_value=LLM_VASTAUS) as mock_kysy:
+            arvioitu = llmarviointi.aja(TUTKIMUS, keskeyta_cb=lambda: True)
+        assert arvioitu == 0
+        mock_kysy.assert_not_called()
 
 
 KYSYMYKSET_MONITYYPPI = [
@@ -369,3 +436,19 @@ class TestTallennaTulokset:
             ]
             llmarviointi._tallenna_tulokset(tulokset, ks, "m")
         assert mock_aseta.call_count == 4
+
+
+class TestSiivoaTulokset:
+    """Kohta 6: torju hallusinoidut/väärät id:t, säilytä vain erän kurssit."""
+
+    def test_suodattaa_vieraan_idn(self):
+        raaka = [{"id": 1, "vastaukset": []}, {"id": 999, "vastaukset": []}]
+        assert llmarviointi._siivoa_tulokset(raaka, {1, 2}) == [{"id": 1, "vastaukset": []}]
+
+    def test_normalisoi_merkkijono_idn(self):
+        tulos = llmarviointi._siivoa_tulokset([{"id": "2", "vastaukset": []}], {1, 2})
+        assert tulos == [{"id": 2, "vastaukset": []}]
+
+    def test_ohittaa_puuttuvan_tai_kelvottoman_idn(self):
+        raaka = [{"vastaukset": []}, {"id": None, "vastaukset": []}, {"id": "abc"}]
+        assert llmarviointi._siivoa_tulokset(raaka, {1, 2}) == []
