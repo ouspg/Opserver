@@ -152,8 +152,10 @@ class TestHaeArvioimattomat:
             mallit.hae_arvioimattomat(1)
         sql, params = kursori.execute.call_args[0]
         assert "k.KKID IN" in sql and "vuosirajaus" in sql
-        # kolme tid:tä (JOIN + 2 alikyselyä), sitten rajausparametrit
-        assert list(params) == [1, 1, 1, 4, 2024, 2025]
+        # GROUP BY -aggregaatti, ei per-rivi korreloitua alikyselyä
+        assert "GROUP BY" in sql
+        # kaksi tid:tä (Kurssiluokitus- ja Kysymykset-JOIN), sitten rajausparametrit
+        assert list(params) == [1, 1, 4, 2024, 2025]
 
     def test_ilman_rajausta_ei_lisaa_scope_ehtoa(self, mock_yhteys):
         yht, kursori = mock_yhteys
@@ -163,7 +165,7 @@ class TestHaeArvioimattomat:
             mallit.hae_arvioimattomat(1)
         sql, params = kursori.execute.call_args[0]
         assert "KKID" not in sql
-        assert list(params) == [1, 1, 1]
+        assert list(params) == [1, 1]
 
     def test_laske_arvioimattomat_laskee_ei_hae_riveja(self, mock_yhteys):
         """Tilannesivu tarvitsee vain lukumäärän → COUNT(*), ei SELECT k.* (ei vedä
@@ -176,7 +178,8 @@ class TestHaeArvioimattomat:
         assert tulos == 7
         sql, params = kursori.execute.call_args[0]
         assert "SELECT COUNT(*)" in sql and "SELECT k.*" not in sql
-        assert list(params) == [1, 1, 1, 4, 2024, 2025]
+        assert "GROUP BY" in sql
+        assert list(params) == [1, 1, 4, 2024, 2025]
 
 
 class TestHaeTutkimuksenTilanne:
