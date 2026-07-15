@@ -1,9 +1,49 @@
 """LLM-raporttigenerointi: koostaa raporttiosiot tietokannasta ja täydentää LLM:llä."""
+import json
 import os
 from tietokanta import mallit
-from llm import kutsu
+from llm import kutsu, tiiviste
 
 OSIOT = ["johdanto", "kurssit", "arvioinnit"]
+
+
+def raporttitiiviste(tutkimus: dict, tilastot: list[dict] | None = None,
+                     kysymykset: list[dict] | None = None) -> str:
+    """SHA-256-tiiviste lähdeaineistosta, josta raportti koottiin — raportin
+    tuoreustarkistukseen. Muuttuu, jos jokin raporttiin vaikuttava tieto muuttuu:
+    per-yliopisto-tilastot (luokitukset + HITL), kysymykset, arviointien tila,
+    kommentit tai tutkimuksen kehotteet/rajaukset. Tilastot kattavat myös
+    aikaleimattomat taulut (Kurssiluokitus), joten seulonnan uudelleenajo näkyy.
+
+    tilastot/kysymykset: annettuna vältetään uudelleenhaku (aja() jakaa nämä)."""
+    tid = tutkimus["TID"]
+    if tilastot is None:
+        tilastot = mallit.hae_tilastot_yliopistoittain(tid)
+    if kysymykset is None:
+        kysymykset = mallit.hae_kysymykset(tid)
+    vastaus_tila = mallit.hae_vastaus_tiivisteet(tid)
+    kommentit = mallit.hae_arviokommentit_kaikki(tid)
+
+    tilasto_osa = json.dumps(sorted(
+        [r["KKID"], r["KurssiYhteensa"], r["LLMKasitelty"], r["Mukana"], r["Hylatty"],
+         r.get("HitlLkm", 0), r.get("HitlKursseja", 0), r.get("RiittamatonOpas", 0),
+         r.get("LlmVirhe", 0), r.get("TuntematonSyy", 0)]
+        for r in tilastot), ensure_ascii=False)
+    kysymys_osa = json.dumps(sorted(
+        [k["KysID"], k.get("Kysymys") or "", k.get("Luokittelu") or "vapaa_teksti",
+         json.dumps(k.get("LuokitteluMaarittely"), sort_keys=True, ensure_ascii=False)]
+        for k in kysymykset), ensure_ascii=False)
+    vastaus_osa = json.dumps(sorted(
+        [kid, kysid, v.get("tiiviste") or "", bool(v.get("vastattu"))]
+        for (kid, kysid), v in vastaus_tila.items()), ensure_ascii=False)
+    kommentti_osa = json.dumps(sorted(
+        [c["KID"], c["KysID"], c.get("Kommentti") or ""] for c in kommentit), ensure_ascii=False)
+    kehote_osa = json.dumps([
+        tutkimus.get("Luokittelukehote") or "", tutkimus.get("Arviointikehote") or "",
+        tutkimus.get("Raportointikehote") or "", tutkimus.get("Tasorajaus") or "",
+        tutkimus.get("Oppiainerajaus") or "",
+    ], ensure_ascii=False)
+    return tiiviste.laske(tilasto_osa, kysymys_osa, vastaus_osa, kommentti_osa, kehote_osa)
 
 
 def _lue_jarjestelmakehote() -> str:
@@ -150,6 +190,9 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> int:
     jarjestelma = _lue_jarjestelmakehote()
     tilastot = mallit.hae_tilastot_yliopistoittain(tid)
     kysymykset = mallit.hae_kysymykset(tid)
+    # Lähdeaineiston tiiviste generoinnin hetkellä → tallennetaan jokaiseen osioon
+    # tuoreustarkistusta varten (CLIUI:n "Näytä tilanne" vertaa tähän).
+    laskenta = raporttitiiviste(tutkimus, tilastot, kysymykset)
 
     viestirakentajat = {
         "johdanto": lambda: _rakenna_johdanto_viesti(tutkimus, tilastot),
@@ -163,7 +206,7 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> int:
             edistyminen_cb(i, len(OSIOT), avain)
         viesti = viestirakentajat[avain]()
         teksti = kutsu.kysy(viesti, jarjestelma)
-        mallit.aseta_raportti_osio(tid, avain, teksti)
+        mallit.aseta_raportti_osio(tid, avain, teksti, laskentatiiviste=laskenta)
         generoitu += 1
 
     if edistyminen_cb:

@@ -1,5 +1,5 @@
 """Testit raportti-moduulille."""
-from unittest.mock import patch, call
+from unittest.mock import patch, call, ANY
 import pytest
 from raportti import llmraportti
 
@@ -118,6 +118,47 @@ class TestHitlMittarit:
         assert m["opas_pros"] == 0.0
 
 
+class TestRaporttiTiiviste:
+    """raporttitiiviste() hashaa lähdeaineiston, josta raportti koottiin."""
+
+    def _tiiviste(self, tutkimus=TUTKIMUS, tilastot=TILASTOT, kysymykset=KYSYMYKSET,
+                  vastaus_tila=None, kommentit=None):
+        with patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet",
+                   return_value=vastaus_tila or {}), \
+             patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki",
+                   return_value=kommentit or []):
+            return llmraportti.raporttitiiviste(tutkimus, tilastot, kysymykset)
+
+    def test_palauttaa_64_merkkia_hexia(self):
+        t = self._tiiviste()
+        assert len(t) == 64 and all(c in "0123456789abcdef" for c in t)
+
+    def test_deterministinen(self):
+        assert self._tiiviste() == self._tiiviste()
+
+    def test_muuttuu_kun_tilastot_muuttuu(self):
+        muutettu = [{**TILASTOT[0], "Mukana": 999}, TILASTOT[1]]
+        assert self._tiiviste() != self._tiiviste(tilastot=muutettu)
+
+    def test_muuttuu_kun_juurisyy_muuttuu(self):
+        muutettu = [{**TILASTOT[0], "RiittamatonOpas": 3, "TuntematonSyy": 0}, TILASTOT[1]]
+        assert self._tiiviste() != self._tiiviste(tilastot=muutettu)
+
+    def test_muuttuu_kun_raportointikehote_muuttuu(self):
+        toinen = {**TUTKIMUS, "Raportointikehote": "Aivan eri ohje."}
+        assert self._tiiviste() != self._tiiviste(tutkimus=toinen)
+
+    def test_muuttuu_kun_arviointien_tila_muuttuu(self):
+        a = self._tiiviste(vastaus_tila={})
+        b = self._tiiviste(vastaus_tila={(1, 10): {"tiiviste": "x", "vastattu": True}})
+        assert a != b
+
+    def test_muuttuu_kun_kommentti_lisataan(self):
+        a = self._tiiviste(kommentit=[])
+        b = self._tiiviste(kommentit=[{"KID": 1, "KysID": 10, "Kommentti": "Uusi"}])
+        assert a != b
+
+
 class TestRakennaViestiArvioinnit:
     def test_sisaltaa_arviointikehot(self):
         with patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]):
@@ -142,6 +183,7 @@ class TestAja:
         with patch("raportti.llmraportti.mallit.hae_tilastot_yliopistoittain", return_value=TILASTOT), \
              patch("raportti.llmraportti.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
              patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
+             patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet", return_value={}), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio") as mock_aseta, \
              patch("raportti.llmraportti.kutsu.kysy", return_value="LLM-teksti") as mock_kysy, \
              patch("raportti.llmraportti._lue_jarjestelmakehote", return_value="jarj"):
@@ -158,12 +200,28 @@ class TestAja:
         with patch("raportti.llmraportti.mallit.hae_tilastot_yliopistoittain", return_value=TILASTOT), \
              patch("raportti.llmraportti.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
              patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
+             patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet", return_value={}), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio") as mock_aseta, \
              patch("raportti.llmraportti.kutsu.kysy", return_value="Generoitu teksti"), \
              patch("raportti.llmraportti._lue_jarjestelmakehote", return_value="jarj"):
             llmraportti.aja(TUTKIMUS)
 
-        mock_aseta.assert_any_call(1, "johdanto", "Generoitu teksti")
+        mock_aseta.assert_any_call(1, "johdanto", "Generoitu teksti", laskentatiiviste=ANY)
+
+    def test_aja_kirjoittaa_laskentatiivisteen_jokaiseen_osioon(self):
+        with patch("raportti.llmraportti.mallit.hae_tilastot_yliopistoittain", return_value=TILASTOT), \
+             patch("raportti.llmraportti.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+             patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
+             patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet", return_value={}), \
+             patch("raportti.llmraportti.mallit.aseta_raportti_osio") as mock_aseta, \
+             patch("raportti.llmraportti.kutsu.kysy", return_value="teksti"), \
+             patch("raportti.llmraportti._lue_jarjestelmakehote", return_value="jarj"):
+            llmraportti.aja(TUTKIMUS)
+
+        tiivisteet = [c.kwargs["laskentatiiviste"] for c in mock_aseta.call_args_list]
+        assert len(tiivisteet) == 3
+        assert all(len(t) == 64 for t in tiivisteet)
+        assert len(set(tiivisteet)) == 1  # sama tiiviste jokaiseen osioon
 
     def test_aja_kutsuu_edistyminen_cb(self):
         tapahtumat = []
@@ -173,6 +231,7 @@ class TestAja:
         with patch("raportti.llmraportti.mallit.hae_tilastot_yliopistoittain", return_value=TILASTOT), \
              patch("raportti.llmraportti.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
              patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
+             patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet", return_value={}), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio"), \
              patch("raportti.llmraportti.kutsu.kysy", return_value="teksti"), \
              patch("raportti.llmraportti._lue_jarjestelmakehote", return_value="jarj"):
@@ -188,6 +247,7 @@ class TestAja:
         with patch("raportti.llmraportti.mallit.hae_tilastot_yliopistoittain", return_value=TILASTOT), \
              patch("raportti.llmraportti.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
              patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
+             patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet", return_value={}), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio") as mock_aseta, \
              patch("raportti.llmraportti.kutsu.kysy", return_value="teksti"), \
              patch("raportti.llmraportti._lue_jarjestelmakehote", return_value="jarj"):
