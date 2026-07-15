@@ -707,6 +707,54 @@ class TestHitlKorjaus:
         assert set(mallit.JUURISYYT) == {"riittamaton_opas", "llm_virhe"}
 
 
+class TestRaporttiTila:
+    def test_aseta_raportti_osio_kirjoittaa_tiivisteen(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.aseta_raportti_osio(1, "johdanto", "teksti", laskentatiiviste="abc123")
+        sql, params = kursori.execute.call_args[0]
+        assert "Laskentatiiviste" in sql
+        assert params == (1, "johdanto", "teksti", "abc123")
+
+    def test_aseta_raportti_osio_sailyttaa_tiivisteen_kun_none(self, mock_yhteys):
+        """WebUI-tekstimuokkaus (ilman tiivistettä) ei saa nollata Laskentatiivistettä."""
+        yht, kursori = mock_yhteys
+        mallit.aseta_raportti_osio(1, "johdanto", "muokattu")
+        sql, params = kursori.execute.call_args[0]
+        assert "COALESCE(VALUES(Laskentatiiviste), Laskentatiiviste)" in sql
+        assert params == (1, "johdanto", "muokattu", None)
+
+    def test_hae_raportti_tila_palauttaa_aikaleimat_ja_tiivisteen(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = [
+            ("johdanto", "2026-07-15 10:00:00", "abc"),
+            ("kurssit", "2026-07-15 10:00:05", "abc"),
+        ]
+        kursori.description = [("OsioAvain",), ("Aikaleima",), ("Laskentatiiviste",)]
+        rivit = mallit.hae_raportti_tila(1)
+        assert rivit[0]["OsioAvain"] == "johdanto"
+        assert rivit[0]["Laskentatiiviste"] == "abc"
+        sql = kursori.execute.call_args[0][0]
+        assert "Aikaleima" in sql and "Laskentatiiviste" in sql
+
+    def test_laske_hitl_korjaukset_jalkeen_kayttaa_countia(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchone.return_value = (3,)
+        n = mallit.laske_hitl_korjaukset_jalkeen(1, "2026-07-15 10:00:00")
+        sql, params = kursori.execute.call_args[0]
+        assert "COUNT(*)" in sql and "HitlKorjaus" in sql and "Aikaleima >" in sql
+        assert n == 3
+        assert list(params) == [1, "2026-07-15 10:00:00"]
+
+    def test_laske_arviokommentit_jalkeen_kayttaa_countia(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchone.return_value = (2,)
+        n = mallit.laske_arviokommentit_jalkeen(1, "2026-07-15 10:00:00")
+        sql, params = kursori.execute.call_args[0]
+        assert "COUNT(*)" in sql and "ArvioKommentti" in sql and "Aikaleima >" in sql
+        assert n == 2
+        assert list(params) == [1, "2026-07-15 10:00:00"]
+
+
 class TestKurssiarviointi:
     def test_aseta_arviointi_tekee_insert(self, mock_yhteys):
         yht, kursori = mock_yhteys

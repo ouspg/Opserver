@@ -921,14 +921,18 @@ def hae_raportti_osiot(tid: int) -> dict[str, str]:
             return {r[0]: r[1] for r in kursori.fetchall()}
 
 
-def aseta_raportti_osio(tid: int, avain: str, teksti: str) -> None:
+def aseta_raportti_osio(tid: int, avain: str, teksti: str,
+                        laskentatiiviste: str | None = None) -> None:
+    """Upsert raporttiosio. laskentatiiviste: annettuna (generointi) tallennetaan;
+    None:na (WebUI-tekstimuokkaus) säilytetään aiempi arvo koskematta."""
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                """INSERT INTO RaporttiOsio (TID, OsioAvain, Teksti)
-                   VALUES (%s, %s, %s)
-                   ON DUPLICATE KEY UPDATE Teksti = VALUES(Teksti)""",
-                (tid, avain, teksti),
+                """INSERT INTO RaporttiOsio (TID, OsioAvain, Teksti, Laskentatiiviste)
+                   VALUES (%s, %s, %s, %s)
+                   ON DUPLICATE KEY UPDATE Teksti = VALUES(Teksti),
+                       Laskentatiiviste = COALESCE(VALUES(Laskentatiiviste), Laskentatiiviste)""",
+                (tid, avain, teksti, laskentatiiviste),
             )
 
 
@@ -941,6 +945,41 @@ def hae_raportti_osio(tid: int, avain: str) -> str:
             )
             rivi = kursori.fetchone()
             return rivi[0] if rivi else ""
+
+
+def hae_raportti_tila(tid: int) -> list[dict]:
+    """Per-osio metatieto raportin tilannesivulle: milloin kirjoitettu ja millä
+    laskentatiivisteellä (lähdeaineiston hash generoinnin hetkellä). Ei hae
+    Teksti-kenttää (voi olla iso) — vain kevyet metasarakkeet."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                "SELECT OsioAvain, Aikaleima, Laskentatiiviste FROM RaporttiOsio WHERE TID = %s",
+                (tid,),
+            )
+            return _rivit_dikteina(kursori)
+
+
+def laske_hitl_korjaukset_jalkeen(tid: int, aika) -> int:
+    """HITL-korjausten määrä, jotka on tehty annetun ajan jälkeen (COUNT, ei rivinoutoa)."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                "SELECT COUNT(*) FROM HitlKorjaus WHERE TID = %s AND Aikaleima > %s",
+                (tid, aika),
+            )
+            return int(kursori.fetchone()[0])
+
+
+def laske_arviokommentit_jalkeen(tid: int, aika) -> int:
+    """Arviokommenttien määrä, jotka on tehty/muokattu annetun ajan jälkeen."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                "SELECT COUNT(*) FROM ArvioKommentti WHERE TID = %s AND Aikaleima > %s",
+                (tid, aika),
+            )
+            return int(kursori.fetchone()[0])
 
 
 # --- Raporttitilastot ---
