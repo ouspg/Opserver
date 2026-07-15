@@ -646,6 +646,7 @@ function avaaHitlModaali(kid, kurssiniimi, ai_perustelu, uusi_tila) {
   document.getElementById("hitl-nimi").value = hitl_nimi;
   document.getElementById("hitl-sahkoposti").value = hitl_sahkoposti;
   document.getElementById("hitl-perustelu").value = "";
+  document.querySelectorAll('input[name="hitl-juurisyy"]').forEach((r) => (r.checked = false));
   document.getElementById("hitl-laheta").textContent = toiminto;
   document.getElementById("hitl-modaali").classList.remove("piilotettu");
 }
@@ -663,7 +664,8 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
   const nimi = document.getElementById("hitl-nimi").value.trim();
   const sahkoposti = document.getElementById("hitl-sahkoposti").value.trim();
   const perustelu = document.getElementById("hitl-perustelu").value.trim();
-  if (!nimi || !sahkoposti || !perustelu) return;
+  const juurisyy = document.querySelector('input[name="hitl-juurisyy"]:checked')?.value || null;
+  if (!nimi || !sahkoposti || !perustelu || !juurisyy) return;
 
   hitl_nimi = nimi;
   hitl_sahkoposti = sahkoposti;
@@ -681,7 +683,7 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uusi_tila: hitl_uusi_tila, perustelu, nimi, sahkoposti }),
+        body: JSON.stringify({ uusi_tila: hitl_uusi_tila, perustelu, nimi, sahkoposti, juurisyy }),
       }
     );
     if (!vastaus.ok) throw new Error("Virhe tallennuksessa");
@@ -1131,16 +1133,68 @@ function _renderTilastotTaulukko(tilastot) {
   return html;
 }
 
+// HITL-laatumittarit (CLAUDE.md vaihe 4): montako % luokittelupäätöksistä
+// muutettiin käsin, ja montako % korjauksista johtui riittämättömästä
+// oppaasta (data) vs. LLM:n virheestä (kehote). Auktoritatiivinen rakenteellinen
+// luku — erillään LLM-generoidusta proosasta.
+function _renderHitlMittarit(hitl) {
+  if (!hitl || !hitl.llm_kasitelty) return "";
+  const p = (x) => (x ?? 0).toFixed(1);
+  const rivi = (nimi, lkm, pros) =>
+    `<tr><td>${nimi}</td><td>${lkm}</td><td>${p(pros)} %</td></tr>`;
+  return `
+    <div class="tilastot-osio hitl-mittarit">
+      <h3>Ihmistarkistuksen laatumittarit</h3>
+      <p>Käsin muutettuja luokittelupäätöksiä:
+        <strong>${hitl.muutettu} / ${hitl.llm_kasitelty}</strong>
+        LLM-luokiteltua kurssia (<strong>${p(hitl.muutettu_pros)} %</strong>).</p>
+      <table class="tilasto-taulu">
+        <tr><th>Korjauksen juurisyy</th><th>Kursseja</th><th>Osuus korjauksista</th></tr>
+        ${rivi("Riittämätön opinto-opas (oppaan laatu)", hitl.opas, hitl.opas_pros)}
+        ${rivi("LLM:n väärinymmärrys (kehote)", hitl.llm_virhe, hitl.llm_virhe_pros)}
+        ${rivi("Juurisyy merkitsemättä", hitl.tuntematon, hitl.tuntematon_pros)}
+      </table>
+    </div>`;
+}
+
+// Raportin tuoreuspalkki (CLIUI:n "Näytä tilanne" -vastine): milloin generoitu,
+// onko lähdeaineisto muuttunut sen jälkeen (tiivistevertailu) ja montako
+// HITL-korjausta/kommenttia on tehty generoinnin jälkeen.
+const _TUOREUS = {
+  ajan_tasalla: { merkki: "✓", teksti: "Ajan tasalla", luokka: "tuoreus-ok" },
+  vanhentunut: { merkki: "⚠", teksti: "Vanhentunut — lähdeaineisto muuttunut generoinnin jälkeen", luokka: "tuoreus-vanha" },
+  tuntematon: { merkki: "?", teksti: "Tuoreus tuntematon — generoitu ennen tuoreusseurantaa", luokka: "tuoreus-tuntematon" },
+};
+
+function _fmtAika(iso) {
+  return iso ? String(iso).replace("T", " ").slice(0, 16) : "—";
+}
+
+function _renderTuoreusPalkki(tilanne) {
+  if (!tilanne || !tilanne.generoitu) return "";
+  const t = _TUOREUS[tilanne.tuoreus] || _TUOREUS.tuntematon;
+  const h = tilanne.hitl_jalkeen || 0, k = tilanne.kommentit_jalkeen || 0;
+  const muutokset = (h || k)
+    ? `<span class="tuoreus-muutokset">Generoinnin jälkeen: ${h} HITL-korjausta, ${k} kommenttia</span>`
+    : "";
+  return `<div class="tuoreus-palkki ${t.luokka}">
+      <span class="tuoreus-tila">${t.merkki} ${t.teksti}</span>
+      <span class="tuoreus-aika">Generoitu ${_fmtAika(tilanne.generoitu_aika)}</span>
+      ${muutokset}
+    </div>`;
+}
+
 async function renderTutkimusRaportti(slug, tutkimus) {
   const sisalto = document.getElementById("raportti-sisalto");
   const pdfNappi = document.getElementById("raportti-pdf-nappi");
   sisalto.innerHTML = "";
 
-  let data, tilastot;
+  let data, tilastot, tilanne;
   try {
-    [data, tilastot] = await Promise.all([
+    [data, tilastot, tilanne] = await Promise.all([
       fetch(`/api/tutkimukset/${slug}/raportti`).then((r) => r.json()),
       fetch(`/api/tutkimukset/${slug}/raportti/tilastot`).then((r) => r.json()).catch(() => null),
+      fetch(`/api/tutkimukset/${slug}/raportti/tilanne`).then((r) => r.json()).catch(() => null),
     ]);
   } catch (_) {
     sisalto.innerHTML = '<p class="tulossa">Raportin lataaminen epäonnistui.</p>';
@@ -1157,11 +1211,13 @@ async function renderTutkimusRaportti(slug, tutkimus) {
     return;
   }
 
-  pdfNappi.onclick = () => avaaRaporttiTulostus(slug, tutkimus, osiot);
+  pdfNappi.onclick = () => avaaRaporttiTulostus(slug, tutkimus, osiot, tilastot);
+  sisalto.insertAdjacentHTML("beforeend", _renderTuoreusPalkki(tilanne));
 
   for (const { avain, otsikko } of RAPORTTI_OSIOT) {
     const teksti = osiot[avain] || "";
-    const tilastotHtml = avain === "arvioinnit" ? _renderTilastotTaulukko(tilastot) : "";
+    let tilastotHtml = avain === "arvioinnit" ? _renderTilastotTaulukko(tilastot) : "";
+    if (avain === "kurssit") tilastotHtml = _renderHitlMittarit(tilastot?.hitl);
     const div = document.createElement("div");
     div.className = "raportti-osio";
     div.dataset.avain = avain;
@@ -1180,7 +1236,25 @@ async function renderTutkimusRaportti(slug, tutkimus) {
   }
 }
 
-function avaaRaporttiTulostus(slug, tutkimus, osiot) {
+function _hitlMittaritTulostus(hitl) {
+  if (!hitl || !hitl.llm_kasitelty) return "";
+  const p = (x) => (x ?? 0).toFixed(1);
+  const rivi = (nimi, lkm, pros) =>
+    `<tr><td>${nimi}</td><td style="text-align:right">${lkm}</td>` +
+    `<td style="text-align:right">${p(pros)} %</td></tr>`;
+  return `<p>Käsin muutettuja luokittelupäätöksiä: <strong>${hitl.muutettu} / ` +
+    `${hitl.llm_kasitelty}</strong> LLM-luokiteltua kurssia (<strong>${p(hitl.muutettu_pros)} %</strong>).</p>` +
+    `<table style="border-collapse:collapse;margin:0.5rem 0"><tr>` +
+    `<th style="text-align:left;padding:0.2rem 0.6rem">Korjauksen juurisyy</th>` +
+    `<th style="padding:0.2rem 0.6rem">Kursseja</th>` +
+    `<th style="padding:0.2rem 0.6rem">Osuus korjauksista</th></tr>` +
+    rivi("Riittämätön opinto-opas (oppaan laatu)", hitl.opas, hitl.opas_pros) +
+    rivi("LLM:n väärinymmärrys (kehote)", hitl.llm_virhe, hitl.llm_virhe_pros) +
+    rivi("Juurisyy merkitsemättä", hitl.tuntematon, hitl.tuntematon_pros) +
+    `</table>`;
+}
+
+function avaaRaporttiTulostus(slug, tutkimus, osiot, tilastot) {
   const nimi = tutkimus?.LuokittelunNimi || slug;
   let html = `<!DOCTYPE html><html lang="fi"><head><meta charset="utf-8">
     <title>${nimi} — raportti</title>
@@ -1189,11 +1263,13 @@ function avaaRaporttiTulostus(slug, tutkimus, osiot) {
       h1 { font-size: 1.6rem; margin-bottom: 0.5rem; }
       h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #ccc; padding-bottom: 0.3rem; }
       p { line-height: 1.7; margin: 0.5rem 0; }
+      td, th { border: 1px solid #ccc; padding: 0.2rem 0.6rem; }
     </style></head><body>
     <h1>${nimi}</h1>`;
   for (const { avain, otsikko } of RAPORTTI_OSIOT) {
     const teksti = osiot[avain] || "";
     html += `<h2>${otsikko}</h2><p>${teksti.replace(/\n/g, "</p><p>")}</p>`;
+    if (avain === "kurssit") html += _hitlMittaritTulostus(tilastot?.hitl);
   }
   html += `<script>window.print();<\/script></body></html>`;
   const ikkuna = window.open("", "_blank");

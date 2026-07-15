@@ -1,8 +1,8 @@
 """Tulostaa raportin LLM-kehotteet tutkimukselle ilman LLM-kutsua.
 
 Käyttö:
-    ./kehotteet <slug>
-    ./kehotteet esr_kyber | less
+    ./kehoteraportti <slug>
+    ./kehoteraportti esr_kyber | less
 """
 import sys
 import os
@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 if len(sys.argv) != 2:
-    print(f"Käyttö: ./kehotteet <tutkimuksen-slug>", file=sys.stderr)
+    print(f"Käyttö: ./kehoteraportti <tutkimuksen-slug>", file=sys.stderr)
     sys.exit(1)
 
 slug = sys.argv[1]

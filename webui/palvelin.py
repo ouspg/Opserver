@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from tietokanta import mallit
 from tietokanta.valimuisti import ttl_valimuisti
 from llm import tiiviste, kehotteet
+from raportti import llmraportti
 
 
 _AUTH_EVASTE = "opserver_auth"
@@ -327,8 +328,21 @@ def _kurssit_valimuistissa(kkid, lukuvuosi) -> list[dict]:
     return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
 
 
+@ttl_valimuisti(_VALIMUISTI_TTL)
+def _raportti_tilanne_valimuistissa(slug: str):
+    """Raportin tuoreus (koosta_tilanne). Välimuistitettu, koska WebUI:n
+    raporttinäkymä päivittyy 15 s välein ja tiivisteen uudelleenlaskenta hakee
+    useita tauluja etäkannasta — ilman välimuistia jokainen päivitys kuormittaisi.
+    Tuoreuslippu saa olla enintään TTL:n verran vanha. None jos tutkimusta ei ole."""
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        return None
+    return llmraportti.koosta_tilanne(tutkimus)
+
+
 _VALIMUISTIT = [_korkeakoulut_valimuistissa, _lukuvuodet_valimuistissa,
-                _tasot_valimuistissa, _kurssit_valimuistissa]
+                _tasot_valimuistissa, _kurssit_valimuistissa,
+                _raportti_tilanne_valimuistissa]
 
 
 def tyhjenna_valimuistit() -> None:
@@ -504,6 +518,7 @@ class HitlPyynto(BaseModel):
     perustelu: str
     nimi: str
     sahkoposti: str
+    juurisyy: str | None = None
 
 
 @sovellus.post("/api/tutkimukset/{slug}/kurssit/{kid}/hitl")
@@ -511,9 +526,11 @@ def api_hitl_korjaus(slug: str, kid: int, pyynto: HitlPyynto) -> dict:
     tutkimus = mallit.hae_tutkimus_slugilla(slug)
     if tutkimus is None:
         raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    if pyynto.juurisyy is not None and pyynto.juurisyy not in mallit.JUURISYYT:
+        raise HTTPException(status_code=400, detail="Tuntematon juurisyy")
     mallit.tallenna_hitl_korjaus(
         tutkimus["TID"], kid, pyynto.uusi_tila,
-        pyynto.perustelu, pyynto.nimi, pyynto.sahkoposti,
+        pyynto.perustelu, pyynto.nimi, pyynto.sahkoposti, pyynto.juurisyy,
     )
     return {"ok": True}
 
@@ -594,7 +611,22 @@ def api_raportti_tilastot(slug: str) -> dict:
 
         tulos_kysymykset.append(kohta)
 
-    return {"kysymykset": tulos_kysymykset}
+    # HITL-laatumittarit (CLAUDE.md vaihe 4): käsin-muutos-% + juurisyyjakauma.
+    # Rakenteellinen, auktoritatiivinen luku — ei LLM-generoitua proosaa.
+    tilastot = mallit.hae_tilastot_yliopistoittain(tid)
+    hitl = llmraportti.hitl_mittarit(tilastot)
+
+    return {"kysymykset": tulos_kysymykset, "hitl": hitl}
+
+
+@sovellus.get("/api/tutkimukset/{slug}/raportti/tilanne")
+def api_raportti_tilanne(slug: str) -> dict:
+    """Raportin tuoreus: milloin generoitu, ajan tasalla / vanhentunut ja
+    montako HITL-korjausta/kommenttia tehty generoinnin jälkeen."""
+    tilanne = _raportti_tilanne_valimuistissa(slug)
+    if tilanne is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    return tilanne
 
 
 @sovellus.get("/api/tutkimukset/{slug}")

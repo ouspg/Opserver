@@ -192,11 +192,37 @@ def test_api_hitl_korjaus_tallentaa():
          patch("webui.palvelin.mallit.tallenna_hitl_korjaus") as mock_tallenna:
         vastaus = asiakas.post(
             "/api/tutkimukset/kyber-2025/kurssit/7/hitl",
-            json={"uusi_tila": False, "perustelu": "Epärelevant", "nimi": "Matti", "sahkoposti": "m@esim.fi"},
+            json={"uusi_tila": False, "perustelu": "Epärelevant", "nimi": "Matti",
+                  "sahkoposti": "m@esim.fi", "juurisyy": "llm_virhe"},
         )
     assert vastaus.status_code == 200
     assert vastaus.json()["ok"] is True
-    mock_tallenna.assert_called_once_with(1, 7, False, "Epärelevant", "Matti", "m@esim.fi")
+    mock_tallenna.assert_called_once_with(1, 7, False, "Epärelevant", "Matti",
+                                          "m@esim.fi", "llm_virhe")
+
+
+def test_api_hitl_korjaus_juurisyy_valinnainen():
+    """Juurisyy voi puuttua (None) — vanha rajapinta ja kanta sallivat sen."""
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.tallenna_hitl_korjaus") as mock_tallenna:
+        vastaus = asiakas.post(
+            "/api/tutkimukset/kyber-2025/kurssit/7/hitl",
+            json={"uusi_tila": False, "perustelu": "x", "nimi": "M", "sahkoposti": "m@esim.fi"},
+        )
+    assert vastaus.status_code == 200
+    mock_tallenna.assert_called_once_with(1, 7, False, "x", "M", "m@esim.fi", None)
+
+
+def test_api_hitl_korjaus_hylkaa_tuntemattoman_juurisyyn():
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.tallenna_hitl_korjaus") as mock_tallenna:
+        vastaus = asiakas.post(
+            "/api/tutkimukset/kyber-2025/kurssit/7/hitl",
+            json={"uusi_tila": False, "perustelu": "x", "nimi": "M",
+                  "sahkoposti": "m@esim.fi", "juurisyy": "keksitty"},
+        )
+    assert vastaus.status_code == 400
+    mock_tallenna.assert_not_called()
 
 
 def test_api_hitl_korjaus_404_kun_tutkimusta_ei_loydy():
@@ -251,7 +277,8 @@ def test_api_raportti_tilastot_luokittelu():
     ]
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=ks), \
-         patch("webui.palvelin.mallit.hae_vastaukset", return_value=vs):
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=vs), \
+         patch("webui.palvelin.mallit.hae_tilastot_yliopistoittain", return_value=[]):
         vastaus = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot")
     assert vastaus.status_code == 200
     data = vastaus.json()
@@ -272,7 +299,8 @@ def test_api_raportti_tilastot_asteikko():
     ]
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=ks), \
-         patch("webui.palvelin.mallit.hae_vastaukset", return_value=vs):
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=vs), \
+         patch("webui.palvelin.mallit.hae_tilastot_yliopistoittain", return_value=[]):
         vastaus = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot")
     assert vastaus.status_code == 200
     data = vastaus.json()
@@ -286,9 +314,52 @@ def test_api_raportti_tilastot_asteikko():
     assert k["jakauma"]["2"] == 1
 
 
+def test_api_raportti_tilastot_hitl_mittarit():
+    """Rakenteellinen HITL-laatumittari: käsin-muutos-% + juurisyyjakauma."""
+    tilastot = [
+        {"KKID": 1, "KouluNimi": "TY", "KurssiYhteensa": 100, "LLMKasitelty": 40,
+         "Mukana": 12, "Hylatty": 28, "HitlLkm": 3,
+         "HitlKursseja": 3, "RiittamatonOpas": 2, "LlmVirhe": 1, "TuntematonSyy": 0},
+        {"KKID": 2, "KouluNimi": "AY", "KurssiYhteensa": 80, "LLMKasitelty": 30,
+         "Mukana": 8, "Hylatty": 22, "HitlLkm": 1,
+         "HitlKursseja": 1, "RiittamatonOpas": 0, "LlmVirhe": 0, "TuntematonSyy": 1},
+    ]
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_kysymykset", return_value=[]), \
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[]), \
+         patch("webui.palvelin.mallit.hae_tilastot_yliopistoittain", return_value=tilastot):
+        vastaus = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot")
+    assert vastaus.status_code == 200
+    hitl = vastaus.json()["hitl"]
+    assert hitl["llm_kasitelty"] == 70
+    assert hitl["muutettu"] == 4
+    assert round(hitl["muutettu_pros"], 1) == 5.7
+    assert hitl["opas"] == 2 and round(hitl["opas_pros"], 1) == 50.0
+    assert hitl["llm_virhe"] == 1
+
+
 def test_api_raportti_tilastot_404_kun_tutkimusta_ei_loydy():
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=None):
         vastaus = asiakas.get("/api/tutkimukset/ei-ole/raportti/tilastot")
+    assert vastaus.status_code == 404
+
+
+def test_api_raportti_tilanne_palauttaa_tuoreuden():
+    tilanne = {"generoitu": True, "tuoreus": "vanhentunut", "hitl_jalkeen": 2,
+               "kommentit_jalkeen": 1, "puuttuu": [],
+               "generoitu_aika": "2026-07-15T10:00:00", "osiot": []}
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.llmraportti.koosta_tilanne", return_value=tilanne):
+        vastaus = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilanne")
+    assert vastaus.status_code == 200
+    data = vastaus.json()
+    assert data["tuoreus"] == "vanhentunut"
+    assert data["hitl_jalkeen"] == 2
+
+
+def test_api_raportti_tilanne_404_kun_tutkimusta_ei_loydy():
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=None):
+        vastaus = asiakas.get("/api/tutkimukset/ei-ole/raportti/tilanne")
     assert vastaus.status_code == 404
 
 
