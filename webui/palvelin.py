@@ -504,6 +504,7 @@ class HitlPyynto(BaseModel):
     perustelu: str
     nimi: str
     sahkoposti: str
+    juurisyy: str | None = None
 
 
 @sovellus.post("/api/tutkimukset/{slug}/kurssit/{kid}/hitl")
@@ -511,9 +512,11 @@ def api_hitl_korjaus(slug: str, kid: int, pyynto: HitlPyynto) -> dict:
     tutkimus = mallit.hae_tutkimus_slugilla(slug)
     if tutkimus is None:
         raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    if pyynto.juurisyy is not None and pyynto.juurisyy not in mallit.JUURISYYT:
+        raise HTTPException(status_code=400, detail="Tuntematon juurisyy")
     mallit.tallenna_hitl_korjaus(
         tutkimus["TID"], kid, pyynto.uusi_tila,
-        pyynto.perustelu, pyynto.nimi, pyynto.sahkoposti,
+        pyynto.perustelu, pyynto.nimi, pyynto.sahkoposti, pyynto.juurisyy,
     )
     return {"ok": True}
 
