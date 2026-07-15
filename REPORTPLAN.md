@@ -2,7 +2,7 @@
 
 Tämä dokumentti kuvaa, miten pipelinen vaihe 4 ("Raportti") on toteutettu: mitkä ominaisuudet on rakennettu, missä tiedostoissa, mitä ne tekevät ja miten. Tarkoitus on toimia lähtökohtana toteutuksen tarkastukselle CLAUDE.md:n valmistumiskriteerejä vasten.
 
-*Tiedostoviittaukset ja väitteet varmennettu koodikannasta 2026-07-15. Tämä versio kuvaa tilan **PR #5:n jälkeen** (HITL-juurisyy + laatumittarit + tuoreusseuranta). Aiemmin dokumentoitu avoin puute ("%-osuus riittämättömiksi merkityistä oppaista") on nyt toteutettu — ks. kohta "Toteutettu: virhetaksonomia ja laatumittarit".*
+*Tiedostoviittaukset ja väitteet varmennettu koodikannasta 2026-07-15. Tämä versio kuvaa tilan **PR #6:n jälkeen** (HITL-juurisyy + laatumittarit + tuoreusseuranta, jonka raskas laskenta siirretty taustalle). Aiemmin dokumentoitu avoin puute ("%-osuus riittämättömiksi merkityistä oppaista") on nyt toteutettu — ks. kohta "Toteutettu: virhetaksonomia ja laatumittarit". Huom: osa `mallit.py`-rivinumeroista voi olla siirtynyt PR #6:n lisäysten jälkeen.*
 
 ## Yleiskuva
 
@@ -10,7 +10,7 @@ Raportointi jakautuu kolmeen puoliskoon:
 
 1. **Generointi** (`raportti/llmraportti.py`) — rakentaa tietokannan tilasta kolme LLM-promptia (johdanto, kurssit, arvioinnit), lähettää ne `llm/kutsu.py`:n kautta ja kirjoittaa vastaukset `RaporttiOsio`-tauluun (avaimena `TID` + `OsioAvain`). Ajo on idempotentti. Kurssit-osion promptiin injektoidaan **HITL-laatumittarit** (käsin-muutos-% + juurisyyjakauma). Generoinnin hetkellä tallennetaan myös **laskentatiiviste** — hash lähdeaineistosta tuoreusseurantaa varten.
 2. **Esitys ja muokkaus** — Web-UI lukee `RaporttiOsio`-taulun sisällön, laskee lisäksi rakenteelliset tilastot lennossa (per-kysymys-jakaumat + HITL-laatumittarit) ja tarjoaa muokattavan, usean käyttäjän yhteismuokattavan HTML-raportin, tulostus/PDF-napin sekä **tuoreuspalkin**. Curses-UI laukaisee generoinnin ja näyttää **"Näytä tilanne"** -sivun (tekoaika, tuoreus, generoinnin jälkeiset muutokset).
-3. **Tuoreusseuranta** (A+B) — sekä CLIUI:n "Näytä tilanne" että Web-UI:n tuoreuspalkki kertovat: milloin raportti generoitiin, onko lähdeaineisto muuttunut sen jälkeen (laskentatiivistevertailu), ja montako HITL-korjausta/kommenttia on tehty generoinnin jälkeen.
+3. **Tuoreusseuranta** (A+B) — sekä CLIUI:n "Näytä tilanne" että Web-UI:n tuoreuspalkki kertovat: milloin raportti generoitiin, onko lähdeaineisto muuttunut sen jälkeen (tiivistevertailu), **milloin tuoreus viimeksi tarkistettiin** ja montako HITL-korjausta/kommenttia on tehty generoinnin jälkeen. Raskas tiivistelaskenta ajetaan **taustalla** (ei status-katselun kriittisellä polulla) — ks. "Toteutettu: raportin tuoreusseuranta".
 
 ## Tiedostot ja niiden roolit
 
@@ -24,8 +24,9 @@ Raportointi jakautuu kolmeen puoliskoon:
   - `_hitl_yhteenveto_teksti(m)` (r. 127) — muotoilee mittarit raporttikehotteen tekstilohkoksi.
   - `_rakenna_*_viesti` — rakentavat kolme käyttäjäviestiä `mallit.hae_tilastot_yliopistoittain(tid)`, `mallit.hae_kysymykset(tid)`, `mallit.hae_arviokommentit_kaikki(tid)` ja tutkimuksen kehote-/rajauskenttien pohjalta. Kurssit-viesti sisältää laatumittarit ja ohjeistaa LLM:ää raportoimaan riittämättömien oppaiden osuuden eksplisiittisesti.
   - `raporttitiiviste(tutkimus, tilastot=None, kysymykset=None)` (r. 10) — SHA-256-tiiviste lähdeaineistosta, josta raportti koottiin: per-yliopisto-tilastot (luokitukset + HITL), kysymykset, arviointien tila (`hae_vastaus_tiivisteet`), kommentit ja tutkimuksen kehotteet/rajaukset. Muuttuu, jos jokin raporttiin vaikuttava tieto muuttuu — kattaa myös aikaleimattomat taulut (`Kurssiluokitus`, `Vastaukset`), joten seulonnan/haun uudelleenajo näkyy.
-  - `koosta_tilanne(tutkimus)` (r. 49) — kokoaa raportin tuoreustiedot status-näkymiin (**curses- ja HTTP-riippumaton**, jaettu CLIUI + WebUI). Palauttaa `{"generoitu": False}` tai osioiden tilan + aikaleimat, tuoreuden (`ajan_tasalla` / `vanhentunut` / `tuntematon`, tiivistevertailu) ja generoinnin jälkeen tehtyjen HITL-korjausten/kommenttien määrän.
-  - `aja(tutkimus, edistyminen_cb=None) -> int` — pääfunktio: laskee laskentatiivisteen, käy läpi kolme osiota, kutsuu `llm.kutsu.kysy`:tä ja tallentaa tuloksen `mallit.aseta_raportti_osio(tid, avain, teksti, laskentatiiviste=...)`:llä.
+  - `koosta_tilanne(tutkimus)` — kokoaa raportin tuoreustiedot status-näkymiin (**curses- ja HTTP-riippumaton**, jaettu CLIUI + WebUI). **KEVYT:** ei laske `raporttitiiviste`ä, vaan lukee viimeksi lasketun tuoreuden tallennettuna (`mallit.hae_raportti_tuoreus`). Palauttaa `{"generoitu": False}` tai osioiden tilan + aikaleimat, tuoreuden (`ajan_tasalla` / `vanhentunut` / `tuntematon`, vertailu generoinnin tiivisteeseen), **`tarkistettu`**-aikaleiman ja generoinnin jälkeen tehtyjen HITL-korjausten/kommenttien määrän. Tuoreuslogiikka on erotettu apufunktioon `_tuoreus(...)`.
+  - `paivita_tuoreus(tutkimus) -> str` — **RASKAS:** laskee `raporttitiiviste`n (per-yliopisto-tilastot + kaikki vastaukset + kommentit etäkannasta) ja tallentaa sen aikaleimoineen (`mallit.tallenna_raportti_tuoreus`). Ajetaan **taustalla** tai käyttäjän pyynnöstä — ei status-katselun kriittisellä polulla.
+  - `aja(tutkimus, edistyminen_cb=None) -> int` — pääfunktio: laskee laskentatiivisteen, käy läpi kolme osiota, tallentaa tuloksen `mallit.aseta_raportti_osio(...)`:llä ja **siemenee tuoreuden** (`mallit.tallenna_raportti_tuoreus(tid, laskenta)`) → tuore raportti näyttää heti "ajan tasalla".
 
 - **`raportti/_kehotteet.py`** — debug-CLI (`./kehoteraportti`-wrapper). Tulostaa tutkimuksen järjestelmäkehotteen ja kolme käyttäjäviestiä **kutsumatta LLM:ää**. Ei testikattavuutta.
 
@@ -39,18 +40,20 @@ Raportointi jakautuu kolmeen puoliskoon:
   - `hae_tilastot_yliopistoittain(tid)` (r. 999) — per-yliopisto `KurssiYhteensa`, `LLMKasitelty`, `Mukana`, `Hylatty`, `HitlLkm`, sekä **`HitlKursseja`** (käsin muutetut kurssit) ja **juurisyyjakauma** (`RiittamatonOpas` / `LlmVirhe` / `TuntematonSyy`, laskettu kunkin kurssin *viimeisimmästä* korjauksesta).
   - `aseta_raportti_osio(tid, avain, teksti, laskentatiiviste=None)` (r. 924) — upsert; `laskentatiiviste` tallennetaan generoinnissa, säilytetään WebUI-tekstimuokkauksessa (`COALESCE`).
   - `hae_raportti_tila(tid)` (r. 950) — per-osio aikaleima + laskentatiiviste (ei hae Teksti-kenttää).
-  - `laske_hitl_korjaukset_jalkeen(tid, aika)` (r. 963), `laske_arviokommentit_jalkeen(tid, aika)` (r. 974) — COUNT annetun ajan jälkeen (tuoreussivun "generoinnin jälkeen" -signaalit).
+  - `laske_hitl_korjaukset_jalkeen(tid, aika)`, `laske_arviokommentit_jalkeen(tid, aika)` — COUNT annetun ajan jälkeen (tuoreussivun "generoinnin jälkeen" -signaalit).
+  - `hae_raportti_tuoreus(tid)` / `tallenna_raportti_tuoreus(tid, signatuuri)` — viimeksi laskettu tuoreussignatuuri + laskenta-aika (`RaporttiTuoreus`, upsert); kevyt luku, raskas laskenta erikseen (`paivita_tuoreus`).
   - CRUD `RaporttiOsio`-tauluun: `hae_raportti_osiot`, `hae_raportti_osio`.
 
 - **`tietokanta/migraatio_007.sql`** — `Tutkimus.Raportointikehote` + `RaporttiOsio`-taulu (`Aikaleima` `ON UPDATE CURRENT_TIMESTAMP`).
 - **`tietokanta/migraatio_016.sql`** — `HitlKorjaus.Juurisyy VARCHAR(32) NULL` (virhetaksonomia).
-- **`tietokanta/migraatio_017.sql`** — `RaporttiOsio.Laskentatiiviste VARCHAR(64) NULL` (tuoreustarkistus).
-  - *Molemmat additiivisia (nullable); sovellettu geopalvelin1-kantaan kehityksen aikana.*
+- **`tietokanta/migraatio_017.sql`** — `RaporttiOsio.Laskentatiiviste VARCHAR(64) NULL` (tuoreustarkistus, generoinnin signatuuri).
+- **`tietokanta/migraatio_018.sql`** — `RaporttiTuoreus`-taulu (`TID` PK, `Signatuuri`, `Tarkistettu`) — viimeksi laskettu lähdeaineiston tuoreussignatuuri + laskenta-aika; raskas tiivistelaskenta ajetaan taustalla eikä joka status-katselulla.
+  - *Additiivisia; sovellettu geopalvelin1-kantaan kehityksen aikana.*
 
 ### Curses-UI
 
 - **`cliui/valikko.py`** — päävalikon `"6) Tee raportti"` → `raporttinaytto.nayta`.
-- **`cliui/raporttinaytto.py`** — "Generoi raportti LLM:llä" (kutsuu `llmraportti.aja`) tai **"Näytä tilanne"** (`_nayta_tilanne` → `llmraportti.koosta_tilanne`): näyttää generointiajan, per-osio aikaleimat, tuoreuden (`_TUOREUS_TEKSTI`: ajan tasalla / vanhentunut / tuntematon) ja generoinnin jälkeen tehdyt korjaukset/kommentit. `_aika_str` muotoilee aikaleiman.
+- **`cliui/raporttinaytto.py`** — kolme toimintoa: "Generoi raportti LLM:llä" (`llmraportti.aja`); **"Näytä tilanne"** (`_nayta_tilanne` → `koosta_tilanne`): näyttää generointiajan, per-osio aikaleimat, tuoreuden (`_TUOREUS_TEKSTI`), **tuoreuden tarkistusajan** ja generoinnin jälkeiset korjaukset/kommentit — sekä käynnistää raskaan tuoreuslaskennan **taustasäikeessä** (`_kaynnista_taustatuoreus`, daemon + lippu ettei päällekkäisiä); **"Tarkista tuoreus nyt"** (`_tarkista_tuoreus` → `paivita_tuoreus`) laskee synkronisesti pyynnöstä. `_piirra_tilanne` jaettu näyttölohko, `_aika_str` muotoilee aikaleiman.
 
 ### Web-UI
 
@@ -58,7 +61,7 @@ Raportointi jakautuu kolmeen puoliskoon:
   - `POST .../kurssit/{kid}/hitl` (r. 525) — `HitlPyynto` (r. 516) sisältää valinnaisen `juurisyy`-kentän; reitti validoi sen `JUURISYYT`:ia vasten (400 tuntemattomalle).
   - `GET .../raportti` (r. ~536) → `{tid, osiot}`.
   - `GET .../raportti/tilastot` (r. 548) → per-kysymys-jakaumat **+ `hitl`-lohko** (`llmraportti.hitl_mittarit`: käsin-muutos-% + juurisyyjakauma, auktoritatiivinen rakenteellinen luku).
-  - `GET .../raportti/tilanne` (r. 623) → `koosta_tilanne`-tuoreustiedot, `_raportti_tilanne_valimuistissa` (r. 332, TTL-välimuisti ettei 15 s -päivitys kuormita etäkantaa).
+  - `GET .../raportti/tilanne` → `koosta_tilanne`-tuoreustiedot (sis. `tarkistettu`-aikaleiman), `_raportti_tilanne_valimuistissa` (TTL-välimuisti ettei 15 s -päivitys kuormita etäkantaa). Välimuistin ohittuessa laukaisee raskaan tuoreuslaskennan **taustasäikeessä** (`_kaynnista_taustatuoreus`, harvennettu `WEBUI_TUOREUS_VALI_S`, yksi per tutkimus kerrallaan).
   - WebSocket-pohjainen yhteismuokkauskerros (`raportti-liity`/`-teksti`/`-tallenna`/`-poistu`).
 
 - **`webui/staattinen/sovellus.js`** — `renderTutkimusRaportti` hakee raportin, tilastot ja tuoreuden; `_renderTuoreusPalkki` (tuoreuspalkki: generointiaika + ajan tasalla/vanhentunut/tuntematon + muutokset), `_renderHitlMittarit` (laatumittarit kurssit-osioon), `_renderTilastotTaulukko` (per-kysymys-jakaumat arvioinnit-osioon), `avaaRaporttiTulostus` (tulosta-PDF, sisältää myös HITL-mittarit).
@@ -69,7 +72,7 @@ Raportointi jakautuu kolmeen puoliskoon:
 
 ### Testit
 
-- **`testit/test_raportti.py`** — `llmraportti`: taulukko, viestirakentajat, `hitl_mittarit`, `raporttitiiviste` (`TestRaporttiTiiviste`: determinismi + herkkyys), `koosta_tilanne` (`TestKoostaTilanne`: neljä tuoreustilaa), `aja` (osiot, edistyminen, idempotenssi, laskentatiivisteen kirjoitus).
+- **`testit/test_raportti.py`** — `llmraportti`: taulukko, viestirakentajat, `hitl_mittarit`, `raporttitiiviste` (`TestRaporttiTiiviste`: determinismi + herkkyys), `koosta_tilanne` (`TestKoostaTilanne`: lukee tallennetun tuoreuden, EI laske tiivistettä — vartija kaataa jos laskee; tuoreustilat + `tarkistettu`), `paivita_tuoreus` (`TestPaivitaTuoreus`), `aja` (osiot, edistyminen, idempotenssi, laskentatiivisteen kirjoitus, tuoreuden siemennys).
 - **`testit/test_tietokanta.py`** — `TestHitlKorjaus` (juurisyy), `TestRaporttiTila` (aseta_raportti_osio-tiiviste, hae_raportti_tila, laske_*_jalkeen).
 - **`testit/test_webui.py`** — HITL-reitti (juurisyy: välitys, valinnaisuus, 400 tuntemattomalle), `/raportti`, `/raportti/tilastot` (ml. `hitl`-lohko), `/raportti/tilanne` (tuoreus + 404).
 - **`testit/test_cliui.py`** — curses-savutestit.
@@ -90,7 +93,8 @@ CLAUDE.md:n vaiheen 4 valmistumiskriteeri "sisältää %-osuuden riittämättöm
 Aiemmin CLIUI:n "Näytä tilanne" näytti vain ✓/— per osio, eikä kertonut milloin raportti tehtiin tai onko aineisto muuttunut. **Nyt:**
 
 - **A** (aikaleimapohjainen): generointiaika (`RaporttiOsio.Aikaleima`) + "generoinnin jälkeen N HITL-korjausta, M kommenttia" (`HitlKorjaus`/`ArvioKommentti`-aikaleimoista).
-- **B** (tiivistepohjainen, kattaa aikaleimattomat taulut): `RaporttiOsio.Laskentatiiviste` (migraatio 017) tallentaa lähdeaineiston hashin generoinnin hetkellä; status vertaa tallennettua nykyiseen → yksiselitteinen *ajan tasalla / vanhentunut / tuntematon*.
+- **B** (tiivistepohjainen, kattaa aikaleimattomat taulut): `RaporttiOsio.Laskentatiiviste` (migraatio 017) tallentaa lähdeaineiston hashin generoinnin hetkellä; status vertaa tallennettua nyky­signatuuriin → yksiselitteinen *ajan tasalla / vanhentunut / tuntematon*.
+- **Tuoreuslaskenta taustalla (PR #6, 2026-07-15):** nyky­signatuurin laskenta (`raporttitiiviste`) on raskas (per-yliopisto-tilastot + kaikki vastaukset + kommentit etäkannasta, ~22 s), eikä sitä lasketa synkronisesti joka status-katselulla. Viimeksi laskettu signatuuri + laskenta-aika tallennetaan `RaporttiTuoreus`-tauluun (migraatio 018); `koosta_tilanne` lukee sen halvalla ja palauttaa `tarkistettu`-aikaleiman. Raskas laskenta (`paivita_tuoreus`) ajetaan taustasäikeessä (CLIUI: "Näytä tilanne" käynnistää + "Tarkista tuoreus nyt" synkroninen; WebUI: endpoint laukaisee, harvennettu). Generointi siemenee tuoreuden heti. *Käyttäjän ohje: tuoreus ei tarvitse olla "juuri nyt" — riittää näyttää viimeksi laskettu tulos + aikaleima.*
 - Sama `koosta_tilanne`-logiikka molemmissa käyttöliittymissä (CLIUI "Näytä tilanne" + WebUI tuoreuspalkki).
 
 ## Avoimet kohdat / mahdollinen jatkokehitys
