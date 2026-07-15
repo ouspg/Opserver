@@ -425,6 +425,27 @@ td.arviointi-vastaus {
   border-radius: 0 4px 4px 0;
 }
 
+/* HITL-juurisyyn radiovalinta (virhetaksonomia). */
+.hitl-juurisyy { border: 1px solid #ddd; border-radius: 4px; padding: 0.6rem 0.75rem; }
+.hitl-juurisyy legend { font-size: 0.9rem; font-weight: 600; color: #555; padding: 0 0.3rem; }
+.hitl-juurisyy-valinta {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: #333;
+  margin: 0.3rem 0;
+  cursor: pointer;
+}
+.hitl-juurisyy-valinta input {
+  width: auto;
+  margin-top: 0.15rem;
+  padding: 0;
+  border-radius: 0;
+  flex: none;
+}
+
 /* HITL-toimintonappi Perustelu-sarakkeessa pylpyröiden alla. */
 .perustelu-toiminto { margin-top: 0.15rem; }
 

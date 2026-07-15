@@ -646,6 +646,7 @@ function avaaHitlModaali(kid, kurssiniimi, ai_perustelu, uusi_tila) {
   document.getElementById("hitl-nimi").value = hitl_nimi;
   document.getElementById("hitl-sahkoposti").value = hitl_sahkoposti;
   document.getElementById("hitl-perustelu").value = "";
+  document.querySelectorAll('input[name="hitl-juurisyy"]').forEach((r) => (r.checked = false));
   document.getElementById("hitl-laheta").textContent = toiminto;
   document.getElementById("hitl-modaali").classList.remove("piilotettu");
 }
@@ -663,7 +664,8 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
   const nimi = document.getElementById("hitl-nimi").value.trim();
   const sahkoposti = document.getElementById("hitl-sahkoposti").value.trim();
   const perustelu = document.getElementById("hitl-perustelu").value.trim();
-  if (!nimi || !sahkoposti || !perustelu) return;
+  const juurisyy = document.querySelector('input[name="hitl-juurisyy"]:checked')?.value || null;
+  if (!nimi || !sahkoposti || !perustelu || !juurisyy) return;
 
   hitl_nimi = nimi;
   hitl_sahkoposti = sahkoposti;
@@ -681,7 +683,7 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uusi_tila: hitl_uusi_tila, perustelu, nimi, sahkoposti }),
+        body: JSON.stringify({ uusi_tila: hitl_uusi_tila, perustelu, nimi, sahkoposti, juurisyy }),
       }
     );
     if (!vastaus.ok) throw new Error("Virhe tallennuksessa");
