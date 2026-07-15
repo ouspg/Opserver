@@ -184,6 +184,7 @@ class TestAja:
              patch("raportti.llmraportti.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
              patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
              patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet", return_value={}), \
+             patch("raportti.llmraportti.mallit.tallenna_raportti_tuoreus"), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio") as mock_aseta, \
              patch("raportti.llmraportti.kutsu.kysy", return_value="LLM-teksti") as mock_kysy, \
              patch("raportti.llmraportti._lue_jarjestelmakehote", return_value="jarj"):
@@ -201,6 +202,7 @@ class TestAja:
              patch("raportti.llmraportti.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
              patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
              patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet", return_value={}), \
+             patch("raportti.llmraportti.mallit.tallenna_raportti_tuoreus"), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio") as mock_aseta, \
              patch("raportti.llmraportti.kutsu.kysy", return_value="Generoitu teksti"), \
              patch("raportti.llmraportti._lue_jarjestelmakehote", return_value="jarj"):
@@ -213,6 +215,7 @@ class TestAja:
              patch("raportti.llmraportti.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
              patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
              patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet", return_value={}), \
+             patch("raportti.llmraportti.mallit.tallenna_raportti_tuoreus") as mock_tuoreus, \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio") as mock_aseta, \
              patch("raportti.llmraportti.kutsu.kysy", return_value="teksti"), \
              patch("raportti.llmraportti._lue_jarjestelmakehote", return_value="jarj"):
@@ -222,6 +225,9 @@ class TestAja:
         assert len(tiivisteet) == 3
         assert all(len(t) == 64 for t in tiivisteet)
         assert len(set(tiivisteet)) == 1  # sama tiiviste jokaiseen osioon
+        # Tuoreus siemennetään samalla generoinnin signatuurilla → tuore raportti
+        # näyttää heti "ajan tasalla".
+        mock_tuoreus.assert_called_once_with(TUTKIMUS["TID"], tiivisteet[0])
 
     def test_aja_kutsuu_edistyminen_cb(self):
         tapahtumat = []
@@ -232,6 +238,7 @@ class TestAja:
              patch("raportti.llmraportti.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
              patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
              patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet", return_value={}), \
+             patch("raportti.llmraportti.mallit.tallenna_raportti_tuoreus"), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio"), \
              patch("raportti.llmraportti.kutsu.kysy", return_value="teksti"), \
              patch("raportti.llmraportti._lue_jarjestelmakehote", return_value="jarj"):
@@ -248,6 +255,7 @@ class TestAja:
              patch("raportti.llmraportti.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
              patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
              patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet", return_value={}), \
+             patch("raportti.llmraportti.mallit.tallenna_raportti_tuoreus"), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio") as mock_aseta, \
              patch("raportti.llmraportti.kutsu.kysy", return_value="teksti"), \
              patch("raportti.llmraportti._lue_jarjestelmakehote", return_value="jarj"):
@@ -267,6 +275,18 @@ class TestKoostaTilanne:
         return [{"OsioAvain": a, "Aikaleima": aika, "Laskentatiiviste": t}
                 for a, aika, t in avaimet_ja_tiivisteet]
 
+    def _koosta(self, tila, tuoreustieto, hitl=0, kommentit=0):
+        """Ajaa koosta_tilanteen mockatuilla DB-hauilla. Keskeistä: koosta_tilanne
+        EI enää laske raporttitiivistettä — se lukee tuoreuden tallennettuna
+        (hae_raportti_tuoreus). Vartija varmistaa ettei raskasta laskentaa kutsuta."""
+        with patch("raportti.llmraportti.mallit.hae_raportti_tila", return_value=tila), \
+             patch("raportti.llmraportti.mallit.hae_raportti_tuoreus", return_value=tuoreustieto), \
+             patch("raportti.llmraportti.mallit.laske_hitl_korjaukset_jalkeen", return_value=hitl), \
+             patch("raportti.llmraportti.mallit.laske_arviokommentit_jalkeen", return_value=kommentit), \
+             patch("raportti.llmraportti.raporttitiiviste",
+                   side_effect=AssertionError("koosta_tilanne ei saa laskea tiivistettä")):
+            return llmraportti.koosta_tilanne(self.TUTKIMUS_T)
+
     def test_ei_generoitu(self):
         with patch("raportti.llmraportti.mallit.hae_raportti_tila", return_value=[]):
             tulos = llmraportti.koosta_tilanne(self.TUTKIMUS_T)
@@ -278,45 +298,55 @@ class TestKoostaTilanne:
             ("kurssit", "2026-07-15 10:00:05", "abc"),
             ("arvioinnit", "2026-07-15 10:00:10", "abc"),
         ])
-        with patch("raportti.llmraportti.mallit.hae_raportti_tila", return_value=tila), \
-             patch("raportti.llmraportti.mallit.laske_hitl_korjaukset_jalkeen", return_value=0), \
-             patch("raportti.llmraportti.mallit.laske_arviokommentit_jalkeen", return_value=0), \
-             patch("raportti.llmraportti.raporttitiiviste", return_value="abc"):
-            tulos = llmraportti.koosta_tilanne(self.TUTKIMUS_T)
+        tulos = self._koosta(
+            tila, {"Signatuuri": "abc", "Tarkistettu": "2026-07-15 12:00:00"})
         assert tulos["generoitu"] is True
         assert tulos["tuoreus"] == "ajan_tasalla"
+        assert tulos["tarkistettu"] == "2026-07-15 12:00:00"
         assert tulos["puuttuu"] == []
         assert tulos["generoitu_aika"] == "2026-07-15 10:00:00"  # varhaisin
 
     def test_vanhentunut_kun_tiiviste_eroaa(self):
         tila = self._tila([("johdanto", "2026-07-15 10:00:00", "vanha")])
-        with patch("raportti.llmraportti.mallit.hae_raportti_tila", return_value=tila), \
-             patch("raportti.llmraportti.mallit.laske_hitl_korjaukset_jalkeen", return_value=2), \
-             patch("raportti.llmraportti.mallit.laske_arviokommentit_jalkeen", return_value=1), \
-             patch("raportti.llmraportti.raporttitiiviste", return_value="uusi"):
-            tulos = llmraportti.koosta_tilanne(self.TUTKIMUS_T)
+        tulos = self._koosta(
+            tila, {"Signatuuri": "uusi", "Tarkistettu": "2026-07-15 12:00:00"},
+            hitl=2, kommentit=1)
         assert tulos["tuoreus"] == "vanhentunut"
+        assert tulos["tarkistettu"] == "2026-07-15 12:00:00"
         assert tulos["hitl_jalkeen"] == 2
         assert tulos["kommentit_jalkeen"] == 1
 
-    def test_tuntematon_kun_tiiviste_puuttuu(self):
+    def test_tuntematon_kun_generointitiiviste_puuttuu(self):
         """Ennen tuoreusseurantaa generoitu raportti (Laskentatiiviste NULL)."""
         tila = self._tila([("johdanto", "2026-07-15 10:00:00", None)])
-        with patch("raportti.llmraportti.mallit.hae_raportti_tila", return_value=tila), \
-             patch("raportti.llmraportti.mallit.laske_hitl_korjaukset_jalkeen", return_value=0), \
-             patch("raportti.llmraportti.mallit.laske_arviokommentit_jalkeen", return_value=0), \
-             patch("raportti.llmraportti.raporttitiiviste", return_value="x"):
-            tulos = llmraportti.koosta_tilanne(self.TUTKIMUS_T)
+        tulos = self._koosta(tila, {"Signatuuri": "x", "Tarkistettu": "2026-07-15 12:00:00"})
         assert tulos["tuoreus"] == "tuntematon"
+        assert tulos["tarkistettu"] is None
+
+    def test_tuntematon_kun_tuoreutta_ei_viela_laskettu(self):
+        """Generoitu tiiviste on, mutta taustatarkistus ei ole vielä ajanut."""
+        tila = self._tila([("johdanto", "2026-07-15 10:00:00", "abc")])
+        tulos = self._koosta(tila, None)
+        assert tulos["tuoreus"] == "tuntematon"
+        assert tulos["tarkistettu"] is None
 
     def test_puuttuva_osio_listataan(self):
         tila = self._tila([
             ("johdanto", "2026-07-15 10:00:00", "abc"),
             ("kurssit", "2026-07-15 10:00:05", "abc"),
         ])
-        with patch("raportti.llmraportti.mallit.hae_raportti_tila", return_value=tila), \
-             patch("raportti.llmraportti.mallit.laske_hitl_korjaukset_jalkeen", return_value=0), \
-             patch("raportti.llmraportti.mallit.laske_arviokommentit_jalkeen", return_value=0), \
-             patch("raportti.llmraportti.raporttitiiviste", return_value="abc"):
-            tulos = llmraportti.koosta_tilanne(self.TUTKIMUS_T)
+        tulos = self._koosta(
+            tila, {"Signatuuri": "abc", "Tarkistettu": "2026-07-15 12:00:00"})
         assert tulos["puuttuu"] == ["arvioinnit"]
+
+
+class TestPaivitaTuoreus:
+    """paivita_tuoreus: raskas tiivistelaskenta + tallennus (taustalle)."""
+
+    def test_laskee_ja_tallentaa_signatuurin(self):
+        with patch("raportti.llmraportti.raporttitiiviste", return_value="sig123") as mock_tiiviste, \
+             patch("raportti.llmraportti.mallit.tallenna_raportti_tuoreus") as mock_tallenna:
+            sig = llmraportti.paivita_tuoreus({"TID": 7, "LuokittelunNimi": "T"})
+        assert sig == "sig123"
+        mock_tiiviste.assert_called_once()
+        mock_tallenna.assert_called_once_with(7, "sig123")

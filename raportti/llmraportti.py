@@ -46,13 +46,32 @@ def raporttitiiviste(tutkimus: dict, tilastot: list[dict] | None = None,
     return tiiviste.laske(tilasto_osa, kysymys_osa, vastaus_osa, kommentti_osa, kehote_osa)
 
 
+def _tuoreus(generointi_sig: str | None, tuoreustieto: dict | None) -> tuple[str, object]:
+    """Ratkaisee tuoreuden tallennetuista signatuureista — EI laske tiivistettä
+    (raskas laskenta on erillään, paivita_tuoreus). Palauttaa (tila, tarkistettu):
+      - generointi_sig None → raportti generoitu ennen tuoreusseurantaa → tuntematon
+      - tuoreustietoa ei vielä laskettu → tuntematon (taustatarkistus tulossa)
+      - muuten vertailu tallennettuun tuoreussignatuuriin → ajan_tasalla/vanhentunut
+    """
+    if generointi_sig is None:
+        return "tuntematon", None
+    if not tuoreustieto or not tuoreustieto.get("Signatuuri"):
+        return "tuntematon", None
+    tila = "ajan_tasalla" if tuoreustieto["Signatuuri"] == generointi_sig else "vanhentunut"
+    return tila, tuoreustieto.get("Tarkistettu")
+
+
 def koosta_tilanne(tutkimus: dict) -> dict:
     """Kokoaa raportin tuoreustiedot status-näkymiä varten (CLIUI + WebUI).
     Curses- ja HTTP-riippumaton — palauttaa raakadatan, kumpikin UI muotoilee.
 
     Palauttaa {"generoitu": False} jos raporttia ei ole; muuten osioiden tila +
-    aikaleimat, tuoreus (tiivistevertailu: ajan_tasalla / vanhentunut / tuntematon)
-    ja generoinnin jälkeen tehtyjen HITL-korjausten ja kommenttien määrän.
+    aikaleimat, tuoreus (ajan_tasalla / vanhentunut / tuntematon), tuoreuden
+    laskenta-aika (tarkistettu) ja generoinnin jälkeen tehtyjen HITL-korjausten
+    ja kommenttien määrän.
+
+    KEVYT: lukee viimeksi lasketun tuoreussignatuurin tallennettuna — ei laske
+    raskasta lähdeaineiston tiivistettä (se ajetaan taustalla, paivita_tuoreus).
     """
     tid = tutkimus["TID"]
     tila_rivit = mallit.hae_raportti_tila(tid)
@@ -66,11 +85,8 @@ def koosta_tilanne(tutkimus: dict) -> dict:
     aikaleimat = [r["Aikaleima"] for r in tila_rivit]
     generoitu_aika = min(aikaleimat)
 
-    tallennettu = next((r["Laskentatiiviste"] for r in tila_rivit if r["Laskentatiiviste"]), None)
-    if tallennettu is None:
-        tuoreus = "tuntematon"
-    else:
-        tuoreus = "ajan_tasalla" if raporttitiiviste(tutkimus) == tallennettu else "vanhentunut"
+    generointi_sig = next((r["Laskentatiiviste"] for r in tila_rivit if r["Laskentatiiviste"]), None)
+    tuoreus, tarkistettu = _tuoreus(generointi_sig, mallit.hae_raportti_tuoreus(tid))
 
     return {
         "generoitu": True,
@@ -79,9 +95,20 @@ def koosta_tilanne(tutkimus: dict) -> dict:
         "generoitu_aika": generoitu_aika,
         "viimeksi_muokattu": max(aikaleimat),
         "tuoreus": tuoreus,
+        "tarkistettu": tarkistettu,
         "hitl_jalkeen": mallit.laske_hitl_korjaukset_jalkeen(tid, generoitu_aika),
         "kommentit_jalkeen": mallit.laske_arviokommentit_jalkeen(tid, generoitu_aika),
     }
+
+
+def paivita_tuoreus(tutkimus: dict) -> str:
+    """Laskee lähdeaineiston tuoreussignatuurin (RASKAS: per-yliopisto-tilastot +
+    kaikki vastaukset + kommentit etäkannasta) ja tallentaa sen aikaleimoineen.
+    Ajetaan taustalla tai käyttäjän pyynnöstä — EI status-katselun kriittisellä
+    polulla. Palauttaa lasketun signatuurin."""
+    sig = raporttitiiviste(tutkimus)
+    mallit.tallenna_raportti_tuoreus(tutkimus["TID"], sig)
+    return sig
 
 
 def _lue_jarjestelmakehote() -> str:
@@ -246,6 +273,11 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> int:
         teksti = kutsu.kysy(viesti, jarjestelma)
         mallit.aseta_raportti_osio(tid, avain, teksti, laskentatiiviste=laskenta)
         generoitu += 1
+
+    # Siemennä tuoreus: juuri generoitu raportti on määritelmällisesti ajan tasalla
+    # (nykysignatuuri == generoinnin signatuuri) → status näyttää sen heti oikein
+    # ilman että taustatarkistuksen tarvitsee vielä ehtiä ajaa.
+    mallit.tallenna_raportti_tuoreus(tid, laskenta)
 
     if edistyminen_cb:
         edistyminen_cb(len(OSIOT), len(OSIOT), "valmis")

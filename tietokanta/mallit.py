@@ -781,21 +781,30 @@ def hae_tutkimuksen_tilanne(tid: int) -> dict:
 
 
 def _arvioimattomat_ehto(tid: int) -> tuple[str, tuple]:
-    """FROM+WHERE (ja parametrit) mukaan otetuille kursseille, joilta puuttuu
-    vielä ei-tyhjiä vastauksia. Jaettu rivihaun ja lukumäärän kesken (DRY)."""
+    """FROM+GROUP BY (ja parametrit) mukaan otetuille kursseille, joilta puuttuu
+    vielä ei-tyhjiä vastauksia. Jaettu rivihaun ja lukumäärän kesken (DRY).
+
+    GROUP BY -aggregaatti korreloidun per-rivi-alikyselyn sijaan: aiemmin jokaista
+    mukana-kurssia kohti ajettiin oma COUNT-alikysely (O(kurssit) × etälatenssi).
+    Nyt kurssit, kysymykset ja vastaukset yhdistetään kertaalleen ja verrataan
+    vastattujen kysymysten määrää kysymysten kokonaismäärään.
+
+    Palauttaa fragmentin, joka ryhmittelee k.KID:n mukaan → kutsuja kietoo sen:
+    rivihaku `SELECT k.* {ehto}`, lukumäärä `SELECT COUNT(*) FROM (SELECT k.KID {ehto}) t`.
+    """
     scope_where, scope_params = _tutkimus_kurssi_scope(tid)
-    scope_sql = f" AND {scope_where}" if scope_where else ""
+    where_sql = f"WHERE {scope_where}" if scope_where else ""
     sp = scope_params or []
     ehto = f"""
         FROM Kurssi k
         JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s AND kl.Mukana = 1
-        WHERE (
-            SELECT COUNT(*) FROM Vastaukset v
-            JOIN Kysymykset ky ON v.KysID = ky.KysID
-            WHERE ky.TID = %s AND v.KID = k.KID AND v.Vastaus != ''
-        ) < (SELECT COUNT(*) FROM Kysymykset WHERE TID = %s){scope_sql}
+        LEFT JOIN Kysymykset ky ON ky.TID = %s
+        LEFT JOIN Vastaukset v ON v.KID = k.KID AND v.KysID = ky.KysID AND v.Vastaus <> ''
+        {where_sql}
+        GROUP BY k.KID
+        HAVING COUNT(v.VasID) < COUNT(DISTINCT ky.KysID)
     """
-    return ehto, (tid, tid, tid, *sp)
+    return ehto, (tid, tid, *sp)
 
 
 def hae_arvioimattomat(tid: int) -> list[dict]:
@@ -812,6 +821,7 @@ def hae_arvioimattomat(tid: int) -> list[dict]:
             return _rivit_dikteina(kursori)
 
 
+
 def laske_arvioimattomat(tid: int) -> int:
     """Arvioimattomien kurssien lukumäärä. Erillinen hae_arvioimattomat'sta, jotta
     tilannesivu ei vedä kaikkien hyväksyttyjen kurssien täysiä rivejä (OpsKuvaus-
@@ -819,7 +829,7 @@ def laske_arvioimattomat(tid: int) -> int:
     ehto, params = _arvioimattomat_ehto(tid)
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute(f"SELECT COUNT(*) {ehto}", params)
+            kursori.execute(f"SELECT COUNT(*) FROM (SELECT k.KID {ehto}) t", params)
             return int(kursori.fetchone()[0])
 
 
@@ -958,6 +968,33 @@ def hae_raportti_tila(tid: int) -> list[dict]:
                 (tid,),
             )
             return _rivit_dikteina(kursori)
+
+
+def hae_raportti_tuoreus(tid: int) -> dict | None:
+    """Viimeksi laskettu raportin tuoreussignatuuri + laskenta-aika, tai None jos
+    tuoreutta ei ole vielä laskettu. Kevyt luku — raskas tiivistelaskenta tehdään
+    erikseen taustalla (tallenna_raportti_tuoreus)."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                "SELECT Signatuuri, Tarkistettu FROM RaporttiTuoreus WHERE TID = %s",
+                (tid,),
+            )
+            return _rivi_diktina(kursori)
+
+
+def tallenna_raportti_tuoreus(tid: int, signatuuri: str | None) -> None:
+    """Upsert viimeksi laskettu tuoreussignatuuri; Tarkistettu = NOW() (taulun
+    ON UPDATE / DEFAULT hoitaa aikaleiman). Kutsutaan taustalaskennasta ja
+    generoinnista (jolloin signatuuri = generoinnin lähdeaineiston tiiviste)."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                """INSERT INTO RaporttiTuoreus (TID, Signatuuri) VALUES (%s, %s)
+                   ON DUPLICATE KEY UPDATE Signatuuri = VALUES(Signatuuri),
+                       Tarkistettu = CURRENT_TIMESTAMP""",
+                (tid, signatuuri),
+            )
 
 
 def laske_hitl_korjaukset_jalkeen(tid: int, aika) -> int:

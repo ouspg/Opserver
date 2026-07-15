@@ -5,6 +5,7 @@ import hmac
 import json
 import os
 import secrets
+import threading
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -328,16 +329,54 @@ def _kurssit_valimuistissa(kkid, lukuvuosi) -> list[dict]:
     return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
 
 
+# Raskas tuoreuslaskenta (raporttitiiviste) ajetaan taustalla — ei estä pollausta.
+# Rajoitetaan uudelleenlaskenta korkeintaan yhteen per tutkimus kerrallaan JA
+# harvennetaan aikavälillä, ettei jatkuva 15 s pollaus laukaise laskentaa alati.
+_TUOREUS_PAIVITYS_VALI = float(os.environ.get("WEBUI_TUOREUS_VALI_S", "300"))
+_tuoreus_lukko = threading.Lock()
+_tuoreus_kaynnissa: set[int] = set()
+
+
+def _kaynnista_taustatuoreus(tutkimus: dict) -> None:
+    """Käynnistää raportin tuoreuslaskennan taustasäikeessä, jos tallennettu tuoreus
+    puuttuu tai on vanhempi kuin _TUOREUS_PAIVITYS_VALI. Ei blokkaa pyyntöä; tulos
+    näkyy seuraavalla pollauksella (tilanne näyttää 'tarkistettu'-aikaleiman)."""
+    tid = tutkimus["TID"]
+    tuoreus = mallit.hae_raportti_tuoreus(tid)
+    tarkistettu = tuoreus.get("Tarkistettu") if tuoreus else None
+    if tarkistettu and (datetime.now() - tarkistettu).total_seconds() < _TUOREUS_PAIVITYS_VALI:
+        return
+    with _tuoreus_lukko:
+        if tid in _tuoreus_kaynnissa:
+            return
+        _tuoreus_kaynnissa.add(tid)
+
+    def aja():
+        try:
+            llmraportti.paivita_tuoreus(tutkimus)
+        except Exception:
+            pass  # parhaan yrityksen mukaan; pollaus ei riipu taustapäivityksestä
+        finally:
+            with _tuoreus_lukko:
+                _tuoreus_kaynnissa.discard(tid)
+
+    threading.Thread(target=aja, daemon=True).start()
+
+
 @ttl_valimuisti(_VALIMUISTI_TTL)
 def _raportti_tilanne_valimuistissa(slug: str):
-    """Raportin tuoreus (koosta_tilanne). Välimuistitettu, koska WebUI:n
-    raporttinäkymä päivittyy 15 s välein ja tiivisteen uudelleenlaskenta hakee
-    useita tauluja etäkannasta — ilman välimuistia jokainen päivitys kuormittaisi.
-    Tuoreuslippu saa olla enintään TTL:n verran vanha. None jos tutkimusta ei ole."""
+    """Raportin tuoreus (koosta_tilanne) — KEVYT: lukee viimeksi lasketun
+    tuoreustuloksen tallennettuna (raskas tiivistelaskenta ajetaan taustalla).
+    Välimuistitettu, koska WebUI:n raporttinäkymä päivittyy 15 s välein.
+    Välimuistin ohittuessa (≤ TTL) laukaistaan taustatuoreuden päivitys (harvennettu
+    _TUOREUS_PAIVITYS_VALI:llä). None jos tutkimusta ei ole."""
     tutkimus = mallit.hae_tutkimus_slugilla(slug)
     if tutkimus is None:
         return None
-    return llmraportti.koosta_tilanne(tutkimus)
+    tilanne = llmraportti.koosta_tilanne(tutkimus)
+    if tilanne.get("generoitu"):
+        _kaynnista_taustatuoreus(tutkimus)
+    return tilanne
 
 
 _VALIMUISTIT = [_korkeakoulut_valimuistissa, _lukuvuodet_valimuistissa,

@@ -2,7 +2,6 @@ import os
 import threading
 from contextlib import contextmanager
 import mysql.connector
-from mysql.connector import pooling, errors
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -23,12 +22,15 @@ def _asetukset() -> dict:
     }
 
 
-# Yhteyspooli: etäpalvelimella (geopalvelin1, Tailscale) jokainen TCP+auth-
-# kättely maksaa satoja millisekunteja, ja poolaamaton yhteys/kutsu teki sivuista
-# tuskaisia. Pooli maksaa kättelyn ~kerran ja lainaa yhteyden uudelleen.
-# pool_reset_session=False: käyttö on tilaton (ei sessiomuuttujia/temp-tauluja) ja
-# yhteydenmanageri commit/rollbackaa aina ennen palautusta → nollausta ei tarvita
-# (säästää yhden verkkomatkan palautuksessa).
+# Laiska yhteyspooli: etäpalvelimella (geopalvelin1, Tailscale) jokainen TCP+auth-
+# kättely maksaa satoja ms – sekunteja. mysql.connector.MySQLConnectionPool avaa
+# KAIKKI pool_size-yhteydet heti rakennettaessa → ~24 s ennen ensimmäistäkään
+# kyselyä (mitattu: 8 × ~2,7 s). Tämä pooli luo yhteydet vasta tarvittaessa: eka
+# kysely maksaa yhden kättelyn, pooli kasvaa vain jos rinnakkaisuus sitä vaatii.
+# Ei per-lainaus-ping()iä — se lisäisi verkkomatkan joka kyselyyn (luokittelun
+# tuhannet kirjoitukset × Tailscale-RTT). Aktiivikäytössä yhteydet eivät ehdi
+# vanhentua; harvinainen idle-katkennut yhteys → kysely virhe kerran (luokittelun
+# passiluuppi yrittää erän uusiksi, UI-kysely toistetaan käsin).
 _pooli = None
 _pooli_lukko = threading.Lock()
 
@@ -38,32 +40,64 @@ def _pooli_koko() -> int:
     return int(os.getenv("DB_POOLI_KOKO", "8"))
 
 
-def _hae_pooli():
+class _LaiskaPooli:
+    """Luo yhteydet tarvittaessa kattoon (koko) asti ja käyttää palautetut
+    uudelleen. Katon täyttyessä (rinnakkaisuuspiikki) antaa väliaikaisen yhteyden,
+    joka suljetaan palautuksessa — ei tukita ruuhkaa eikä kasvateta poolia yli."""
+
+    def __init__(self, koko: int, asetukset: dict):
+        self._koko = koko
+        self._asetukset = asetukset
+        self._vapaat: list = []   # käytettävissä olevat pooliyhteydet (LIFO)
+        self._luotu = 0           # luotujen pooliyhteyksien määrä (vapaat + lainassa)
+        self._lukko = threading.Lock()
+
+    def _yhdista(self):
+        return mysql.connector.connect(**self._asetukset)
+
+    def hae(self):
+        """Palauttaa (yhteys, pooloitu). pooloitu=False → väliaikainen yhteys, joka
+        suljetaan palautuksessa (katto oli täynnä)."""
+        with self._lukko:
+            if self._vapaat:
+                return self._vapaat.pop(), True
+            luo_pooliin = self._luotu < self._koko
+            if luo_pooliin:
+                self._luotu += 1
+        # Kättely lukon ULKOPUOLELLA — verkkoviive ei saa tukkia muita säikeitä.
+        if luo_pooliin:
+            try:
+                return self._yhdista(), True
+            except Exception:
+                with self._lukko:
+                    self._luotu -= 1  # vapauta slotti, ettei pooli jää vajaaksi
+                raise
+        return self._yhdista(), False
+
+    def palauta(self, yht, pooloitu: bool) -> None:
+        if pooloitu:
+            with self._lukko:
+                self._vapaat.append(yht)  # takaisin pooliin ilman ping-verkkomatkaa
+        else:
+            try:
+                yht.close()
+            except Exception:
+                pass
+
+
+def _hae_pooli() -> _LaiskaPooli:
     global _pooli
     if _pooli is None:
         with _pooli_lukko:
             if _pooli is None:
-                _pooli = pooling.MySQLConnectionPool(
-                    pool_name="opserver",
-                    pool_size=_pooli_koko(),
-                    pool_reset_session=False,
-                    **_asetukset(),
-                )
+                _pooli = _LaiskaPooli(_pooli_koko(), _asetukset())
     return _pooli
 
 
 @contextmanager
 def yhteys():
-    try:
-        yht = _hae_pooli().get_connection()
-    except errors.PoolError:
-        # Pooli täynnä (esim. rinnakkaisuus > poolin koko) → tuore yhteys kuten
-        # ennen. Ei kaadu ruuhkaan; hidas mutta toimii.
-        yht = mysql.connector.connect(**_asetukset())
-    # ponytail: ei per-lainaus-ping()iä — se lisäisi verkkomatkan joka kyselyyn
-    # (luokittelun tuhannet kirjoitukset × Tailscale-RTT). Aktiivikäytössä yhteydet
-    # eivät ehdi vanhentua; harvinainen idle-katkennut yhteys → kysely virhe kerran
-    # (luokittelun passiluuppi yrittää erän uusiksi, UI-kysely toistetaan käsin).
+    pooli = _hae_pooli()
+    yht, pooloitu = pooli.hae()
     try:
         yield yht
         yht.commit()
@@ -74,7 +108,7 @@ def yhteys():
             pass
         raise
     finally:
-        yht.close()  # pooliyhteys palautuu pooliin; tuore sulkeutuu
+        pooli.palauta(yht, pooloitu)
 
 
 def alusta_tietokanta():
