@@ -669,12 +669,14 @@ class TestHitlKorjaus:
         mallit.tallenna_hitl_korjaus(
             tid=1, kid=7, uusi_tila=False,
             perustelu="Ei kuulu aiheeseen", nimi="Matti", sahkoposti="matti@esim.fi",
+            juurisyy="llm_virhe",
         )
         assert kursori.execute.call_count == 2
         insert_sql = kursori.execute.call_args_list[0][0][0]
         update_sql = kursori.execute.call_args_list[1][0][0]
         assert "INSERT" in insert_sql.upper()
         assert "HitlKorjaus" in insert_sql
+        assert "Juurisyy" in insert_sql
         assert "UPDATE" in update_sql.upper()
         assert "Kurssiluokitus" in update_sql
 
@@ -683,11 +685,26 @@ class TestHitlKorjaus:
         mallit.tallenna_hitl_korjaus(
             tid=2, kid=9, uusi_tila=True,
             perustelu="Sopii hyvin", nimi="Liisa", sahkoposti="liisa@esim.fi",
+            juurisyy="riittamaton_opas",
         )
         insert_params = kursori.execute.call_args_list[0][0][1]
-        assert insert_params == (2, 9, True, "Sopii hyvin", "Liisa", "liisa@esim.fi")
+        assert insert_params == (2, 9, True, "Sopii hyvin", "Liisa", "liisa@esim.fi",
+                                 "riittamaton_opas")
         update_params = kursori.execute.call_args_list[1][0][1]
         assert update_params == (True, 2, 9)
+
+    def test_tallenna_hitl_korjaus_juurisyy_oletuksena_none(self, mock_yhteys):
+        """Juurisyy on valinnainen malliparametri (vanhat kutsut, NULL kannassa)."""
+        yht, kursori = mock_yhteys
+        mallit.tallenna_hitl_korjaus(
+            tid=3, kid=4, uusi_tila=False,
+            perustelu="x", nimi="N", sahkoposti="n@esim.fi",
+        )
+        insert_params = kursori.execute.call_args_list[0][0][1]
+        assert insert_params[-1] is None
+
+    def test_JUURISYYT_sisaltaa_kaksi_taksonomia_arvoa(self):
+        assert set(mallit.JUURISYYT) == {"riittamaton_opas", "llm_virhe"}
 
 
 class TestKurssiarviointi:

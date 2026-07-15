@@ -825,15 +825,27 @@ def laske_arvioimattomat(tid: int) -> int:
 
 # --- HITL-korjaukset ---
 
+# Virhetaksonomian juurisyyt (CLAUDE.md): koodi → ihmisluettava nimi.
+# Jaettu WebUI-validoinnin (palvelin.py) ja raporttitilastojen kesken.
+JUURISYYT = {
+    "riittamaton_opas": "Riittämätön opinto-opas",
+    "llm_virhe": "LLM:n väärinymmärrys",
+}
+
+
 def tallenna_hitl_korjaus(tid: int, kid: int, uusi_tila: bool, perustelu: str,
-                          nimi: str, sahkoposti: str) -> None:
-    """Tallentaa ihmisen tekemän luokittelun ohituksen ja päivittää Kurssiluokitus.Mukana."""
+                          nimi: str, sahkoposti: str, juurisyy: str | None = None) -> None:
+    """Tallentaa ihmisen tekemän luokittelun ohituksen ja päivittää Kurssiluokitus.Mukana.
+
+    juurisyy: virhetaksonomian koodi (ks. JUURISYYT) tai None, jos merkitsemättä.
+    """
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                """INSERT INTO HitlKorjaus (TID, KID, UusiTila, Perustelu, KayttajaNimi, Sahkoposti)
-                   VALUES (%s, %s, %s, %s, %s, %s)""",
-                (tid, kid, uusi_tila, perustelu, nimi, sahkoposti),
+                """INSERT INTO HitlKorjaus
+                       (TID, KID, UusiTila, Perustelu, KayttajaNimi, Sahkoposti, Juurisyy)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                (tid, kid, uusi_tila, perustelu, nimi, sahkoposti, juurisyy),
             )
             kursori.execute(
                 "UPDATE Kurssiluokitus SET Mukana = %s WHERE TID = %s AND KID = %s",
