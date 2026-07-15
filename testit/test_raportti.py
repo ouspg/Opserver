@@ -18,13 +18,17 @@ TILASTOT = [
         "KKID": 1, "KouluNimi": "Tampereen yliopisto",
         "KurssiYhteensa": 100, "LLMKasitelty": 40,
         "Mukana": 12, "Hylatty": 28, "HitlLkm": 3,
+        "HitlKursseja": 3, "RiittamatonOpas": 2, "LlmVirhe": 1, "TuntematonSyy": 0,
     },
     {
         "KKID": 2, "KouluNimi": "Aalto-yliopisto",
         "KurssiYhteensa": 80, "LLMKasitelty": 30,
         "Mukana": 8, "Hylatty": 22, "HitlLkm": 1,
+        "HitlKursseja": 1, "RiittamatonOpas": 0, "LlmVirhe": 0, "TuntematonSyy": 1,
     },
 ]
+# Yhteensä: LLM-luokiteltu 70, käsin muutettu 4 (5,7 %); juurisyyt
+# riittämätön opas 2 (50 %), LLM:n virhe 1 (25 %), tuntematon 1 (25 %).
 
 KYSYMYKSET = [
     {"KysID": 10, "TID": 1, "Kysymys": "Liittyykö kurssi kyberturvallisuuteen?"},
@@ -82,7 +86,36 @@ class TestRakennaViestiKurssit:
 
     def test_sisaltaa_hitl_summan(self):
         viesti = llmraportti._rakenna_kurssit_viesti(TUTKIMUS, TILASTOT)
-        assert "4" in viesti  # 3 + 1 HITL-korjausta
+        assert "4" in viesti  # 3 + 1 käsin muutettua kurssia
+
+    def test_sisaltaa_kasin_muutos_osuuden(self):
+        viesti = llmraportti._rakenna_kurssit_viesti(TUTKIMUS, TILASTOT)
+        assert "5.7" in viesti  # 4 / 70 LLM-luokiteltua kurssia
+
+    def test_sisaltaa_juurisyyjakauman(self):
+        viesti = llmraportti._rakenna_kurssit_viesti(TUTKIMUS, TILASTOT)
+        assert "Riittämätön opinto-opas" in viesti
+        assert "50.0" in viesti  # 2 / 4 korjauksista riittämätön opas
+        assert "LLM:n väärinymmärrys" in viesti
+        assert "25.0" in viesti  # 1 / 4 korjauksista LLM:n virhe
+
+
+class TestHitlMittarit:
+    def test_laskee_osuudet(self):
+        m = llmraportti._hitl_mittarit(TILASTOT)
+        assert m["llm_kasitelty"] == 70
+        assert m["muutettu"] == 4
+        assert round(m["muutettu_pros"], 1) == 5.7
+        assert m["opas"] == 2 and round(m["opas_pros"], 1) == 50.0
+        assert m["llm_virhe"] == 1 and round(m["llm_virhe_pros"], 1) == 25.0
+        assert m["tuntematon"] == 1
+
+    def test_nolla_muutosta_ei_jaa_nollalla(self):
+        tyhjat = [{"LLMKasitelty": 0, "HitlKursseja": 0, "RiittamatonOpas": 0,
+                   "LlmVirhe": 0, "TuntematonSyy": 0}]
+        m = llmraportti._hitl_mittarit(tyhjat)
+        assert m["muutettu_pros"] == 0.0
+        assert m["opas_pros"] == 0.0
 
 
 class TestRakennaViestiArvioinnit:

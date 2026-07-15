@@ -24,6 +24,44 @@ def _tilasto_taulukko(rivit: list[dict]) -> str:
     return "\n".join(rivit_txt)
 
 
+def _hitl_mittarit(tilastot: list[dict]) -> dict:
+    """Kaksi raporttimittaria HITL-korjauksista (CLAUDE.md, vaihe 4):
+
+    1. Käsin muutettujen osuus = muutetut kurssit / LLM-luokitellut kurssit.
+    2. Juurisyyjakauma = korjauksista montako % johtui riittämättömästä
+       oppaasta (data-ongelma) vs. LLM:n virheestä (kehote-ongelma).
+    """
+    llm_kasitelty = sum(r["LLMKasitelty"] for r in tilastot)
+    muutettu = sum(r["HitlKursseja"] for r in tilastot)
+    opas = sum(r["RiittamatonOpas"] for r in tilastot)
+    llm_virhe = sum(r["LlmVirhe"] for r in tilastot)
+    tuntematon = sum(r["TuntematonSyy"] for r in tilastot)
+    osuus = lambda osa, koko: 100 * osa / koko if koko else 0.0
+    return {
+        "llm_kasitelty": llm_kasitelty, "muutettu": muutettu,
+        "muutettu_pros": osuus(muutettu, llm_kasitelty),
+        "opas": opas, "opas_pros": osuus(opas, muutettu),
+        "llm_virhe": llm_virhe, "llm_virhe_pros": osuus(llm_virhe, muutettu),
+        "tuntematon": tuntematon, "tuntematon_pros": osuus(tuntematon, muutettu),
+    }
+
+
+def _hitl_yhteenveto_teksti(m: dict) -> str:
+    """Muotoilee HITL-mittarit raporttikehotteeseen sopivaksi tekstilohkoksi."""
+    opas_nimi = mallit.JUURISYYT["riittamaton_opas"]
+    llm_nimi = mallit.JUURISYYT["llm_virhe"]
+    return (
+        f"Ihmisen käsin muuttamia luokittelupäätöksiä: {m['muutettu']} / "
+        f"{m['llm_kasitelty']} LLM-luokiteltua kurssia ({m['muutettu_pros']:.1f} %).\n"
+        f"Korjausten juurisyyt (osuus käsin muutetuista kursseista):\n"
+        f"- {opas_nimi} (tieto ei ollut oppaassa, data-ongelma): "
+        f"{m['opas']} kpl ({m['opas_pros']:.1f} %)\n"
+        f"- {llm_nimi} (kehotetta parannettava): "
+        f"{m['llm_virhe']} kpl ({m['llm_virhe_pros']:.1f} %)\n"
+        f"- Juurisyy merkitsemättä: {m['tuntematon']} kpl ({m['tuntematon_pros']:.1f} %)"
+    )
+
+
 def _rakenna_johdanto_viesti(tutkimus: dict, tilastot: list[dict]) -> str:
     mukana_yht = sum(r["Mukana"] for r in tilastot)
     kurssit_yht = sum(r["KurssiYhteensa"] for r in tilastot)
@@ -49,7 +87,7 @@ Mainitse tarkasteltujen yliopistojen ja kurssien määrät."""
 def _rakenna_kurssit_viesti(tutkimus: dict, tilastot: list[dict]) -> str:
     mukana_yht = sum(r["Mukana"] for r in tilastot)
     kurssit_yht = sum(r["KurssiYhteensa"] for r in tilastot)
-    hitl_yht = sum(r["HitlLkm"] for r in tilastot)
+    mittarit = _hitl_mittarit(tilastot)
     raportointikehote = tutkimus.get("Raportointikehote") or ""
     return f"""Kirjoita tutkimusraportin kurssit-osio seuraavien tietojen pohjalta.
 
@@ -69,10 +107,15 @@ Yliopistokohtaiset tilastot:
 Yhteenveto:
 - Kursseja tietokannassa yhteensä: {kurssit_yht}
 - LLM:n valitsemia kursseja: {mukana_yht}
-- Manuaalisia HITL-korjauksia: {hitl_yht}
+
+Ihmistarkistuksen (HITL) laatumittarit:
+{_hitl_yhteenveto_teksti(mittarit)}
 
 Kirjoita osio, joka esittelee kurssihaun suodatusperusteet, valintakehotteen tarkoituksen
-sekä kuvaa yliopistokohtaiset tulokset ja yhteenvedon."""
+sekä kuvaa yliopistokohtaiset tulokset ja yhteenvedon. Raportoi eksplisiittisesti,
+kuinka suuri osuus luokittelupäätöksistä jouduttiin muuttamaan käsin ja kuinka suuri
+osuus korjauksista johtui riittämättömästä opinto-oppaasta (eli oppaan laadusta,
+ei mallin virheestä)."""
 
 
 def _rakenna_arvioinnit_viesti(tutkimus: dict, kysymykset: list[dict], tilastot: list[dict]) -> str:
