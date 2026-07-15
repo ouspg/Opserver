@@ -46,6 +46,44 @@ def raporttitiiviste(tutkimus: dict, tilastot: list[dict] | None = None,
     return tiiviste.laske(tilasto_osa, kysymys_osa, vastaus_osa, kommentti_osa, kehote_osa)
 
 
+def koosta_tilanne(tutkimus: dict) -> dict:
+    """Kokoaa raportin tuoreustiedot status-näkymiä varten (CLIUI + WebUI).
+    Curses- ja HTTP-riippumaton — palauttaa raakadatan, kumpikin UI muotoilee.
+
+    Palauttaa {"generoitu": False} jos raporttia ei ole; muuten osioiden tila +
+    aikaleimat, tuoreus (tiivistevertailu: ajan_tasalla / vanhentunut / tuntematon)
+    ja generoinnin jälkeen tehtyjen HITL-korjausten ja kommenttien määrän.
+    """
+    tid = tutkimus["TID"]
+    tila_rivit = mallit.hae_raportti_tila(tid)
+    if not tila_rivit:
+        return {"generoitu": False}
+
+    kartta = {r["OsioAvain"]: r for r in tila_rivit}
+    osiot = [{"avain": a, "on": a in kartta,
+              "aikaleima": kartta[a]["Aikaleima"] if a in kartta else None}
+             for a in OSIOT]
+    aikaleimat = [r["Aikaleima"] for r in tila_rivit]
+    generoitu_aika = min(aikaleimat)
+
+    tallennettu = next((r["Laskentatiiviste"] for r in tila_rivit if r["Laskentatiiviste"]), None)
+    if tallennettu is None:
+        tuoreus = "tuntematon"
+    else:
+        tuoreus = "ajan_tasalla" if raporttitiiviste(tutkimus) == tallennettu else "vanhentunut"
+
+    return {
+        "generoitu": True,
+        "osiot": osiot,
+        "puuttuu": [o["avain"] for o in osiot if not o["on"]],
+        "generoitu_aika": generoitu_aika,
+        "viimeksi_muokattu": max(aikaleimat),
+        "tuoreus": tuoreus,
+        "hitl_jalkeen": mallit.laske_hitl_korjaukset_jalkeen(tid, generoitu_aika),
+        "kommentit_jalkeen": mallit.laske_arviokommentit_jalkeen(tid, generoitu_aika),
+    }
+
+
 def _lue_jarjestelmakehote() -> str:
     polku = os.path.join(os.path.dirname(__file__), "..", "kehotteet", "raporttijarjestelma.txt")
     with open(polku, encoding="utf-8") as f:
