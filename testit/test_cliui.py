@@ -166,3 +166,77 @@ def test_aja_llm_tyhjentaa_ruudun_vahvistusvalikon_jalkeen():
     viim_valikko = max(i for i, t in enumerate(tapahtumat) if t == "valikko")
     ajo = tapahtumat.index("ajo")
     assert any(t == "otsikko" for t in tapahtumat[viim_valikko + 1:ajo]), tapahtumat
+
+
+class TestKoostaTilanne:
+    """raporttinaytto.koosta_tilanne: raportin tuoreustiedot status-sivulle."""
+
+    TUTKIMUS = {"TID": 1, "LuokittelunNimi": "Testi"}
+
+    def _tila(self, avaimet_ja_tiivisteet):
+        return [{"OsioAvain": a, "Aikaleima": aika, "Laskentatiiviste": t}
+                for a, aika, t in avaimet_ja_tiivisteet]
+
+    def test_ei_generoitu(self):
+        from unittest.mock import patch
+        from cliui import raporttinaytto
+        with patch.object(raporttinaytto.mallit, "hae_raportti_tila", return_value=[]):
+            tulos = raporttinaytto.koosta_tilanne(self.TUTKIMUS)
+        assert tulos == {"generoitu": False}
+
+    def test_ajan_tasalla_kun_tiiviste_tasmaa(self):
+        from unittest.mock import patch
+        from cliui import raporttinaytto
+        tila = self._tila([
+            ("johdanto", "2026-07-15 10:00:00", "abc"),
+            ("kurssit", "2026-07-15 10:00:05", "abc"),
+            ("arvioinnit", "2026-07-15 10:00:10", "abc"),
+        ])
+        with patch.object(raporttinaytto.mallit, "hae_raportti_tila", return_value=tila), \
+             patch.object(raporttinaytto.mallit, "laske_hitl_korjaukset_jalkeen", return_value=0), \
+             patch.object(raporttinaytto.mallit, "laske_arviokommentit_jalkeen", return_value=0), \
+             patch("raportti.llmraportti.raporttitiiviste", return_value="abc"):
+            tulos = raporttinaytto.koosta_tilanne(self.TUTKIMUS)
+        assert tulos["generoitu"] is True
+        assert tulos["tuoreus"] == "ajan_tasalla"
+        assert tulos["puuttuu"] == []
+        assert tulos["generoitu_aika"] == "2026-07-15 10:00:00"  # varhaisin
+
+    def test_vanhentunut_kun_tiiviste_eroaa(self):
+        from unittest.mock import patch
+        from cliui import raporttinaytto
+        tila = self._tila([("johdanto", "2026-07-15 10:00:00", "vanha")])
+        with patch.object(raporttinaytto.mallit, "hae_raportti_tila", return_value=tila), \
+             patch.object(raporttinaytto.mallit, "laske_hitl_korjaukset_jalkeen", return_value=2), \
+             patch.object(raporttinaytto.mallit, "laske_arviokommentit_jalkeen", return_value=1), \
+             patch("raportti.llmraportti.raporttitiiviste", return_value="uusi"):
+            tulos = raporttinaytto.koosta_tilanne(self.TUTKIMUS)
+        assert tulos["tuoreus"] == "vanhentunut"
+        assert tulos["hitl_jalkeen"] == 2
+        assert tulos["kommentit_jalkeen"] == 1
+
+    def test_tuntematon_kun_tiiviste_puuttuu(self):
+        """Ennen tuoreusseurantaa generoitu raportti (Laskentatiiviste NULL)."""
+        from unittest.mock import patch
+        from cliui import raporttinaytto
+        tila = self._tila([("johdanto", "2026-07-15 10:00:00", None)])
+        with patch.object(raporttinaytto.mallit, "hae_raportti_tila", return_value=tila), \
+             patch.object(raporttinaytto.mallit, "laske_hitl_korjaukset_jalkeen", return_value=0), \
+             patch.object(raporttinaytto.mallit, "laske_arviokommentit_jalkeen", return_value=0), \
+             patch("raportti.llmraportti.raporttitiiviste", return_value="x"):
+            tulos = raporttinaytto.koosta_tilanne(self.TUTKIMUS)
+        assert tulos["tuoreus"] == "tuntematon"
+
+    def test_puuttuva_osio_listataan(self):
+        from unittest.mock import patch
+        from cliui import raporttinaytto
+        tila = self._tila([
+            ("johdanto", "2026-07-15 10:00:00", "abc"),
+            ("kurssit", "2026-07-15 10:00:05", "abc"),
+        ])
+        with patch.object(raporttinaytto.mallit, "hae_raportti_tila", return_value=tila), \
+             patch.object(raporttinaytto.mallit, "laske_hitl_korjaukset_jalkeen", return_value=0), \
+             patch.object(raporttinaytto.mallit, "laske_arviokommentit_jalkeen", return_value=0), \
+             patch("raportti.llmraportti.raporttitiiviste", return_value="abc"):
+            tulos = raporttinaytto.koosta_tilanne(self.TUTKIMUS)
+        assert tulos["puuttuu"] == ["arvioinnit"]

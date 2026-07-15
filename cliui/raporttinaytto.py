@@ -55,14 +55,79 @@ def _generoi(stdscr, tutkimus: dict) -> None:
         nayta_viesti(stdscr, f"LLM-virhe: {e}")
 
 
+def _aika_str(aika) -> str:
+    """Aikaleima (datetime tai merkkijono) → 'YYYY-MM-DD HH:MM' -esitys."""
+    if aika is None:
+        return "—"
+    if hasattr(aika, "strftime"):
+        return aika.strftime("%Y-%m-%d %H:%M")
+    return str(aika)[:16]
+
+
+def koosta_tilanne(tutkimus: dict) -> dict:
+    """Kokoaa raportin tuoreustiedot status-sivulle (testattava, ei curses-riippuvuutta).
+
+    Palauttaa {"generoitu": False} jos raporttia ei ole; muuten osioiden tila +
+    aikaleimat, tuoreus (tiivistevertailu: ajan_tasalla / vanhentunut / tuntematon)
+    ja generoinnin jälkeen tehtyjen HITL-korjausten ja kommenttien määrän.
+    """
+    from raportti import llmraportti
+    tid = tutkimus["TID"]
+    tila_rivit = mallit.hae_raportti_tila(tid)
+    if not tila_rivit:
+        return {"generoitu": False}
+
+    kartta = {r["OsioAvain"]: r for r in tila_rivit}
+    osiot = [{"avain": a, "on": a in kartta,
+              "aikaleima": kartta[a]["Aikaleima"] if a in kartta else None}
+             for a in llmraportti.OSIOT]
+    aikaleimat = [r["Aikaleima"] for r in tila_rivit]
+    generoitu_aika = min(aikaleimat)
+
+    tallennettu = next((r["Laskentatiiviste"] for r in tila_rivit if r["Laskentatiiviste"]), None)
+    if tallennettu is None:
+        tuoreus = "tuntematon"
+    else:
+        tuoreus = "ajan_tasalla" if llmraportti.raporttitiiviste(tutkimus) == tallennettu else "vanhentunut"
+
+    return {
+        "generoitu": True,
+        "osiot": osiot,
+        "puuttuu": [o["avain"] for o in osiot if not o["on"]],
+        "generoitu_aika": generoitu_aika,
+        "viimeksi_muokattu": max(aikaleimat),
+        "tuoreus": tuoreus,
+        "hitl_jalkeen": mallit.laske_hitl_korjaukset_jalkeen(tid, generoitu_aika),
+        "kommentit_jalkeen": mallit.laske_arviokommentit_jalkeen(tid, generoitu_aika),
+    }
+
+
+_TUOREUS_TEKSTI = {
+    "ajan_tasalla": "✓ Ajan tasalla — lähdeaineisto ei ole muuttunut generoinnin jälkeen.",
+    "vanhentunut": "⚠ Vanhentunut — lähdeaineisto on muuttunut generoinnin jälkeen. Generoi uudelleen.",
+    "tuntematon": "? Tuoreus tuntematon — raportti generoitu ennen tuoreusseurantaa.",
+}
+
+
 def _nayta_tilanne(stdscr, tutkimus: dict) -> None:
-    osiot = mallit.hae_raportti_osiot(tutkimus["TID"])
+    tilanne = koosta_tilanne(tutkimus)
     piirra_otsikko(stdscr, f"Raportin tilanne — {tutkimus['LuokittelunNimi']}")
-    if not osiot:
+    if not tilanne["generoitu"]:
         nayta_viesti(stdscr, "Raporttia ei ole vielä generoitu.")
         return
-    from raportti.llmraportti import OSIOT
-    for i, avain in enumerate(OSIOT):
-        tila = "✓ valmis" if avain in osiot else "— puuttuu"
-        stdscr.addstr(3 + i, 0, f"  {avain:<15} {tila}")
-    nayta_viesti(stdscr, "", 3 + len(OSIOT) + 1)
+
+    rivi = 3
+    stdscr.addstr(rivi, 0, f"Generoitu: {_aika_str(tilanne['generoitu_aika'])}")
+    rivi += 2
+    for osio in tilanne["osiot"]:
+        tila = f"✓ {_aika_str(osio['aikaleima'])}" if osio["on"] else "— puuttuu"
+        stdscr.addstr(rivi, 0, f"  {osio['avain']:<12} {tila}")
+        rivi += 1
+    rivi += 1
+    stdscr.addstr(rivi, 0, _TUOREUS_TEKSTI[tilanne["tuoreus"]])
+    rivi += 1
+    if tilanne["hitl_jalkeen"] or tilanne["kommentit_jalkeen"]:
+        stdscr.addstr(rivi, 0, f"  Generoinnin jälkeen: {tilanne['hitl_jalkeen']} HITL-korjausta, "
+                               f"{tilanne['kommentit_jalkeen']} kommenttia")
+        rivi += 1
+    nayta_viesti(stdscr, "", rivi + 1)
