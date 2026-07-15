@@ -1131,6 +1131,30 @@ function _renderTilastotTaulukko(tilastot) {
   return html;
 }
 
+// HITL-laatumittarit (CLAUDE.md vaihe 4): montako % luokittelupäätöksistä
+// muutettiin käsin, ja montako % korjauksista johtui riittämättömästä
+// oppaasta (data) vs. LLM:n virheestä (kehote). Auktoritatiivinen rakenteellinen
+// luku — erillään LLM-generoidusta proosasta.
+function _renderHitlMittarit(hitl) {
+  if (!hitl || !hitl.llm_kasitelty) return "";
+  const p = (x) => (x ?? 0).toFixed(1);
+  const rivi = (nimi, lkm, pros) =>
+    `<tr><td>${nimi}</td><td>${lkm}</td><td>${p(pros)} %</td></tr>`;
+  return `
+    <div class="tilastot-osio hitl-mittarit">
+      <h3>Ihmistarkistuksen laatumittarit</h3>
+      <p>Käsin muutettuja luokittelupäätöksiä:
+        <strong>${hitl.muutettu} / ${hitl.llm_kasitelty}</strong>
+        LLM-luokiteltua kurssia (<strong>${p(hitl.muutettu_pros)} %</strong>).</p>
+      <table class="tilasto-taulu">
+        <tr><th>Korjauksen juurisyy</th><th>Kursseja</th><th>Osuus korjauksista</th></tr>
+        ${rivi("Riittämätön opinto-opas (oppaan laatu)", hitl.opas, hitl.opas_pros)}
+        ${rivi("LLM:n väärinymmärrys (kehote)", hitl.llm_virhe, hitl.llm_virhe_pros)}
+        ${rivi("Juurisyy merkitsemättä", hitl.tuntematon, hitl.tuntematon_pros)}
+      </table>
+    </div>`;
+}
+
 async function renderTutkimusRaportti(slug, tutkimus) {
   const sisalto = document.getElementById("raportti-sisalto");
   const pdfNappi = document.getElementById("raportti-pdf-nappi");
@@ -1157,11 +1181,12 @@ async function renderTutkimusRaportti(slug, tutkimus) {
     return;
   }
 
-  pdfNappi.onclick = () => avaaRaporttiTulostus(slug, tutkimus, osiot);
+  pdfNappi.onclick = () => avaaRaporttiTulostus(slug, tutkimus, osiot, tilastot);
 
   for (const { avain, otsikko } of RAPORTTI_OSIOT) {
     const teksti = osiot[avain] || "";
-    const tilastotHtml = avain === "arvioinnit" ? _renderTilastotTaulukko(tilastot) : "";
+    let tilastotHtml = avain === "arvioinnit" ? _renderTilastotTaulukko(tilastot) : "";
+    if (avain === "kurssit") tilastotHtml = _renderHitlMittarit(tilastot?.hitl);
     const div = document.createElement("div");
     div.className = "raportti-osio";
     div.dataset.avain = avain;
@@ -1180,7 +1205,25 @@ async function renderTutkimusRaportti(slug, tutkimus) {
   }
 }
 
-function avaaRaporttiTulostus(slug, tutkimus, osiot) {
+function _hitlMittaritTulostus(hitl) {
+  if (!hitl || !hitl.llm_kasitelty) return "";
+  const p = (x) => (x ?? 0).toFixed(1);
+  const rivi = (nimi, lkm, pros) =>
+    `<tr><td>${nimi}</td><td style="text-align:right">${lkm}</td>` +
+    `<td style="text-align:right">${p(pros)} %</td></tr>`;
+  return `<p>Käsin muutettuja luokittelupäätöksiä: <strong>${hitl.muutettu} / ` +
+    `${hitl.llm_kasitelty}</strong> LLM-luokiteltua kurssia (<strong>${p(hitl.muutettu_pros)} %</strong>).</p>` +
+    `<table style="border-collapse:collapse;margin:0.5rem 0"><tr>` +
+    `<th style="text-align:left;padding:0.2rem 0.6rem">Korjauksen juurisyy</th>` +
+    `<th style="padding:0.2rem 0.6rem">Kursseja</th>` +
+    `<th style="padding:0.2rem 0.6rem">Osuus korjauksista</th></tr>` +
+    rivi("Riittämätön opinto-opas (oppaan laatu)", hitl.opas, hitl.opas_pros) +
+    rivi("LLM:n väärinymmärrys (kehote)", hitl.llm_virhe, hitl.llm_virhe_pros) +
+    rivi("Juurisyy merkitsemättä", hitl.tuntematon, hitl.tuntematon_pros) +
+    `</table>`;
+}
+
+function avaaRaporttiTulostus(slug, tutkimus, osiot, tilastot) {
   const nimi = tutkimus?.LuokittelunNimi || slug;
   let html = `<!DOCTYPE html><html lang="fi"><head><meta charset="utf-8">
     <title>${nimi} — raportti</title>
@@ -1189,11 +1232,13 @@ function avaaRaporttiTulostus(slug, tutkimus, osiot) {
       h1 { font-size: 1.6rem; margin-bottom: 0.5rem; }
       h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #ccc; padding-bottom: 0.3rem; }
       p { line-height: 1.7; margin: 0.5rem 0; }
+      td, th { border: 1px solid #ccc; padding: 0.2rem 0.6rem; }
     </style></head><body>
     <h1>${nimi}</h1>`;
   for (const { avain, otsikko } of RAPORTTI_OSIOT) {
     const teksti = osiot[avain] || "";
     html += `<h2>${otsikko}</h2><p>${teksti.replace(/\n/g, "</p><p>")}</p>`;
+    if (avain === "kurssit") html += _hitlMittaritTulostus(tilastot?.hitl);
   }
   html += `<script>window.print();<\/script></body></html>`;
   const ikkuna = window.open("", "_blank");

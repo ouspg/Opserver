@@ -24,7 +24,7 @@ def _tilasto_taulukko(rivit: list[dict]) -> str:
     return "\n".join(rivit_txt)
 
 
-def _hitl_mittarit(tilastot: list[dict]) -> dict:
+def hitl_mittarit(tilastot: list[dict]) -> dict:
     """Kaksi raporttimittaria HITL-korjauksista (CLAUDE.md, vaihe 4):
 
     1. Käsin muutettujen osuus = muutetut kurssit / LLM-luokitellut kurssit.
@@ -87,7 +87,7 @@ Mainitse tarkasteltujen yliopistojen ja kurssien määrät."""
 def _rakenna_kurssit_viesti(tutkimus: dict, tilastot: list[dict]) -> str:
     mukana_yht = sum(r["Mukana"] for r in tilastot)
     kurssit_yht = sum(r["KurssiYhteensa"] for r in tilastot)
-    mittarit = _hitl_mittarit(tilastot)
+    mittarit = hitl_mittarit(tilastot)
     raportointikehote = tutkimus.get("Raportointikehote") or ""
     return f"""Kirjoita tutkimusraportin kurssit-osio seuraavien tietojen pohjalta.
 

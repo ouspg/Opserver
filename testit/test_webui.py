@@ -277,7 +277,8 @@ def test_api_raportti_tilastot_luokittelu():
     ]
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=ks), \
-         patch("webui.palvelin.mallit.hae_vastaukset", return_value=vs):
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=vs), \
+         patch("webui.palvelin.mallit.hae_tilastot_yliopistoittain", return_value=[]):
         vastaus = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot")
     assert vastaus.status_code == 200
     data = vastaus.json()
@@ -298,7 +299,8 @@ def test_api_raportti_tilastot_asteikko():
     ]
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=ks), \
-         patch("webui.palvelin.mallit.hae_vastaukset", return_value=vs):
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=vs), \
+         patch("webui.palvelin.mallit.hae_tilastot_yliopistoittain", return_value=[]):
         vastaus = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot")
     assert vastaus.status_code == 200
     data = vastaus.json()
@@ -310,6 +312,30 @@ def test_api_raportti_tilastot_asteikko():
     assert k["maksimi"] == 4.0
     assert k["jakauma"]["4"] == 2
     assert k["jakauma"]["2"] == 1
+
+
+def test_api_raportti_tilastot_hitl_mittarit():
+    """Rakenteellinen HITL-laatumittari: käsin-muutos-% + juurisyyjakauma."""
+    tilastot = [
+        {"KKID": 1, "KouluNimi": "TY", "KurssiYhteensa": 100, "LLMKasitelty": 40,
+         "Mukana": 12, "Hylatty": 28, "HitlLkm": 3,
+         "HitlKursseja": 3, "RiittamatonOpas": 2, "LlmVirhe": 1, "TuntematonSyy": 0},
+        {"KKID": 2, "KouluNimi": "AY", "KurssiYhteensa": 80, "LLMKasitelty": 30,
+         "Mukana": 8, "Hylatty": 22, "HitlLkm": 1,
+         "HitlKursseja": 1, "RiittamatonOpas": 0, "LlmVirhe": 0, "TuntematonSyy": 1},
+    ]
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_kysymykset", return_value=[]), \
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[]), \
+         patch("webui.palvelin.mallit.hae_tilastot_yliopistoittain", return_value=tilastot):
+        vastaus = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot")
+    assert vastaus.status_code == 200
+    hitl = vastaus.json()["hitl"]
+    assert hitl["llm_kasitelty"] == 70
+    assert hitl["muutettu"] == 4
+    assert round(hitl["muutettu_pros"], 1) == 5.7
+    assert hitl["opas"] == 2 and round(hitl["opas_pros"], 1) == 50.0
+    assert hitl["llm_virhe"] == 1
 
 
 def test_api_raportti_tilastot_404_kun_tutkimusta_ei_loydy():

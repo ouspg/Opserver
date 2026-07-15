@@ -102,7 +102,7 @@ class TestRakennaViestiKurssit:
 
 class TestHitlMittarit:
     def test_laskee_osuudet(self):
-        m = llmraportti._hitl_mittarit(TILASTOT)
+        m = llmraportti.hitl_mittarit(TILASTOT)
         assert m["llm_kasitelty"] == 70
         assert m["muutettu"] == 4
         assert round(m["muutettu_pros"], 1) == 5.7
@@ -113,7 +113,7 @@ class TestHitlMittarit:
     def test_nolla_muutosta_ei_jaa_nollalla(self):
         tyhjat = [{"LLMKasitelty": 0, "HitlKursseja": 0, "RiittamatonOpas": 0,
                    "LlmVirhe": 0, "TuntematonSyy": 0}]
-        m = llmraportti._hitl_mittarit(tyhjat)
+        m = llmraportti.hitl_mittarit(tyhjat)
         assert m["muutettu_pros"] == 0.0
         assert m["opas_pros"] == 0.0
 

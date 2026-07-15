@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from tietokanta import mallit
 from tietokanta.valimuisti import ttl_valimuisti
 from llm import tiiviste, kehotteet
+from raportti import llmraportti
 
 
 _AUTH_EVASTE = "opserver_auth"
@@ -597,7 +598,12 @@ def api_raportti_tilastot(slug: str) -> dict:
 
         tulos_kysymykset.append(kohta)
 
-    return {"kysymykset": tulos_kysymykset}
+    # HITL-laatumittarit (CLAUDE.md vaihe 4): käsin-muutos-% + juurisyyjakauma.
+    # Rakenteellinen, auktoritatiivinen luku — ei LLM-generoitua proosaa.
+    tilastot = mallit.hae_tilastot_yliopistoittain(tid)
+    hitl = llmraportti.hitl_mittarit(tilastot)
+
+    return {"kysymykset": tulos_kysymykset, "hitl": hitl}
 
 
 @sovellus.get("/api/tutkimukset/{slug}")
