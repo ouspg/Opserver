@@ -994,7 +994,10 @@ def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
                 ORDER BY ko.KouluNimi
             """, (tid, tid, tid, *(kaudet if kaudet else []), *kkid_lista))
             rivit = _rivit_dikteina(kursori)
-            # Lisää HITL-lukumäärä per yliopisto
+            # Lisää HITL-tilastot per yliopisto. HitlLkm = korjaustapahtumien määrä.
+            # HitlKursseja + juurisyyjakauma lasketaan kunkin kurssin VIIMEISIMMÄSTÄ
+            # korjauksesta (MAX(HID) per KID), jotta edestakaisin korjattu kurssi
+            # ei tuplaannu ja lopputila kertoo ihmisen lopullisen syyn.
             kursori.execute("""
                 SELECT k.KKID, COUNT(DISTINCT hk.HID) AS HitlLkm
                 FROM HitlKorjaus hk
@@ -1003,6 +1006,30 @@ def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
                 GROUP BY k.KKID
             """, (tid,))
             hitl = {r[0]: r[1] for r in kursori.fetchall()}
+
+            kursori.execute("""
+                SELECT k.KKID,
+                       COUNT(*)                                    AS HitlKursseja,
+                       SUM(uusin.Juurisyy = 'riittamaton_opas')    AS RiittamatonOpas,
+                       SUM(uusin.Juurisyy = 'llm_virhe')           AS LlmVirhe,
+                       SUM(uusin.Juurisyy IS NULL)                 AS TuntematonSyy
+                FROM (
+                    SELECT hk.KID, hk.Juurisyy
+                    FROM HitlKorjaus hk
+                    JOIN (SELECT KID, MAX(HID) AS MaxHID
+                          FROM HitlKorjaus WHERE TID = %s GROUP BY KID) v
+                      ON hk.HID = v.MaxHID
+                ) uusin
+                JOIN Kurssi k ON uusin.KID = k.KID
+                GROUP BY k.KKID
+            """, (tid,))
+            juurisyy = {r[0]: r[1:] for r in kursori.fetchall()}
+
             for r in rivit:
                 r["HitlLkm"] = hitl.get(r["KKID"], 0)
+                kurssit, opas, llm, tuntematon = juurisyy.get(r["KKID"], (0, 0, 0, 0))
+                r["HitlKursseja"] = int(kurssit or 0)
+                r["RiittamatonOpas"] = int(opas or 0)
+                r["LlmVirhe"] = int(llm or 0)
+                r["TuntematonSyy"] = int(tuntematon or 0)
             return rivit
