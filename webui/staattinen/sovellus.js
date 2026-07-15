@@ -1157,16 +1157,44 @@ function _renderHitlMittarit(hitl) {
     </div>`;
 }
 
+// Raportin tuoreuspalkki (CLIUI:n "Näytä tilanne" -vastine): milloin generoitu,
+// onko lähdeaineisto muuttunut sen jälkeen (tiivistevertailu) ja montako
+// HITL-korjausta/kommenttia on tehty generoinnin jälkeen.
+const _TUOREUS = {
+  ajan_tasalla: { merkki: "✓", teksti: "Ajan tasalla", luokka: "tuoreus-ok" },
+  vanhentunut: { merkki: "⚠", teksti: "Vanhentunut — lähdeaineisto muuttunut generoinnin jälkeen", luokka: "tuoreus-vanha" },
+  tuntematon: { merkki: "?", teksti: "Tuoreus tuntematon — generoitu ennen tuoreusseurantaa", luokka: "tuoreus-tuntematon" },
+};
+
+function _fmtAika(iso) {
+  return iso ? String(iso).replace("T", " ").slice(0, 16) : "—";
+}
+
+function _renderTuoreusPalkki(tilanne) {
+  if (!tilanne || !tilanne.generoitu) return "";
+  const t = _TUOREUS[tilanne.tuoreus] || _TUOREUS.tuntematon;
+  const h = tilanne.hitl_jalkeen || 0, k = tilanne.kommentit_jalkeen || 0;
+  const muutokset = (h || k)
+    ? `<span class="tuoreus-muutokset">Generoinnin jälkeen: ${h} HITL-korjausta, ${k} kommenttia</span>`
+    : "";
+  return `<div class="tuoreus-palkki ${t.luokka}">
+      <span class="tuoreus-tila">${t.merkki} ${t.teksti}</span>
+      <span class="tuoreus-aika">Generoitu ${_fmtAika(tilanne.generoitu_aika)}</span>
+      ${muutokset}
+    </div>`;
+}
+
 async function renderTutkimusRaportti(slug, tutkimus) {
   const sisalto = document.getElementById("raportti-sisalto");
   const pdfNappi = document.getElementById("raportti-pdf-nappi");
   sisalto.innerHTML = "";
 
-  let data, tilastot;
+  let data, tilastot, tilanne;
   try {
-    [data, tilastot] = await Promise.all([
+    [data, tilastot, tilanne] = await Promise.all([
       fetch(`/api/tutkimukset/${slug}/raportti`).then((r) => r.json()),
       fetch(`/api/tutkimukset/${slug}/raportti/tilastot`).then((r) => r.json()).catch(() => null),
+      fetch(`/api/tutkimukset/${slug}/raportti/tilanne`).then((r) => r.json()).catch(() => null),
     ]);
   } catch (_) {
     sisalto.innerHTML = '<p class="tulossa">Raportin lataaminen epäonnistui.</p>';
@@ -1184,6 +1212,7 @@ async function renderTutkimusRaportti(slug, tutkimus) {
   }
 
   pdfNappi.onclick = () => avaaRaporttiTulostus(slug, tutkimus, osiot, tilastot);
+  sisalto.insertAdjacentHTML("beforeend", _renderTuoreusPalkki(tilanne));
 
   for (const { avain, otsikko } of RAPORTTI_OSIOT) {
     const teksti = osiot[avain] || "";

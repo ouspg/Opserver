@@ -328,8 +328,21 @@ def _kurssit_valimuistissa(kkid, lukuvuosi) -> list[dict]:
     return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
 
 
+@ttl_valimuisti(_VALIMUISTI_TTL)
+def _raportti_tilanne_valimuistissa(slug: str):
+    """Raportin tuoreus (koosta_tilanne). Välimuistitettu, koska WebUI:n
+    raporttinäkymä päivittyy 15 s välein ja tiivisteen uudelleenlaskenta hakee
+    useita tauluja etäkannasta — ilman välimuistia jokainen päivitys kuormittaisi.
+    Tuoreuslippu saa olla enintään TTL:n verran vanha. None jos tutkimusta ei ole."""
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        return None
+    return llmraportti.koosta_tilanne(tutkimus)
+
+
 _VALIMUISTIT = [_korkeakoulut_valimuistissa, _lukuvuodet_valimuistissa,
-                _tasot_valimuistissa, _kurssit_valimuistissa]
+                _tasot_valimuistissa, _kurssit_valimuistissa,
+                _raportti_tilanne_valimuistissa]
 
 
 def tyhjenna_valimuistit() -> None:
@@ -604,6 +617,16 @@ def api_raportti_tilastot(slug: str) -> dict:
     hitl = llmraportti.hitl_mittarit(tilastot)
 
     return {"kysymykset": tulos_kysymykset, "hitl": hitl}
+
+
+@sovellus.get("/api/tutkimukset/{slug}/raportti/tilanne")
+def api_raportti_tilanne(slug: str) -> dict:
+    """Raportin tuoreus: milloin generoitu, ajan tasalla / vanhentunut ja
+    montako HITL-korjausta/kommenttia tehty generoinnin jälkeen."""
+    tilanne = _raportti_tilanne_valimuistissa(slug)
+    if tilanne is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    return tilanne
 
 
 @sovellus.get("/api/tutkimukset/{slug}")

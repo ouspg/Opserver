@@ -344,6 +344,25 @@ def test_api_raportti_tilastot_404_kun_tutkimusta_ei_loydy():
     assert vastaus.status_code == 404
 
 
+def test_api_raportti_tilanne_palauttaa_tuoreuden():
+    tilanne = {"generoitu": True, "tuoreus": "vanhentunut", "hitl_jalkeen": 2,
+               "kommentit_jalkeen": 1, "puuttuu": [],
+               "generoitu_aika": "2026-07-15T10:00:00", "osiot": []}
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.llmraportti.koosta_tilanne", return_value=tilanne):
+        vastaus = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilanne")
+    assert vastaus.status_code == 200
+    data = vastaus.json()
+    assert data["tuoreus"] == "vanhentunut"
+    assert data["hitl_jalkeen"] == 2
+
+
+def test_api_raportti_tilanne_404_kun_tutkimusta_ei_loydy():
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=None):
+        vastaus = asiakas.get("/api/tutkimukset/ei-ole/raportti/tilanne")
+    assert vastaus.status_code == 404
+
+
 # --- HTTP Basic Auth -välikerros (demosuojaus) ---
 
 def _aseta_auth(monkeypatch):

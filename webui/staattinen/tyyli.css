@@ -425,6 +425,29 @@ td.arviointi-vastaus {
   border-radius: 0 4px 4px 0;
 }
 
+/* Raportin tuoreuspalkki (generointiaika + ajan tasalla / vanhentunut). */
+.tuoreus-palkki {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.2rem;
+  align-items: center;
+  padding: 0.5rem 0.9rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.88rem;
+  border-left: 4px solid #ccc;
+  background: #f4f4f8;
+}
+.tuoreus-palkki .tuoreus-tila { font-weight: 600; }
+.tuoreus-palkki .tuoreus-aika,
+.tuoreus-palkki .tuoreus-muutokset { color: #555; }
+.tuoreus-ok { border-left-color: #2e7d32; background: #edf7ee; }
+.tuoreus-ok .tuoreus-tila { color: #2e7d32; }
+.tuoreus-vanha { border-left-color: #e08600; background: #fdf3e3; }
+.tuoreus-vanha .tuoreus-tila { color: #b56a00; }
+.tuoreus-tuntematon { border-left-color: #999; }
+.tuoreus-tuntematon .tuoreus-tila { color: #666; }
+
 /* HITL-juurisyyn radiovalinta (virhetaksonomia). */
 .hitl-juurisyy { border: 1px solid #ddd; border-radius: 4px; padding: 0.6rem 0.75rem; }
 .hitl-juurisyy legend { font-size: 0.9rem; font-weight: 600; color: #555; padding: 0 0.3rem; }
