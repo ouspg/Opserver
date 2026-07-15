@@ -182,6 +182,33 @@ class TestHaeArvioimattomat:
         assert list(params) == [1, 1, 4, 2024, 2025]
 
 
+class TestRaporttiTuoreus:
+    """Raportin tuoreussignatuuri tallennetaan/luetaan halvalla — raskas
+    tiivistelaskenta tehdään erikseen taustalla."""
+
+    def test_hae_palauttaa_none_kun_ei_riviä(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.description = None
+        assert mallit.hae_raportti_tuoreus(1) is None
+
+    def test_hae_palauttaa_signatuurin_ja_ajan(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.description = [("Signatuuri",), ("Tarkistettu",)]
+        kursori.fetchone.return_value = ("abc123", "2026-07-15 10:00:00")
+        tulos = mallit.hae_raportti_tuoreus(1)
+        assert tulos == {"Signatuuri": "abc123", "Tarkistettu": "2026-07-15 10:00:00"}
+        sql, params = kursori.execute.call_args[0]
+        assert "RaporttiTuoreus" in sql and list(params) == [1]
+
+    def test_tallenna_upsertoi_signatuurin(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.tallenna_raportti_tuoreus(3, "sig")
+        sql, params = kursori.execute.call_args[0]
+        assert "INSERT" in sql.upper() and "ON DUPLICATE KEY UPDATE" in sql.upper()
+        assert "RaporttiTuoreus" in sql
+        assert list(params) == [3, "sig"]
+
+
 class TestHaeTutkimuksenTilanne:
     """Suppilo lasketaan SQL-aggregaateilla yhdessä yhteydessä (ei vedä kaikkia
     kursseja/luokituksia Pythoniin) — etäpalvelimella siirtomäärä ratkaisee."""

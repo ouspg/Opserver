@@ -970,6 +970,33 @@ def hae_raportti_tila(tid: int) -> list[dict]:
             return _rivit_dikteina(kursori)
 
 
+def hae_raportti_tuoreus(tid: int) -> dict | None:
+    """Viimeksi laskettu raportin tuoreussignatuuri + laskenta-aika, tai None jos
+    tuoreutta ei ole vielä laskettu. Kevyt luku — raskas tiivistelaskenta tehdään
+    erikseen taustalla (tallenna_raportti_tuoreus)."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                "SELECT Signatuuri, Tarkistettu FROM RaporttiTuoreus WHERE TID = %s",
+                (tid,),
+            )
+            return _rivi_diktina(kursori)
+
+
+def tallenna_raportti_tuoreus(tid: int, signatuuri: str | None) -> None:
+    """Upsert viimeksi laskettu tuoreussignatuuri; Tarkistettu = NOW() (taulun
+    ON UPDATE / DEFAULT hoitaa aikaleiman). Kutsutaan taustalaskennasta ja
+    generoinnista (jolloin signatuuri = generoinnin lähdeaineiston tiiviste)."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                """INSERT INTO RaporttiTuoreus (TID, Signatuuri) VALUES (%s, %s)
+                   ON DUPLICATE KEY UPDATE Signatuuri = VALUES(Signatuuri),
+                       Tarkistettu = CURRENT_TIMESTAMP""",
+                (tid, signatuuri),
+            )
+
+
 def laske_hitl_korjaukset_jalkeen(tid: int, aika) -> int:
     """HITL-korjausten määrä, jotka on tehty annetun ajan jälkeen (COUNT, ei rivinoutoa)."""
     with yhteys() as yht:

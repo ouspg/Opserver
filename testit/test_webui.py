@@ -346,21 +346,57 @@ def test_api_raportti_tilastot_404_kun_tutkimusta_ei_loydy():
 
 def test_api_raportti_tilanne_palauttaa_tuoreuden():
     tilanne = {"generoitu": True, "tuoreus": "vanhentunut", "hitl_jalkeen": 2,
-               "kommentit_jalkeen": 1, "puuttuu": [],
+               "kommentit_jalkeen": 1, "puuttuu": [], "tarkistettu": "2026-07-15T12:00:00",
                "generoitu_aika": "2026-07-15T10:00:00", "osiot": []}
+    # Raskas tuoreuslaskenta ajetaan taustalla → stubataan trigger pois testistä
+    # (ei osu kantaan / ei säikeitä); endpoint palauttaa tallennetun tilanteen.
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin._kaynnista_taustatuoreus") as mock_tausta, \
          patch("webui.palvelin.llmraportti.koosta_tilanne", return_value=tilanne):
         vastaus = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilanne")
     assert vastaus.status_code == 200
     data = vastaus.json()
     assert data["tuoreus"] == "vanhentunut"
+    assert data["tarkistettu"] == "2026-07-15T12:00:00"
     assert data["hitl_jalkeen"] == 2
+    mock_tausta.assert_called_once()  # generoidulle raportille laukaistaan taustapäivitys
 
 
 def test_api_raportti_tilanne_404_kun_tutkimusta_ei_loydy():
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=None):
         vastaus = asiakas.get("/api/tutkimukset/ei-ole/raportti/tilanne")
     assert vastaus.status_code == 404
+
+
+def test_taustatuoreus_ohitetaan_kun_tarkistettu_tuore():
+    from datetime import datetime, timedelta
+    tuore = {"Signatuuri": "x", "Tarkistettu": datetime.now() - timedelta(seconds=5)}
+    with patch("webui.palvelin.mallit.hae_raportti_tuoreus", return_value=tuore), \
+         patch("webui.palvelin.threading.Thread") as mock_thread:
+        palvelin._kaynnista_taustatuoreus({"TID": 1})
+    mock_thread.assert_not_called()  # tuore → ei uudelleenlaskentaa
+
+
+def test_taustatuoreus_laukaistaan_kun_vanha():
+    from datetime import datetime, timedelta
+    vanha = {"Signatuuri": "x", "Tarkistettu": datetime.now() - timedelta(days=1)}
+    try:
+        with patch("webui.palvelin.mallit.hae_raportti_tuoreus", return_value=vanha), \
+             patch("webui.palvelin.threading.Thread") as mock_thread:
+            palvelin._kaynnista_taustatuoreus({"TID": 4242})
+        mock_thread.assert_called_once()  # vanhentunut → taustalaskenta
+    finally:
+        palvelin._tuoreus_kaynnissa.discard(4242)  # siivoa globaali lippu
+
+
+def test_taustatuoreus_laukaistaan_kun_ei_koskaan_laskettu():
+    try:
+        with patch("webui.palvelin.mallit.hae_raportti_tuoreus", return_value=None), \
+             patch("webui.palvelin.threading.Thread") as mock_thread:
+            palvelin._kaynnista_taustatuoreus({"TID": 4243})
+        mock_thread.assert_called_once()
+    finally:
+        palvelin._tuoreus_kaynnissa.discard(4243)
 
 
 # --- HTTP Basic Auth -välikerros (demosuojaus) ---

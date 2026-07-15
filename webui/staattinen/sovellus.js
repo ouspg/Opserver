@@ -1163,7 +1163,7 @@ function _renderHitlMittarit(hitl) {
 const _TUOREUS = {
   ajan_tasalla: { merkki: "✓", teksti: "Ajan tasalla", luokka: "tuoreus-ok" },
   vanhentunut: { merkki: "⚠", teksti: "Vanhentunut — lähdeaineisto muuttunut generoinnin jälkeen", luokka: "tuoreus-vanha" },
-  tuntematon: { merkki: "?", teksti: "Tuoreus tuntematon — generoitu ennen tuoreusseurantaa", luokka: "tuoreus-tuntematon" },
+  tuntematon: { merkki: "?", teksti: "Tuoreus tuntematon — ei vielä laskettu tai generoitu ennen tuoreusseurantaa", luokka: "tuoreus-tuntematon" },
 };
 
 function _fmtAika(iso) {
@@ -1177,9 +1177,15 @@ function _renderTuoreusPalkki(tilanne) {
   const muutokset = (h || k)
     ? `<span class="tuoreus-muutokset">Generoinnin jälkeen: ${h} HITL-korjausta, ${k} kommenttia</span>`
     : "";
+  // Tuoreus lasketaan taustalla — näytä milloin viimeksi tarkistettu, jotta
+  // käyttäjä tietää tilan ajantasaisuuden (ei "juuri nyt" -takuuta).
+  const tarkistettu = tilanne.tarkistettu
+    ? `<span class="tuoreus-tarkistettu">Tuoreus tarkistettu ${_fmtAika(tilanne.tarkistettu)}</span>`
+    : `<span class="tuoreus-tarkistettu">Tuoreutta ei ole vielä tarkistettu</span>`;
   return `<div class="tuoreus-palkki ${t.luokka}">
       <span class="tuoreus-tila">${t.merkki} ${t.teksti}</span>
       <span class="tuoreus-aika">Generoitu ${_fmtAika(tilanne.generoitu_aika)}</span>
+      ${tarkistettu}
       ${muutokset}
     </div>`;
 }
