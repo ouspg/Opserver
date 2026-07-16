@@ -141,10 +141,16 @@ tarkista_http "API /korkeakoulut"            "$WEBUI/api/korkeakoulut"     ""
 tarkista_http "API /kurssit"                 "$WEBUI/api/kurssit"          ""
 tarkista_http "API /tutkimukset"             "$WEBUI/api/tutkimukset"      ""
 
-# Raportti-endpoint: tarkistetaan jokaiselle tutkimukselle (jos niitä on)
-tutkimukset_json=$(hae "$WEBUI/api/tutkimukset" 2>/dev/null) || tutkimukset_json="[]"
-slugit=$(printf '%s' "$tutkimukset_json" | python3 -c "import sys,json; [print(t['Slug']) for t in json.load(sys.stdin)]" 2>/dev/null) || slugit=""
-if [[ -z "$slugit" ]]; then
+# Raportti-endpoint: tarkistetaan jokaiselle tutkimukselle (jos niitä on).
+# Erottele kolme tilaa: (a) /api/tutkimukset ei vastaa → FAIL (ei saa väittää
+# ettei tutkimuksia ole, kun tosiasiassa endpoint on alhaalla); (b) vastaa mutta
+# ei kelvollista tutkimuslistaa → FAIL; (c) kelvollinen mutta tyhjä lista → OK.
+if ! tutkimukset_json=$(hae "$WEBUI/api/tutkimukset" 2>/dev/null); then
+    fail "API /raportti — /api/tutkimukset ei vastaa, ei voi tarkistaa"
+elif ! slugit=$(printf '%s' "$tutkimukset_json" | python3 -c \
+        "import sys,json; d=json.load(sys.stdin); assert isinstance(d,list); [print(t['Slug']) for t in d]" 2>/dev/null); then
+    fail "API /raportti — /api/tutkimukset ei palauttanut kelvollista tutkimuslistaa"
+elif [[ -z "$slugit" ]]; then
     ok "API /raportti — ei tutkimuksia tarkistettavana"
 else
     raportti_ok=true
