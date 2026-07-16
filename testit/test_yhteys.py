@@ -7,6 +7,7 @@ palautetut uudelleen. Etäpalvelinta (Tailscale) vasten eager-luonti maksoi
 """
 from unittest.mock import patch, MagicMock
 import threading
+from mysql.connector import errors
 from tietokanta import yhteys as y
 
 
@@ -16,8 +17,19 @@ def _tee_yhteys():
     return m
 
 
-def _laiska_pooli(koko=8):
-    return y._LaiskaPooli(koko, {"host": "x"})
+class _Kello:
+    """Ohjattava kello testeihin (ei oikeaa time.monotonicia)."""
+
+    def __init__(self):
+        self.t = 0.0
+
+    def __call__(self):
+        return self.t
+
+
+def _laiska_pooli(koko=8, idle_validointi_s=30, kello=None):
+    return y._LaiskaPooli(koko, {"host": "x"}, idle_validointi_s=idle_validointi_s,
+                          aika=kello or _Kello())
 
 
 def test_ensimmainen_haku_luo_vain_yhden_yhteyden():
@@ -112,3 +124,81 @@ def test_rinnakkaiset_haut_eivat_ylita_kattoa():
             s.join()
     assert sum(1 for p in lainat if p) == 4        # tasan koko pooloitua
     assert sum(1 for p in lainat if not p) == 6    # loput väliaikaisia
+
+
+# --- Kestävyys: pooli toipuu MySQL:n uudelleenkäynnistyksestä ---
+
+def test_tuoretta_yhteytta_ei_validoida():
+    """Hot-path: äsken palautettu yhteys uudelleenkäytetään ILMAN ping-verkkomatkaa
+    (luokittelun tuhannet kirjoitukset eivät saa maksaa pingiä per kysely)."""
+    kello = _Kello()
+    with patch("tietokanta.yhteys.mysql.connector.connect", side_effect=lambda **k: _tee_yhteys()):
+        pooli = _laiska_pooli(koko=1, idle_validointi_s=30, kello=kello)
+        yht, p = pooli.hae()
+        pooli.palauta(yht, p)
+        kello.t = 5                      # 5 s < 30 s → tuore
+        yht2, _ = pooli.hae()
+    yht2.ping.assert_not_called()        # ei pingiä hot-pathilla
+    assert yht2 is yht
+
+
+def test_idle_yhteys_validoidaan_ennen_uudelleenkayttoa():
+    """Kauan poolissa maannut yhteys pingataan (reconnect) ennen luovutusta →
+    MySQL:n uudelleenkäynnistyksen jälkeen kuollut yhteys ei päädy kutsujalle."""
+    kello = _Kello()
+    with patch("tietokanta.yhteys.mysql.connector.connect", side_effect=lambda **k: _tee_yhteys()):
+        pooli = _laiska_pooli(koko=1, idle_validointi_s=30, kello=kello)
+        yht, p = pooli.hae()
+        pooli.palauta(yht, p)
+        kello.t = 100                    # 100 s > 30 s → idle
+        yht2, _ = pooli.hae()
+    yht2.ping.assert_called_once()
+    assert yht2.ping.call_args.kwargs.get("reconnect") is True
+    assert yht2 is yht
+
+
+def test_kuollut_idle_yhteys_korvataan_tuoreella():
+    """Jos idle-yhteyden ping epäonnistuu (palvelin katkaisi), yhteys suljetaan ja
+    korvataan tuoreella — kutsuja saa elävän yhteyden, ei virhettä."""
+    kello = _Kello()
+    elava, korvaaja = _tee_yhteys(), _tee_yhteys()
+    luodut = [elava, korvaaja]
+    with patch("tietokanta.yhteys.mysql.connector.connect", side_effect=lambda **k: luodut.pop(0)):
+        pooli = _laiska_pooli(koko=1, idle_validointi_s=30, kello=kello)
+        yht, p = pooli.hae()             # elava
+        pooli.palauta(yht, p)
+        elava.ping.side_effect = errors.OperationalError("palvelin katkaisi")
+        kello.t = 100
+        yht2, p2 = pooli.hae()           # ping kaatuu → korvataan
+    elava.close.assert_called_once()
+    assert yht2 is korvaaja
+    assert p2 is True                    # yhä pooloitu (slotti säilyi)
+
+
+def test_rikki_yhteys_ei_palaudu_pooliin():
+    """Yhteystason virheen jälkeen rikki yhteys EI palaudu pooliin (muuten se
+    jaettaisiin uudelleen → 'MySQL Connection not available' -kaskadi)."""
+    with patch("tietokanta.yhteys.mysql.connector.connect", side_effect=lambda **k: _tee_yhteys()) as mc:
+        pooli = _laiska_pooli(koko=2)
+        yht, p = pooli.hae()             # connect #1
+        pooli.palauta(yht, p, rikki=True)
+        yht.close.assert_called_once()   # rikki suljetaan, ei poolata
+        yht2, p2 = pooli.hae()           # slotti vapautui → uusi kättely
+    assert mc.call_count == 2
+    assert yht2 is not yht
+
+
+def test_kontekstimanageri_merkitsee_yhteysvirheen_rikkinaiseksi():
+    """OperationalError (kuollut yhteys) → palauta(rikki=True), EI rollbackia
+    (kaatuisi kuolleella yhteydellä)."""
+    yht = _tee_yhteys()
+    pooli = MagicMock(hae=lambda: (yht, True))
+    with patch.object(y, "_hae_pooli", return_value=pooli):
+        try:
+            with y.yhteys():
+                raise errors.OperationalError("MySQL Connection not available.")
+        except errors.OperationalError:
+            pass
+    yht.rollback.assert_not_called()
+    yht.commit.assert_not_called()
+    pooli.palauta.assert_called_once_with(yht, True, rikki=True)
