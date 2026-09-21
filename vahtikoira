@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Vahtikoira (cron, kerran minuutissa): jos WebUI ei vastaa tai kontti on alhaalla,
+# aja `docker compose up -d` (käynnistää pysähtyneet) ja tarvittaessa restart.
+# --hiljaa: vain tarkista (exit 0 = kunnossa), älä korjaa.
+cd "$(dirname "$(readlink -f "$0")")" || exit 1
+
+kunnossa() {
+    [[ "$(docker compose ps --status running --services 2>/dev/null | sort | tr '\n' ' ')" == "mysql webui " ]] || return 1
+    # 200 tai 401 (Basic Auth päällä) = palvelin elää
+    local koodi
+    koodi=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:12121/) || return 1
+    [[ "$koodi" == 200 || "$koodi" == 401 ]]
+}
+
+kunnossa && exit 0
+[[ "${1:-}" == "--hiljaa" ]] && exit 1
+
+echo "$(date -Is) WebUI/MySQL alhaalla — käynnistetään"
+docker compose up -d
+sleep 15
+kunnossa || { echo "$(date -Is) yhä alhaalla — restart"; docker compose restart; }
