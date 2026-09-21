@@ -30,9 +30,17 @@ WEBUI="${WEBUI%/}"
 VIRHEET=0
 AUTH_ARGS=()
 
-ok()   { printf "[OK]   %s\n" "$1"; }
-fail() { printf "[FAIL] %s\n" "$1"; VIRHEET=$((VIRHEET + 1)); }
-info() { printf "[INFO] %s\n" "$1"; }
+# Värit: epäonnistumiset punaisella erottuvat heti silmämääräisesti. Pois päältä
+# jos stdout ei ole pääte (putki/tiedosto) tai NO_COLOR on asetettu.
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+    VARI_PUN=$'\033[31m'; VARI_VIH=$'\033[32m'; VARI_KEL=$'\033[33m'; VARI_L=$'\033[0m'
+else
+    VARI_PUN=''; VARI_VIH=''; VARI_KEL=''; VARI_L=''
+fi
+
+ok()   { printf "${VARI_VIH}[OK]${VARI_L}   %s\n" "$1"; }
+fail() { printf "${VARI_PUN}[FAIL] %s${VARI_L}\n" "$1"; VIRHEET=$((VIRHEET + 1)); }
+info() { printf "${VARI_KEL}[INFO]${VARI_L} %s\n" "$1"; }
 
 # curl-kääre: lisää Basic Auth -tunnukset, jos autentikointi todettiin käytössä.
 hae() {
@@ -64,16 +72,16 @@ maarita_autentikointi() {
 }
 
 tarkista_http() {
-    local kuvaus=$1
+    local nimi=$1
     local url=$2
     local odotettu_sisalto=${3:-}
 
-    vastaus=$(hae "$url" 2>/dev/null) || { fail "$kuvaus — ei vastausta ($url)"; return; }
+    vastaus=$(hae "$url" 2>/dev/null) || { fail "$nimi ei vastaa ($url)"; return; }
 
     if [[ -n "$odotettu_sisalto" ]] && ! echo "$vastaus" | grep -q "$odotettu_sisalto"; then
-        fail "$kuvaus — vastaus ei sisällä '$odotettu_sisalto'"
+        fail "$nimi — vastaus ei sisällä '$odotettu_sisalto'"
     else
-        ok "$kuvaus"
+        ok "$nimi"
     fi
 }
 
@@ -129,14 +137,20 @@ echo ""
 
 # 2. WebUI HTTP
 tarkista_http "WebUI etusivu"                "$WEBUI/"                     "Opserver"
-tarkista_http "API /korkeakoulut vastaa"     "$WEBUI/api/korkeakoulut"     ""
-tarkista_http "API /kurssit vastaa"          "$WEBUI/api/kurssit"          ""
-tarkista_http "API /tutkimukset vastaa"      "$WEBUI/api/tutkimukset"      ""
+tarkista_http "API /korkeakoulut"            "$WEBUI/api/korkeakoulut"     ""
+tarkista_http "API /kurssit"                 "$WEBUI/api/kurssit"          ""
+tarkista_http "API /tutkimukset"             "$WEBUI/api/tutkimukset"      ""
 
-# Raportti-endpoint: tarkistetaan jokaiselle tutkimukselle (jos niitä on)
-tutkimukset_json=$(hae "$WEBUI/api/tutkimukset" 2>/dev/null) || tutkimukset_json="[]"
-slugit=$(printf '%s' "$tutkimukset_json" | python3 -c "import sys,json; [print(t['Slug']) for t in json.load(sys.stdin)]" 2>/dev/null) || slugit=""
-if [[ -z "$slugit" ]]; then
+# Raportti-endpoint: tarkistetaan jokaiselle tutkimukselle (jos niitä on).
+# Erottele kolme tilaa: (a) /api/tutkimukset ei vastaa → FAIL (ei saa väittää
+# ettei tutkimuksia ole, kun tosiasiassa endpoint on alhaalla); (b) vastaa mutta
+# ei kelvollista tutkimuslistaa → FAIL; (c) kelvollinen mutta tyhjä lista → OK.
+if ! tutkimukset_json=$(hae "$WEBUI/api/tutkimukset" 2>/dev/null); then
+    fail "API /raportti — /api/tutkimukset ei vastaa, ei voi tarkistaa"
+elif ! slugit=$(printf '%s' "$tutkimukset_json" | python3 -c \
+        "import sys,json; d=json.load(sys.stdin); assert isinstance(d,list); [print(t['Slug']) for t in d]" 2>/dev/null); then
+    fail "API /raportti — /api/tutkimukset ei palauttanut kelvollista tutkimuslistaa"
+elif [[ -z "$slugit" ]]; then
     ok "API /raportti — ei tutkimuksia tarkistettavana"
 else
     raportti_ok=true
@@ -170,9 +184,9 @@ fi
 echo ""
 
 if [[ $VIRHEET -eq 0 ]]; then
-    echo "Kaikki tarkistukset lapi. Kontit toimivat oikein."
+    printf "${VARI_VIH}Kaikki tarkistukset lapi. Kontit toimivat oikein.${VARI_L}\n"
     exit 0
 else
-    echo "$VIRHEET tarkistus epaonnistui."
+    printf "${VARI_PUN}%s tarkistus epaonnistui.${VARI_L}\n" "$VIRHEET"
     exit 1
 fi

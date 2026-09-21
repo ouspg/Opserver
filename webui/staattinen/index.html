@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Opserver</title>
   <link rel="icon" href="/staattinen/Opserver.ico" sizes="any">
-  <link rel="stylesheet" href="/staattinen/tyyli.css?v=35">
+  <link rel="stylesheet" href="/staattinen/tyyli.css?v=38">
 </head>
 <body>
   <header>
@@ -28,6 +28,7 @@
         <button class="tila-nappi-nav" data-tila="hylätty">Hylätty</button>
       </span>
     </nav>
+    <div id="valikkovihje" aria-hidden="true"></div>
   </header>
 
   <main>
@@ -123,6 +124,19 @@
           <label for="hitl-perustelu">Perustelu poiketa tekoälyn näkemyksestä</label>
           <textarea id="hitl-perustelu" rows="4" required></textarea>
         </div>
+        <fieldset class="lomake-kentta hitl-juurisyy">
+          <legend>Virheen juurisyy</legend>
+          <label class="hitl-juurisyy-valinta">
+            <input type="radio" name="hitl-juurisyy" value="riittamaton_opas" required>
+            <span><strong>Riittämätön opinto-opas</strong> — oikeaa vastausta ei voinut
+            johtaa oppaan tekstistä (tieto puuttui). Kirjataan oppaiden laatutilastoon.</span>
+          </label>
+          <label class="hitl-juurisyy-valinta">
+            <input type="radio" name="hitl-juurisyy" value="llm_virhe" required>
+            <span><strong>LLM:n väärinymmärrys</strong> — vastaus oli johdettavissa
+            tekstistä, mutta malli erehtyi. Korjataan kehotetta ja ajetaan uudelleen.</span>
+          </label>
+        </fieldset>
         <button type="submit" id="hitl-laheta" class="nappi-toiminto">Vahvista</button>
       </form>
     </div>
@@ -136,7 +150,7 @@
     </div>
   </div>
 
-  <script src="/staattinen/sovellus.js?v=41"></script>
+  <script src="/staattinen/sovellus.js?v=44"></script>
   <script src="/staattinen/yhteistyo.js?v=7"></script>
   <script src="/staattinen/arviointimuokkaus.js?v=4"></script>
   <script src="/staattinen/raporttimuokkaus.js?v=1"></script>

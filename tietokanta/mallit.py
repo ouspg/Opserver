@@ -781,21 +781,30 @@ def hae_tutkimuksen_tilanne(tid: int) -> dict:
 
 
 def _arvioimattomat_ehto(tid: int) -> tuple[str, tuple]:
-    """FROM+WHERE (ja parametrit) mukaan otetuille kursseille, joilta puuttuu
-    vielä ei-tyhjiä vastauksia. Jaettu rivihaun ja lukumäärän kesken (DRY)."""
+    """FROM+GROUP BY (ja parametrit) mukaan otetuille kursseille, joilta puuttuu
+    vielä ei-tyhjiä vastauksia. Jaettu rivihaun ja lukumäärän kesken (DRY).
+
+    GROUP BY -aggregaatti korreloidun per-rivi-alikyselyn sijaan: aiemmin jokaista
+    mukana-kurssia kohti ajettiin oma COUNT-alikysely (O(kurssit) × etälatenssi).
+    Nyt kurssit, kysymykset ja vastaukset yhdistetään kertaalleen ja verrataan
+    vastattujen kysymysten määrää kysymysten kokonaismäärään.
+
+    Palauttaa fragmentin, joka ryhmittelee k.KID:n mukaan → kutsuja kietoo sen:
+    rivihaku `SELECT k.* {ehto}`, lukumäärä `SELECT COUNT(*) FROM (SELECT k.KID {ehto}) t`.
+    """
     scope_where, scope_params = _tutkimus_kurssi_scope(tid)
-    scope_sql = f" AND {scope_where}" if scope_where else ""
+    where_sql = f"WHERE {scope_where}" if scope_where else ""
     sp = scope_params or []
     ehto = f"""
         FROM Kurssi k
         JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s AND kl.Mukana = 1
-        WHERE (
-            SELECT COUNT(*) FROM Vastaukset v
-            JOIN Kysymykset ky ON v.KysID = ky.KysID
-            WHERE ky.TID = %s AND v.KID = k.KID AND v.Vastaus != ''
-        ) < (SELECT COUNT(*) FROM Kysymykset WHERE TID = %s){scope_sql}
+        LEFT JOIN Kysymykset ky ON ky.TID = %s
+        LEFT JOIN Vastaukset v ON v.KID = k.KID AND v.KysID = ky.KysID AND v.Vastaus <> ''
+        {where_sql}
+        GROUP BY k.KID
+        HAVING COUNT(v.VasID) < COUNT(DISTINCT ky.KysID)
     """
-    return ehto, (tid, tid, tid, *sp)
+    return ehto, (tid, tid, *sp)
 
 
 def hae_arvioimattomat(tid: int) -> list[dict]:
@@ -812,6 +821,7 @@ def hae_arvioimattomat(tid: int) -> list[dict]:
             return _rivit_dikteina(kursori)
 
 
+
 def laske_arvioimattomat(tid: int) -> int:
     """Arvioimattomien kurssien lukumäärä. Erillinen hae_arvioimattomat'sta, jotta
     tilannesivu ei vedä kaikkien hyväksyttyjen kurssien täysiä rivejä (OpsKuvaus-
@@ -819,21 +829,33 @@ def laske_arvioimattomat(tid: int) -> int:
     ehto, params = _arvioimattomat_ehto(tid)
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute(f"SELECT COUNT(*) {ehto}", params)
+            kursori.execute(f"SELECT COUNT(*) FROM (SELECT k.KID {ehto}) t", params)
             return int(kursori.fetchone()[0])
 
 
 # --- HITL-korjaukset ---
 
+# Virhetaksonomian juurisyyt (CLAUDE.md): koodi → ihmisluettava nimi.
+# Jaettu WebUI-validoinnin (palvelin.py) ja raporttitilastojen kesken.
+JUURISYYT = {
+    "riittamaton_opas": "Riittämätön opinto-opas",
+    "llm_virhe": "LLM:n väärinymmärrys",
+}
+
+
 def tallenna_hitl_korjaus(tid: int, kid: int, uusi_tila: bool, perustelu: str,
-                          nimi: str, sahkoposti: str) -> None:
-    """Tallentaa ihmisen tekemän luokittelun ohituksen ja päivittää Kurssiluokitus.Mukana."""
+                          nimi: str, sahkoposti: str, juurisyy: str | None = None) -> None:
+    """Tallentaa ihmisen tekemän luokittelun ohituksen ja päivittää Kurssiluokitus.Mukana.
+
+    juurisyy: virhetaksonomian koodi (ks. JUURISYYT) tai None, jos merkitsemättä.
+    """
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                """INSERT INTO HitlKorjaus (TID, KID, UusiTila, Perustelu, KayttajaNimi, Sahkoposti)
-                   VALUES (%s, %s, %s, %s, %s, %s)""",
-                (tid, kid, uusi_tila, perustelu, nimi, sahkoposti),
+                """INSERT INTO HitlKorjaus
+                       (TID, KID, UusiTila, Perustelu, KayttajaNimi, Sahkoposti, Juurisyy)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                (tid, kid, uusi_tila, perustelu, nimi, sahkoposti, juurisyy),
             )
             kursori.execute(
                 "UPDATE Kurssiluokitus SET Mukana = %s WHERE TID = %s AND KID = %s",
@@ -909,14 +931,18 @@ def hae_raportti_osiot(tid: int) -> dict[str, str]:
             return {r[0]: r[1] for r in kursori.fetchall()}
 
 
-def aseta_raportti_osio(tid: int, avain: str, teksti: str) -> None:
+def aseta_raportti_osio(tid: int, avain: str, teksti: str,
+                        laskentatiiviste: str | None = None) -> None:
+    """Upsert raporttiosio. laskentatiiviste: annettuna (generointi) tallennetaan;
+    None:na (WebUI-tekstimuokkaus) säilytetään aiempi arvo koskematta."""
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                """INSERT INTO RaporttiOsio (TID, OsioAvain, Teksti)
-                   VALUES (%s, %s, %s)
-                   ON DUPLICATE KEY UPDATE Teksti = VALUES(Teksti)""",
-                (tid, avain, teksti),
+                """INSERT INTO RaporttiOsio (TID, OsioAvain, Teksti, Laskentatiiviste)
+                   VALUES (%s, %s, %s, %s)
+                   ON DUPLICATE KEY UPDATE Teksti = VALUES(Teksti),
+                       Laskentatiiviste = COALESCE(VALUES(Laskentatiiviste), Laskentatiiviste)""",
+                (tid, avain, teksti, laskentatiiviste),
             )
 
 
@@ -929,6 +955,68 @@ def hae_raportti_osio(tid: int, avain: str) -> str:
             )
             rivi = kursori.fetchone()
             return rivi[0] if rivi else ""
+
+
+def hae_raportti_tila(tid: int) -> list[dict]:
+    """Per-osio metatieto raportin tilannesivulle: milloin kirjoitettu ja millä
+    laskentatiivisteellä (lähdeaineiston hash generoinnin hetkellä). Ei hae
+    Teksti-kenttää (voi olla iso) — vain kevyet metasarakkeet."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                "SELECT OsioAvain, Aikaleima, Laskentatiiviste FROM RaporttiOsio WHERE TID = %s",
+                (tid,),
+            )
+            return _rivit_dikteina(kursori)
+
+
+def hae_raportti_tuoreus(tid: int) -> dict | None:
+    """Viimeksi laskettu raportin tuoreussignatuuri + laskenta-aika, tai None jos
+    tuoreutta ei ole vielä laskettu. Kevyt luku — raskas tiivistelaskenta tehdään
+    erikseen taustalla (tallenna_raportti_tuoreus)."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                "SELECT Signatuuri, Tarkistettu FROM RaporttiTuoreus WHERE TID = %s",
+                (tid,),
+            )
+            return _rivi_diktina(kursori)
+
+
+def tallenna_raportti_tuoreus(tid: int, signatuuri: str | None) -> None:
+    """Upsert viimeksi laskettu tuoreussignatuuri; Tarkistettu = NOW() (taulun
+    ON UPDATE / DEFAULT hoitaa aikaleiman). Kutsutaan taustalaskennasta ja
+    generoinnista (jolloin signatuuri = generoinnin lähdeaineiston tiiviste)."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                """INSERT INTO RaporttiTuoreus (TID, Signatuuri) VALUES (%s, %s)
+                   ON DUPLICATE KEY UPDATE Signatuuri = VALUES(Signatuuri),
+                       Tarkistettu = CURRENT_TIMESTAMP""",
+                (tid, signatuuri),
+            )
+
+
+def laske_hitl_korjaukset_jalkeen(tid: int, aika) -> int:
+    """HITL-korjausten määrä, jotka on tehty annetun ajan jälkeen (COUNT, ei rivinoutoa)."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                "SELECT COUNT(*) FROM HitlKorjaus WHERE TID = %s AND Aikaleima > %s",
+                (tid, aika),
+            )
+            return int(kursori.fetchone()[0])
+
+
+def laske_arviokommentit_jalkeen(tid: int, aika) -> int:
+    """Arviokommenttien määrä, jotka on tehty/muokattu annetun ajan jälkeen."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                "SELECT COUNT(*) FROM ArvioKommentti WHERE TID = %s AND Aikaleima > %s",
+                (tid, aika),
+            )
+            return int(kursori.fetchone()[0])
 
 
 # --- Raporttitilastot ---
@@ -982,7 +1070,10 @@ def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
                 ORDER BY ko.KouluNimi
             """, (tid, tid, tid, *(kaudet if kaudet else []), *kkid_lista))
             rivit = _rivit_dikteina(kursori)
-            # Lisää HITL-lukumäärä per yliopisto
+            # Lisää HITL-tilastot per yliopisto. HitlLkm = korjaustapahtumien määrä.
+            # HitlKursseja + juurisyyjakauma lasketaan kunkin kurssin VIIMEISIMMÄSTÄ
+            # korjauksesta (MAX(HID) per KID), jotta edestakaisin korjattu kurssi
+            # ei tuplaannu ja lopputila kertoo ihmisen lopullisen syyn.
             kursori.execute("""
                 SELECT k.KKID, COUNT(DISTINCT hk.HID) AS HitlLkm
                 FROM HitlKorjaus hk
@@ -991,6 +1082,30 @@ def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
                 GROUP BY k.KKID
             """, (tid,))
             hitl = {r[0]: r[1] for r in kursori.fetchall()}
+
+            kursori.execute("""
+                SELECT k.KKID,
+                       COUNT(*)                                    AS HitlKursseja,
+                       SUM(uusin.Juurisyy = 'riittamaton_opas')    AS RiittamatonOpas,
+                       SUM(uusin.Juurisyy = 'llm_virhe')           AS LlmVirhe,
+                       SUM(uusin.Juurisyy IS NULL)                 AS TuntematonSyy
+                FROM (
+                    SELECT hk.KID, hk.Juurisyy
+                    FROM HitlKorjaus hk
+                    JOIN (SELECT KID, MAX(HID) AS MaxHID
+                          FROM HitlKorjaus WHERE TID = %s GROUP BY KID) v
+                      ON hk.HID = v.MaxHID
+                ) uusin
+                JOIN Kurssi k ON uusin.KID = k.KID
+                GROUP BY k.KKID
+            """, (tid,))
+            juurisyy = {r[0]: r[1:] for r in kursori.fetchall()}
+
             for r in rivit:
                 r["HitlLkm"] = hitl.get(r["KKID"], 0)
+                kurssit, opas, llm, tuntematon = juurisyy.get(r["KKID"], (0, 0, 0, 0))
+                r["HitlKursseja"] = int(kurssit or 0)
+                r["RiittamatonOpas"] = int(opas or 0)
+                r["LlmVirhe"] = int(llm or 0)
+                r["TuntematonSyy"] = int(tuntematon or 0)
             return rivit
