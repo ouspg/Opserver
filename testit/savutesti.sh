@@ -95,7 +95,11 @@ tarkista_kontti() {
     local palvelu=$2
     local tila
 
-    tila=$(docker compose ps --format "{{.State}}" "$palvelu" 2>/dev/null | head -1)
+    # sudo: käyttäjä ei välttämättä ole docker-ryhmässä (esr-project) — bare
+    # docker epäonnistuisi hiljaa. Ei alusteta funktiona (docker() { ... }),
+    # koska tätä skriptiä joskus sourcetaan ja funktio jäisi elämään kutsuvaan
+    # interaktiiviseen shelliin.
+    tila=$(sudo docker compose ps --format "{{.State}}" "$palvelu" 2>/dev/null | head -1)
     if [[ "$tila" == "running" ]]; then
         ok "$kuvaus"
     else
@@ -105,14 +109,14 @@ tarkista_kontti() {
 
 tarkista_kuva_tuoreus() {
     local kontti_id kontti_kuva uusin_kuva
-    kontti_id=$(docker compose ps -q webui 2>/dev/null | head -1) || kontti_id=""
+    kontti_id=$(sudo docker compose ps -q webui 2>/dev/null | head -1) || kontti_id=""
     if [[ -z "$kontti_id" ]]; then
         fail "WebUI-kuvan tuoreus — konttia ei löydy"
         return
     fi
 
-    kontti_kuva=$(docker inspect "$kontti_id" --format '{{.Image}}' 2>/dev/null) || kontti_kuva=""
-    uusin_kuva=$(docker inspect opserver-webui --format '{{.Id}}' 2>/dev/null) || uusin_kuva=""
+    kontti_kuva=$(sudo docker inspect "$kontti_id" --format '{{.Image}}' 2>/dev/null) || kontti_kuva=""
+    uusin_kuva=$(sudo docker inspect opserver-webui --format '{{.Id}}' 2>/dev/null) || uusin_kuva=""
 
     if [[ -z "$kontti_kuva" || -z "$uusin_kuva" ]]; then
         fail "WebUI-kuvan tuoreus — ei saatu image-tietoja"
