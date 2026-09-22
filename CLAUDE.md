@@ -97,7 +97,7 @@ WebUI:n esittely yleisölle (seminaari-lähiverkko ja etäkokous-Tailscale Funne
 - **`./testit/skeematarkistus.sh`** — vertaa ajossa olevan kannan skeemaa tavoiteskeemaan (`testit/fixtures/tavoiteskeema.sql`); aja asennuksen tai migraatioiden jälkeen
 - **`./testit/migraatiotesti.sh`** — ajaa migraatioketjun kertakäyttökontissa vanhasta skeemasta ja vaatii saman lopputuloksen kuin tuore asennus (vaatii Dockerin, ei muuta ympäristöä)
 - **`./testit/savutesti.sh`** — savutesti: varmistaa, että MySQL + WebUI-kontit vastaavat oikein (olettaa konttien olevan käynnissä)
-- **`./asenna`** — tuotantoasennus tuoreelle koneelle (vain Docker + curl tarvitaan alkuun): asentaa python3-venvin pipelinelle, rakentaa/käynnistää Docker-pinon (MySQL + WebUI + Caddy 443:ssa, Let's Encrypt TLS-ALPN-01), ajaa tietokantamigraatiot, asentaa `vahtikoira`-cronin. Idempotentti — uudelleenajo on turvallista. Vaatii `.env`:iin `TUOTANTO_DOMAIN`:in etukäteen.
+- **`./asenna`** — tuotantoasennus tuoreelle koneelle (vain Docker + curl tarvitaan alkuun): asentaa python3-venvin pipelinelle, rakentaa/käynnistää Docker-pinon (MySQL + WebUI + Caddy 443:ssa, Let's Encrypt TLS-ALPN-01), ajaa tietokantamigraatiot ja todentaa skeeman (`skeematarkistus.sh`; keskeytyy jos kanta ei vastaa tavoitetta), asentaa `vahtikoira`-cronin. Idempotentti — uudelleenajo on turvallista. Vaatii `.env`:iin `TUOTANTO_DOMAIN`:in etukäteen.
 - **`./vahtikoira`** — cron-terveystarkistus tuotannolle (asennetaan `asenna`:n toimesta, ajaa minuutin välein): käynnistää pysähtyneet kontit; kova `docker compose restart` vasta 10 min yhtäjaksoisen epäkunnon jälkeen (ei keskeytä Caddyn ACME-sertifikaatin hakua)
 
 ## Vaiheiden valmistumiskriteerit
