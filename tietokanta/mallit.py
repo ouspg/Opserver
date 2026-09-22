@@ -1,5 +1,5 @@
 import json
-from tietokanta.yhteys import yhteys
+from tietokanta.yhteys import yhteys, uudelleenyrita
 from luokittelu import lukuvuosi as lv
 
 
@@ -56,6 +56,9 @@ def poista_korkeakoulu(kkid: int) -> None:
 
 # --- Kurssi ---
 
+# ponytail: uudelleenyritys vain kurssihaun pitkän ajon kutsuissa — muut kutsut
+# ovat kertaluontoisia ja kaatuvat siististi. Lisää dekoraattori jos ne kaatuilevat.
+@uudelleenyrita
 def tallenna_kurssi(kkid: int, lahde_id: str, koodi: str, kurssi_nimi: str,
                     taso: str | None, oppiaine: str, opintopisteet: str | None,
                     opetusvuosi: str, ops_kuvaus: str) -> int:
@@ -176,6 +179,7 @@ def hae_tasot(kkid: int | None = None, lukuvuosi: str | None = None) -> list[str
             return [r[0] for r in kursori.fetchall()]
 
 
+@uudelleenyrita
 def hae_tallennetut_lahde_idt(kkid: int, opetusvuosi: str) -> set[str]:
     with yhteys() as yht:
         with yht.cursor() as kursori:

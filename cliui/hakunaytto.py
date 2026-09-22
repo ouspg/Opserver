@@ -1,6 +1,6 @@
 """Kurssien hakeminen opinto-oppaista — CLIUI-näkymä."""
 from tietokanta import mallit
-from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta
+from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta, kirjoita_rivi
 
 
 def _tee_lukija(koulu: dict):
@@ -51,17 +51,13 @@ def nayta(stdscr) -> None:
     stdscr.refresh()
 
     def paivita_tila(viesti: str) -> None:
-        stdscr.addstr(4, 0, f"  {viesti}")
-        stdscr.clrtoeol()
-        stdscr.addstr(5, 0, "")
-        stdscr.clrtoeol()
+        kirjoita_rivi(stdscr, 4, f"  {viesti}")
+        kirjoita_rivi(stdscr, 5, "")
         stdscr.refresh()
 
     def paivita_edistyminen(n: int, yhteensa: int, kurssi_nimi: str = "") -> None:
-        stdscr.addstr(4, 0, f"  Vaihe 2/2: tallennetaan kurssitietoja...  {n}/{yhteensa} kurssia")
-        stdscr.clrtoeol()
-        stdscr.addstr(5, 0, f"  {kurssi_nimi}")
-        stdscr.clrtoeol()
+        kirjoita_rivi(stdscr, 4, f"  Vaihe 2/2: käsitelty {n} / {yhteensa} kurssia")
+        kirjoita_rivi(stdscr, 5, f"  {kurssi_nimi}")
         stdscr.refresh()
 
     tallennettu, ohitettu = lukija.hae_kurssit(

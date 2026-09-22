@@ -1,3 +1,4 @@
+import functools
 import os
 import time
 import threading
@@ -156,6 +157,31 @@ def yhteys():
         raise
     finally:
         pooli.palauta(yht, pooloitu, rikki=rikki)
+
+
+def uudelleenyrita(funktio):
+    """Toistaa yhteystason virheeseen kaatuneen kutsun kasvavalla viiveellä.
+
+    Etäkannassa (Tailscale) ruuhka tai MySQL:n uudelleenkäynnistys katkaisee
+    yhteyden kesken pitkän ajon ("MySQL Connection not available", 2055 Lost
+    connection) → yhden kurssin kirjoitus kaatoi koko kurssihaun. Yhteys on jo
+    merkitty rikkinäiseksi (ks. yhteys()), joten uusi yritys saa tuoreen yhteyden.
+
+    VAIN idempotenteille kutsuille: haut ja ON DUPLICATE KEY UPDATE -kirjoitukset.
+    Viiveet .env:stä: DB_UUDELLEENYRITYKSET (oletus 4), DB_UUDELLEENYRITYS_VIIVE_S (1).
+    """
+    @functools.wraps(funktio)
+    def kaare(*args, **kwargs):
+        yrityksia = int(os.getenv("DB_UUDELLEENYRITYKSET", "4"))
+        viive = float(os.getenv("DB_UUDELLEENYRITYS_VIIVE_S", "1"))
+        for yritys in range(yrityksia):
+            try:
+                return funktio(*args, **kwargs)
+            except (errors.OperationalError, errors.InterfaceError):
+                if yritys == yrityksia - 1:
+                    raise
+                time.sleep(viive * 2 ** yritys)
+    return kaare
 
 
 def alusta_tietokanta():

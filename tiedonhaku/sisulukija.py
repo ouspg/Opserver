@@ -75,14 +75,16 @@ class SisuLukija(OpsLukija):
         yhteensa = len(group_idt)
         tallennettu = 0
         ohitettu = 0
+        kasitelty = 0
 
         for i in range(0, len(group_idt), ERAKOKO):
             era = group_idt[i : i + ERAKOKO]
+            viimeisin = ""
             try:
                 kurssit_data = self._hae_kurssierat(pohja, yliopisto_id, era)
             except requests.exceptions.RequestException:
                 ohitettu += len(era)
-                continue
+                kurssit_data = []
             for kurssi_data in kurssit_data:
                 # Sisulla LahdeId = kurssin yksilöivä UUID (id-kenttä),
                 # ei groupId — groupId ei toimi Sisun SPA-reitityksessä.
@@ -102,8 +104,13 @@ class SisuLukija(OpsLukija):
                     ops_kuvaus=json.dumps(kurssi_data, ensure_ascii=False),
                 )
                 tallennettu += 1
-                if edistyminen_cb:
-                    edistyminen_cb(tallennettu, yhteensa, kurssi["kurssi_nimi"])
+                viimeisin = kurssi["kurssi_nimi"]
+            # Edistyminen mitataan käsitellyistä kurssilistauksista, ei tallennetuista:
+            # erä voi palauttaa vähemmän kursseja kuin pyydettiin ja osa on jo kannassa
+            # → tallennettu-laskuri jäisi jälkeen ja näyttäisi jumittuneelta.
+            kasitelty = min(i + ERAKOKO, yhteensa)
+            if edistyminen_cb:
+                edistyminen_cb(kasitelty, yhteensa, viimeisin)
 
         return tallennettu, ohitettu
 

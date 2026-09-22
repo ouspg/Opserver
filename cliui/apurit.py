@@ -19,6 +19,15 @@ def piirra_otsikko(stdscr, teksti: str) -> None:
     stdscr.addstr(1, 0, "=" * len(teksti))
 
 
+def kirjoita_rivi(stdscr, rivi: int, teksti: str) -> None:
+    """Kirjoittaa yhden rivin ja tyhjentää lopun. Katkaisu ruudun leveyteen on
+    pakollinen: ilman sitä pitkä teksti rivittyy seuraavalle riville, jolloin
+    clrtoeol tyhjentää väärän kohdan ja näkymään jää sekaisia jäänteitä."""
+    leveys = stdscr.getmaxyx()[1]
+    stdscr.addstr(rivi, 0, teksti[:leveys - 1])
+    stdscr.clrtoeol()
+
+
 def nayta_viesti(stdscr, teksti: str, rivi: int = -1) -> None:
     """Näyttää viestin ja odottaa näppäinpainallusta."""
     if rivi < 0:

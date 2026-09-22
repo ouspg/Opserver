@@ -160,11 +160,13 @@ class PeppiLukija(OpsLukija):
         yhteensa = len(kurssi_idt)
         tallennettu = 0
         ohitettu = 0
-        for kurssi_id in kurssi_idt:
+        for kasitelty, kurssi_id in enumerate(kurssi_idt, 1):
             try:
                 kurssi_json = self._hae_json(f"{self._api()}/course/{kurssi_id}?period={kausi}")
             except requests.exceptions.RequestException:
                 ohitettu += 1
+                if edistyminen_cb:
+                    edistyminen_cb(kasitelty, yhteensa, "")
                 continue
             kurssi = self._jasenna_kurssi(kurssi_json)
             # LahdeId = pyydetty kurssi_id: Peppin kurssivastauksesta puuttuu joskus
@@ -183,7 +185,7 @@ class PeppiLukija(OpsLukija):
             )
             tallennettu += 1
             if edistyminen_cb:
-                edistyminen_cb(tallennettu, yhteensa, kurssi["kurssi_nimi"])
+                edistyminen_cb(kasitelty, yhteensa, kurssi["kurssi_nimi"])
         return tallennettu, ohitettu
 
     # --- Yksityiset apumetodit ---
