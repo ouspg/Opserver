@@ -1,5 +1,6 @@
 import functools
 import os
+import random
 import time
 import threading
 from contextlib import contextmanager
@@ -168,11 +169,18 @@ def uudelleenyrita(funktio):
     merkitty rikkinäiseksi (ks. yhteys()), joten uusi yritys saa tuoreen yhteyden.
 
     VAIN idempotenteille kutsuille: haut ja ON DUPLICATE KEY UPDATE -kirjoitukset.
-    Viiveet .env:stä: DB_UUDELLEENYRITYKSET (oletus 4), DB_UUDELLEENYRITYS_VIIVE_S (1).
+    Viiveet .env:stä: DB_UUDELLEENYRITYKSET (oletus 6), DB_UUDELLEENYRITYS_VIIVE_S (1)
+    → n. 1+2+4+8+16 s eli runsas puoli minuuttia. Lyhyempi budjetti (7 s) ei
+    riittänyt, kun kaikkien korkeakoulujen kurssihaut ajettiin rinnakkain: kanta
+    hylkäsi jo kättelyn (2013 Lost connection during query).
+
+    Viiveessä on satunnaishajonta: ilman sitä rinnakkaiset hakuprosessit
+    palaisivat kannan kimppuun täsmälleen samalla hetkellä ja ylläpitäisivät
+    ruuhkaa, jota ne yrittävät väistää.
     """
     @functools.wraps(funktio)
     def kaare(*args, **kwargs):
-        yrityksia = int(os.getenv("DB_UUDELLEENYRITYKSET", "4"))
+        yrityksia = int(os.getenv("DB_UUDELLEENYRITYKSET", "6"))
         viive = float(os.getenv("DB_UUDELLEENYRITYS_VIIVE_S", "1"))
         for yritys in range(yrityksia):
             try:
@@ -180,7 +188,7 @@ def uudelleenyrita(funktio):
             except (errors.OperationalError, errors.InterfaceError):
                 if yritys == yrityksia - 1:
                     raise
-                time.sleep(viive * 2 ** yritys)
+                time.sleep(viive * 2 ** yritys * (0.5 + random.random()))
     return kaare
 
 
