@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY tietokanta/ tietokanta/
 COPY luokittelu/ luokittelu/
 COPY llm/ llm/
+COPY raportti/ raportti/
 COPY kehotteet/ kehotteet/
 COPY webui/ webui/
 

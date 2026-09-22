@@ -152,8 +152,10 @@ class TestHaeArvioimattomat:
             mallit.hae_arvioimattomat(1)
         sql, params = kursori.execute.call_args[0]
         assert "k.KKID IN" in sql and "vuosirajaus" in sql
-        # kolme tid:tä (JOIN + 2 alikyselyä), sitten rajausparametrit
-        assert list(params) == [1, 1, 1, 4, 2024, 2025]
+        # GROUP BY -aggregaatti, ei per-rivi korreloitua alikyselyä
+        assert "GROUP BY" in sql
+        # kaksi tid:tä (Kurssiluokitus- ja Kysymykset-JOIN), sitten rajausparametrit
+        assert list(params) == [1, 1, 4, 2024, 2025]
 
     def test_ilman_rajausta_ei_lisaa_scope_ehtoa(self, mock_yhteys):
         yht, kursori = mock_yhteys
@@ -163,7 +165,7 @@ class TestHaeArvioimattomat:
             mallit.hae_arvioimattomat(1)
         sql, params = kursori.execute.call_args[0]
         assert "KKID" not in sql
-        assert list(params) == [1, 1, 1]
+        assert list(params) == [1, 1]
 
     def test_laske_arvioimattomat_laskee_ei_hae_riveja(self, mock_yhteys):
         """Tilannesivu tarvitsee vain lukumäärän → COUNT(*), ei SELECT k.* (ei vedä
@@ -176,7 +178,35 @@ class TestHaeArvioimattomat:
         assert tulos == 7
         sql, params = kursori.execute.call_args[0]
         assert "SELECT COUNT(*)" in sql and "SELECT k.*" not in sql
-        assert list(params) == [1, 1, 1, 4, 2024, 2025]
+        assert "GROUP BY" in sql
+        assert list(params) == [1, 1, 4, 2024, 2025]
+
+
+class TestRaporttiTuoreus:
+    """Raportin tuoreussignatuuri tallennetaan/luetaan halvalla — raskas
+    tiivistelaskenta tehdään erikseen taustalla."""
+
+    def test_hae_palauttaa_none_kun_ei_riviä(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.description = None
+        assert mallit.hae_raportti_tuoreus(1) is None
+
+    def test_hae_palauttaa_signatuurin_ja_ajan(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.description = [("Signatuuri",), ("Tarkistettu",)]
+        kursori.fetchone.return_value = ("abc123", "2026-07-15 10:00:00")
+        tulos = mallit.hae_raportti_tuoreus(1)
+        assert tulos == {"Signatuuri": "abc123", "Tarkistettu": "2026-07-15 10:00:00"}
+        sql, params = kursori.execute.call_args[0]
+        assert "RaporttiTuoreus" in sql and list(params) == [1]
+
+    def test_tallenna_upsertoi_signatuurin(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.tallenna_raportti_tuoreus(3, "sig")
+        sql, params = kursori.execute.call_args[0]
+        assert "INSERT" in sql.upper() and "ON DUPLICATE KEY UPDATE" in sql.upper()
+        assert "RaporttiTuoreus" in sql
+        assert list(params) == [3, "sig"]
 
 
 class TestHaeTutkimuksenTilanne:
@@ -669,12 +699,14 @@ class TestHitlKorjaus:
         mallit.tallenna_hitl_korjaus(
             tid=1, kid=7, uusi_tila=False,
             perustelu="Ei kuulu aiheeseen", nimi="Matti", sahkoposti="matti@esim.fi",
+            juurisyy="llm_virhe",
         )
         assert kursori.execute.call_count == 2
         insert_sql = kursori.execute.call_args_list[0][0][0]
         update_sql = kursori.execute.call_args_list[1][0][0]
         assert "INSERT" in insert_sql.upper()
         assert "HitlKorjaus" in insert_sql
+        assert "Juurisyy" in insert_sql
         assert "UPDATE" in update_sql.upper()
         assert "Kurssiluokitus" in update_sql
 
@@ -683,11 +715,74 @@ class TestHitlKorjaus:
         mallit.tallenna_hitl_korjaus(
             tid=2, kid=9, uusi_tila=True,
             perustelu="Sopii hyvin", nimi="Liisa", sahkoposti="liisa@esim.fi",
+            juurisyy="riittamaton_opas",
         )
         insert_params = kursori.execute.call_args_list[0][0][1]
-        assert insert_params == (2, 9, True, "Sopii hyvin", "Liisa", "liisa@esim.fi")
+        assert insert_params == (2, 9, True, "Sopii hyvin", "Liisa", "liisa@esim.fi",
+                                 "riittamaton_opas")
         update_params = kursori.execute.call_args_list[1][0][1]
         assert update_params == (True, 2, 9)
+
+    def test_tallenna_hitl_korjaus_juurisyy_oletuksena_none(self, mock_yhteys):
+        """Juurisyy on valinnainen malliparametri (vanhat kutsut, NULL kannassa)."""
+        yht, kursori = mock_yhteys
+        mallit.tallenna_hitl_korjaus(
+            tid=3, kid=4, uusi_tila=False,
+            perustelu="x", nimi="N", sahkoposti="n@esim.fi",
+        )
+        insert_params = kursori.execute.call_args_list[0][0][1]
+        assert insert_params[-1] is None
+
+    def test_JUURISYYT_sisaltaa_kaksi_taksonomia_arvoa(self):
+        assert set(mallit.JUURISYYT) == {"riittamaton_opas", "llm_virhe"}
+
+
+class TestRaporttiTila:
+    def test_aseta_raportti_osio_kirjoittaa_tiivisteen(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.aseta_raportti_osio(1, "johdanto", "teksti", laskentatiiviste="abc123")
+        sql, params = kursori.execute.call_args[0]
+        assert "Laskentatiiviste" in sql
+        assert params == (1, "johdanto", "teksti", "abc123")
+
+    def test_aseta_raportti_osio_sailyttaa_tiivisteen_kun_none(self, mock_yhteys):
+        """WebUI-tekstimuokkaus (ilman tiivistettä) ei saa nollata Laskentatiivistettä."""
+        yht, kursori = mock_yhteys
+        mallit.aseta_raportti_osio(1, "johdanto", "muokattu")
+        sql, params = kursori.execute.call_args[0]
+        assert "COALESCE(VALUES(Laskentatiiviste), Laskentatiiviste)" in sql
+        assert params == (1, "johdanto", "muokattu", None)
+
+    def test_hae_raportti_tila_palauttaa_aikaleimat_ja_tiivisteen(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = [
+            ("johdanto", "2026-07-15 10:00:00", "abc"),
+            ("kurssit", "2026-07-15 10:00:05", "abc"),
+        ]
+        kursori.description = [("OsioAvain",), ("Aikaleima",), ("Laskentatiiviste",)]
+        rivit = mallit.hae_raportti_tila(1)
+        assert rivit[0]["OsioAvain"] == "johdanto"
+        assert rivit[0]["Laskentatiiviste"] == "abc"
+        sql = kursori.execute.call_args[0][0]
+        assert "Aikaleima" in sql and "Laskentatiiviste" in sql
+
+    def test_laske_hitl_korjaukset_jalkeen_kayttaa_countia(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchone.return_value = (3,)
+        n = mallit.laske_hitl_korjaukset_jalkeen(1, "2026-07-15 10:00:00")
+        sql, params = kursori.execute.call_args[0]
+        assert "COUNT(*)" in sql and "HitlKorjaus" in sql and "Aikaleima >" in sql
+        assert n == 3
+        assert list(params) == [1, "2026-07-15 10:00:00"]
+
+    def test_laske_arviokommentit_jalkeen_kayttaa_countia(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchone.return_value = (2,)
+        n = mallit.laske_arviokommentit_jalkeen(1, "2026-07-15 10:00:00")
+        sql, params = kursori.execute.call_args[0]
+        assert "COUNT(*)" in sql and "ArvioKommentti" in sql and "Aikaleima >" in sql
+        assert n == 2
+        assert list(params) == [1, "2026-07-15 10:00:00"]
 
 
 class TestKurssiarviointi:

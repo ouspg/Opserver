@@ -152,7 +152,10 @@ class TestAja:
         def edistyminen(n, yht, erä, erat, tilasto):
             tapahtumat.append((n, yht, erä, erat))
 
-        with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+        # Eräkoko kiinnitetään (5), ettei .env:n ARVIOINTI_ERAKOKO vuoda testiin
+        # ja pilko 2 kurssia useaan erään. 2 kurssia + sama kysymysjoukko → 1 erä.
+        with patch("arviointi.llmarviointi.erakoko", return_value=5), \
+             patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
              patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=KURSSIT), \
              patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value={}), \
              patch("arviointi.llmarviointi.kutsu.kysy", return_value=LLM_VASTAUS), \
@@ -173,7 +176,9 @@ class TestAja:
                    for i in range(1, 8)]
         vastaus = '{"tulokset": [{"id": 1, "vastaukset": ["a", "b"]}]}'
         tapahtumat = []
-        with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+        # Eräkoko kiinnitetään (5): 7 kurssia → 2 erää; max_erat=1 → 1 LLM-pyyntö.
+        with patch("arviointi.llmarviointi.erakoko", return_value=5), \
+             patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
              patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=kurssit), \
              patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value={}), \
              patch("arviointi.llmarviointi.kutsu.kysy", return_value=vastaus) as mock_kysy, \
@@ -189,7 +194,9 @@ class TestAja:
                     "Oppiaine": "TT", "Opintopisteet": "5", "Opetusvuosi": "2025", "OpsKuvaus": None}
                    for i in range(1, 8)]
         vastaus = '{"tulokset": [{"id": 1, "vastaukset": ["a", "b"]}]}'
-        with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+        # Eräkoko kiinnitetään (5): 7 kurssia → 2 erää, riippumatta .env:stä.
+        with patch("arviointi.llmarviointi.erakoko", return_value=5), \
+             patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
              patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=kurssit), \
              patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value={}), \
              patch("arviointi.llmarviointi.kutsu.kysy", return_value=vastaus) as mock_kysy, \
