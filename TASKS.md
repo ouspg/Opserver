@@ -41,3 +41,23 @@ Ehdotettu korjaus (tarjottu, käyttäjä ei ehtinyt vastata "sopiiko?"):
 `vahtikoira` tarkistaa ensimmäisenä `.vahtikoira_pysahdyksissa`-tiedoston
 olemassaolon ja poistuu heti jos se löytyy — operaattori voi `touch`ata sen
 ennen manuaalista debuggausta ja poistaa jälkeenpäin.
+
+## 4. Tuotannon caddy jäi `Restarting`-tilaan asennusajon lopussa
+
+Havaittu esr-projectilla 2026-09-22 onnistuneen `./asenna`-ajon lopussa:
+tuloste päättyi riviin `⠇ Container opserver-caddy-1 Restarting`. Käyttäjä ei
+vahvistanut tilannetta jälkikäteen, joten on auki jäikö caddy kiertämään
+restart-silmukkaan (ks. [[Caddy-ACME-ansa]], PR #13). Tarkistus:
+`sudo docker compose ps` + `sudo docker compose logs caddy`. Jos WebUI vastaa
+HTTPS:llä, tämä voi olla pelkkä ohimenevä tila asennuksen restart-komennosta.
+
+## 5. Monilauseinen migraatio katkeaa ensimmäiseen duplikaattiin — loput lauseet jäävät hiljaa ajamatta
+
+`asenna`:n migraatioajuri tulkitsee duplikaattiluokan virheen "jo
+sovellettu" -tilanteeksi ja merkitsee tiedoston tehdyksi. `mysql` kuitenkin
+pysähtyy ensimmäiseen virheeseen, joten saman tiedoston myöhemmät lauseet
+jäävät ajamatta vaikka ne olisivat oikeasti tarpeen. Tämä nähtiin
+2026-09-22 tuotannossa (esim. migraatio_004, 008-010, 016-017 ohitettiin).
+Seuraukset havaitaan nyt `./testit/skeematarkistus.sh`:lla, mutta itse ansaa
+ei ole poistettu. Vaihtoehto: aja migraatiot `mysql --force`:lla ja päätä
+vasta kaikkien lauseiden virheistä, onko tiedosto oikeasti sovellettu.
