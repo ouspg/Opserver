@@ -24,6 +24,14 @@ ENV
     echo "Luotiin .env satunnaisilla salasanoilla (WEBUI_AUTH_* näkyy siellä)."
 fi
 
+# TUOTANTO_DOMAIN: Caddy hakee sille automaattisesti Let's Encrypt -sertin (portti
+# 443). Ei autogeneroitavissa — täytyy olla julkinen domain joka osoittaa tähän
+# koneeseen (esim. koneen käänteis-DNS-nimi, jos se resolvaa myös eteenpäin takaisin).
+grep -q '^TUOTANTO_DOMAIN=' .env 2>/dev/null || {
+    echo "Lisää TUOTANTO_DOMAIN=<domain> .env-tiedostoon ja aja ./asenna uudelleen."
+    exit 1
+}
+
 docker compose build webui
 docker compose up -d
 

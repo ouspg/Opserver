@@ -5,10 +5,11 @@
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 
 kunnossa() {
-    [[ "$(docker compose ps --status running --services 2>/dev/null | sort | tr '\n' ' ')" == "mysql webui " ]] || return 1
-    # 200 tai 401 (Basic Auth päällä) = palvelin elää
+    [[ "$(docker compose ps --status running --services 2>/dev/null | sort | tr '\n' ' ')" == "caddy mysql webui " ]] || return 1
+    # 200 tai 401 (Basic Auth päällä) = palvelin elää. -k: caddyn sertti on
+    # myönnetty julkiselle domainille, ei "localhost"ille — sisältö on sama.
     local koodi
-    koodi=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:12121/) || return 1
+    koodi=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 5 https://localhost/) || return 1
     [[ "$koodi" == 200 || "$koodi" == 401 ]]
 }
 
