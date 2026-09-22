@@ -63,6 +63,12 @@ for tiedosto in tietokanta/migraatio_*.sql; do
     fi
 done
 
+# Caddyfile on bind-mount — compose ei huomaa pelkkää tiedostomuutosta, joten
+# caddy jää ajamaan vanhaa konfiguraatiota ellei sitä erikseen käynnistetä
+# uudelleen. Turvallista: sertti on jo /data-volyymissa, restart ei tarvitse
+# uutta ACME-kierrosta jos sertti on voimassa.
+docker compose restart caddy
+
 # Cron: vahtikoira joka minuutti (korvaa vanhan rivin, ei tuplaa)
 rivi="* * * * * $PWD/vahtikoira >> $PWD/vahtikoira.log 2>&1"
 ( crontab -l 2>/dev/null | grep -vF "$PWD/vahtikoira" || true; echo "$rivi" ) | crontab -
