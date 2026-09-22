@@ -12,7 +12,15 @@ command -v curl >/dev/null || { echo "curl puuttuu"; exit 1; }
 # Kääritään sudolla kerran, jolloin kaikki `docker ...`-kutsut TÄSSÄ skriptissä
 # saavat sen automaattisesti. Huom: bash-funktio ei periydy aliprosesseihin —
 # ./vahtikoira (kutsutaan lopussa) tarvitsee oman samanlaisen käärimensä.
-docker() { sudo docker "$@"; }
+# EUID-tarkistus: jos asenna on jo ajettu sudolla (yleinen käyttötapa), älä
+# sudota enää sisäisesti — turha sisäkkäinen sudo Ubuntun "Defaults use_pty"
+# -asetuksen kanssa varaa jokaiselle kutsulle uuden pty:n, mikä on saanut
+# docker-compose exec -kutsun pysähtymään SIGTTIN/SIGTTOU:lla tuotannossa.
+if [[ $EUID -eq 0 ]]; then
+    docker() { command docker "$@"; }
+else
+    docker() { sudo docker "$@"; }
+fi
 docker compose version >/dev/null || { echo "docker compose -plugin puuttuu"; exit 1; }
 
 # cliui (./run, pipelinen ajo) tarvitsee venvin — WebUI ei, se on kontissa.
@@ -74,11 +82,18 @@ aja_sql() { docker compose exec -T -e MYSQL_PWD="$DB_PASSWORD" mysql mysql -u"$D
 # set -e EI luotettavasti pysäytä skriptiä komentokorvauksen sisällä
 # epäonnistuneesta komennosta (var=$(epäonnistuu) on poikkeus -e:lle) — siksi
 # tarkistetaan jokaisen aja_sql-kutsun paluuarvo eksplisiittisesti.
-aja_sql -e "CREATE TABLE IF NOT EXISTS _migraatiot (nimi VARCHAR(64) PRIMARY KEY, ajettu DATETIME DEFAULT CURRENT_TIMESTAMP)" \
+#
+# < /dev/null jokaisessa -e-kutsussa (ei tiedostoa putkittavassa): docker
+# compose exec perii asennan stdinin PÄÄTTEESTÄ vaikka -T poistaa vain
+# etäpään pseudo-TTY:n. Jos asenna ei ole terminaalin etualaprosessi (esim.
+# ajettu jonkin muun taustaprosessin kautta), tämä pysäytti prosessin hiljaa
+# SIGTTIN/SIGTTOU:lla — havaittu tuotannossa (ps aux näytti 'T'-tilan koko
+# docker-compose-ketjussa). /dev/null:sta lukeminen ei ikinä pysähdy näin.
+aja_sql -e "CREATE TABLE IF NOT EXISTS _migraatiot (nimi VARCHAR(64) PRIMARY KEY, ajettu DATETIME DEFAULT CURRENT_TIMESTAMP)" < /dev/null \
     || { echo "Migraatioiden seurantataulun luonti epäonnistui — ks. yllä oleva virhe."; exit 1; }
 for tiedosto in tietokanta/migraatio_*.sql; do
     nimi=$(basename "$tiedosto")
-    if ! ajettu=$(aja_sql -N -e "SELECT 1 FROM _migraatiot WHERE nimi='$nimi'"); then
+    if ! ajettu=$(aja_sql -N -e "SELECT 1 FROM _migraatiot WHERE nimi='$nimi'" < /dev/null); then
         echo "Migraation $nimi tilan tarkistus epäonnistui — ks. yllä oleva virhe."; exit 1
     fi
     [[ -n "$ajettu" ]] && continue
@@ -91,7 +106,7 @@ for tiedosto in tietokanta/migraatio_*.sql; do
     else
         echo "Migraatio $nimi epäonnistui: $virhe"; exit 1
     fi
-    aja_sql -e "INSERT INTO _migraatiot (nimi) VALUES ('$nimi')" \
+    aja_sql -e "INSERT INTO _migraatiot (nimi) VALUES ('$nimi')" < /dev/null \
         || { echo "Migraation $nimi merkintä epäonnistui — ks. yllä oleva virhe."; exit 1; }
 done
 
