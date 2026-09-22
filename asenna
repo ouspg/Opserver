@@ -91,6 +91,17 @@ aja_sql() { docker compose exec -T -e MYSQL_PWD="$DB_PASSWORD" mysql mysql -u"$D
 # docker-compose-ketjussa). /dev/null:sta lukeminen ei ikinä pysähdy näin.
 aja_sql -e "CREATE TABLE IF NOT EXISTS _migraatiot (nimi VARCHAR(64) PRIMARY KEY, ajettu DATETIME DEFAULT CURRENT_TIMESTAMP)" < /dev/null \
     || { echo "Migraatioiden seurantataulun luonti epäonnistui — ks. yllä oleva virhe."; exit 1; }
+
+# Puuttuvien taulujen paikkaus. alustus.sql ajetaan initdb.d:stä VAIN tuoreelle
+# volyymille; jos kanta on alustettu vanhasta alustus.sql:stä (tai initdb
+# keskeytyi kesken), osa tauluista puuttuu pysyvästi eikä mikään migraatio luo
+# niitä (Kysymykset/Vastaukset tehtiin aikanaan käsin) — havaittu tuotannossa:
+# migraatio_004 kaatui "Table 'Vastaukset' doesn't exist". Pelkkiä
+# CREATE TABLE IF NOT EXISTS -lauseita, joten ajo on idempotentti ja jättää
+# olemassa olevat taulut (ja datan) koskematta. _migraatiot-esitäyttö on
+# tarkoituksella eri tiedostossa — sitä EI ajeta tässä.
+aja_sql < tietokanta/alustus.sql \
+    || { echo "Perusskeeman paikkaus (alustus.sql) epäonnistui — ks. yllä oleva virhe."; exit 1; }
 for tiedosto in tietokanta/migraatio_*.sql; do
     nimi=$(basename "$tiedosto")
     if ! ajettu=$(aja_sql -N -e "SELECT 1 FROM _migraatiot WHERE nimi='$nimi'" < /dev/null); then
