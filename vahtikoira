@@ -8,6 +8,10 @@
 # --hiljaa: vain tarkista (exit 0 = kunnossa), älä korjaa.
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 
+# Cron ajaa tämän ilman sudoa — jos käyttäjä ei ole docker-ryhmässä (esr-project),
+# bare `docker` epäonnistuu hiljaa eikä terveystarkistus/korjaus toimi ollenkaan.
+docker() { sudo docker "$@"; }
+
 TILA_TIEDOSTO="$PWD/.vahtikoira_epakunnossa_alkoi"
 
 kunnossa() {

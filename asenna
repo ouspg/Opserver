@@ -5,8 +5,15 @@ set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 
 command -v docker >/dev/null || { echo "docker puuttuu"; exit 1; }
-docker compose version >/dev/null || { echo "docker compose -plugin puuttuu"; exit 1; }
 command -v curl >/dev/null || { echo "curl puuttuu"; exit 1; }
+
+# Moni tuotantokone (esr-project mukaan lukien) ei ole lisännyt käyttäjää
+# docker-ryhmään — pelkkä `docker` epäonnistuu hiljaisesti (permission denied).
+# Kääritään sudolla kerran, jolloin kaikki `docker ...`-kutsut TÄSSÄ skriptissä
+# saavat sen automaattisesti. Huom: bash-funktio ei periydy aliprosesseihin —
+# ./vahtikoira (kutsutaan lopussa) tarvitsee oman samanlaisen käärimensä.
+docker() { sudo docker "$@"; }
+docker compose version >/dev/null || { echo "docker compose -plugin puuttuu"; exit 1; }
 
 # cliui (./run, pipelinen ajo) tarvitsee venvin — WebUI ei, se on kontissa.
 # Debianin/Ubuntun python3-venv EI sisällä pippiä (ensurepipin bootstrap-wheel
@@ -52,14 +59,22 @@ docker compose up -d
 # — _migraatiot-taulu muistaa jo ajetut, joten uudelleenajo on turvallista.
 source .env
 aja_sql() { docker compose exec -T mysql mysql -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" "$@"; }
-aja_sql -e "CREATE TABLE IF NOT EXISTS _migraatiot (nimi VARCHAR(64) PRIMARY KEY, ajettu DATETIME DEFAULT CURRENT_TIMESTAMP)"
+# set -e EI luotettavasti pysäytä skriptiä komentokorvauksen sisällä
+# epäonnistuneesta komennosta (var=$(epäonnistuu) on poikkeus -e:lle) — siksi
+# tarkistetaan jokaisen aja_sql-kutsun paluuarvo eksplisiittisesti, ettei
+# esim. puuttuva docker-oikeus voi enää hiljaa jättää migraatiot ajamatta.
+aja_sql -e "CREATE TABLE IF NOT EXISTS _migraatiot (nimi VARCHAR(64) PRIMARY KEY, ajettu DATETIME DEFAULT CURRENT_TIMESTAMP)" \
+    || { echo "Migraatioiden seurantataulun luonti epäonnistui — ks. yllä oleva virhe."; exit 1; }
 for tiedosto in tietokanta/migraatio_*.sql; do
     nimi=$(basename "$tiedosto")
-    ajettu=$(aja_sql -N -e "SELECT 1 FROM _migraatiot WHERE nimi='$nimi'")
+    if ! ajettu=$(aja_sql -N -e "SELECT 1 FROM _migraatiot WHERE nimi='$nimi'"); then
+        echo "Migraation $nimi tilan tarkistus epäonnistui — ks. yllä oleva virhe."; exit 1
+    fi
     if [[ -z "$ajettu" ]]; then
         echo "Migraatio: $nimi"
-        aja_sql < "$tiedosto"
-        aja_sql -e "INSERT INTO _migraatiot (nimi) VALUES ('$nimi')"
+        aja_sql < "$tiedosto" || { echo "Migraatio $nimi epäonnistui — ks. yllä oleva virhe."; exit 1; }
+        aja_sql -e "INSERT INTO _migraatiot (nimi) VALUES ('$nimi')" \
+            || { echo "Migraation $nimi merkintä epäonnistui — ks. yllä oleva virhe."; exit 1; }
     fi
 done
 
