@@ -25,7 +25,9 @@ kunnossa() {
     # 200 tai 401 (Basic Auth päällä) = palvelin elää. -k: caddyn sertti on
     # myönnetty julkiselle domainille, ei "localhost"ille — sisältö on sama.
     local koodi
-    koodi=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 5 https://localhost/) || return 1
+    # --max-time 15: raskas ajo (kurssihaku, luokittelu) hidastaa WebUI:n
+    # kyselyt sekunneiksi. 5 s tulkitsi kuormituksen epäkunnoksi.
+    koodi=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 15 https://localhost/) || return 1
     [[ "$koodi" == 200 || "$koodi" == 401 ]]
 }
 
@@ -48,8 +50,16 @@ alku=$(cat "$TILA_TIEDOSTO" 2>/dev/null || echo "$nyt")
 [[ -f "$TILA_TIEDOSTO" ]] || echo "$alku" > "$TILA_TIEDOSTO"
 
 if (( nyt - alku >= 600 )); then
-    echo "$(date -Is) yhä alhaalla 10 min jälkeen — restart"
-    docker compose restart
+    # MySQL restartataan VAIN jos se on itse epäkunnossa. Kaiken restartointi
+    # katkaisi kesken olleen kurssihaun (2055 / "Connection not available"):
+    # kuormitettu WebUI näytti epäkunnolta, ja korjaus kaatoi kannan, joka oli
+    # kunnossa. Pysähtyneen mysqlin nostaa yllä oleva `up -d`.
+    palvelut="caddy webui"
+    if [[ "$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q mysql)" 2>/dev/null)" != "healthy" ]]; then
+        palvelut="$palvelut mysql"
+    fi
+    echo "$(date -Is) yhä alhaalla 10 min jälkeen — restart: $palvelut"
+    docker compose restart $palvelut
     rm -f "$TILA_TIEDOSTO"
 else
     echo "$(date -Is) yhä alhaalla, odotetaan (ei restarttia vielä)"
