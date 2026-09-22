@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Asennus tuotantokoneelle (vain Docker + curl tarvitaan; ei Pythonia).
+# Aja repon juuresta: ./asenna   — idempotentti, uudelleenajo on turvallista.
+set -euo pipefail
+cd "$(dirname "$(readlink -f "$0")")"
+
+command -v docker >/dev/null || { echo "docker puuttuu"; exit 1; }
+docker compose version >/dev/null || { echo "docker compose -plugin puuttuu"; exit 1; }
+command -v curl >/dev/null || { echo "curl puuttuu"; exit 1; }
+
+salasana() { head -c 64 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24; }
+
+if [[ ! -f .env ]]; then
+    umask 077
+    cat > .env <<ENV
+DB_ROOT_PASSWORD=$(salasana)
+DB_NAME=opserverdb
+DB_USER=opserver
+DB_PASSWORD=$(salasana)
+WEBUI_AUTH_KAYTTAJA=demo
+WEBUI_AUTH_SALASANA=$(salasana)
+# Lisää tarvittaessa: LLM_PROVIDER, LLM_API_KEY, LLM_MODEL
+ENV
+    echo "Luotiin .env satunnaisilla salasanoilla (WEBUI_AUTH_* näkyy siellä)."
+fi
+
+docker compose build webui
+docker compose up -d
+
+# Cron: vahtikoira joka minuutti (korvaa vanhan rivin, ei tuplaa)
+rivi="* * * * * $PWD/vahtikoira >> $PWD/vahtikoira.log 2>&1"
+( crontab -l 2>/dev/null | grep -vF "$PWD/vahtikoira" || true; echo "$rivi" ) | crontab -
+echo "Cron asennettu: $rivi"
+
+# Odota että WebUI vastaa
+for _ in $(seq 30); do
+    ./vahtikoira --hiljaa && { echo "WebUI vastaa: http://$(hostname):12121"; exit 0; }
+    sleep 2
+done
+echo "WebUI ei vastannut 60 s: docker compose logs"; exit 1

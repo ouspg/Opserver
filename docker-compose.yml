@@ -2,6 +2,7 @@ name: opserver
 
 services:
   mysql:
+    restart: unless-stopped
     image: mysql:8.4
     # skip-name-resolve: älä tee käänteistä DNS-hakua joka yhteydelle.
     # Ilman tätä jokainen tuore yhteys (isännältä porttiin 21212) jumittaa
