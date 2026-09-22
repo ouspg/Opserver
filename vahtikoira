@@ -10,7 +10,13 @@ cd "$(dirname "$(readlink -f "$0")")" || exit 1
 
 # Cron ajaa tämän ilman sudoa — jos käyttäjä ei ole docker-ryhmässä (esr-project),
 # bare `docker` epäonnistuu hiljaa eikä terveystarkistus/korjaus toimi ollenkaan.
-docker() { sudo docker "$@"; }
+# EUID-tarkistus: jos joku ajaa tämän käsin sudolla, älä sudota enää sisäisesti
+# (turha sisäkkäinen sudo voi varata uuden pty:n, ks. asenna).
+if [[ $EUID -eq 0 ]]; then
+    docker() { command docker "$@"; }
+else
+    docker() { sudo docker "$@"; }
+fi
 
 TILA_TIEDOSTO="$PWD/.vahtikoira_epakunnossa_alkoi"
 
