@@ -54,15 +54,26 @@ grep -q '^LLM_API_KEY=' .env 2>/dev/null || echo "HUOM: LLM_PROVIDER/LLM_API_KEY
 docker compose build webui
 docker compose up -d
 
-# Migraatiot: alustus.sql on migraatioita edeltävä perusskeema, ei pidetty
-# ajan tasalla (ks. tietokanta/migraatio_*.sql). Ajetaan puuttuvat idempotentisti
-# — _migraatiot-taulu muistaa jo ajetut, joten uudelleenajo on turvallista.
+# Migraatiot: tuo kannan MIKÄ TAHANSA aiempi versio ajan tasalle.
+#   a) Tuore kanta: alustus.sql on jo nykyinen squashattu skeema ja esitäyttää
+#      _migraatiot:n kaikilla tiedostonimillä → silmukka ei tee mitään.
+#   b) Väliversio (esim. alustus.sql:ää päivitetty osittain käsin ajan myötä,
+#      kuten ApiOsoite-sarakkeen puuttuminen paljasti): osa migraatioista voi
+#      olla jo sovellettuna ilman _migraatiot-merkintää. "Duplicate"-luokan
+#      virhe (sarake/avain/taulu on jo olemassa) tulkitaan "jo sovellettu,
+#      merkitään tehdyksi" -eikä pysäytetä koko asennusta siihen. Muu virhe
+#      pysäyttää — se on oikea bugi, ei jätetä sitä hiljaa piiloon.
+# _migraatiot-taulu muistaa jo ajetut/jo-olemassa-olevat, joten uudelleenajo
+# on aina turvallista riippumatta lähtötilasta.
 source .env
-aja_sql() { docker compose exec -T mysql mysql -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" "$@"; }
+# MYSQL_PWD (env) eikä -p"$DB_PASSWORD" (argv): mysql-client tulostaa "Using a
+# password on the command line interface can be insecure" -varoituksen aina
+# kun salasana on -p:llä — se menisi stderriin ja saastuttaisi alla olevan
+# virhetunnistuksen (jokainen kutsu näyttäisi "virheelliseltä" vaikka onnistuisi).
+aja_sql() { docker compose exec -T -e MYSQL_PWD="$DB_PASSWORD" mysql mysql -u"$DB_USER" "$DB_NAME" "$@"; }
 # set -e EI luotettavasti pysäytä skriptiä komentokorvauksen sisällä
 # epäonnistuneesta komennosta (var=$(epäonnistuu) on poikkeus -e:lle) — siksi
-# tarkistetaan jokaisen aja_sql-kutsun paluuarvo eksplisiittisesti, ettei
-# esim. puuttuva docker-oikeus voi enää hiljaa jättää migraatiot ajamatta.
+# tarkistetaan jokaisen aja_sql-kutsun paluuarvo eksplisiittisesti.
 aja_sql -e "CREATE TABLE IF NOT EXISTS _migraatiot (nimi VARCHAR(64) PRIMARY KEY, ajettu DATETIME DEFAULT CURRENT_TIMESTAMP)" \
     || { echo "Migraatioiden seurantataulun luonti epäonnistui — ks. yllä oleva virhe."; exit 1; }
 for tiedosto in tietokanta/migraatio_*.sql; do
@@ -70,12 +81,18 @@ for tiedosto in tietokanta/migraatio_*.sql; do
     if ! ajettu=$(aja_sql -N -e "SELECT 1 FROM _migraatiot WHERE nimi='$nimi'"); then
         echo "Migraation $nimi tilan tarkistus epäonnistui — ks. yllä oleva virhe."; exit 1
     fi
-    if [[ -z "$ajettu" ]]; then
-        echo "Migraatio: $nimi"
-        aja_sql < "$tiedosto" || { echo "Migraatio $nimi epäonnistui — ks. yllä oleva virhe."; exit 1; }
-        aja_sql -e "INSERT INTO _migraatiot (nimi) VALUES ('$nimi')" \
-            || { echo "Migraation $nimi merkintä epäonnistui — ks. yllä oleva virhe."; exit 1; }
+    [[ -n "$ajettu" ]] && continue
+
+    virhe=$(aja_sql < "$tiedosto" 2>&1 1>/dev/null)
+    if [[ -z "$virhe" ]]; then
+        echo "Migraatio ajettu: $nimi"
+    elif echo "$virhe" | grep -qE "Duplicate column|Duplicate key name|Duplicate entry|already exists"; then
+        echo "Migraatio jo sovellettuna (ohitettu): $nimi"
+    else
+        echo "Migraatio $nimi epäonnistui: $virhe"; exit 1
     fi
+    aja_sql -e "INSERT INTO _migraatiot (nimi) VALUES ('$nimi')" \
+        || { echo "Migraation $nimi merkintä epäonnistui — ks. yllä oleva virhe."; exit 1; }
 done
 
 # Caddyfile on bind-mount — compose ei huomaa pelkkää tiedostomuutosta, joten
