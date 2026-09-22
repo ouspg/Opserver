@@ -221,7 +221,11 @@ def test_uudelleenyrita_toistaa_yhteysvirheen_jalkeen():
     with patch("tietokanta.yhteys.time.sleep") as uni:
         assert tallenna() == "ok"
     assert len(kutsut) == 3
-    assert uni.call_args_list == [((1.0,),), ((2.0,),)]  # kasvava viive
+    # Kasvava viive hajonnalla: 1 s ja 2 s ± 50 % (rinnakkaiset ajot eivät
+    # saa palata kannan kimppuun samalla hetkellä).
+    eka, toka = (k.args[0] for k in uni.call_args_list)
+    assert 0.5 <= eka <= 1.5
+    assert 1.0 <= toka <= 3.0
 
 
 def test_uudelleenyrita_luovuttaa_lopulta():
