@@ -194,6 +194,7 @@ def test_hae_kurssit_kutsuu_edistyminen_cb():
     with patch.object(SisuLukija, "_hae_json", side_effect=_mock_hae_json), \
          patch("tiedonhaku.sisulukija.mallit.hae_tallennetut_lahde_idt", return_value=set()), \
          patch("tiedonhaku.sisulukija.mallit.tallenna_kurssi"):
-        lukija.hae_kurssit("2025-2026", edistyminen_cb=lambda n, yht, nimi: kutsut.append(n))
-    assert len(kutsut) == 1
-    assert kutsut[0] == 1
+        lukija.hae_kurssit("2025-2026", edistyminen_cb=lambda n, yht, nimi: kutsut.append((n, yht)))
+    # Fixture: 2 groupId:tä, joista by-group-id palauttaa 1 kurssin → edistyminen
+    # mittaa käsiteltyjä listauksia (2/2), ei tallennettuja, jottei näkymä jumitu.
+    assert kutsut == [(2, 2)]

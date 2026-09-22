@@ -202,3 +202,52 @@ def test_kontekstimanageri_merkitsee_yhteysvirheen_rikkinaiseksi():
     yht.rollback.assert_not_called()
     yht.commit.assert_not_called()
     pooli.palauta.assert_called_once_with(yht, True, rikki=True)
+
+
+# --- uudelleenyrita ---
+
+def test_uudelleenyrita_toistaa_yhteysvirheen_jalkeen():
+    """Ruuhkainen/uudelleenkäynnistynyt MySQL katkaisee yhteyden kesken pitkän
+    kurssihaun → kutsu yritetään uudelleen, ei kaadeta koko ajoa."""
+    kutsut = []
+
+    @y.uudelleenyrita
+    def tallenna():
+        kutsut.append(1)
+        if len(kutsut) < 3:
+            raise errors.OperationalError("2055: Lost connection to MySQL server")
+        return "ok"
+
+    with patch("tietokanta.yhteys.time.sleep") as uni:
+        assert tallenna() == "ok"
+    assert len(kutsut) == 3
+    assert uni.call_args_list == [((1.0,),), ((2.0,),)]  # kasvava viive
+
+
+def test_uudelleenyrita_luovuttaa_lopulta():
+    @y.uudelleenyrita
+    def aina_rikki():
+        raise errors.InterfaceError("2003: Can't connect")
+
+    with patch("tietokanta.yhteys.time.sleep"):
+        try:
+            aina_rikki()
+            assert False, "olisi pitänyt nostaa virhe"
+        except errors.InterfaceError:
+            pass
+
+
+def test_uudelleenyrita_ei_toista_sql_virhetta():
+    """Ohjelmointivirhettä (väärä SQL) ei kannata toistaa — se ei parane."""
+    kutsut = []
+
+    @y.uudelleenyrita
+    def huono_sql():
+        kutsut.append(1)
+        raise errors.ProgrammingError("You have an error in your SQL syntax")
+
+    try:
+        huono_sql()
+    except errors.ProgrammingError:
+        pass
+    assert len(kutsut) == 1
