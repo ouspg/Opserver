@@ -5,8 +5,11 @@
 -- Lukuvuosi sallii NULL:n migraation ajaksi (vanha rivi täydennetään UI:sta);
 -- sovellus vaatii sen ja vähintään yhden korkeakoulun ennen suodatuksen ajoa.
 
+-- Ei AFTER Slug: Slug syntyy vasta migraatiossa 019 (se lisättiin aikanaan
+-- käsin kehityskantaan), joten vanhassa kannassa viittaus kaatuisi tähän.
+-- Sarakkeen järjestys on pelkkä kosmeettinen seikka.
 ALTER TABLE Tutkimus
-  ADD COLUMN Lukuvuosi VARCHAR(9) NULL AFTER Slug;
+  ADD COLUMN Lukuvuosi VARCHAR(9) NULL;
 
 CREATE TABLE IF NOT EXISTS TutkimusKorkeakoulu (
     TID  INT NOT NULL,
