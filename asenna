@@ -47,6 +47,22 @@ grep -q '^LLM_API_KEY=' .env 2>/dev/null || echo "HUOM: LLM_PROVIDER/LLM_API_KEY
 docker compose build webui
 docker compose up -d
 
+# Migraatiot: alustus.sql on migraatioita edeltävä perusskeema, ei pidetty
+# ajan tasalla (ks. tietokanta/migraatio_*.sql). Ajetaan puuttuvat idempotentisti
+# — _migraatiot-taulu muistaa jo ajetut, joten uudelleenajo on turvallista.
+source .env
+aja_sql() { docker compose exec -T mysql mysql -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" "$@"; }
+aja_sql -e "CREATE TABLE IF NOT EXISTS _migraatiot (nimi VARCHAR(64) PRIMARY KEY, ajettu DATETIME DEFAULT CURRENT_TIMESTAMP)"
+for tiedosto in tietokanta/migraatio_*.sql; do
+    nimi=$(basename "$tiedosto")
+    ajettu=$(aja_sql -N -e "SELECT 1 FROM _migraatiot WHERE nimi='$nimi'")
+    if [[ -z "$ajettu" ]]; then
+        echo "Migraatio: $nimi"
+        aja_sql < "$tiedosto"
+        aja_sql -e "INSERT INTO _migraatiot (nimi) VALUES ('$nimi')"
+    fi
+done
+
 # Caddyfile on bind-mount — compose ei huomaa pelkkää tiedostomuutosta, joten
 # caddy jää ajamaan vanhaa konfiguraatiota ellei sitä erikseen käynnistetä
 # uudelleen. Turvallista: sertti on jo /data-volyymissa, restart ei tarvitse

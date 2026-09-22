@@ -193,3 +193,19 @@ CREATE TABLE IF NOT EXISTS `Vastaukset_testi` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 SET FOREIGN_KEY_CHECKS=1;
+
+-- Tämä skeema sisältää jo migraatiot 001-018 (squash). Merkitään ne heti
+-- ajetuiksi, jotta asennan migraatioajuri ei yritä ajaa niitä uudelleen
+-- tuoreelle kannalle (esim. migraatio_011:n ADD COLUMN ApiOsoite kaatuisi
+-- "Duplicate column" -virheeseen, koska sarake on jo tässä CREATE TABLE:ssa).
+CREATE TABLE IF NOT EXISTS _migraatiot (
+    nimi VARCHAR(64) PRIMARY KEY,
+    ajettu DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+INSERT IGNORE INTO _migraatiot (nimi) VALUES
+    ('migraatio_001.sql'), ('migraatio_002.sql'), ('migraatio_003.sql'),
+    ('migraatio_004.sql'), ('migraatio_005.sql'), ('migraatio_006.sql'),
+    ('migraatio_007.sql'), ('migraatio_008.sql'), ('migraatio_009.sql'),
+    ('migraatio_010.sql'), ('migraatio_011.sql'), ('migraatio_012.sql'),
+    ('migraatio_013.sql'), ('migraatio_014.sql'), ('migraatio_015.sql'),
+    ('migraatio_016.sql'), ('migraatio_017.sql'), ('migraatio_018.sql');
