@@ -12,6 +12,7 @@
 # ja kaikki alustus.sql:n taulut olemassa.
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")/.."
+source testit/skeemavedos.sh
 
 KONTTI=migraatiotesti
 KUVA=mysql:8.4
@@ -43,14 +44,9 @@ aja_migraatiot() {
     eval "$(sed -n '/^aja_sql -e "CREATE TABLE IF NOT EXISTS _migraatiot/,/^done$/p' asenna)"
 }
 
-# Skeemavedos vertailua varten. Normalisoinnit: AUTO_INCREMENT-laskuri pois (ei
-# skeemaa), rivit aakkosjärjestykseen ja rivinloppupilkut pois — sarakkeiden
-# järjestys taulussa on kosmeettinen eikä migraatiopolku päädy samaan
-# järjestykseen kuin squashattu alustus.sql.
 vedos() {
-    docker exec -e MYSQL_PWD=t "$KONTTI" mysqldump -ut --no-data --skip-comments \
-        --skip-dump-date --no-tablespaces opserverdb \
-        | sed 's/ AUTO_INCREMENT=[0-9]*//; s/,$//' | sort
+    docker exec -e MYSQL_PWD=t "$KONTTI" mysqldump -ut "${VEDOS_LIPUT[@]}" opserverdb \
+        | normalisoi_vedos
 }
 
 tarkista() {
@@ -83,5 +79,10 @@ vedos > "$TMP/tuore.sql"
 # Ydinväite: migratoitu vanha kanta päätyy samaan skeemaan kuin tuore asennus.
 diff -u "$TMP/tuore.sql" "$TMP/vanha.sql" \
     || { echo "Migratoitu vanha kanta eroaa tuoreesta (- = puuttuu vanhasta)"; virheita=1; }
+
+# Tavoiteskeema on ./testit/skeematarkistus.sh:n vertailukohta ajossa oleville
+# kannoille — pidetään se ajan tasalla tässä, ettei se pääse vanhenemaan.
+diff -u testit/fixtures/tavoiteskeema.sql "$TMP/tuore.sql" \
+    || { echo "testit/fixtures/tavoiteskeema.sql on vanhentunut — päivitä se tuoreen asennuksen vedoksella"; virheita=1; }
 
 [[ $virheita -eq 0 ]] && echo "OK" || { echo "VIRHEITÄ"; exit 1; }
