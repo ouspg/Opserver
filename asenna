@@ -125,6 +125,13 @@ for tiedosto in tietokanta/migraatio_*.sql; do
         || { echo "Migraation $nimi merkintä epäonnistui — ks. yllä oleva virhe."; exit 1; }
 done
 
+# Todennetaan lopputulos: migraatioiden "ajettu"-rivit eivät vielä kerro, että
+# skeema on oikea (osa migraatioista ohitetaan duplikaattivirheeseen, jolloin
+# tiedoston loput lauseet jäävät ajamatta). Vertaa tavoiteskeemaan ja pysäytä
+# asennus jos ei täsmää — rikkinäinen skeema kaataisi sovelluksen joka tapauksessa.
+./testit/skeematarkistus.sh \
+    || { echo "Kannan skeema ei vastaa tavoitetta — ks. erot yllä. Asennus keskeytetty."; exit 1; }
+
 # Caddyfile on bind-mount — compose ei huomaa pelkkää tiedostomuutosta, joten
 # caddy jää ajamaan vanhaa konfiguraatiota ellei sitä erikseen käynnistetä
 # uudelleen. Turvallista: sertti on jo /data-volyymissa, restart ei tarvitse
