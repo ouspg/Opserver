@@ -28,8 +28,8 @@ services:
     build:
       context: .
       dockerfile: webui/Dockerfile
-    ports:
-      - "12121:12121"
+    expose:
+      - "12121"
     environment:
       DB_HOST: mysql
       DB_PORT: 3306
@@ -43,5 +43,23 @@ services:
       mysql:
         condition: service_healthy
 
+  # HTTPS-käänteisproxy: hoitaa Let's Encrypt -sertin automaattisesti (TLS-ALPN-01,
+  # koska portti 80 ei ole auki hostissa — vain 443). Ei julkaise webuita suoraan.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    environment:
+      TUOTANTO_DOMAIN: ${TUOTANTO_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - webui
+
 volumes:
   mysql_data:
+  caddy_data:
+  caddy_config:

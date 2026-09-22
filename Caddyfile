@@ -1,0 +1,3 @@
+{$TUOTANTO_DOMAIN} {
+	reverse_proxy webui:12121
+}
