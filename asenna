@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Asennus tuotantokoneelle (vain Docker + curl tarvitaan; ei Pythonia).
+# Asennus tuotantokoneelle (Docker + curl; python3 asennetaan tarvittaessa apt:lla).
 # Aja repon juuresta: ./asenna   — idempotentti, uudelleenajo on turvallista.
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
@@ -7,6 +7,15 @@ cd "$(dirname "$(readlink -f "$0")")"
 command -v docker >/dev/null || { echo "docker puuttuu"; exit 1; }
 docker compose version >/dev/null || { echo "docker compose -plugin puuttuu"; exit 1; }
 command -v curl >/dev/null || { echo "curl puuttuu"; exit 1; }
+
+# cliui (./run, pipelinen ajo) tarvitsee venvin — WebUI ei, se on kontissa.
+if ! python3 -m venv --help >/dev/null 2>&1; then
+    echo "python3-venv puuttuu, asennetaan (sudo apt-get)..."
+    sudo apt-get update -qq && sudo apt-get install -y python3-venv >/dev/null
+fi
+[[ -d .venv ]] || python3 -m venv .venv
+.venv/bin/pip install -q --upgrade pip
+.venv/bin/pip install -q -r requirements.txt
 
 salasana() { head -c 64 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24; }
 
@@ -32,6 +41,9 @@ grep -q '^TUOTANTO_DOMAIN=' .env 2>/dev/null || {
     exit 1
 }
 
+# LLM_* tarvitaan vain pipelinen seulonta-/arviointivaiheisiin (cliui) — ei WebUI:hin.
+grep -q '^LLM_API_KEY=' .env 2>/dev/null || echo "HUOM: LLM_PROVIDER/LLM_API_KEY/LLM_MODEL puuttuu .env:stä — lisää ennen pipelinen ajoa."
+
 docker compose build webui
 docker compose up -d
 
@@ -41,8 +53,9 @@ rivi="* * * * * $PWD/vahtikoira >> $PWD/vahtikoira.log 2>&1"
 echo "Cron asennettu: $rivi"
 
 # Odota että WebUI vastaa
+domain=$(grep -E '^TUOTANTO_DOMAIN=' .env | cut -d= -f2-)
 for _ in $(seq 30); do
-    ./vahtikoira --hiljaa && { echo "WebUI vastaa: http://$(hostname):12121"; exit 0; }
+    ./vahtikoira --hiljaa && { echo "WebUI vastaa: https://$domain — pipeline: .venv/bin/python -m cliui.valikko (tai ./run)"; exit 0; }
     sleep 2
 done
 echo "WebUI ei vastannut 60 s: docker compose logs"; exit 1
