@@ -9,6 +9,11 @@
 # jolloin "ei tulosta mitään". Ilman -e jokainen tarkistus ajetaan ja [FAIL]it näkyvät.
 set -uo pipefail
 
+# Sourcattuna (esim. ./status) "exit" tappaisi koko interaktiivisen shellin/SSH-session —
+# "return" palaa vain sourcaavasta skriptistä. Suoraan ajettuna exit toimii normaalisti.
+AJOTAPA=exit
+[[ "${BASH_SOURCE[0]:-}" != "${0}" ]] && AJOTAPA=return
+
 # Projektin juuri = lähin hakemisto (nykyhakemistosta ylöspäin), jossa on
 # docker-compose.yml. Riippumaton siitä miten skripti käynnistetään (suoraan
 # testit/-alta, repo-juuresta tai status-wräpperin kautta sourcaten).
@@ -18,7 +23,7 @@ while [[ "$PROJO_JUURI" != "/" && ! -f "$PROJO_JUURI/docker-compose.yml" ]]; do
 done
 [[ -f "$PROJO_JUURI/docker-compose.yml" ]] || {
     echo "Ei löytynyt projektin juurta (docker-compose.yml) hakemistosta $PWD ylöspäin."
-    exit 1
+    $AJOTAPA 1
 }
 
 # WebUI-osoite: sama WEBUI_OSOITE-muuttuja kuin cliui (cliui/tutkimusnaytto.py).
@@ -184,9 +189,9 @@ fi
 echo ""
 
 if [[ $VIRHEET -eq 0 ]]; then
-    printf "${VARI_VIH}Kaikki tarkistukset lapi. Kontit toimivat oikein.${VARI_L}\n"
-    exit 0
+    echo "Kaikki tarkistukset lapi. Kontit toimivat oikein."
+    $AJOTAPA 0
 else
-    printf "${VARI_PUN}%s tarkistus epaonnistui.${VARI_L}\n" "$VIRHEET"
-    exit 1
+    echo "$VIRHEET tarkistus epaonnistui."
+    $AJOTAPA 1
 fi
