@@ -9,11 +9,11 @@ docker compose version >/dev/null || { echo "docker compose -plugin puuttuu"; ex
 command -v curl >/dev/null || { echo "curl puuttuu"; exit 1; }
 
 # cliui (./run, pipelinen ajo) tarvitsee venvin — WebUI ei, se on kontissa.
-if ! python3 -m venv --help >/dev/null 2>&1; then
-    echo "python3-venv puuttuu, asennetaan (sudo apt-get)..."
-    sudo apt-get update -qq && sudo apt-get install -y python3-venv >/dev/null
-fi
-[[ -d .venv ]] || python3 -m venv .venv
+# Debianin/Ubuntun python3-venv EI sisällä pippiä (ensurepipin bootstrap-wheel
+# on karsittu paketista) — ilman python3-pip:iä venv syntyy mutta .venv/bin/pip
+# jää tulematta, ilman virhettä. Siksi molemmat aina, ei vain jos venv puuttuu.
+sudo apt-get update -qq && sudo apt-get install -y python3-venv python3-pip >/dev/null
+[[ -x .venv/bin/pip ]] || { rm -rf .venv; python3 -m venv .venv; }
 .venv/bin/pip install -q --upgrade pip
 .venv/bin/pip install -q -r requirements.txt
 
