@@ -61,7 +61,9 @@ WebUI:n esittely yleisölle (seminaari-lähiverkko ja etäkokous-Tailscale Funne
 
 - Python-projekti; pidä riippuvuudet minimissä ja kirjaa ne `requirements.txt`-tiedostoon
 - MySQL kaikelle pysyvyydelle portissa 21212; WebUI Docker-kontissa (portti 12121)
-  - **Huom:** jaettu/tuotanto-MySQL on migroitu etäpalvelin **geopalvelin1**:lle (Tailscale-osoite `100.123.32.101:21212`, korkea/piikikäs latenssi) — **ei enää paikallinen Docker-kontti**. Yhteysasetukset `.env`:stä (`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`); `docker-compose.yml`:n mysql-palvelu jää paikalliskehitykseen. Kirjoita tietokantakoodi etälatenssia varten: yhteyspooli (`tietokanta/yhteys.py`), `COUNT`/aggregaatit rivinouton sijaan, älä toista raskaita hakuja.
+  - **Huom:** jaettu/testi-MySQL on migroitu etäpalvelin **geopalvelin1**:lle (Tailscale-osoite `100.123.32.101:21212`, korkea/piikikäs latenssi). Yhteysasetukset `.env`:stä (`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`); `docker-compose.yml`:n mysql-palvelu jää paikalliskehitykseen. Kirjoita tietokantakoodi etälatenssia varten: yhteyspooli (`tietokanta/yhteys.py`), `COUNT`/aggregaatit rivinouton sijaan, älä toista raskaita hakuja.
+  - **Tuotanto on eri, erillinen kone** — ei geopalvelin1 (se on testiympäristö). Tuotanto ajaa oman paikallisen MySQL+WebUI+Caddy-pinonsa Dockerissa (443, ks. Kehitystyökalut `./asenna`).
+  - **Tietokantamuutokset:** uusi `tietokanta/migraatio_NNN.sql` (juokseva numero) muutosta varten. `./asenna` ajaa puuttuvat migraatiot idempotentisti tuotannossa (`_migraatiot`-seurantataulu). `alustus.sql` on nykyinen perusskeema (squashattu migratoidusta kannasta) — squashaa se ajoittain uudelleen (`mysqldump --no-data --routines` migratoidusta kannasta), ettei migraatiolista kasva loputtomiin. Squashauksen jälkeen `alustus.sql`:n pitää esitäyttää `_migraatiot`-taulu squashatuilla tiedostonimillä, tai tuore asennus yrittää ajaa ne uudelleen ja kaatuu.
 - LLM-kutsut kulkevat yhden ohuen kääreen kautta (`llm/kutsu.py`), jotta malli/palveluntarjoaja voidaan vaihtaa — OpenAI-yhteensopiva rajapinta, konfiguraatio `.env`:ssä (`LLM_PROVIDER` = perus-URL, `LLM_API_KEY`, `LLM_MODEL`)
 - Promptit sijaitsevat omissa tiedostoissaan (ei koodin sisällä), jotta niitä voi iteroida koskematta logiikkaan
 - Hakurobottien täytyy olla kohteliaita: noudata `robots.txt`:ää, lisää viiveet, älä kuormita palvelimia
@@ -93,6 +95,8 @@ WebUI:n esittely yleisölle (seminaari-lähiverkko ja etäkokous-Tailscale Funne
 - **`docker compose build webui && docker compose up -d webui`** — pakollinen webui-koodimuutosten jälkeen
 - **WebUI JS/CSS versiointi:** kun muutat `sovellus.js` tai `tyyli.css`, kasvata `?v=N`-numeroa `index.html`:ssä
 - **`./testit/savutesti.sh`** — savutesti: varmistaa, että MySQL + WebUI-kontit vastaavat oikein (olettaa konttien olevan käynnissä)
+- **`./asenna`** — tuotantoasennus tuoreelle koneelle (vain Docker + curl tarvitaan alkuun): asentaa python3-venvin pipelinelle, rakentaa/käynnistää Docker-pinon (MySQL + WebUI + Caddy 443:ssa, Let's Encrypt TLS-ALPN-01), ajaa tietokantamigraatiot, asentaa `vahtikoira`-cronin. Idempotentti — uudelleenajo on turvallista. Vaatii `.env`:iin `TUOTANTO_DOMAIN`:in etukäteen.
+- **`./vahtikoira`** — cron-terveystarkistus tuotannolle (asennetaan `asenna`:n toimesta, ajaa minuutin välein): käynnistää pysähtyneet kontit; kova `docker compose restart` vasta 10 min yhtäjaksoisen epäkunnon jälkeen (ei keskeytä Caddyn ACME-sertifikaatin hakua)
 
 ## Vaiheiden valmistumiskriteerit
 
