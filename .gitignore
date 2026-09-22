@@ -33,3 +33,4 @@ loki.log
 # Testierä-tilastot (generoituja)
 testitulokset/
 vahtikoira.log
+.vahtikoira_epakunnossa_alkoi

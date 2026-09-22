@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 # Vahtikoira (cron, kerran minuutissa): jos WebUI ei vastaa tai kontti on alhaalla,
-# aja `docker compose up -d` (käynnistää pysähtyneet) ja tarvittaessa restart.
+# aja `docker compose up -d` (käynnistää pysähtyneet). Kova `restart` vasta jos
+# epäkunnossa on pysynyt 10 min — mm. Caddyn ensimmäinen sertifikaatin haku
+# (ACME) voi kestää tätä pidempään, eikä sitä saa keskeyttää restartilla: se
+# tappaa neuvottelun kesken ja polttaa Let's Encryptin failed-authorizations
+# -rate limitin (nähty käytännössä — ks. commit-viesti).
 # --hiljaa: vain tarkista (exit 0 = kunnossa), älä korjaa.
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
+
+TILA_TIEDOSTO="$PWD/.vahtikoira_epakunnossa_alkoi"
 
 kunnossa() {
     [[ "$(docker compose ps --status running --services 2>/dev/null | sort | tr '\n' ' ')" == "caddy mysql webui " ]] || return 1
@@ -13,10 +19,28 @@ kunnossa() {
     [[ "$koodi" == 200 || "$koodi" == 401 ]]
 }
 
-kunnossa && exit 0
+if kunnossa; then
+    rm -f "$TILA_TIEDOSTO"
+    exit 0
+fi
 [[ "${1:-}" == "--hiljaa" ]] && exit 1
 
-echo "$(date -Is) WebUI/MySQL alhaalla — käynnistetään"
-docker compose up -d
-sleep 15
-kunnossa || { echo "$(date -Is) yhä alhaalla — restart"; docker compose restart; }
+echo "$(date -Is) WebUI/MySQL/Caddy alhaalla — käynnistetään pysähtyneet kontit"
+docker compose up -d   # ei koske jo käynnissä oleviin — ei keskeytä Caddyn ACME-neuvottelua
+
+if kunnossa; then
+    rm -f "$TILA_TIEDOSTO"
+    exit 0
+fi
+
+nyt=$(date +%s)
+alku=$(cat "$TILA_TIEDOSTO" 2>/dev/null || echo "$nyt")
+[[ -f "$TILA_TIEDOSTO" ]] || echo "$alku" > "$TILA_TIEDOSTO"
+
+if (( nyt - alku >= 600 )); then
+    echo "$(date -Is) yhä alhaalla 10 min jälkeen — restart"
+    docker compose restart
+    rm -f "$TILA_TIEDOSTO"
+else
+    echo "$(date -Is) yhä alhaalla, odotetaan (ei restarttia vielä)"
+fi

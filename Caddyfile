@@ -1,3 +1,13 @@
 {$TUOTANTO_DOMAIN} {
+	# disable_http_challenge: portti 80 ei ole julkaistu hostiin (tarkoituksella —
+	# vain 443 auki), joten HTTP-01-haaste ei voisi koskaan onnistua. Ilman tätä
+	# Caddy yrittää http-01:tä oletuksena, epäonnistuu joka kerta, ja käyttää
+	# Let's Encryptin "failed authorizations" -rate limitin loppuun turhaan.
+	# TLS-ALPN-01 riittää yksinään — se kulkee jo julkaistun portin 443 kautta.
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
 	reverse_proxy webui:12121
 }
