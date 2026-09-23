@@ -105,6 +105,15 @@ def pura_vastaus(kysymys: dict, raw) -> tuple:
     """Purkaa LLM:n raakavastauksen → (vastaus, pisteet, luokka, lista) kysymystyypin mukaan."""
     luokittelu = kysymys.get("Luokittelu") or "vapaa_teksti"
     pisteet = luokka = lista = None
+    # Malli palauttaa rakenteisen vastauksen joskus sisäkkäisenä objektina, joskus
+    # JSON-merkkijonona ("{\"luokka\": ...}"). Jälkimmäinen putosi ennen str()-haaraan,
+    # jolloin koko JSON tallentui Vastaus-kenttään ja luokka/pisteet/lista jäivät
+    # tyhjiksi (tuotannossa 1218/1644 vastausta). Vapaa teksti jätetään rauhaan.
+    if luokittelu != "vapaa_teksti" and isinstance(raw, str) and raw.lstrip().startswith("{"):
+        try:
+            raw = json.loads(raw, strict=False)
+        except json.JSONDecodeError:
+            pass  # katkennut/viallinen → säilyy tekstinä, kuten ennenkin
     if luokittelu == "luokittelu" and isinstance(raw, dict):
         vastaus = raw.get("perustelu", "")
         luokka = raw.get("luokka", "")

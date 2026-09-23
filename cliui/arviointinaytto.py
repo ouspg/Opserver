@@ -63,6 +63,7 @@ def _arvioi(stdscr, tutkimus: dict) -> None:
         ("Muokkaa LLM-arvioinnin asetuksia", _muokkaa_asetukset),
         ("Siirrä testiajo varsinaiseen aineistoon", _siirra_testiajo),
         ("Poista testiajo", _poista_testiajo),
+        ("Korjaa raakana tallennetut JSON-vastaukset", _korjaa_raaka_json),
         ("Näytä tilanne", _nayta_tilanne),
     ]
     while True:
@@ -74,6 +75,38 @@ def _arvioi(stdscr, tutkimus: dict) -> None:
         if valinta is None:
             return
         toiminnot[valinta][1](stdscr, tutkimus)
+
+
+def _korjaa_raaka_json(stdscr, tutkimus: dict) -> None:
+    """Jäsentää uudelleen vastaukset, joiden teksti jäi raa'aksi JSON-objektiksi.
+
+    Ei kuluta LLM-kutsuja: data on tallessa Vastaus-kentässä. Turvallinen ajaa
+    uudelleen — korjattu rivi ei enää täytä hakuehtoa.
+    """
+    from arviointi import korjaus
+
+    piirra_otsikko(stdscr, f"Korjaa raaka-JSON — {tutkimus['LuokittelunNimi']}")
+    stdscr.addstr(3, 0, "Etsitään korjattavia vastauksia...")
+    stdscr.refresh()
+
+    def edistyminen(n, yhteensa, korjatut, ohitetut):
+        stdscr.addstr(3, 0, f"Korjataan {n}/{yhteensa} — korjattu {korjatut}, ohitettu {ohitetut}")
+        stdscr.clrtoeol()
+        stdscr.refresh()
+
+    try:
+        korjatut, ohitetut = korjaus.korjaa_raaka_json(tutkimus["TID"], edistyminen)
+    except Exception as e:
+        nayta_viesti(stdscr, f"Virhe korjauksessa: {e}")
+        return
+
+    if korjatut == ohitetut == 0:
+        nayta_viesti(stdscr, "Ei korjattavia vastauksia — kaikki on jäsennetty oikein.")
+        return
+    viesti = f"Korjattu {korjatut} vastausta."
+    if ohitetut:
+        viesti += f" Ohitettu {ohitetut} (teksti ei jäsenny — jätetty ennalleen)."
+    nayta_viesti(stdscr, viesti)
 
 
 def _aja_llm(stdscr, tutkimus: dict, vain_yksi_era: bool = False) -> None:

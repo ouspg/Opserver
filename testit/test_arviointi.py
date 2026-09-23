@@ -52,6 +52,43 @@ class TestErittelleJson:
             llmarviointi._erittele_json('{"ei_listaa": "tekstiä"}')
 
 
+class TestPuraVastaus:
+    """Malli palauttaa kysymyskohtaisen vastauksen joskus sisäkkäisenä objektina,
+    joskus JSON-merkkijonona. Jälkimmäinen putosi aiemmin str()-haaraan, jolloin
+    koko JSON tallentui Vastaus-kenttään ja luokka/pisteet/lista jäivät tyhjiksi.
+    Tuotannossa näin kävi 1218 vastaukselle 1644:stä (74 %)."""
+
+    def test_luokittelu_objektina(self):
+        raw = {"luokka": "Täysin", "perustelu": "Itsenäisesti suoritettavissa."}
+        vastaus, pisteet, luokka, lista = llmarviointi.pura_vastaus({"Luokittelu": "luokittelu"}, raw)
+        assert (vastaus, luokka) == ("Itsenäisesti suoritettavissa.", "Täysin")
+
+    def test_luokittelu_json_merkkijonona(self):
+        raw = '{"luokka": "Täysin", "perustelu": "Itsenäisesti suoritettavissa."}'
+        vastaus, pisteet, luokka, lista = llmarviointi.pura_vastaus({"Luokittelu": "luokittelu"}, raw)
+        assert (vastaus, luokka) == ("Itsenäisesti suoritettavissa.", "Täysin")
+
+    def test_asteikko_json_merkkijonona(self):
+        raw = '{"pisteet": 4, "perustelu": "Sisältää harjoitustöitä."}'
+        vastaus, pisteet, luokka, lista = llmarviointi.pura_vastaus({"Luokittelu": "asteikko"}, raw)
+        assert (vastaus, pisteet) == ("Sisältää harjoitustöitä.", 4.0)
+
+    def test_lista_json_merkkijonona(self):
+        raw = '{"kohdat": ["Luennot", "Harjoitukset"], "perustelu": "Kaksi osaa."}'
+        vastaus, pisteet, luokka, lista = llmarviointi.pura_vastaus({"Luokittelu": "lista"}, raw)
+        assert (vastaus, lista) == ("Kaksi osaa.", ["Luennot", "Harjoitukset"])
+
+    def test_vapaa_teksti_ei_yrita_jasentaa(self):
+        raw = "Kurssi suoritetaan Exam-tenttinä."
+        vastaus, *_ = llmarviointi.pura_vastaus({"Luokittelu": "vapaa_teksti"}, raw)
+        assert vastaus == "Kurssi suoritetaan Exam-tenttinä."
+
+    def test_aaltosululla_alkava_mutta_viallinen_jsonvastaus_sailyy_tekstina(self):
+        raw = '{katkennut'
+        vastaus, *_ = llmarviointi.pura_vastaus({"Luokittelu": "luokittelu"}, raw)
+        assert vastaus == '{katkennut'
+
+
 class TestAja:
     """aja() perustuu nyt hae_valitut_kurssit + hae_vastaus_tiivisteet -tietoihin.
     olemassa={} → mikään kurssi ei ole vielä arvioitu → kaikki kysymykset kysytään.
