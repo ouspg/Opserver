@@ -119,6 +119,16 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int, int]:
         menetetyt_kurssit = 0
         ilman_vastausta = 0
 
+        # Kerro tilanne HETI kun erät on muodostettu. Muuten näyttö jäisi edelliseen
+        # tekstiin ("Haetaan luokiteltavat kurssit tietokannasta...") siihen asti kun
+        # ENSIMMÄINEN LLM-erä valmistuu — kymmeniä sekunteja, jonka ajan ajo näyttää
+        # jumittuneelta vaikka se etenee. Paluuarvoa ei tutkita: ctrl-s luetaan
+        # seuraavalla kutsulla erän valmistuttua.
+        if edistyminen_cb:
+            edistyminen_cb(mukana + hylätty, yhteensa, 0, len(erat), mukana, hylätty,
+                           yhteensa - mukana - hylätty,
+                           {"menetetyt_erat": 0, "menetetyt_kurssit": 0, "ilman_vastausta": 0})
+
         # LLM-kutsut ajetaan rinnakkain (säikeissä), mutta tietokantakirjoitukset
         # tehdään pääsäikeessä erien valmistuessa — yhteyttä ei jaeta säikeiden
         # kesken. kutsu.py tahdistaa ja backoffaa säieturvallisesti yli kutsujen.
