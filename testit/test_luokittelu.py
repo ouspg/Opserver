@@ -1,4 +1,5 @@
 """Testit luokittelu-moduulille."""
+import json
 from unittest.mock import patch, MagicMock
 import pytest
 from luokittelu import metasuodatus, llmluokittelu
@@ -143,7 +144,9 @@ class TestLlmluokittelu:
         ]
         tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi kyberturvallisuusrelevanssi."}
         # Ensin ehdokkaat, sitten tyhjä → simuloi tietokannan tyhjenemistä passien välissä
-        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat",
+        with patch("luokittelu.llmluokittelu.mallit.hae_kurssit_idlla",
+                   side_effect=lambda kidit: [k for k in kandidaatit if k["KID"] in kidit]), \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat_kevyet",
                    side_effect=[kandidaatit, []]) as mock_hae, \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=self.LLM_VASTAUS), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
@@ -160,6 +163,26 @@ class TestLlmluokittelu:
         for c in mock_aseta.call_args_list:
             assert c.kwargs["tiiviste"] == tiiv
 
+    def test_aja_hakee_kuvaukset_era_kerrallaan(self):
+        """Kuvaustekstit haetaan erä kerrallaan, ei koko ehdokasjoukolle kerralla:
+        tuotannossa joukko oli 7 696 riviä / 51 MB OpsKuvausta ja nouto jumitti
+        LLM-näytön ennen ensimmäistäkään LLM-kutsua."""
+        kandidaatit = [{"KID": i, "KurssiNimi": f"K{i}", "OpsKuvaus": None} for i in range(1, 6)]
+        tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
+        vastaus = json.dumps([{"id": i, "mukana": False, "perustelu": "p"} for i in range(1, 6)])
+        with patch("luokittelu.llmluokittelu.mallit.hae_kurssit_idlla",
+                   side_effect=lambda kidit: [k for k in kandidaatit if k["KID"] in kidit]) as mock_taydet, \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat_kevyet",
+                   side_effect=[kandidaatit, []]), \
+             patch("luokittelu.llmluokittelu.erakoko", return_value=2), \
+             patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=vastaus), \
+             patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
+             patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
+            llmluokittelu.aja(tutkimus)
+        # 5 kurssia / eräkoko 2 → 3 erää, jokainen hakee vain omat rivinsä
+        assert mock_taydet.call_count == 3
+        assert all(len(c.args[0]) <= 2 for c in mock_taydet.call_args_list)
+
     def test_aja_tyhja_kehote_hyvaksyy_meta_ilman_llm(self):
         """Tyhjä valintakehote → kaikki meta-läpäisseet mukaan ilman LLM-kutsuja."""
         kandidaatit = [
@@ -167,7 +190,9 @@ class TestLlmluokittelu:
             {"KID": 2, "KurssiNimi": "B", "OpsKuvaus": None},
         ]
         tutkimus = {"TID": 1, "Luokittelukehote": "   "}  # tyhjä/whitespace
-        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
+        with patch("luokittelu.llmluokittelu.mallit.hae_kurssit_idlla",
+                   side_effect=lambda kidit: [k for k in kandidaatit if k["KID"] in kidit]), \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat_kevyet", return_value=kandidaatit), \
              patch("luokittelu.llmluokittelu.kutsu.kysy") as mock_kysy, \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
              patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
@@ -184,7 +209,9 @@ class TestLlmluokittelu:
              "Oppiaine": "IT", "Opetusvuosi": "2025-2026", "OpsKuvaus": None},
         ]
         tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
-        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
+        with patch("luokittelu.llmluokittelu.mallit.hae_kurssit_idlla",
+                   side_effect=lambda kidit: [k for k in kandidaatit if k["KID"] in kidit]), \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat_kevyet", return_value=kandidaatit), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value="ei kelvollista jsonia"), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
              patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
@@ -210,7 +237,9 @@ class TestLlmluokittelu:
         ]
         tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
         kutsut = []
-        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat",
+        with patch("luokittelu.llmluokittelu.mallit.hae_kurssit_idlla",
+                   side_effect=lambda kidit: [k for k in kandidaatit if k["KID"] in kidit]), \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat_kevyet",
                    side_effect=[kandidaatit, []]), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=self.LLM_VASTAUS), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
@@ -231,7 +260,9 @@ class TestLlmluokittelu:
         ]
         tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
         kutsut = []
-        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
+        with patch("luokittelu.llmluokittelu.mallit.hae_kurssit_idlla",
+                   side_effect=lambda kidit: [k for k in kandidaatit if k["KID"] in kidit]), \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat_kevyet", return_value=kandidaatit), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value="ei kelvollista jsonia"), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
              patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
@@ -248,7 +279,9 @@ class TestLlmluokittelu:
         ]
         tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
         kutsut = []
-        with patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
+        with patch("luokittelu.llmluokittelu.mallit.hae_kurssit_idlla",
+                   side_effect=lambda kidit: [k for k in kandidaatit if k["KID"] in kidit]), \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat_kevyet", return_value=kandidaatit), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value="ei kelvollista jsonia"), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
              patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
@@ -270,7 +303,9 @@ class TestLlmluokittelu:
         kutsut = []
         # koko=2 → yksi erä; toinen passi saa tyhjän hausta → silmukka päättyy
         with patch("luokittelu.llmluokittelu.erakoko", return_value=2), \
-             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", side_effect=[kandidaatit, []]), \
+             patch("luokittelu.llmluokittelu.mallit.hae_kurssit_idlla",
+                   side_effect=lambda kidit: [k for k in kandidaatit if k["KID"] in kidit]), \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat_kevyet", side_effect=[kandidaatit, []]), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=vain_id1), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
              patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
@@ -290,7 +325,9 @@ class TestLlmluokittelu:
         tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
         yksi = '[{"id": 1, "mukana": true, "perustelu": "ok"}]'
         with patch("luokittelu.llmluokittelu.erakoko", return_value=1), \
-             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", return_value=kandidaatit), \
+             patch("luokittelu.llmluokittelu.mallit.hae_kurssit_idlla",
+                   side_effect=lambda kidit: [k for k in kandidaatit if k["KID"] in kidit]), \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat_kevyet", return_value=kandidaatit), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=yksi), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
              patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
@@ -322,7 +359,9 @@ class TestLlmluokittelu:
             return oikea(*a, max_workers=max_workers, **k)
 
         with patch("luokittelu.llmluokittelu.ThreadPoolExecutor", side_effect=vakooja), \
-             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat", side_effect=[kandidaatit, []]), \
+             patch("luokittelu.llmluokittelu.mallit.hae_kurssit_idlla",
+                   side_effect=lambda kidit: [k for k in kandidaatit if k["KID"] in kidit]), \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat_kevyet", side_effect=[kandidaatit, []]), \
              patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=self.LLM_VASTAUS), \
              patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
              patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):

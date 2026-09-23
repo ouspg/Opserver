@@ -35,7 +35,9 @@ def _kaiuta_kysy(viesti, *a, **k):
 @pytest.fixture
 def mockit():
     """Mockaa kanta, LLM-kutsu ja kehotteet — ei verkkoa, ei tiedostoja."""
-    with patch("luokittelu.testierat.mallit.hae_luokittelemattomat", return_value=_kurssit(4)), \
+    with patch("luokittelu.testierat.mallit.hae_kurssit_idlla",
+               side_effect=lambda kidit: [k for k in _kurssit(max(kidit)) if k["KID"] in kidit]), \
+         patch("luokittelu.testierat.mallit.hae_luokittelemattomat_kevyet", return_value=_kurssit(4)), \
          patch("luokittelu.testierat.testimallit.aseta_testiluokitus") as aseta, \
          patch("luokittelu.testierat.llmluokittelu._lue_jarjestelmakehote", return_value="JARJ"), \
          patch("luokittelu.testierat.tiiviste.luokittelu", return_value="TIIV"), \
@@ -88,7 +90,9 @@ def test_kirjaa_tulokset_testitauluun_ajotunnuksella(tmp_path, mockit):
 
 def test_sama_kurssi_ei_osu_kahteen_eraan(tmp_path):
     """Satunnaisotos ilman takaisinpanoa: kukin kurssi enintään yhdessä erässä."""
-    with patch("luokittelu.testierat.mallit.hae_luokittelemattomat", return_value=_kurssit(20)), \
+    with patch("luokittelu.testierat.mallit.hae_kurssit_idlla",
+               side_effect=lambda kidit: [k for k in _kurssit(max(kidit)) if k["KID"] in kidit]), \
+         patch("luokittelu.testierat.mallit.hae_luokittelemattomat_kevyet", return_value=_kurssit(20)), \
          patch("luokittelu.testierat.testimallit.aseta_testiluokitus") as aseta, \
          patch("luokittelu.testierat.llmluokittelu._lue_jarjestelmakehote", return_value="JARJ"), \
          patch("luokittelu.testierat.tiiviste.luokittelu", return_value="TIIV"), \
@@ -103,7 +107,9 @@ def test_sama_kurssi_ei_osu_kahteen_eraan(tmp_path):
 
 def test_pudonneet_kurssit_lasketaan(tmp_path):
     polku = tmp_path / "tilastot.jsonl"
-    with patch("luokittelu.testierat.mallit.hae_luokittelemattomat", return_value=_kurssit(2)), \
+    with patch("luokittelu.testierat.mallit.hae_kurssit_idlla",
+               side_effect=lambda kidit: [k for k in _kurssit(max(kidit)) if k["KID"] in kidit]), \
+         patch("luokittelu.testierat.mallit.hae_luokittelemattomat_kevyet", return_value=_kurssit(2)), \
          patch("luokittelu.testierat.testimallit.aseta_testiluokitus"), \
          patch("luokittelu.testierat.llmluokittelu._lue_jarjestelmakehote", return_value="JARJ"), \
          patch("luokittelu.testierat.tiiviste.luokittelu", return_value="TIIV"), \
@@ -119,7 +125,9 @@ def test_pudonneet_kurssit_lasketaan(tmp_path):
 
 def test_jasennys_epaonnistuu_merkitaan(tmp_path):
     polku = tmp_path / "tilastot.jsonl"
-    with patch("luokittelu.testierat.mallit.hae_luokittelemattomat", return_value=_kurssit(2)), \
+    with patch("luokittelu.testierat.mallit.hae_kurssit_idlla",
+               side_effect=lambda kidit: [k for k in _kurssit(max(kidit)) if k["KID"] in kidit]), \
+         patch("luokittelu.testierat.mallit.hae_luokittelemattomat_kevyet", return_value=_kurssit(2)), \
          patch("luokittelu.testierat.testimallit.aseta_testiluokitus"), \
          patch("luokittelu.testierat.llmluokittelu._lue_jarjestelmakehote", return_value="JARJ"), \
          patch("luokittelu.testierat.tiiviste.luokittelu", return_value="TIIV"), \

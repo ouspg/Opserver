@@ -505,16 +505,44 @@ def _luokittelemattomat_ehto(tid: int, tiiviste: str | None) -> tuple[str, tuple
     return ehto, (tid, tiiviste, tid, *sp)
 
 
-def hae_luokittelemattomat(tid: int, tiiviste: str | None = None) -> list[dict]:
-    """LLM-seulontaa odottavat kurssit (täydet rivit, sis. OpsKuvaus LLM:lle).
+# Kurssin kentät ilman OpsKuvausta: ainoa raskas kenttä (mediumtext, ka. 6,3 kB
+# / rivi) jätetään pois ehdokaslistasta ja haetaan erä kerrallaan.
+_KEVYET_SARAKKEET = ("KID", "KKID", "LahdeId", "Koodi", "KurssiNimi",
+                     "Taso", "Oppiaine", "Opintopisteet", "Opetusvuosi")
 
-    Pelkkään lukumäärään käytä laske_luokittelemattomat — se ei nouda raskasta
-    OpsKuvaus-kenttää. Ehdokasehto: ks. _luokittelemattomat_ehto.
+
+def hae_luokittelemattomat_kevyet(tid: int, tiiviste: str | None = None) -> list[dict]:
+    """LLM-seulontaa odottavat kurssit ilman OpsKuvausta. Ehto: _luokittelemattomat_ehto.
+
+    Koko ehdokasjoukko OpsKuvauksineen on kymmeniä megatavuja (mitattu: 7 696
+    riviä / 51 MB kehotetiivisteen muuttuessa), ja sen nouto kerralla jumitti
+    LLM-näytön ennen ensimmäistäkään LLM-kutsua. Kevyt lista kaikista (~1 MB)
+    riittää erien muodostamiseen ja edistymislaskentaan; LLM-kutsuun tarvittava
+    kuvausteksti haetaan erä kerrallaan (hae_kurssit).
+
+    ORDER BY KID (ei KurssiNimi): järjestys vaikuttaa vain erien ryhmittelyyn,
+    eikä nimen mukaiselle lajittelulle ole indeksiä → filesort koko joukolle.
     """
     ehto, params = _luokittelemattomat_ehto(tid, tiiviste)
+    sarakkeet = ", ".join(f"k.{s}" for s in _KEVYET_SARAKKEET)
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute(f"SELECT k.* {ehto} ORDER BY k.KurssiNimi", params)
+            kursori.execute(f"SELECT {sarakkeet} {ehto} ORDER BY k.KID", params)
+            return _rivit_dikteina(kursori)
+
+
+def hae_kurssit_idlla(kidit: list[int]) -> list[dict]:
+    """Täydet kurssirivit (sis. OpsKuvaus LLM:lle) annetuille KID:eille.
+
+    Vastapari hae_luokittelemattomat_kevyet:lle: yksi LLM-erä kerrallaan,
+    perusavainhaku. (hae_kurssit on eri asia — UI:n listaus ilman OpsKuvausta.)
+    """
+    if not kidit:
+        return []
+    paikat = ",".join(["%s"] * len(kidit))
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(f"SELECT * FROM Kurssi WHERE KID IN ({paikat})", tuple(kidit))
             return _rivit_dikteina(kursori)
 
 

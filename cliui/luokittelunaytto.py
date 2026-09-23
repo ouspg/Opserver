@@ -137,7 +137,10 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
 
     # Tyhjennä vahvistusvalikon / testiajovaroituksen jäänteet ennen ajonäkymää.
     piirra_otsikko(stdscr, f"LLM-luokittelu — {tutkimus['LuokittelunNimi']}")
-    stdscr.addstr(3, 0, "Yhdistetään LLM:ään...")
+    # Ensin haetaan ehdokkaat kannasta — LLM-kutsut alkavat vasta sen jälkeen.
+    # Vanha teksti ("Yhdistetään LLM:ään") ohjasi etsimään vikaa väärästä paikasta,
+    # kun jumi oli tosiasiassa tässä tietokantakyselyssä.
+    stdscr.addstr(3, 0, "Haetaan luokiteltavat kurssit tietokannasta...")
     stdscr.refresh()
 
     keskeytetty = [False]

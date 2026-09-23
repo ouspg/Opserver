@@ -33,9 +33,15 @@ def _erittele_json(teksti: str) -> list[dict]:
 
 
 def _luokittele_erä(erä: list[dict], luokittelukehote: str, jarjestelma: str) -> list[dict]:
-    """Lähettää yhden erän LLM:lle ja palauttaa jäsennetyn vastauksen."""
+    """Lähettää yhden erän LLM:lle ja palauttaa jäsennetyn vastauksen.
+
+    Erä saapuu kevyinä riveinä (ei OpsKuvausta) — kehotteeseen tarvittava
+    kuvausteksti haetaan vasta tässä, jottei koko ehdokasjoukon kuvauksia
+    ladata muistiin kerralla (ks. mallit.hae_luokittelemattomat_kevyet).
+    """
+    taydet = mallit.hae_kurssit_idlla([k["KID"] for k in erä])
     kurssit_json = json.dumps(
-        [kurssimuoto.kurssi_json_promptiin(k) for k in erä],
+        [kurssimuoto.kurssi_json_promptiin(k) for k in taydet],
         ensure_ascii=False,
         indent=2,
     )
@@ -76,7 +82,7 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int, int]:
 
     # Tiiviste mukana → ajaa myös vanhentuneen kehotteen tulokset uudelleen,
     # mutta ei jo täsmäävän kehotteen tuloksia (säästää LLM-kuluja).
-    kandidaatit = mallit.hae_luokittelemattomat(tid, tiiv)
+    kandidaatit = mallit.hae_luokittelemattomat_kevyet(tid, tiiv)
     if not kandidaatit:
         return 0, 0, 0
 
@@ -164,7 +170,7 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int, int]:
             break  # jo tallennetut säilyvät; loput luokitellaan seuraavalla ajolla
         if passin_paatokset == 0:
             break  # ei edistystä → loput epäonnistuvat pysyvästi (kandidaatit jää jäljelle)
-        kandidaatit = mallit.hae_luokittelemattomat(tid, tiiv)
+        kandidaatit = mallit.hae_luokittelemattomat_kevyet(tid, tiiv)
         if not kandidaatit:
             break
 
