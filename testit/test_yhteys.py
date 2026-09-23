@@ -188,6 +188,37 @@ def test_rikki_yhteys_ei_palaudu_pooliin():
     assert yht2 is not yht
 
 
+def test_keskeytys_merkitsee_yhteyden_rikkinaiseksi():
+    """Ctrl-C kesken kyselyn jättää yhteyden epätahtiin (lukematta jäänyt tulosjoukko).
+    Sellainen yhteys EI saa palautua pooliin — seuraava kysely jäisi odottamaan
+    paketteja jotka on jo kulutettu → UI jumittaa heti. Eikä rollbackia: sekin
+    lukee tuloksia ja jumittaa samalla tavalla."""
+    yht = _tee_yhteys()
+    palautukset = []
+    pooli = MagicMock(hae=lambda: (yht, True),
+                      palauta=lambda y_, p, rikki=False: palautukset.append(rikki))
+    with patch.object(y, "_hae_pooli", return_value=pooli):
+        try:
+            with y.yhteys():
+                raise KeyboardInterrupt
+        except KeyboardInterrupt:
+            pass
+    yht.rollback.assert_not_called()
+    assert palautukset == [True]
+
+
+def test_uusi_yhteys_asettaa_kyselyn_aikakatkaisun():
+    """connection_timeout kattaa vain kättelyn (connector nollaa socketin
+    aikakatkaisun sen jälkeen), joten jumittunut kysely odottaisi ikuisesti.
+    MAX_EXECUTION_TIME katkaisee sen palvelimen päässä."""
+    with patch("tietokanta.yhteys.mysql.connector.connect", side_effect=lambda **k: _tee_yhteys()), \
+         patch.dict("os.environ", {"DB_KYSELY_AIKAKATKAISU_S": "45"}):
+        pooli = _laiska_pooli()
+        yht, _ = pooli.hae()
+    lauseet = [c.args[0] for c in yht.cursor().__enter__().execute.call_args_list]
+    assert any("MAX_EXECUTION_TIME" in s and "45000" in s for s in lauseet)
+
+
 def test_kontekstimanageri_merkitsee_yhteysvirheen_rikkinaiseksi():
     """OperationalError (kuollut yhteys) → palauta(rikki=True), EI rollbackia
     (kaatuisi kuolleella yhteydellä)."""

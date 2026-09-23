@@ -42,6 +42,18 @@ def _pooli_koko() -> int:
     return int(os.getenv("DB_POOLI_KOKO", "8"))
 
 
+def _kyselyn_aikakatkaisu_s() -> int:
+    """Yksittäisen SELECTin katto sekunteina (.env: DB_KYSELY_AIKAKATKAISU_S; 0 = ei kattoa).
+
+    Tarpeen koska connector nollaa socketin aikakatkaisun kättelyn jälkeen
+    (connection.py: set_connection_timeout(None)) — connection_timeout suojaa
+    vain yhteydenottoa. Ilman tätä jumittunut kysely odottaa ikuisesti, eikä
+    curses-UI:ssa näy muuta kuin edellinen tilarivi. MAX_EXECUTION_TIME koskee
+    vain lukevia SELECTejä, joten se ei voi katkaista luokittelun kirjoituksia.
+    """
+    return int(os.getenv("DB_KYSELY_AIKAKATKAISU_S", "60"))
+
+
 def _idle_validointi_s() -> int:
     """Kynnys (s), jonka yli poolissa maannut yhteys validoidaan (ping+reconnect)
     ennen luovutusta. Hot-path (peräkkäiset kyselyt) alittaa kynnyksen → ei pingiä.
@@ -71,7 +83,12 @@ class _LaiskaPooli:
         self._lukko = threading.Lock()
 
     def _yhdista(self):
-        return mysql.connector.connect(**self._asetukset)
+        yht = mysql.connector.connect(**self._asetukset)
+        sekunnit = _kyselyn_aikakatkaisu_s()
+        if sekunnit:
+            with yht.cursor() as kursori:
+                kursori.execute(f"SET SESSION MAX_EXECUTION_TIME = {int(sekunnit) * 1000}")
+        return yht
 
     def _luo_pooliyhteys(self):
         """Uusi pooliyhteys; slotti (_luotu) vapautetaan jos kättely epäonnistuu."""
@@ -153,6 +170,13 @@ def yhteys():
             yht.rollback()
         except Exception:
             pass
+        raise
+    except BaseException:
+        # Ctrl-C (KeyboardInterrupt) kesken kyselyn: palvelimen tulosjoukko jäi
+        # lukematta → yhteys on epätahdissa. Rollback lukisi rivejä ja jumittaisi
+        # samalla tavalla, ja pooliin palautettuna yhteys jumittaisi seuraavan
+        # kyselyn heti. Suljetaan se sen sijaan.
+        rikki = True
         raise
     finally:
         pooli.palauta(yht, pooloitu, rikki=rikki)
