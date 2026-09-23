@@ -164,7 +164,7 @@ class TestHaeArvioimattomat:
         with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
             mallit.hae_arvioimattomat(1)
         sql, params = kursori.execute.call_args[0]
-        assert "KKID" not in sql
+        assert "k.KKID IN" not in sql
         assert list(params) == [1, 1]
 
     def test_laske_arvioimattomat_laskee_ei_hae_riveja(self, mock_yhteys):
@@ -249,7 +249,7 @@ class TestHaeLuokittelemattomat:
         kursori.description = []
         with patch("tietokanta.mallit._tutkimus_kurssi_scope",
                    return_value=("k.KKID IN (%s,%s) AND vuosirajaus", [2, 3, 2024, 2025])):
-            mallit.hae_luokittelemattomat(1)
+            mallit.hae_luokittelemattomat_kevyet(1)
         sql, params = kursori.execute.call_args[0]
         assert "k.KKID IN" in sql and "vuosirajaus" in sql
         # rajausparametrit threadattu JOIN-tid:n jälkeen, oikeassa järjestyksessä
@@ -261,7 +261,7 @@ class TestHaeLuokittelemattomat:
         kursori.description = []
         with patch("tietokanta.mallit._tutkimus_kurssi_scope",
                    return_value=("k.KKID IN (%s)", [5])):
-            mallit.hae_luokittelemattomat(1, "tiiv-abc")
+            mallit.hae_luokittelemattomat_kevyet(1, "tiiv-abc")
         sql, params = kursori.execute.call_args[0]
         assert "k.KKID IN" in sql and "Kehotetiiviste" in sql
         # tid (JOIN), tiiviste (<=>), tid (EXISTS), sitten rajausparametrit
@@ -273,10 +273,37 @@ class TestHaeLuokittelemattomat:
         kursori.fetchall.return_value = []
         kursori.description = []
         with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
-            mallit.hae_luokittelemattomat(1)
+            mallit.hae_luokittelemattomat_kevyet(1)
         sql, params = kursori.execute.call_args[0]
-        assert "KKID" not in sql
+        assert "k.KKID IN" not in sql
         assert list(params) == [1]
+
+    def test_ei_hae_opskuvausta_koko_joukolle(self, mock_yhteys):
+        """Ehdokaslista ilman OpsKuvausta: koko joukko kuvauksineen on kymmeniä
+        megatavuja (mitattu 7 696 riviä / 51 MB), ja sen nouto kerralla jumitti
+        LLM-näytön. Kuvaukset haetaan erä kerrallaan (hae_kurssit_idlla)."""
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
+            mallit.hae_luokittelemattomat_kevyet(1)
+        sql = kursori.execute.call_args[0][0]
+        assert "OpsKuvaus" not in sql and "SELECT k.*" not in sql
+        assert "ORDER BY k.KurssiNimi" not in sql  # filesort koko joukolle
+
+    def test_hae_kurssit_idlla_on_perusavainhaku(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        mallit.hae_kurssit_idlla([4, 7])
+        sql, params = kursori.execute.call_args[0]
+        assert "WHERE KID IN (%s,%s)" in sql
+        assert list(params) == [4, 7]
+
+    def test_hae_kurssit_idlla_tyhjalla_ei_kysele(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        assert mallit.hae_kurssit_idlla([]) == []
+        kursori.execute.assert_not_called()
 
 
 class TestTutkimus:
@@ -431,7 +458,7 @@ class TestTasot:
         kursori.fetchall.return_value = [("syventävä",), ("aine",)]
         assert mallit.hae_tasot() == ["syventävä", "aine"]
         sql, params = kursori.execute.call_args[0]
-        assert "KKID" not in sql and "Opetusvuosi" not in sql
+        assert "k.KKID IN" not in sql and "Opetusvuosi" not in sql
         assert params == ()
 
     def test_rajaa_kkid_ja_lukuvuosi(self, mock_yhteys):

@@ -21,9 +21,14 @@ TILASTOPOLKU = "testitulokset/luokittelu_testierat.jsonl"
 
 
 def _mittaa_era(era: list[dict], luokittelukehote: str, jarjestelma: str) -> tuple[dict, list[dict]]:
-    """Lähettää yhden erän LLM:lle. Palauttaa (mittaustiedot, jäsennetyt tulokset)."""
+    """Lähettää yhden erän LLM:lle. Palauttaa (mittaustiedot, jäsennetyt tulokset).
+
+    Erä saapuu kevyinä riveinä (ei OpsKuvausta) — kuvaustekstit haetaan tässä
+    erä kerrallaan, kuten llmluokittelu._luokittele_erä tekee.
+    """
+    taydet = mallit.hae_kurssit_idlla([k["KID"] for k in era])
     kurssit_json = json.dumps(
-        [kurssimuoto.kurssi_json_promptiin(k) for k in era],
+        [kurssimuoto.kurssi_json_promptiin(k) for k in taydet],
         ensure_ascii=False,
         indent=2,
     )
@@ -93,7 +98,7 @@ def aja_testierat(tutkimus: dict, erakoko: int, montako_era: int,
     malli = kutsu.hae_malli()
 
     # Satunnaisotos ilman takaisinpanoa → sama kurssi ei voi osua kahteen erään.
-    kandidaatit = mallit.hae_luokittelemattomat(tid, tiiv)
+    kandidaatit = mallit.hae_luokittelemattomat_kevyet(tid, tiiv)
     otos = random.sample(kandidaatit, min(erakoko * montako_era, len(kandidaatit)))
     erat = [otos[i : i + erakoko] for i in range(0, len(otos), erakoko)]
 
