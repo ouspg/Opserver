@@ -150,13 +150,16 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
         stdscr.addstr(nro, 0, teksti)
         stdscr.clrtoeol()
 
-    def edistyminen(n, yht, erä, erat, mukana, hylätty, epaonnistunut, tilasto):
+    # jaljella = vielä ilman päätöstä olevat, ei virheitä: ajon alussa se on koko
+    # loppujoukko ja kutistuu nollaan. Luki aiemmin "Epäonnistunut", mikä näytti
+    # ajon alussa siltä kuin tuhannet kurssit olisivat kaatuneet.
+    def edistyminen(n, yht, erä, erat, mukana, hylätty, jaljella, tilasto):
         osuus = f" (mukaan {mukana/(mukana + hylätty):.0%})" if (mukana + hylätty) else ""
         rivi(4, f"  Erä {erä}/{erat} — {n}/{yht} kurssia käsitelty")
-        rivi(5, f"  Mukaan: {mukana}   Hylätty: {hylätty}   Epäonnistunut: {epaonnistunut}{osuus}")
+        rivi(5, f"  Mukaan: {mukana}   Hylätty: {hylätty}   Jäljellä: {jaljella}{osuus}")
         me, mk, iv = tilasto["menetetyt_erat"], tilasto["menetetyt_kurssit"], tilasto["ilman_vastausta"]
         if me or iv:
-            rivi(6, "  Epäonnistuneista:")
+            rivi(6, "  Epäonnistumisia tällä passilla:")
             rivi(7, f"  - täysin menetettyjä eriä: {me} erää, {mk} kurssia (harkitse eräkoon pienentämistä)" if me else "")
             rivi(8, f"  - kursseja ilman vastausta: {iv} kpl" if iv else "")
         else:

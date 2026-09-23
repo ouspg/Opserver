@@ -154,7 +154,7 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int, int]:
                     ilman_vastausta += sum(1 for k in erä if k["KID"] not in saadut)
                 valmiit += 1
                 if edistyminen_cb:
-                    # epäonnistunut = vielä ilman päätöstä olevat (kutistuu passeittain)
+                    # jäljellä = vielä ilman päätöstä olevat (kutistuu passeittain); ei virheitä
                     tilasto = {"menetetyt_erat": menetetyt_erat,
                                "menetetyt_kurssit": menetetyt_kurssit,
                                "ilman_vastausta": ilman_vastausta}
