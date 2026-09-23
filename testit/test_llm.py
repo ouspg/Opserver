@@ -224,3 +224,17 @@ class TestKysy:
         kaytto = kutsu.hae_viimeisin_kaytto()
         assert kaytto["finish_reason"] is None
         assert "completion_tokens" not in kaytto
+
+    # --- ajattelubudjetti (LLM_REASONING_EFFORT) ---
+
+    def test_ajattelutaso_lahetetaan_kun_asetettu(self):
+        with patch.dict(os.environ, {**_ENV, "LLM_REASONING_EFFORT": "low"}), \
+             patch("llm.kutsu.requests.post", return_value=self._mock_vastaus("ok")) as mock_post:
+            kutsu.kysy("kysymys")
+        assert mock_post.call_args.kwargs["json"]["reasoning"] == {"effort": "low"}
+
+    def test_ajattelutaso_puuttuu_kun_ei_asetettu(self):
+        with patch.dict(os.environ, _ENV), \
+             patch("llm.kutsu.requests.post", return_value=self._mock_vastaus("ok")) as mock_post:
+            kutsu.kysy("kysymys")
+        assert "reasoning" not in mock_post.call_args.kwargs["json"]

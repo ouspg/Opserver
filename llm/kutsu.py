@@ -139,6 +139,12 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
             "max_tokens": asetukset.lue_int("LLM_MAX_TOKENIT", _MAX_TOKENIT),
             "messages": _rakenna_viestit(viesti, jarjestelma, vakaa_prefix),
         }
+        # Ajattelutokenit laskutetaan ulostulohintaan — seulonta on luokittelu-,
+        # ei päättelytehtävä, joten "low" leikkaa kulun ilman laatuhaittaa.
+        # Tyhjä/puuttuva = mallin oma oletus (OpenRouterin yhtenäinen parametri).
+        ponnistus = os.environ.get("LLM_REASONING_EFFORT", "").strip()
+        if ponnistus:
+            runko["reasoning"] = {"effort": ponnistus}
         if json_muoto:
             runko["response_format"] = {"type": "json_object"}
             # Reititä vain tarjoajille jotka oikeasti tukevat response_formatia —
