@@ -588,19 +588,19 @@ def _kurssi_suodatin_sql(kkid: int | None, taso: str | None,
 
 
 def _vuosi_kattaa_sql(sarake: str, lukuvuosi: str) -> tuple[str, list]:
-    """SQL-ehto + parametrit: OPS-kausi (sarake "YYYY-YYYY"/"YYYY-YY") kattaa
-    lukuvuoden. Peilaa luokittelu/lukuvuosi.kattaa-logiikkaa, jotta vuosirajaus
-    voidaan tehdä kannassa (sivutus, DISTINCT). Vuosisadan ylitys YYYY-YY:ssä
-    jätetty huomiotta — ei esiinny todellisissa lyhyissä OPS-kausissa.
+    """SQL-ehto + parametrit: OPS-kausi kattaa lukuvuoden.
+
+    Vertaa Kurssi-taulun generoituihin sarakkeisiin VuosiAlku/VuosiLoppu
+    (migraatio 020), jotka sisältävät saman jäsennyksen kuin tämä funktio teki
+    aiemmin kyselyn sisällä. Sarake funktion sisällä esti indeksin käytön, joten
+    jokainen ehdokashaku ja tilannesivun kysely luki koko Kurssi-taulun
+    (mitattu: 2,4 s / 26 k riviä). Nyt idx_kkid_vuosi kelpaa.
+
+    sarake: säilytetty taulualiasta varten ("k.Opetusvuosi" → "k.VuosiAlku").
     """
     alku, loppu = lv._parsi_vuodet(lukuvuosi)
-    alku_sql = f"CAST(SUBSTRING_INDEX({sarake}, '-', 1) AS UNSIGNED)"
-    loppu_sql = (
-        f"(CASE WHEN CHAR_LENGTH(SUBSTRING_INDEX({sarake}, '-', -1)) = 4 "
-        f"      THEN CAST(SUBSTRING_INDEX({sarake}, '-', -1) AS UNSIGNED) "
-        f"      ELSE {alku_sql} DIV 100 * 100 + CAST(SUBSTRING_INDEX({sarake}, '-', -1) AS UNSIGNED) END)"
-    )
-    return f"{alku_sql} <= %s AND {loppu_sql} >= %s", [alku, loppu]
+    etuliite = f"{sarake.rsplit('.', 1)[0]}." if "." in sarake else ""
+    return f"{etuliite}VuosiAlku <= %s AND {etuliite}VuosiLoppu >= %s", [alku, loppu]
 
 
 def _tutkimus_kurssi_scope(tid: int) -> tuple[str | None, list]:
