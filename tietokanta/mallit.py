@@ -783,16 +783,22 @@ def hae_tutkimuksen_tilanne(tid: int) -> dict:
 
             # Luokituspuoli in-scope-kursseille: mukaan / odottaa / meta-hylätty / LLM-hylätty.
             # Meta- ja LLM-hylkäys erotetaan Luokitteluperusteen "meta:"-etuliitteestä.
+            # STRAIGHT_JOIN + Kurssi ensin: optimoija ajaa muuten Kurssiluokituksen
+            # ensin (ref TID) ja tekee sitten ~34 k perusavainhakua Kurssiin, mikä
+            # maksoi 2,06 s. Kurssi ensin lukee idx_kkid_vuosi:n kattavana skannauksena
+            # ja hakee luokitusrivin eq_ref:llä → 0,67 s (mitattu geopalvelin1, sama
+            # tulos 171/33716). ANALYZE TABLE ei muuttanut optimoijan valintaa.
             kursori.execute(
-                f"""SELECT COALESCE(SUM(kl.Mukana = 1), 0),
+                f"""SELECT STRAIGHT_JOIN
+                           COALESCE(SUM(kl.Mukana = 1), 0),
                            COALESCE(SUM(kl.Mukana IS NULL), 0),
                            COALESCE(SUM(kl.Mukana = 0 AND kl.Luokitteluperuste LIKE 'meta:%%'), 0),
                            COALESCE(SUM(kl.Mukana = 0 AND (kl.Luokitteluperuste NOT LIKE 'meta:%%'
                                         OR kl.Luokitteluperuste IS NULL)), 0),
                            COUNT(*)
-                    FROM Kurssiluokitus kl
-                    JOIN Kurssi k ON k.KID = kl.KID
-                    WHERE kl.TID = %s AND ({vuosi_sql}) AND k.KKID IN ({kk})""",
+                    FROM Kurssi k
+                    JOIN Kurssiluokitus kl ON kl.KID = k.KID AND kl.TID = %s
+                    WHERE ({vuosi_sql}) AND k.KKID IN ({kk})""",
                 (tid, *vp, *korkeakoulut),
             )
             hyvaksytty, odottaa_llm, hyl_meta, hyl_llm, luok_maara = (
