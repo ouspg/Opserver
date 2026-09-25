@@ -401,17 +401,25 @@ def poista_kysymys(kysid: int) -> None:
 def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "",
                   pisteet: float | None = None, luokka: str | None = None,
                   lista: list | None = None, tiiviste: str | None = None) -> None:
+    """LLM:n vastaus. TID johdetaan kysymyksestä, joten kutsujan ei tarvitse tietää sitä.
+
+    KayttajaNimi jää tyhjäksi → uniikki_kys_kid_kayttaja antaa yhden LLM-rivin
+    per (kysymys, kurssi) kuten ennen, eli uudelleenajo päivittää saman rivin.
+    Malli ei koskaan NULL: se erottaa LLM-rivin ihmisen korjauksesta.
+    """
     lista_json = json.dumps(lista, ensure_ascii=False) if lista is not None else None
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                """INSERT INTO Vastaukset (KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """INSERT INTO Vastaukset
+                       (TID, KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)
+                   SELECT k.TID, %s, %s, %s, %s, %s, %s, %s, %s
+                   FROM Kysymykset k WHERE k.KysID = %s
                    ON DUPLICATE KEY UPDATE
                        Vastaus = VALUES(Vastaus), Malli = VALUES(Malli),
                        Pisteet = VALUES(Pisteet), Luokka = VALUES(Luokka),
                        Lista = VALUES(Lista), Kehotetiiviste = VALUES(Kehotetiiviste)""",
-                (kysid, kid, vastaus, malli, pisteet, luokka, lista_json, tiiviste),
+                (kysid, kid, vastaus, malli or "", pisteet, luokka, lista_json, tiiviste, kysid),
             )
 
 
@@ -429,34 +437,42 @@ def hae_raakana_tallennetut_vastaukset(tid: int) -> list[dict]:
                 """SELECT v.VasID, v.KysID, v.KID, v.Vastaus, v.Malli, v.Kehotetiiviste
                    FROM Vastaukset v
                    JOIN Kysymykset ky ON ky.KysID = v.KysID
-                   WHERE ky.TID = %s AND v.Vastaus LIKE '{%%'""",
+                   WHERE ky.TID = %s AND v.Malli IS NOT NULL AND v.Vastaus LIKE '{%%'""",
                 (tid,),
             )
             return _rivit_dikteina(kursori)
 
 
 def hae_vastaus_tiivisteet(tid: int) -> dict[tuple[int, int], dict]:
-    """Palauttaa tutkimuksen vastausten tilan: {(KID, KysID): {tiiviste, vastattu}}.
+    """Palauttaa tutkimuksen vastausten tilan: {(KID, KysID): {tiiviste, vastattu, hitl}}.
 
     vastattu = True jos vastauksessa on ei-tyhjä teksti, luokka tai pisteet.
     Käytetään tunnistamaan mitkä (kurssi, kysymys) -parit tarvitsevat
     (uudelleen)arvioinnin kehotteen/kysymyksen muututtua.
+
+    hitl = True jos ihminen on korjannut vastauksen. Silloin LLM ei aja sitä
+    uudelleen edes kehotteen muuttuessa — sama sääntö kuin luokittelupuolella
+    (_luokittelemattomat_ehto sulkee HitlKorjaus-kurssit pois). Ihmisen työtä ei
+    ylikirjoiteta, ja riittämättömän opinto-oppaan täydennys säilyy.
     """
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute("""
-                SELECT v.KID, v.KysID, v.Kehotetiiviste,
+                SELECT v.KID, v.KysID, v.Kehotetiiviste, (v.Malli IS NULL) AS Hitl,
                        ((v.Vastaus IS NOT NULL AND v.Vastaus <> '')
                         OR v.Luokka IS NOT NULL OR v.Pisteet IS NOT NULL
                         OR v.Lista IS NOT NULL) AS Vastattu
                 FROM Vastaukset v
-                JOIN Kysymykset k ON v.KysID = k.KysID
-                WHERE k.TID = %s
+                WHERE v.TID = %s
+                ORDER BY (v.Malli IS NULL)
             """, (tid,))
+            # ORDER BY: LLM-rivit ensin, ihmisen korjaus kirjoittaa niiden yli →
+            # samalla (KID, KysID) -parilla HITL-tila voittaa.
             return {
                 (r["KID"], r["KysID"]): {
                     "tiiviste": r["Kehotetiiviste"],
                     "vastattu": bool(r["Vastattu"]),
+                    "hitl": bool(r["Hitl"]),
                 }
                 for r in _rivit_dikteina(kursori)
             }
@@ -476,14 +492,19 @@ def poista_vastaukset_kysymykselta(kysid: int) -> None:
 
 
 def hae_vastaukset(tid: int) -> list[dict]:
+    """Tutkimuksen vastaukset: sekä LLM:n että ihmisten korjaukset.
+
+    Rivin alkuperä: Malli IS NULL → ihmisen korjaus, muuten LLM:n vastaus
+    (ks. migraatio_022). Uusin ensin saman (kysymys, kurssi) -parin sisällä,
+    jotta esittäjä voi ottaa ensimmäisen osuman voittajaksi.
+    """
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute("""
                 SELECT v.*
                 FROM Vastaukset v
-                JOIN Kysymykset k ON v.KysID = k.KysID
-                WHERE k.TID = %s
-                ORDER BY v.KID, v.KysID
+                WHERE v.TID = %s
+                ORDER BY v.KID, v.KysID, (v.Malli IS NULL) DESC, v.Aikaleima DESC
             """, (tid,))
             rivit = _rivit_dikteina(kursori)
     for r in rivit:
@@ -854,7 +875,7 @@ def _arvioimattomat_ehto(tid: int) -> tuple[str, tuple]:
         LEFT JOIN Vastaukset v ON v.KID = k.KID AND v.KysID = ky.KysID AND v.Vastaus <> ''
         {where_sql}
         GROUP BY k.KID
-        HAVING COUNT(v.VasID) < COUNT(DISTINCT ky.KysID)
+        HAVING COUNT(DISTINCT v.KysID) < COUNT(DISTINCT ky.KysID)
     """
     return ehto, (tid, tid, *sp)
 
@@ -915,39 +936,72 @@ def tallenna_hitl_korjaus(tid: int, kid: int, uusi_tila: bool, perustelu: str,
             )
 
 
-# --- Arviokommentit ---
+# --- HITL-vastaukset (ihmisen korjaukset arviointeihin) ---
 
-def hae_arviokommentit_kaikki(tid: int) -> list[dict]:
-    """Kaikki ihmiskommentit tälle tutkimukselle."""
+def tallenna_hitl_vastaus(tid: int, kid: int, kysid: int, vastaus: str,
+                          nimi: str, sahkoposti: str, pisteet: float | None = None,
+                          luokka: str | None = None, lista: list | None = None,
+                          juurisyy: str | None = None) -> None:
+    """Ihmisen korjaama vastaus samaan tauluun kuin LLM:n vastaus (migraatio_022).
+
+    Malli ja Kehotetiiviste jäävät NULLiksi — se erottaa HITL-rivin LLM-rivistä.
+    Sama korjaaja päivittää oman aiemman korjauksensa (uniikki_kys_kid_kayttaja),
+    eri korjaajien rivit säilyvät erillisinä. Aikaleima päivittyy korjatessa.
+    """
+    lista_json = json.dumps(lista, ensure_ascii=False) if lista is not None else None
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                "SELECT KID, KysID, Kommentti FROM ArvioKommentti WHERE TID = %s",
-                (tid,),
+                """INSERT INTO Vastaukset
+                       (TID, KysID, KID, Vastaus, Pisteet, Luokka, Lista,
+                        KayttajaNimi, Sahkoposti, Juurisyy, Malli, Kehotetiiviste)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL, NULL)
+                   ON DUPLICATE KEY UPDATE
+                       Vastaus = VALUES(Vastaus), Pisteet = VALUES(Pisteet),
+                       Luokka = VALUES(Luokka), Lista = VALUES(Lista),
+                       Sahkoposti = VALUES(Sahkoposti), Juurisyy = VALUES(Juurisyy),
+                       Aikaleima = CURRENT_TIMESTAMP""",
+                (tid, kysid, kid, vastaus, pisteet, luokka, lista_json,
+                 nimi, sahkoposti, juurisyy),
             )
-            return _rivit_dikteina(kursori)
 
 
-def hae_arviokommentti(tid: int, kid: int, kysid: int) -> str:
+def hae_vastauksen_teksti(tid: int, kid: int, kysid: int) -> str:
+    """Voimassa oleva perusteluteksti yhdelle (kurssi, kysymys) -parille.
+
+    Ihmisen korjaus voittaa LLM:n vastauksen. Käytetään yhteismuokkaussession
+    alustukseen, jotta korjausikkuna avautuu nykyiseen tekstiin eikä tyhjänä.
+    """
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                "SELECT Kommentti FROM ArvioKommentti WHERE TID=%s AND KID=%s AND KysID=%s",
+                """SELECT Vastaus FROM Vastaukset
+                   WHERE TID = %s AND KID = %s AND KysID = %s
+                   ORDER BY (Malli IS NULL) DESC, Aikaleima DESC
+                   LIMIT 1""",
                 (tid, kid, kysid),
             )
             rivi = kursori.fetchone()
-            return rivi[0] if rivi else ""
+            return (rivi[0] or "") if rivi else ""
 
 
-def aseta_arviokommentti(tid: int, kid: int, kysid: int, kommentti: str) -> None:
+def hae_hitl_vastaukset(tid: int) -> list[dict]:
+    """Ihmisten korjaamat vastaukset tälle tutkimukselle (uusin ensin)."""
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                """INSERT INTO ArvioKommentti (TID, KID, KysID, Kommentti)
-                   VALUES (%s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE Kommentti = VALUES(Kommentti)""",
-                (tid, kid, kysid, kommentti),
+                """SELECT KID, KysID, Vastaus, Pisteet, Luokka, Lista,
+                          KayttajaNimi, Sahkoposti, Juurisyy, Aikaleima
+                   FROM Vastaukset
+                   WHERE TID = %s AND Malli IS NULL
+                   ORDER BY Aikaleima DESC""",
+                (tid,),
             )
+            rivit = _rivit_dikteina(kursori)
+    for r in rivit:
+        if isinstance(r.get("Lista"), str):
+            r["Lista"] = json.loads(r["Lista"])
+    return rivit
 
 
 # --- Kurssiarviointi ---
@@ -1060,12 +1114,13 @@ def laske_hitl_korjaukset_jalkeen(tid: int, aika) -> int:
             return int(kursori.fetchone()[0])
 
 
-def laske_arviokommentit_jalkeen(tid: int, aika) -> int:
-    """Arviokommenttien määrä, jotka on tehty/muokattu annetun ajan jälkeen."""
+def laske_hitl_vastaukset_jalkeen(tid: int, aika) -> int:
+    """Ihmisen korjaamien vastausten määrä, jotka on tehty/muokattu ajan jälkeen."""
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
-                "SELECT COUNT(*) FROM ArvioKommentti WHERE TID = %s AND Aikaleima > %s",
+                "SELECT COUNT(*) FROM Vastaukset "
+                "WHERE TID = %s AND Malli IS NULL AND Aikaleima > %s",
                 (tid, aika),
             )
             return int(kursori.fetchone()[0])

@@ -160,9 +160,16 @@ def _arvioi_erä(erä: list[dict], arviointikehote: str, kysymykset: list[dict],
 
 
 def _tarvitsee_ajon(tila: dict | None, nyky_tiiviste: str) -> bool:
-    """True jos (kurssi, kysymys) -vastaus puuttuu, on tyhjä tai tehty vanhalla kehotteella."""
+    """True jos (kurssi, kysymys) -vastaus puuttuu, on tyhjä tai tehty vanhalla kehotteella.
+
+    Ihmisen korjaamaa vastausta ei ajeta uudelleen edes kehotteen muuttuessa —
+    muuten LLM ylikirjoittaisi HITL-työn (ja HITL-rivillä ei ole tiivistettä,
+    joten se näyttäisi aina vanhentuneelta).
+    """
     if tila is None or not tila["vastattu"]:
         return True
+    if tila.get("hitl"):
+        return False
     return tila["tiiviste"] != nyky_tiiviste
 
 

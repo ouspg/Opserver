@@ -125,7 +125,7 @@ class TestRaporttiTiiviste:
                   vastaus_tila=None, kommentit=None):
         with patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet",
                    return_value=vastaus_tila or {}), \
-             patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki",
+             patch("raportti.llmraportti.mallit.hae_hitl_vastaukset",
                    return_value=kommentit or []):
             return llmraportti.raporttitiiviste(tutkimus, tilastot, kysymykset)
 
@@ -153,27 +153,30 @@ class TestRaporttiTiiviste:
         b = self._tiiviste(vastaus_tila={(1, 10): {"tiiviste": "x", "vastattu": True}})
         assert a != b
 
-    def test_muuttuu_kun_kommentti_lisataan(self):
+    def test_muuttuu_kun_korjaus_lisataan(self):
         a = self._tiiviste(kommentit=[])
-        b = self._tiiviste(kommentit=[{"KID": 1, "KysID": 10, "Kommentti": "Uusi"}])
+        b = self._tiiviste(kommentit=[{"KID": 1, "KysID": 10, "Vastaus": "Uusi",
+                                      "Luokka": "Täysin", "Pisteet": None,
+                                      "KayttajaNimi": "Testi"}])
         assert a != b
 
 
 class TestRakennaViestiArvioinnit:
     def test_sisaltaa_arviointikehot(self):
-        with patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]):
+        with patch("raportti.llmraportti.mallit.hae_hitl_vastaukset", return_value=[]):
             viesti = llmraportti._rakenna_arvioinnit_viesti(TUTKIMUS, KYSYMYKSET, TILASTOT)
         assert "Arvioi kurssin soveltuvuus" in viesti
 
     def test_sisaltaa_kysymykset(self):
-        with patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]):
+        with patch("raportti.llmraportti.mallit.hae_hitl_vastaukset", return_value=[]):
             viesti = llmraportti._rakenna_arvioinnit_viesti(TUTKIMUS, KYSYMYKSET, TILASTOT)
         assert "Liittyykö kurssi kyberturvallisuuteen" in viesti
         assert "Soveltuuko kurssi ESR-hankkeeseen" in viesti
 
-    def test_sisaltaa_kommenttien_maaran(self):
-        kommentit = [{"KID": 1, "KysID": 10, "Kommentti": "OK"}, {"KID": 2, "KysID": 11, "Kommentti": "Ei"}]
-        with patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=kommentit):
+    def test_sisaltaa_korjausten_maaran(self):
+        kommentit = [{"KID": 1, "KysID": 10, "Vastaus": "OK", "KayttajaNimi": "A"},
+                     {"KID": 2, "KysID": 11, "Vastaus": "Ei", "KayttajaNimi": "B"}]
+        with patch("raportti.llmraportti.mallit.hae_hitl_vastaukset", return_value=kommentit):
             viesti = llmraportti._rakenna_arvioinnit_viesti(TUTKIMUS, KYSYMYKSET, TILASTOT)
         assert "2" in viesti
 
@@ -182,7 +185,7 @@ class TestAja:
     def test_aja_generoi_kaikki_osiot(self):
         with patch("raportti.llmraportti.mallit.hae_tilastot_yliopistoittain", return_value=TILASTOT), \
              patch("raportti.llmraportti.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
-             patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
+             patch("raportti.llmraportti.mallit.hae_hitl_vastaukset", return_value=[]), \
              patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet", return_value={}), \
              patch("raportti.llmraportti.mallit.tallenna_raportti_tuoreus"), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio") as mock_aseta, \
@@ -200,7 +203,7 @@ class TestAja:
     def test_aja_tallentaa_llm_tekstin(self):
         with patch("raportti.llmraportti.mallit.hae_tilastot_yliopistoittain", return_value=TILASTOT), \
              patch("raportti.llmraportti.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
-             patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
+             patch("raportti.llmraportti.mallit.hae_hitl_vastaukset", return_value=[]), \
              patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet", return_value={}), \
              patch("raportti.llmraportti.mallit.tallenna_raportti_tuoreus"), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio") as mock_aseta, \
@@ -213,7 +216,7 @@ class TestAja:
     def test_aja_kirjoittaa_laskentatiivisteen_jokaiseen_osioon(self):
         with patch("raportti.llmraportti.mallit.hae_tilastot_yliopistoittain", return_value=TILASTOT), \
              patch("raportti.llmraportti.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
-             patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
+             patch("raportti.llmraportti.mallit.hae_hitl_vastaukset", return_value=[]), \
              patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet", return_value={}), \
              patch("raportti.llmraportti.mallit.tallenna_raportti_tuoreus") as mock_tuoreus, \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio") as mock_aseta, \
@@ -236,7 +239,7 @@ class TestAja:
 
         with patch("raportti.llmraportti.mallit.hae_tilastot_yliopistoittain", return_value=TILASTOT), \
              patch("raportti.llmraportti.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
-             patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
+             patch("raportti.llmraportti.mallit.hae_hitl_vastaukset", return_value=[]), \
              patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet", return_value={}), \
              patch("raportti.llmraportti.mallit.tallenna_raportti_tuoreus"), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio"), \
@@ -253,7 +256,7 @@ class TestAja:
         """Toinen ajo ylikirjoittaa olemassa olevat osiot."""
         with patch("raportti.llmraportti.mallit.hae_tilastot_yliopistoittain", return_value=TILASTOT), \
              patch("raportti.llmraportti.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
-             patch("raportti.llmraportti.mallit.hae_arviokommentit_kaikki", return_value=[]), \
+             patch("raportti.llmraportti.mallit.hae_hitl_vastaukset", return_value=[]), \
              patch("raportti.llmraportti.mallit.hae_vastaus_tiivisteet", return_value={}), \
              patch("raportti.llmraportti.mallit.tallenna_raportti_tuoreus"), \
              patch("raportti.llmraportti.mallit.aseta_raportti_osio") as mock_aseta, \
@@ -282,7 +285,7 @@ class TestKoostaTilanne:
         with patch("raportti.llmraportti.mallit.hae_raportti_tila", return_value=tila), \
              patch("raportti.llmraportti.mallit.hae_raportti_tuoreus", return_value=tuoreustieto), \
              patch("raportti.llmraportti.mallit.laske_hitl_korjaukset_jalkeen", return_value=hitl), \
-             patch("raportti.llmraportti.mallit.laske_arviokommentit_jalkeen", return_value=kommentit), \
+             patch("raportti.llmraportti.mallit.laske_hitl_vastaukset_jalkeen", return_value=kommentit), \
              patch("raportti.llmraportti.raporttitiiviste",
                    side_effect=AssertionError("koosta_tilanne ei saa laskea tiivistettä")):
             return llmraportti.koosta_tilanne(self.TUTKIMUS_T)
@@ -314,7 +317,7 @@ class TestKoostaTilanne:
         assert tulos["tuoreus"] == "vanhentunut"
         assert tulos["tarkistettu"] == "2026-07-15 12:00:00"
         assert tulos["hitl_jalkeen"] == 2
-        assert tulos["kommentit_jalkeen"] == 1
+        assert tulos["arviokorjaukset_jalkeen"] == 1
 
     def test_tuntematon_kun_generointitiiviste_puuttuu(self):
         """Ennen tuoreusseurantaa generoitu raportti (Laskentatiiviste NULL)."""

@@ -802,12 +802,12 @@ class TestRaporttiTila:
         assert n == 3
         assert list(params) == [1, "2026-07-15 10:00:00"]
 
-    def test_laske_arviokommentit_jalkeen_kayttaa_countia(self, mock_yhteys):
+    def test_laske_hitl_vastaukset_jalkeen_kayttaa_countia(self, mock_yhteys):
         yht, kursori = mock_yhteys
         kursori.fetchone.return_value = (2,)
-        n = mallit.laske_arviokommentit_jalkeen(1, "2026-07-15 10:00:00")
+        n = mallit.laske_hitl_vastaukset_jalkeen(1, "2026-07-15 10:00:00")
         sql, params = kursori.execute.call_args[0]
-        assert "COUNT(*)" in sql and "ArvioKommentti" in sql and "Aikaleima >" in sql
+        assert "COUNT(*)" in sql and "Malli IS NULL" in sql and "Aikaleima >" in sql
         assert n == 2
         assert list(params) == [1, "2026-07-15 10:00:00"]
 
@@ -827,3 +827,78 @@ class TestKurssiarviointi:
         mallit.hae_arvioinnit(tid=1)
         sql, params = kursori.execute.call_args[0]
         assert "TID" in sql
+
+
+class TestHitlVastaukset:
+    """Ihmisen korjaus menee samaan Vastaukset-tauluun kuin LLM:n vastaus
+    (migraatio_022). Malli IS NULL erottaa rivit toisistaan."""
+
+    def test_tallenna_hitl_vastaus_jattaa_mallin_nulliksi(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.tallenna_hitl_vastaus(1, 7, 30, "Perustelu", "Testi", "t@e.fi",
+                                     luokka="Täysin", juurisyy="llm_virhe")
+        sql, params = kursori.execute.call_args[0]
+        assert "INSERT INTO Vastaukset" in sql
+        assert "NULL, NULL" in sql          # Malli ja Kehotetiiviste
+        assert "Aikaleima = CURRENT_TIMESTAMP" in sql
+        assert params[:3] == (1, 30, 7)     # TID, KysID, KID
+        assert "Testi" in params and "llm_virhe" in params
+
+    def test_hae_hitl_vastaukset_rajaa_ihmisen_riveihin(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        mallit.hae_hitl_vastaukset(1)
+        sql = kursori.execute.call_args[0][0]
+        assert "Malli IS NULL" in sql
+
+    def test_aseta_vastaus_johtaa_tid_kysymyksesta(self, mock_yhteys):
+        """Kutsujan ei tarvitse tietää TID:tä — se haetaan kysymykseltä."""
+        yht, kursori = mock_yhteys
+        mallit.aseta_vastaus(30, 7, "LLM sanoi", "gemini")
+        sql, params = kursori.execute.call_args[0]
+        assert "FROM Kysymykset k WHERE k.KysID = %s" in sql
+        assert params[-1] == 30
+
+    def test_vastaus_tiivisteet_hitl_voittaa_llm_rivin(self, mock_yhteys):
+        """Samalla (KID, KysID) -parilla HITL-tila jää voimaan."""
+        yht, kursori = mock_yhteys
+        kursori.description = [("KID",), ("KysID",), ("Kehotetiiviste",), ("Hitl",), ("Vastattu",)]
+        kursori.fetchall.return_value = [
+            (5, 30, "tiiv", 0, 1),   # LLM-rivi ensin (ORDER BY)
+            (5, 30, None, 1, 1),     # ihmisen korjaus kirjoittaa yli
+        ]
+        tulos = mallit.hae_vastaus_tiivisteet(1)
+        assert tulos[(5, 30)]["hitl"] is True
+
+
+class TestHitlRivitEivatSotkeLaskentaa:
+    """LLM- ja HITL-rivi ovat samalla (KID, KysID) -parilla (migraatio_022);
+    laskennat eivät saa laskea paria kahdesti eikä HITL-riviä LLM-riviksi."""
+
+    def test_arvioimattomat_laskee_erilliset_kysymykset(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
+            mallit.hae_arvioimattomat(1)
+        sql, _ = kursori.execute.call_args[0]
+        assert "COUNT(DISTINCT v.KysID) < COUNT(DISTINCT ky.KysID)" in sql
+
+    def test_raakana_tallennetut_ohittaa_ihmisen_rivit(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        mallit.hae_raakana_tallennetut_vastaukset(1)
+        sql, _ = kursori.execute.call_args[0]
+        assert "v.Malli IS NOT NULL" in sql
+
+    def test_testiajon_siirto_asettaa_tidin(self, mock_yhteys):
+        from tietokanta import testimallit
+        yht, kursori = mock_yhteys
+        kursori.fetchone.return_value = (3,)
+        with patch("tietokanta.testimallit.yhteys", mallit.yhteys):
+            testimallit.siirra_testiajo_arviointi("ajo1")
+        sql, _ = kursori.execute.call_args[0]
+        assert "INSERT INTO Vastaukset\n                       (TID, KysID" in sql or "(TID, KysID" in sql
+        assert "SELECT TID, KysID" in sql

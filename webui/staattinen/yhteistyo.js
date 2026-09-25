@@ -349,11 +349,6 @@ window.lahetaMuokkausTeksti = function (tid, kid, kysid, teksti, kursori) {
   ws.send(JSON.stringify({ tyyppi: "muokkaus-teksti", tid, kid, kysid, teksti, kursori }));
 };
 
-window.tallennaMuokkausKommentti = function (tid, kid, kysid, teksti) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ tyyppi: "muokkaus-tallenna", tid, kid, kysid, teksti }));
-};
-
 window.liityRaporttiSessioon = function (tid, avain) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify({ tyyppi: "raportti-liity", tid, avain }));

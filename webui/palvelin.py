@@ -204,7 +204,7 @@ async def ws_kayttajat(ws: WebSocket) -> None:
                 avain = (data.get("tid"), data.get("kid"), data.get("kysid"))
                 if avain not in _muokkaussessiot:
                     _muokkaussessiot[avain] = {}
-                    _muokkaus_teksti[avain] = mallit.hae_arviokommentti(*avain)
+                    _muokkaus_teksti[avain] = mallit.hae_vastauksen_teksti(*avain)
                 kayttaja = _yhteydet.get(uid, (None, {}))[1]
                 _muokkaussessiot[avain][uid] = {
                     "nimimerkki": kayttaja.get("nimimerkki", "?"),
@@ -228,13 +228,6 @@ async def ws_kayttajat(ws: WebSocket) -> None:
                         _muokkaus_teksti.pop(avain, None)
                     else:
                         await _laheta_muokkaussessio(avain)
-            elif tyyppi == "muokkaus-tallenna":
-                avain = (data.get("tid"), data.get("kid"), data.get("kysid"))
-                teksti = data.get("teksti", "")
-                if avain[0] and avain[1] and avain[2]:
-                    mallit.aseta_arviokommentti(*avain, teksti)
-                    if avain in _muokkaus_teksti:
-                        _muokkaus_teksti[avain] = teksti
             elif tyyppi == "raportti-liity":
                 avain = (data.get("tid"), data.get("avain"))
                 if avain not in _raportti_sessiot:
@@ -490,7 +483,7 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
     kysymykset = mallit.hae_kysymykset(tid)
     kurssit = mallit.hae_valitut_kurssit(tid)
     vastaukset_lista = mallit.hae_vastaukset(tid)
-    kommentit_lista = mallit.hae_arviokommentit_kaikki(tid)
+    hitl_lista = mallit.hae_hitl_vastaukset(tid)
 
     # Nykyiset kysymystiivisteet: tunnistavat vastaukset jotka on generoitu
     # vanhentuneeseen kysymykseen/kehotteeseen (ennen seuraavaa LLM-ajoa).
@@ -501,6 +494,8 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
 
     vastaus_kartta: dict[int, dict[int, dict]] = {}
     for v in vastaukset_lista:
+        if v.get("Malli") is None:
+            continue  # ihmisen korjaus → korjaus_kartta
         kid = v["KID"]
         if kid not in vastaus_kartta:
             vastaus_kartta[kid] = {}
@@ -514,12 +509,23 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
             "vanhentunut": on_vastaus and v.get("Kehotetiiviste") != nyky_tiiviste.get(v["KysID"]),
         }
 
-    kommentti_kartta: dict[int, dict[int, str]] = {}
-    for k in kommentit_lista:
-        kid = k["KID"]
-        if kid not in kommentti_kartta:
-            kommentti_kartta[kid] = {}
-        kommentti_kartta[kid][k["KysID"]] = k["Kommentti"]
+    # Ihmisen korjaukset omaan karttaansa: WebUI näyttää korjatun arvon ja kertoo
+    # kuka sen teki, mutta tekoälyn alkuperäinen vastaus jää näkyviin vertailuun.
+    # hae_hitl_vastaukset palauttaa uusimman ensin → ensimmäinen osuma voittaa.
+    korjaus_kartta: dict[int, dict[int, dict]] = {}
+    for h in hitl_lista:
+        per_kysymys = korjaus_kartta.setdefault(h["KID"], {})
+        if h["KysID"] in per_kysymys:
+            continue
+        per_kysymys[h["KysID"]] = {
+            "vastaus": h.get("Vastaus") or "",
+            "luokka": h.get("Luokka"),
+            "pisteet": h.get("Pisteet"),
+            "lista": h.get("Lista"),
+            "nimi": h.get("KayttajaNimi") or "",
+            "juurisyy": h.get("Juurisyy"),
+            "aikaleima": str(h.get("Aikaleima") or ""),
+        }
 
     kys_idt = [k["KysID"] for k in kysymykset]
     tyhjä_vastaus = {"vastaus": "", "luokka": None, "pisteet": None, "lista": None, "vanhentunut": False}
@@ -545,7 +551,8 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
                 "Oppiaine": k.get("Oppiaine") or "",
                 "Opintopisteet": k.get("Opintopisteet"),
                 "vastaukset": [vastaus_kartta.get(k["KID"], {}).get(kys_id, tyhjä_vastaus) for kys_id in kys_idt],
-                "kommentit": {kys_id: kommentti_kartta.get(k["KID"], {}).get(kys_id, "") for kys_id in kys_idt},
+                "korjaukset": {kys_id: korjaus_kartta.get(k["KID"], {}).get(kys_id)
+                               for kys_id in kys_idt},
             }
             for k in kurssit
         ],
@@ -574,6 +581,58 @@ def api_hitl_korjaus(slug: str, kid: int, pyynto: HitlPyynto) -> dict:
     return {"ok": True}
 
 
+class ArvioKorjausPyynto(BaseModel):
+    """Ihmisen korjaus yhteen arviointivastaukseen.
+
+    Kysymystyyppi ratkaisee mitkä kentät ovat merkityksellisiä: luokittelu → luokka,
+    asteikko → pisteet, lista → lista, vapaa teksti → pelkkä vastaus. Muut jäävät
+    Noneksi, kuten LLM:n vastauksissakin.
+    """
+    vastaus: str = ""
+    luokka: str | None = None
+    pisteet: float | None = None
+    lista: list[str] | None = None
+    nimi: str
+    sahkoposti: str
+    juurisyy: str | None = None
+
+
+@sovellus.post("/api/tutkimukset/{slug}/kurssit/{kid}/kysymykset/{kysid}/korjaus")
+def api_arvio_korjaus(slug: str, kid: int, kysid: int, pyynto: ArvioKorjausPyynto) -> dict:
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    if pyynto.juurisyy is not None and pyynto.juurisyy not in mallit.JUURISYYT:
+        raise HTTPException(status_code=400, detail="Tuntematon juurisyy")
+    if not pyynto.nimi.strip():
+        raise HTTPException(status_code=400, detail="Nimi puuttuu")
+    tid = tutkimus["TID"]
+    kysymykset = {k["KysID"]: k for k in mallit.hae_kysymykset(tid)}
+    kysymys = kysymykset.get(kysid)
+    if kysymys is None:
+        raise HTTPException(status_code=404, detail="Kysymystä ei löydy tästä tutkimuksesta")
+    # Tyyppitarkistus: luokka on oltava kysymyksen määrittelemien joukossa, pisteet
+    # asteikon sisällä. Väärä arvo rikkoisi raporttitilastot hiljaa.
+    maarittely = kysymys.get("LuokitteluMaarittely") or {}
+    if isinstance(maarittely, str):
+        maarittely = json.loads(maarittely)
+    tyyppi = kysymys.get("Luokittelu") or "vapaa_teksti"
+    if tyyppi == "luokittelu" and pyynto.luokka:
+        sallitut = [l.get("nimi") for l in maarittely.get("luokat", [])]
+        if sallitut and pyynto.luokka not in sallitut:
+            raise HTTPException(status_code=400, detail=f"Tuntematon luokka: {pyynto.luokka}")
+    if tyyppi == "asteikko" and pyynto.pisteet is not None:
+        minimi, maksimi = maarittely.get("minimi", 1), maarittely.get("maksimi", 5)
+        if not (minimi <= pyynto.pisteet <= maksimi):
+            raise HTTPException(status_code=400, detail=f"Pisteet {minimi}–{maksimi} ulkopuolella")
+    mallit.tallenna_hitl_vastaus(
+        tid, kid, kysid, pyynto.vastaus, pyynto.nimi.strip(), pyynto.sahkoposti.strip(),
+        pisteet=pyynto.pisteet, luokka=pyynto.luokka, lista=pyynto.lista,
+        juurisyy=pyynto.juurisyy,
+    )
+    return {"ok": True}
+
+
 @sovellus.get("/api/tutkimukset/{slug}/raportti")
 def api_raportti(slug: str) -> dict:
     tutkimus = mallit.hae_tutkimus_slugilla(slug)
@@ -593,11 +652,15 @@ def api_raportti_tilastot(slug: str) -> dict:
     kysymykset = mallit.hae_kysymykset(tid)
     vastaukset_lista = mallit.hae_vastaukset(tid)
 
-    # Rakenna per-kysymys indeksi vastauksista
+    # Rakenna per-kysymys indeksi vastauksista. hae_vastaukset palauttaa saman
+    # (kurssi, kysymys) -parin HITL-rivin ennen LLM-riviä → ensimmäinen voittaa,
+    # eikä ihmisen korjaama pari tule tilastoon kahdesti.
     v_per_kys: dict[int, list[dict]] = {k["KysID"]: [] for k in kysymykset}
+    nahdyt: set[tuple[int, int]] = set()
     for v in vastaukset_lista:
         kysid = v["KysID"]
-        if kysid in v_per_kys:
+        if kysid in v_per_kys and (v["KID"], kysid) not in nahdyt:
+            nahdyt.add((v["KID"], kysid))
             v_per_kys[kysid].append(v)
 
     tulos_kysymykset = []

@@ -157,8 +157,9 @@ def siirra_testiajo_arviointi(ajo: str) -> int:
             kursori.execute("SELECT COUNT(*) FROM Vastaukset_testi WHERE Ajo = %s", (ajo,))
             maara = kursori.fetchone()[0]
             kursori.execute(
-                """INSERT INTO Vastaukset (KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)
-                   SELECT KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste
+                """INSERT INTO Vastaukset
+                       (TID, KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)
+                   SELECT TID, KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste
                    FROM Vastaukset_testi WHERE Ajo = %s
                    ON DUPLICATE KEY UPDATE Vastaus = VALUES(Vastaus), Malli = VALUES(Malli),
                        Pisteet = VALUES(Pisteet), Luokka = VALUES(Luokka),

@@ -4,21 +4,6 @@
 SET FOREIGN_KEY_CHECKS=0;
 
 
-CREATE TABLE IF NOT EXISTS `ArvioKommentti` (
-  `KomID` int NOT NULL AUTO_INCREMENT,
-  `TID` int NOT NULL,
-  `KID` int NOT NULL,
-  `KysID` int NOT NULL,
-  `Kommentti` text NOT NULL,
-  `Aikaleima` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`KomID`),
-  UNIQUE KEY `uniikki_tid_kid_kysid` (`TID`,`KID`,`KysID`),
-  KEY `KID` (`KID`),
-  KEY `KysID` (`KysID`),
-  CONSTRAINT `ArvioKommentti_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE,
-  CONSTRAINT `ArvioKommentti_ibfk_2` FOREIGN KEY (`KID`) REFERENCES `Kurssi` (`KID`) ON DELETE CASCADE,
-  CONSTRAINT `ArvioKommentti_ibfk_3` FOREIGN KEY (`KysID`) REFERENCES `Kysymykset` (`KysID`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 CREATE TABLE IF NOT EXISTS `HitlKorjaus` (
   `HID` int NOT NULL AUTO_INCREMENT,
   `TID` int NOT NULL,
@@ -162,9 +147,16 @@ CREATE TABLE IF NOT EXISTS `Vastaukset` (
   `Pisteet` float DEFAULT NULL,
   `Luokka` varchar(100) DEFAULT NULL,
   `Lista` json DEFAULT NULL,
+  `TID` int NOT NULL,
+  `KayttajaNimi` varchar(255) NOT NULL DEFAULT '',
+  `Sahkoposti` varchar(255) NOT NULL DEFAULT '',
+  `Aikaleima` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `Juurisyy` varchar(32) DEFAULT NULL,
   PRIMARY KEY (`VasID`),
-  UNIQUE KEY `uniikki_kys_kurssi` (`KysID`,`KID`),
+  UNIQUE KEY `uniikki_kys_kid_kayttaja` (`KysID`,`KID`,`KayttajaNimi`),
   KEY `Vastaukset_ibfk_2` (`KID`),
+  KEY `idx_tid` (`TID`),
+  CONSTRAINT `Vastaukset_ibfk_3` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE,
   CONSTRAINT `Vastaukset_ibfk_1` FOREIGN KEY (`KysID`) REFERENCES `Kysymykset` (`KysID`) ON DELETE CASCADE,
   CONSTRAINT `Vastaukset_ibfk_2` FOREIGN KEY (`KID`) REFERENCES `Kurssi` (`KID`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

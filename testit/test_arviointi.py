@@ -496,3 +496,27 @@ class TestSiivoaTulokset:
     def test_ohittaa_puuttuvan_tai_kelvottoman_idn(self):
         raaka = [{"vastaukset": []}, {"id": None, "vastaukset": []}, {"id": "abc"}]
         assert llmarviointi._siivoa_tulokset(raaka, {1, 2}) == []
+
+
+class TestHitlEiYliajeta:
+    """Ihmisen korjaamaa vastausta ei ajeta LLM:llä uudelleen edes kehotteen
+    muuttuessa — sama sääntö kuin luokittelupuolella (HitlKorjaus-poikkeus).
+    HITL-rivillä ei ole kehotetiivistettä, joten ilman tätä se näyttäisi aina
+    vanhentuneelta ja ihmisen työ ylikirjoitettaisiin joka ajossa."""
+
+    def test_hitl_vastausta_ei_aja_uudelleen(self):
+        tila = {"vastattu": True, "tiiviste": None, "hitl": True}
+        assert llmarviointi._tarvitsee_ajon(tila, "uusi-tiiviste") is False
+
+    def test_llm_vastaus_vanhalla_tiivisteella_ajetaan(self):
+        tila = {"vastattu": True, "tiiviste": "vanha", "hitl": False}
+        assert llmarviointi._tarvitsee_ajon(tila, "uusi") is True
+
+    def test_llm_vastaus_tasmaavalla_tiivisteella_ohitetaan(self):
+        tila = {"vastattu": True, "tiiviste": "sama", "hitl": False}
+        assert llmarviointi._tarvitsee_ajon(tila, "sama") is False
+
+    def test_tyhja_hitl_rivi_ajetaan_silti(self):
+        """Jos korjaus on tyhjä, kysymys on yhä vastaamatta."""
+        tila = {"vastattu": False, "tiiviste": None, "hitl": True}
+        assert llmarviointi._tarvitsee_ajon(tila, "uusi") is True
