@@ -4,7 +4,7 @@
 # AUTO_INCREMENT-laskuri pois (ei ole skeemaa), rivinloppupilkut pois ja rivit
 # aakkosjärjestykseen: sarakkeiden järjestys taulussa on kosmeettinen eikä
 # migraatiopolku päädy samaan järjestykseen kuin squashattu alustus.sql.
-normalisoi_vedos() { sed 's/ AUTO_INCREMENT=[0-9]*//; s/,$//' | sort; }
+normalisoi_vedos() { sed 's/ AUTO_INCREMENT=[0-9]*//; s/,$//' | LC_ALL=C sort; }
 
 # mysqldumpin liput skeemavedokselle — samat joka paikassa, muuten vertailu
 # eroaa kohinasta eikä skeemasta.
