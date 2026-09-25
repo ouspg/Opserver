@@ -415,6 +415,26 @@ def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "",
             )
 
 
+def hae_raakana_tallennetut_vastaukset(tid: int) -> list[dict]:
+    """Vastaukset, joiden teksti on jäänyt raa'aksi JSON-objektiksi ('{...}').
+
+    Syntyi kun malli palautti kysymyskohtaisen vastauksen JSON-merkkijonona:
+    jäsentämätön teksti päätyi Vastaus-kenttään ja Luokka/Pisteet/Lista jäivät
+    tyhjiksi. Data on tallessa, joten rivit voi korjata jäsentämällä uudelleen
+    (arviointi.korjaus) — uutta LLM-ajoa ei tarvita.
+    """
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                """SELECT v.VasID, v.KysID, v.KID, v.Vastaus, v.Malli, v.Kehotetiiviste
+                   FROM Vastaukset v
+                   JOIN Kysymykset ky ON ky.KysID = v.KysID
+                   WHERE ky.TID = %s AND v.Vastaus LIKE '{%%'""",
+                (tid,),
+            )
+            return _rivit_dikteina(kursori)
+
+
 def hae_vastaus_tiivisteet(tid: int) -> dict[tuple[int, int], dict]:
     """Palauttaa tutkimuksen vastausten tilan: {(KID, KysID): {tiiviste, vastattu}}.
 
