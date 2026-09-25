@@ -183,6 +183,33 @@ class TestLlmluokittelu:
         assert mock_taydet.call_count == 3
         assert all(len(c.args[0]) <= 2 for c in mock_taydet.call_args_list)
 
+    def test_aja_kertoo_tilanteen_ennen_ensimmaista_llm_kutsua(self):
+        """Näyttö päivittyy heti erien muodostuttua — ei vasta ensimmäisen LLM-erän
+        valmistuttua, jolloin ajo näyttäisi jumittuneelta kymmeniä sekunteja."""
+        kandidaatit = [{"KID": i, "KurssiNimi": f"K{i}", "OpsKuvaus": None} for i in range(1, 5)]
+        tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
+        kutsut = []
+
+        def kysy(*a, **k):
+            kutsut.append("llm")
+            return json.dumps([])
+
+        def cb(n, yht, erä, erat, mukana, hylätty, jaljella, tilasto):
+            kutsut.append(("cb", n, yht, erä, erat, jaljella))
+            return False
+
+        with patch("luokittelu.llmluokittelu.mallit.hae_kurssit_idlla",
+                   side_effect=lambda kidit: [k for k in kandidaatit if k["KID"] in kidit]), \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat_kevyet",
+                   side_effect=[kandidaatit, []]), \
+             patch("luokittelu.llmluokittelu.erakoko", return_value=2), \
+             patch("luokittelu.llmluokittelu.kutsu.kysy", side_effect=kysy), \
+             patch("luokittelu.llmluokittelu.mallit.aseta_luokitus"), \
+             patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
+            llmluokittelu.aja(tutkimus, cb)
+        # ensimmäinen tapahtuma on näytön päivitys, ei LLM-kutsu
+        assert kutsut[0] == ("cb", 0, 4, 0, 2, 4)
+
     def test_aja_tyhja_kehote_hyvaksyy_meta_ilman_llm(self):
         """Tyhjä valintakehote → kaikki meta-läpäisseet mukaan ilman LLM-kutsuja."""
         kandidaatit = [

@@ -31,6 +31,7 @@
   KEY `Kysymykset_ibfk_1` (`TID`)
   KEY `TID` (`TID`)
   KEY `Vastaukset_ibfk_2` (`KID`)
+  KEY `idx_kkid_vuosi` (`KKID`,`VuosiAlku`,`VuosiLoppu`)
   KEY `idx_tid_ajo` (`TID`,`Ajo`)
   KEY `idx_tid_ajo` (`TID`,`Ajo`)
   KEY `idx_tid` (`TID`)
@@ -155,6 +156,8 @@
   `Vastaus` text
   `Vastaus` text
   `Verkkosivu` text
+  `VuosiAlku` smallint unsigned GENERATED ALWAYS AS (cast(substring_index(`Opetusvuosi`,_utf8mb4'-',1) as unsigned)) VIRTUAL
+  `VuosiLoppu` smallint unsigned GENERATED ALWAYS AS ((case when (char_length(substring_index(`Opetusvuosi`,_utf8mb4'-',-(1))) = 4) then cast(substring_index(`Opetusvuosi`,_utf8mb4'-',-(1)) as unsigned) else (((cast(substring_index(`Opetusvuosi`,_utf8mb4'-',1) as unsigned) DIV 100) * 100) + cast(substring_index(`Opetusvuosi`,_utf8mb4'-',-(1)) as unsigned)) end)) VIRTUAL
   `ajettu` datetime DEFAULT CURRENT_TIMESTAMP
   `nimi` varchar(64) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

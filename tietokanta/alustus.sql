@@ -39,8 +39,11 @@ CREATE TABLE IF NOT EXISTS `Kurssi` (
   `Opintopisteet` varchar(30) DEFAULT NULL,
   `Opetusvuosi` varchar(20) NOT NULL DEFAULT '',
   `OpsKuvaus` mediumtext,
+  `VuosiAlku` smallint unsigned GENERATED ALWAYS AS (cast(substring_index(`Opetusvuosi`,_utf8mb4'-',1) as unsigned)) VIRTUAL,
+  `VuosiLoppu` smallint unsigned GENERATED ALWAYS AS ((case when (char_length(substring_index(`Opetusvuosi`,_utf8mb4'-',-1)) = 4) then cast(substring_index(`Opetusvuosi`,_utf8mb4'-',-1) as unsigned) else ((cast(substring_index(`Opetusvuosi`,_utf8mb4'-',1) as unsigned) div 100) * 100) + cast(substring_index(`Opetusvuosi`,_utf8mb4'-',-1) as unsigned) end)) VIRTUAL,
   PRIMARY KEY (`KID`),
   UNIQUE KEY `uniikki_lahde_vuosi` (`KKID`,`LahdeId`,`Opetusvuosi`),
+  KEY `idx_kkid_vuosi` (`KKID`,`VuosiAlku`,`VuosiLoppu`),
   CONSTRAINT `Kurssi_ibfk_1` FOREIGN KEY (`KKID`) REFERENCES `Korkeakoulu` (`KKID`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 CREATE TABLE IF NOT EXISTS `Kurssiarviointi` (

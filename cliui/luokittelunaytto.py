@@ -150,19 +150,32 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
         stdscr.addstr(nro, 0, teksti)
         stdscr.clrtoeol()
 
-    def edistyminen(n, yht, erä, erat, mukana, hylätty, epaonnistunut, tilasto):
-        osuus = f" (mukaan {mukana/(mukana + hylätty):.0%})" if (mukana + hylätty) else ""
-        rivi(4, f"  Erä {erä}/{erat} — {n}/{yht} kurssia käsitelty")
-        rivi(5, f"  Mukaan: {mukana}   Hylätty: {hylätty}   Epäonnistunut: {epaonnistunut}{osuus}")
+    # jaljella = vielä ilman päätöstä olevat, EI virheitä: ajon alussa se on koko
+    # loppujoukko ja kutistuu nollaan. Epäonnistuneet ovat tämän passin virheet
+    # (menetetyt erät + vastauksetta jääneet kurssit) — ne sisältyvät jäljellä-
+    # lukuun, koska seuraava passi yrittää ne uudelleen.
+    def edistyminen(n, yht, erä, erat, mukana, hylätty, jaljella, tilasto):
         me, mk, iv = tilasto["menetetyt_erat"], tilasto["menetetyt_kurssit"], tilasto["ilman_vastausta"]
-        if me or iv:
-            rivi(6, "  Epäonnistuneista:")
-            rivi(7, f"  - täysin menetettyjä eriä: {me} erää, {mk} kurssia (harkitse eräkoon pienentämistä)" if me else "")
-            rivi(8, f"  - kursseja ilman vastausta: {iv} kpl" if iv else "")
-        else:
-            rivi(6, ""); rivi(7, ""); rivi(8, "")
+        osuus = f"  ({mukana / (mukana + hylätty) * 100:.0f} %)" if (mukana + hylätty) else ""
+        syyt = []
+        if me:
+            syyt.append(f"{me} erä{'ä' if me != 1 else ''} menetetty, {mk} kurssia")
+        if iv:
+            syyt.append(f"{iv} kurssi{'a' if iv != 1 else ''} ilman vastausta")
+        selite = f"  ({', '.join(syyt)})" if syyt else ""
+
+        rivi(3, f"  Erä {erä}/{erat} — {n}/{yht} kurssia käsitelty")
+        rivi(4, "")
+        for i, (nimi, luku, lisa) in enumerate((
+            ("Mukaan:", mukana, osuus),
+            ("Hylätty:", hylätty, ""),
+            ("Jäljellä:", jaljella, ""),
+            ("Epäonnistui:", mk + iv, selite),
+        )):
+            rivi(5 + i, f"  {nimi:<12}{luku:>5}{lisa}")
+        rivi(9, "  Harkitse eräkoon pienentämistä (LUOKITTELU_ERAKOKO)." if me else "")
         if ctrl_s_kaytossa[0]:
-            rivi(10, " Paina ctrl-s keskeyttääksesi ajon (jo tehtyjä luokitteluja ei menetetä!) ja muokataksesi asetuksia")
+            rivi(11, " Paina ctrl-s keskeyttääksesi ajon (jo tehtyjä luokitteluja ei menetetä!) ja muokataksesi asetuksia")
         stdscr.refresh()
         if ctrl_s_kaytossa[0] and stdscr.getch() == 19:  # ctrl-s
             keskeytetty[0] = True
