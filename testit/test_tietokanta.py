@@ -466,7 +466,7 @@ class TestTasot:
         kursori.fetchall.return_value = [("Aineopinnot",)]
         mallit.hae_tasot(kkid=4, lukuvuosi="2026-2027")
         sql, params = kursori.execute.call_args[0]
-        assert "KKID = %s" in sql and "Opetusvuosi" in sql
+        assert "KKID = %s" in sql and "VuosiAlku <= %s" in sql
         assert list(params) == [4, 2026, 2027]
 
 
