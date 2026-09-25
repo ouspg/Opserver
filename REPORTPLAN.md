@@ -92,7 +92,7 @@ CLAUDE.md:n vaiheen 4 valmistumiskriteeri "sisältää %-osuuden riittämättöm
 
 Aiemmin CLIUI:n "Näytä tilanne" näytti vain ✓/— per osio, eikä kertonut milloin raportti tehtiin tai onko aineisto muuttunut. **Nyt:**
 
-- **A** (aikaleimapohjainen): generointiaika (`RaporttiOsio.Aikaleima`) + "generoinnin jälkeen N HITL-korjausta, M kommenttia" (`HitlKorjaus`/`ArvioKommentti`-aikaleimoista).
+- **A** (aikaleimapohjainen): generointiaika (`RaporttiOsio.Aikaleima`) + "generoinnin jälkeen N HITL-korjausta, M kommenttia" (`HitlKorjaus`-aikaleimoista ja `Vastaukset`-taulun HITL-riveistä, `Malli IS NULL`).
 - **B** (tiivistepohjainen, kattaa aikaleimattomat taulut): `RaporttiOsio.Laskentatiiviste` (migraatio 017) tallentaa lähdeaineiston hashin generoinnin hetkellä; status vertaa tallennettua nyky­signatuuriin → yksiselitteinen *ajan tasalla / vanhentunut / tuntematon*.
 - **Tuoreuslaskenta taustalla (PR #6, 2026-07-15):** nyky­signatuurin laskenta (`raporttitiiviste`) on raskas (per-yliopisto-tilastot + kaikki vastaukset + kommentit etäkannasta, ~22 s), eikä sitä lasketa synkronisesti joka status-katselulla. Viimeksi laskettu signatuuri + laskenta-aika tallennetaan `RaporttiTuoreus`-tauluun (migraatio 018); `koosta_tilanne` lukee sen halvalla ja palauttaa `tarkistettu`-aikaleiman. Raskas laskenta (`paivita_tuoreus`) ajetaan taustasäikeessä (CLIUI: "Näytä tilanne" käynnistää + "Tarkista tuoreus nyt" synkroninen; WebUI: endpoint laukaisee, harvennettu). Generointi siemenee tuoreuden heti. *Käyttäjän ohje: tuoreus ei tarvitse olla "juuri nyt" — riittää näyttää viimeksi laskettu tulos + aikaleima.*
 - Sama `koosta_tilanne`-logiikka molemmissa käyttöliittymissä (CLIUI "Näytä tilanne" + WebUI tuoreuspalkki).

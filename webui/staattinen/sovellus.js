@@ -932,7 +932,7 @@ document.querySelectorAll(".tila-nappi, .tila-nappi-nav").forEach((b) => {
 function _renderArviointiSolu(kys, v) {
   if (typeof v === "string") return v || "—";
   const luokittelu = kys.Luokittelu || "vapaa_teksti";
-  const perustelu = v?.vastaus ? `<em class="arvio-perustelu">${v.vastaus}</em>` : "";
+  const perustelu = v?.vastaus ? `<em class="arvio-perustelu">${escapeHtml(v.vastaus)}</em>` : "";
   // Vanhentunut = tekoälyn vastaus on generoitu vanhaan kysymykseen/kehotteeseen
   const vanha = v?.vanhentunut
     ? `<span class="vanha-merkki" title="Tämä tekoälyn vastaus on generoitu vanhentuneeseen kysymykseen tai kehotteeseen. Aja LLM-arviointi uudelleen päivittääksesi.">⚠ vanhentunut</span>`
@@ -966,6 +966,19 @@ function _vastusOnAnnettu(v) {
 let arvioinnit_data = null;
 let arvioinnit_suodatin = { kkid: null, taso: null, hakusana: null };
 let arvioinnit_jarjestys = { sarake: null, suunta: null };
+
+// Virhetaksonomian juurisyyt (mallit.JUURISYYT) ihmisluettavina.
+const JUURISYY_NIMI = {
+  riittamaton_opas: "Riittämätön opinto-opas",
+  llm_virhe: "LLM:n väärinymmärrys",
+};
+
+// Korjausikkuna kutsuu tätä tallennuksen jälkeen, jotta solu päivittyy heti.
+window.paivitaArvioinnit = function () {
+  if (aktiivinen_tutkimus) {
+    renderTutkimusArvioinnit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
+  }
+};
 
 async function renderTutkimusArvioinnit(slug, nimi, sailyta = false) {
   document.getElementById("tutkimus-arvioinnit-otsikko").textContent = `${nimi} — arvioinnit`;
@@ -1054,16 +1067,23 @@ function renderArvioinnitTaulu() {
     kysymykset.forEach((kys, i) => {
       const v = k.vastaukset[i];
       const vastausTeksti = _vastusTeksti(v);
-      const kommentti = k.kommentit?.[kys.KysID] || "";
+      const korjaus = k.korjaukset?.[kys.KysID] || null;
       const td = rivi.insertCell();
       td.className = "arviointi-vastaus";
       const korjaaId = `korjaa-${k.KID}-${kys.KysID}`;
+      // Ihmisen korjaus näkyy tekoälyn vastauksen alla, ei sen tilalla: molemmat
+      // tarvitaan virhetaksonomian arviointiin (oliko opas puutteellinen vai LLM väärässä).
+      const korjausHtml = korjaus
+        ? `<div class="arvio-korjaus">${_renderArviointiSolu(kys, korjaus)}` +
+          `<span class="arvio-korjaaja">Korjannut ${escapeHtml(korjaus.nimi || "?")}` +
+          `${korjaus.juurisyy ? " · " + escapeHtml(JUURISYY_NIMI[korjaus.juurisyy] || korjaus.juurisyy) : ""}</span></div>`
+        : "";
       td.innerHTML = `<span class="arvio-teksti">${_renderArviointiSolu(kys, v)}</span>` +
-        (kommentti ? `<div class="arvio-kommentti">${kommentti}</div>` : "") +
+        korjausHtml +
         `<button class="arvio-korjaa-nappi" id="${korjaaId}">Korjaa</button>`;
       td.querySelector(".arvio-korjaa-nappi").addEventListener("click", (e) => {
         e.stopPropagation();
-        window.avaaArviointiMuokkaus?.(tid, k.KID, kys.KysID, kys.Kysymys, vastausTeksti, kommentti);
+        window.avaaArviointiMuokkaus?.(tid, aktiivinen_tutkimus.Slug, k.KID, kys, v, korjaus);
       });
     });
   }
@@ -1173,9 +1193,9 @@ function _fmtAika(iso) {
 function _renderTuoreusPalkki(tilanne) {
   if (!tilanne || !tilanne.generoitu) return "";
   const t = _TUOREUS[tilanne.tuoreus] || _TUOREUS.tuntematon;
-  const h = tilanne.hitl_jalkeen || 0, k = tilanne.kommentit_jalkeen || 0;
+  const h = tilanne.hitl_jalkeen || 0, k = tilanne.arviokorjaukset_jalkeen || 0;
   const muutokset = (h || k)
-    ? `<span class="tuoreus-muutokset">Generoinnin jälkeen: ${h} HITL-korjausta, ${k} kommenttia</span>`
+    ? `<span class="tuoreus-muutokset">Generoinnin jälkeen: ${h} luokituskorjausta, ${k} arviokorjausta</span>`
     : "";
   // Tuoreus lasketaan taustalla — näytä milloin viimeksi tarkistettu, jotta
   // käyttäjä tietää tilan ajantasaisuuden (ei "juuri nyt" -takuuta).

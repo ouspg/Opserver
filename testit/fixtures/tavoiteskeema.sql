@@ -1,9 +1,6 @@
 
 
 
-  CONSTRAINT `ArvioKommentti_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE
-  CONSTRAINT `ArvioKommentti_ibfk_2` FOREIGN KEY (`KID`) REFERENCES `Kurssi` (`KID`) ON DELETE CASCADE
-  CONSTRAINT `ArvioKommentti_ibfk_3` FOREIGN KEY (`KysID`) REFERENCES `Kysymykset` (`KysID`) ON DELETE CASCADE
   CONSTRAINT `HitlKorjaus_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE
   CONSTRAINT `HitlKorjaus_ibfk_2` FOREIGN KEY (`KID`) REFERENCES `Kurssi` (`KID`) ON DELETE CASCADE
   CONSTRAINT `Kurssi_ibfk_1` FOREIGN KEY (`KKID`) REFERENCES `Korkeakoulu` (`KKID`) ON DELETE CASCADE
@@ -20,6 +17,7 @@
   CONSTRAINT `TutkimusKorkeakoulu_ibfk_2` FOREIGN KEY (`KKID`) REFERENCES `Korkeakoulu` (`KKID`) ON DELETE CASCADE
   CONSTRAINT `Vastaukset_ibfk_1` FOREIGN KEY (`KysID`) REFERENCES `Kysymykset` (`KysID`) ON DELETE CASCADE
   CONSTRAINT `Vastaukset_ibfk_2` FOREIGN KEY (`KID`) REFERENCES `Kurssi` (`KID`) ON DELETE CASCADE
+  CONSTRAINT `Vastaukset_ibfk_3` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE
   CONSTRAINT `Vastaukset_testi_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE
   CONSTRAINT `Vastaukset_testi_ibfk_2` FOREIGN KEY (`KysID`) REFERENCES `Kysymykset` (`KysID`) ON DELETE CASCADE
   CONSTRAINT `Vastaukset_testi_ibfk_3` FOREIGN KEY (`KID`) REFERENCES `Kurssi` (`KID`) ON DELETE CASCADE
@@ -28,9 +26,7 @@
   KEY `KID` (`KID`)
   KEY `KID` (`KID`)
   KEY `KID` (`KID`)
-  KEY `KID` (`KID`)
   KEY `KKID` (`KKID`)
-  KEY `KysID` (`KysID`)
   KEY `KysID` (`KysID`)
   KEY `Kysymykset_ibfk_1` (`TID`)
   KEY `TID` (`TID`)
@@ -38,12 +34,12 @@
   KEY `idx_kkid_vuosi` (`KKID`,`VuosiAlku`,`VuosiLoppu`)
   KEY `idx_tid_ajo` (`TID`,`Ajo`)
   KEY `idx_tid_ajo` (`TID`,`Ajo`)
+  KEY `idx_tid` (`TID`)
   PRIMARY KEY (`HID`)
   PRIMARY KEY (`KAID`)
   PRIMARY KEY (`KID`)
   PRIMARY KEY (`KKID`)
   PRIMARY KEY (`KLID`)
-  PRIMARY KEY (`KomID`)
   PRIMARY KEY (`KysID`)
   PRIMARY KEY (`RID`)
   PRIMARY KEY (`TID`)
@@ -55,15 +51,14 @@
   PRIMARY KEY (`nimi`)
   UNIQUE KEY `uniikki_ajo_kys_kid` (`Ajo`,`KysID`,`KID`)
   UNIQUE KEY `uniikki_ajo_tid_kid` (`Ajo`,`TID`,`KID`)
-  UNIQUE KEY `uniikki_kys_kurssi` (`KysID`,`KID`)
+  UNIQUE KEY `uniikki_kys_kid_kayttaja` (`KysID`,`KID`,`KayttajaNimi`)
   UNIQUE KEY `uniikki_lahde_vuosi` (`KKID`,`LahdeId`,`Opetusvuosi`)
   UNIQUE KEY `uniikki_slug` (`Slug`)
-  UNIQUE KEY `uniikki_tid_kid_kysid` (`TID`,`KID`,`KysID`)
   UNIQUE KEY `uniikki_tid_kid` (`TID`,`KID`)
   UNIQUE KEY `uniikki_tid_kid` (`TID`,`KID`)
   UNIQUE KEY `uniikki_tid_osio` (`TID`,`OsioAvain`)
   `Aikaleima` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
-  `Aikaleima` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  `Aikaleima` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
   `Aikaleima` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   `Ajo` varchar(32) NOT NULL
   `Ajo` varchar(32) NOT NULL
@@ -74,8 +69,8 @@
   `Erakoko` int NOT NULL
   `HID` int NOT NULL AUTO_INCREMENT
   `Juurisyy` varchar(32) DEFAULT NULL
+  `Juurisyy` varchar(32) DEFAULT NULL
   `KAID` int NOT NULL AUTO_INCREMENT
-  `KID` int NOT NULL
   `KID` int NOT NULL
   `KID` int NOT NULL
   `KID` int NOT NULL
@@ -88,16 +83,14 @@
   `KKID` int NOT NULL AUTO_INCREMENT
   `KLID` int NOT NULL AUTO_INCREMENT
   `KayttajaNimi` varchar(255) NOT NULL
+  `KayttajaNimi` varchar(255) NOT NULL DEFAULT ''
   `Kehotetiiviste` varchar(64) DEFAULT NULL
   `Kehotetiiviste` varchar(64) DEFAULT NULL
   `Kehotetiiviste` varchar(64) DEFAULT NULL
   `Kehotetiiviste` varchar(64) DEFAULT NULL
-  `KomID` int NOT NULL AUTO_INCREMENT
-  `Kommentti` text NOT NULL
   `Koodi` varchar(50) DEFAULT NULL
   `KouluNimi` varchar(255) NOT NULL
   `KurssiNimi` varchar(255) NOT NULL
-  `KysID` int NOT NULL
   `KysID` int NOT NULL
   `KysID` int NOT NULL
   `KysID` int NOT NULL AUTO_INCREMENT
@@ -138,6 +131,7 @@
   `RID` int NOT NULL AUTO_INCREMENT
   `Raportointikehote` text
   `Sahkoposti` varchar(255) NOT NULL
+  `Sahkoposti` varchar(255) NOT NULL DEFAULT ''
   `Signatuuri` varchar(64) DEFAULT NULL
   `Slug` varchar(100) NOT NULL DEFAULT ''
   `TID` int NOT NULL
@@ -180,7 +174,6 @@
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
 /*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
@@ -203,12 +196,10 @@
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -243,8 +234,6 @@
 /*!50503 SET character_set_client = utf8mb4 */;
 /*!50503 SET character_set_client = utf8mb4 */;
 /*!50503 SET character_set_client = utf8mb4 */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `ArvioKommentti` (
 CREATE TABLE `HitlKorjaus` (
 CREATE TABLE `Korkeakoulu` (
 CREATE TABLE `Kurssi` (
@@ -259,7 +248,6 @@ CREATE TABLE `Tutkimus` (
 CREATE TABLE `Vastaukset_testi` (
 CREATE TABLE `Vastaukset` (
 CREATE TABLE `_migraatiot` (
-DROP TABLE IF EXISTS `ArvioKommentti`;
 DROP TABLE IF EXISTS `HitlKorjaus`;
 DROP TABLE IF EXISTS `Korkeakoulu`;
 DROP TABLE IF EXISTS `Kurssi`;

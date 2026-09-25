@@ -134,12 +134,13 @@ KYSYMYS = {"KysID": 10, "TID": 1, "Kysymys": "Liittyykö kurssi kyberturvallisuu
 
 
 def test_api_tutkimus_arvioinnit_palauttaa_rakenteen():
-    vastaus_rivi = {"VasID": 1, "KysID": 10, "KID": 1, "Vastaus": "Kyllä", "Pisteet": None, "Luokka": None}
+    vastaus_rivi = {"VasID": 1, "KysID": 10, "KID": 1, "Vastaus": "Kyllä", "Pisteet": None,
+                    "Luokka": None, "Malli": "testimalli"}
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=[KYSYMYS]), \
          patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[KURSSI_MUKANA]), \
          patch("webui.palvelin.mallit.hae_vastaukset", return_value=[vastaus_rivi]), \
-         patch("webui.palvelin.mallit.hae_arviokommentit_kaikki", return_value=[]):
+         patch("webui.palvelin.mallit.hae_hitl_vastaukset", return_value=[]):
         vastaus = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit")
     assert vastaus.status_code == 200
     data = vastaus.json()
@@ -157,12 +158,13 @@ def test_api_tutkimus_arvioinnit_palauttaa_rakenteen():
 def test_api_tutkimus_arvioinnit_lista_vastaus():
     kysymys_lista = {**KYSYMYS, "KysID": 20, "Luokittelu": "lista", "LuokitteluMaarittely": {"max_kohdat": 5}}
     vastaus_rivi = {"VasID": 2, "KysID": 20, "KID": 1, "Vastaus": "Opetussuunnitelman mukaan",
-                    "Pisteet": None, "Luokka": None, "Lista": ["Matematiikka", "Ohjelmointi"]}
+                    "Pisteet": None, "Luokka": None, "Lista": ["Matematiikka", "Ohjelmointi"],
+                    "Malli": "testimalli"}
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=[kysymys_lista]), \
          patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[KURSSI_MUKANA]), \
          patch("webui.palvelin.mallit.hae_vastaukset", return_value=[vastaus_rivi]), \
-         patch("webui.palvelin.mallit.hae_arviokommentit_kaikki", return_value=[]):
+         patch("webui.palvelin.mallit.hae_hitl_vastaukset", return_value=[]):
         vastaus = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit")
     assert vastaus.status_code == 200
     data = vastaus.json()
@@ -177,7 +179,7 @@ def test_api_tutkimus_arvioinnit_tyhjat_vastaukset():
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=[KYSYMYS]), \
          patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[KURSSI_MUKANA]), \
          patch("webui.palvelin.mallit.hae_vastaukset", return_value=[]), \
-         patch("webui.palvelin.mallit.hae_arviokommentit_kaikki", return_value=[]):
+         patch("webui.palvelin.mallit.hae_hitl_vastaukset", return_value=[]):
         vastaus = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit")
     assert vastaus.status_code == 200
     data = vastaus.json()
@@ -346,7 +348,7 @@ def test_api_raportti_tilastot_404_kun_tutkimusta_ei_loydy():
 
 def test_api_raportti_tilanne_palauttaa_tuoreuden():
     tilanne = {"generoitu": True, "tuoreus": "vanhentunut", "hitl_jalkeen": 2,
-               "kommentit_jalkeen": 1, "puuttuu": [], "tarkistettu": "2026-07-15T12:00:00",
+               "arviokorjaukset_jalkeen": 1, "puuttuu": [], "tarkistettu": "2026-07-15T12:00:00",
                "generoitu_aika": "2026-07-15T10:00:00", "osiot": []}
     # Raskas tuoreuslaskenta ajetaan taustalla → stubataan trigger pois testistä
     # (ei osu kantaan / ei säikeitä); endpoint palauttaa tallennetun tilanteen.
@@ -483,3 +485,120 @@ def test_tasot_valimuisti_eri_argumentit_erikseen():
         asiakas.get("/api/tasot")            # sama → välimuistista
         asiakas.get("/api/tasot?kkid=2")     # eri argumentti → uusi kysely
     assert mock.call_count == 2
+
+
+# --- Arviointien HITL-korjaus (tyyppikohtainen) ---
+
+KYSYMYS_LUOKITTELU = {
+    "KysID": 30, "TID": 1, "Kysymys": "Joustavuus?", "Luokittelu": "luokittelu",
+    "LuokitteluMaarittely": {"luokat": [{"nimi": "Täysin", "kuvaus": "a"},
+                                        {"nimi": "osittain", "kuvaus": "b"}]},
+}
+KYSYMYS_ASTEIKKO = {
+    "KysID": 31, "TID": 1, "Kysymys": "Työelämälähtöisyys?", "Luokittelu": "asteikko",
+    "LuokitteluMaarittely": {"minimi": 1, "maksimi": 5},
+}
+
+
+def _korjaus(kysymykset, runko, kysid=30):
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_kysymykset", return_value=kysymykset), \
+         patch("webui.palvelin.mallit.tallenna_hitl_vastaus") as tallenna:
+        vastaus = asiakas.post(
+            f"/api/tutkimukset/kyber-2025/kurssit/7/kysymykset/{kysid}/korjaus", json=runko)
+    return vastaus, tallenna
+
+
+def test_korjaus_tallentaa_luokan_ja_juurisyyn():
+    runko = {"vastaus": "Ihmisen perustelu", "luokka": "Täysin",
+             "nimi": "Testi Tekijä", "sahkoposti": "t@example.fi", "juurisyy": "llm_virhe"}
+    vastaus, tallenna = _korjaus([KYSYMYS_LUOKITTELU], runko)
+    assert vastaus.status_code == 200
+    args, kwargs = tallenna.call_args
+    assert args[:6] == (1, 7, 30, "Ihmisen perustelu", "Testi Tekijä", "t@example.fi")
+    assert kwargs["luokka"] == "Täysin" and kwargs["juurisyy"] == "llm_virhe"
+
+
+def test_korjaus_hylkaa_tuntemattoman_luokan():
+    """Väärä luokka rikkoisi raporttitilastot hiljaa → 400 eikä tallennusta."""
+    runko = {"vastaus": "p", "luokka": "Keksitty", "nimi": "T", "sahkoposti": "t@e.fi"}
+    vastaus, tallenna = _korjaus([KYSYMYS_LUOKITTELU], runko)
+    assert vastaus.status_code == 400
+    tallenna.assert_not_called()
+
+
+def test_korjaus_hylkaa_asteikon_ulkopuoliset_pisteet():
+    runko = {"vastaus": "p", "pisteet": 9, "nimi": "T", "sahkoposti": "t@e.fi"}
+    vastaus, tallenna = _korjaus([KYSYMYS_ASTEIKKO], runko, kysid=31)
+    assert vastaus.status_code == 400
+    tallenna.assert_not_called()
+
+
+def test_korjaus_hyvaksyy_asteikon_rajalla():
+    runko = {"vastaus": "p", "pisteet": 5, "nimi": "T", "sahkoposti": "t@e.fi"}
+    vastaus, tallenna = _korjaus([KYSYMYS_ASTEIKKO], runko, kysid=31)
+    assert vastaus.status_code == 200
+    assert tallenna.call_args.kwargs["pisteet"] == 5
+
+
+def test_korjaus_hylkaa_tuntemattoman_juurisyyn():
+    runko = {"vastaus": "p", "luokka": "Täysin", "nimi": "T", "sahkoposti": "t@e.fi",
+             "juurisyy": "keksitty_syy"}
+    vastaus, tallenna = _korjaus([KYSYMYS_LUOKITTELU], runko)
+    assert vastaus.status_code == 400
+    tallenna.assert_not_called()
+
+
+def test_korjaus_hylkaa_vieraan_kysymyksen():
+    """Toisen tutkimuksen kysymykseen ei voi kirjoittaa korjausta."""
+    runko = {"vastaus": "p", "nimi": "T", "sahkoposti": "t@e.fi"}
+    vastaus, tallenna = _korjaus([KYSYMYS_LUOKITTELU], runko, kysid=999)
+    assert vastaus.status_code == 404
+    tallenna.assert_not_called()
+
+
+def test_korjaus_vaatii_nimen():
+    runko = {"vastaus": "p", "luokka": "Täysin", "nimi": "   ", "sahkoposti": "t@e.fi"}
+    vastaus, tallenna = _korjaus([KYSYMYS_LUOKITTELU], runko)
+    assert vastaus.status_code == 400
+    tallenna.assert_not_called()
+
+
+def test_arvioinnit_erottaa_llm_vastauksen_ja_korjauksen():
+    llm_rivi = {"VasID": 1, "KysID": 10, "KID": 1, "Vastaus": "LLM sanoi", "Pisteet": None,
+                "Luokka": None, "Malli": "testimalli"}
+    hitl_rivi = {"KID": 1, "KysID": 10, "Vastaus": "Ihminen korjasi", "Pisteet": None,
+                 "Luokka": None, "Lista": None, "KayttajaNimi": "Testi",
+                 "Sahkoposti": "t@e.fi", "Juurisyy": "riittamaton_opas",
+                 "Aikaleima": "2026-09-25 10:00:00"}
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_kysymykset", return_value=[KYSYMYS]), \
+         patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[KURSSI_MUKANA]), \
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[llm_rivi]), \
+         patch("webui.palvelin.mallit.hae_hitl_vastaukset", return_value=[hitl_rivi]):
+        data = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit").json()
+    kurssi = data["kurssit"][0]
+    assert kurssi["vastaukset"][0]["vastaus"] == "LLM sanoi"      # tekoälyn vastaus säilyy
+    korjaus = kurssi["korjaukset"]["10"]  # JSON-avaimet ovat merkkijonoja
+    assert korjaus["vastaus"] == "Ihminen korjasi"
+    assert korjaus["nimi"] == "Testi" and korjaus["juurisyy"] == "riittamaton_opas"
+
+
+def test_api_raportti_tilastot_ihmisen_korjaus_voittaa_eika_tuplaa():
+    """hae_vastaukset palauttaa saman (KID, KysID) -parin HITL-rivin ensin ja
+    LLM-rivin sen jälkeen — tilastoon vain ensimmäinen."""
+    ks = [{"KysID": 10, "TID": 1, "Kysymys": "Taso?",
+            "Luokittelu": "luokittelu", "LuokitteluMaarittely": None}]
+    vs = [
+        {"KysID": 10, "KID": 1, "Vastaus": "korjattu", "Pisteet": None, "Luokka": "matala", "Malli": None},
+        {"KysID": 10, "KID": 1, "Vastaus": "perustelu", "Pisteet": None, "Luokka": "korkea", "Malli": "m"},
+        {"KysID": 10, "KID": 2, "Vastaus": "perustelu", "Pisteet": None, "Luokka": "korkea", "Malli": "m"},
+    ]
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_kysymykset", return_value=ks), \
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=vs), \
+         patch("webui.palvelin.mallit.hae_tilastot_yliopistoittain", return_value=[]):
+        data = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot").json()
+    k = data["kysymykset"][0]
+    assert k["jakauma"] == {"matala": 1, "korkea": 1}
+    assert k["yhteensa"] == 2

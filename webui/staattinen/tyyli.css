@@ -796,7 +796,7 @@ td.arviointi-vastaus {
 
 .arvio-teksti { display: block; }
 
-.arvio-kommentti {
+.arvio-korjaus {
   margin-top: 0.3rem;
   font-size: 0.8rem;
   color: #1a5c4a;
@@ -1068,4 +1068,87 @@ td.arviointi-vastaus {
   #raporttimuokkaus-modaali, .raportti-toiminnot, .raportti-muokkaa-nappi,
   .raportti-muokkaajat { display: none !important; }
   .raportti-osio { box-shadow: none; border: none; padding: 0; }
+}
+
+/* Ihmisen korjauksen tekijä ja juurisyy korjatun arvon alla */
+.arvio-korjaaja {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: #4a6b60;
+  font-style: italic;
+}
+
+/* Korjausikkunan tyyppikohtaiset kentät */
+#arviointimuokkaus-kentat { margin-bottom: 1rem; }
+
+#arvio-luokka,
+#arvio-pisteet,
+#arvio-nimi,
+#arvio-sahkoposti,
+.arvio-lista-kentta {
+  font-family: inherit;
+  font-size: 0.9rem;
+  border: 1px solid #c0cce0;
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+  box-sizing: border-box;
+}
+
+#arvio-luokka { width: 100%; }
+#arvio-pisteet { width: 6rem; }
+#arvio-nimi, #arvio-sahkoposti { width: 100%; margin-bottom: 0.5rem; }
+
+/* Luokkien ja pisteiden selitteet: sama tieto jonka LLM sai kehotteessa */
+.arvio-luokkaselitteet {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.78rem;
+  color: #55606e;
+}
+
+.arvio-lista-rivi {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
+}
+
+.arvio-lista-kentta { flex: 1; }
+
+.arvio-lista-poista,
+.arvio-lista-nappi {
+  font-family: inherit;
+  font-size: 0.82rem;
+  border: 1px solid #c0cce0;
+  background: #f7f8fa;
+  border-radius: 4px;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+}
+
+.arvio-lista-poista { color: #a03024; }
+.arvio-lista-poista:hover { background: #fdecea; }
+.arvio-lista-nappi:hover { background: #eef2f8; }
+.arvio-lista-nappi:disabled { opacity: 0.45; cursor: default; }
+
+.arvio-lista-raja {
+  font-size: 0.74rem;
+  color: #78838f;
+  margin-top: 0.25rem;
+}
+
+.arviointimuokkaus-juurisyy,
+.arviointimuokkaus-tunnistus { margin-bottom: 1rem; }
+
+.arviointimuokkaus-juurisyy label {
+  display: block;
+  font-size: 0.82rem;
+  margin-bottom: 0.25rem;
+}
+
+.arviointimuokkaus-virhe {
+  color: #a03024;
+  font-size: 0.82rem;
+  min-height: 1.1rem;
+  margin-bottom: 0.4rem;
 }

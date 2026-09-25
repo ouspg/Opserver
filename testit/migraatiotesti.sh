@@ -2,13 +2,15 @@
 # Testaa asennan migraatioajurin kertakäyttöisellä MySQL-kontilla.
 # Aja repon juuresta: ./testit/migraatiotesti.sh
 #
-# Kaksi skenaariota:
-#   vanha  — kanta alustettu vanhasta skeemasta (5 taulua, ei _migraatiot-esitäyttöä)
-#            + migraatiot 001-003 merkitty ajetuiksi = tuotannon tila 2026-09-22,
-#            jossa migraatio_004 kaatui "Table 'Vastaukset' doesn't exist".
-#   tuore  — kanta alustettu nykyisestä alustus.sql + alustus_migraatiot.sql:stä.
+# Kolme skenaariota:
+#   vanha     — kanta alustettu vanhasta skeemasta (5 taulua, ei _migraatiot-esitäyttöä)
+#               + migraatiot 001-003 merkitty ajetuiksi = tuotannon tila 2026-09-22,
+#               jossa migraatio_004 kaatui "Table 'Vastaukset' doesn't exist".
+#   edellinen — kanta alustettu haaran kantaversion (merge-base main) alustus.sql:stä:
+#               ajaa haaran uudet migraatiot oikeasti olemassa olevia tauluja vasten.
+#   tuore     — kanta alustettu nykyisestä alustus.sql + alustus_migraatiot.sql:stä.
 #
-# Molemmissa lopputuloksen on oltava sama: kaikki migraatiot merkitty ajetuiksi
+# Kaikissa lopputuloksen on oltava sama: kaikki migraatiot merkitty ajetuiksi
 # ja kaikki alustus.sql:n taulut olemassa.
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")/.."
@@ -68,6 +70,20 @@ aja_migraatiot
 tarkista vanha
 vedos > "$TMP/vanha.sql"
 
+# Vanha fixture ei sisällä uudempia tauluja lainkaan, jolloin asennan paikkaus luo
+# ne suoraan lopullisessa muodossa ja tuore ALTER-migraatio ohitetaan duplikaattina —
+# sen oikea polku ei koskaan tule ajetuksi. Siksi kolmas skenaario: kanta
+# mainin (haaran kantaversion) alustus.sql:stä = kehitys-/tuotantokannan tila
+# ennen tämän haaran migraatioita. Mainissa itsessään tämä = tuore kanta.
+KANTAVERSIO=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || echo HEAD)
+echo "== skenaario: edellinen skeema ($(git rev-parse --short "$KANTAVERSIO"))"
+kaynnista
+git show "$KANTAVERSIO:tietokanta/alustus.sql" | aja_sql
+git show "$KANTAVERSIO:tietokanta/alustus_migraatiot.sql" | aja_sql
+aja_migraatiot
+tarkista edellinen
+vedos > "$TMP/edellinen.sql"
+
 echo "== skenaario: tuore kanta"
 kaynnista
 aja_sql < tietokanta/alustus.sql
@@ -79,6 +95,8 @@ vedos > "$TMP/tuore.sql"
 # Ydinväite: migratoitu vanha kanta päätyy samaan skeemaan kuin tuore asennus.
 diff -u "$TMP/tuore.sql" "$TMP/vanha.sql" \
     || { echo "Migratoitu vanha kanta eroaa tuoreesta (- = puuttuu vanhasta)"; virheita=1; }
+diff -u "$TMP/tuore.sql" "$TMP/edellinen.sql" \
+    || { echo "Migratoitu edellinen skeema eroaa tuoreesta (- = puuttuu migratoidusta)"; virheita=1; }
 
 # Tavoiteskeema on ./testit/skeematarkistus.sh:n vertailukohta ajossa oleville
 # kannoille — pidetään se ajan tasalla tässä, ettei se pääse vanhenemaan.

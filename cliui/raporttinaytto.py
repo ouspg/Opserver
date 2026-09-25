@@ -123,9 +123,9 @@ def _piirra_tilanne(stdscr, tilanne: dict) -> int:
         else "Tuoreutta ei ole vielä tarkistettu."
     stdscr.addstr(rivi, 0, f"  {tark_teksti}")
     rivi += 1
-    if tilanne["hitl_jalkeen"] or tilanne["kommentit_jalkeen"]:
-        stdscr.addstr(rivi, 0, f"  Generoinnin jälkeen: {tilanne['hitl_jalkeen']} HITL-korjausta, "
-                               f"{tilanne['kommentit_jalkeen']} kommenttia")
+    if tilanne["hitl_jalkeen"] or tilanne["arviokorjaukset_jalkeen"]:
+        stdscr.addstr(rivi, 0, f"  Generoinnin jälkeen: {tilanne['hitl_jalkeen']} luokituskorjausta, "
+                               f"{tilanne['arviokorjaukset_jalkeen']} arviokorjausta")
         rivi += 1
     return rivi
 

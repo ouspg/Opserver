@@ -22,7 +22,7 @@ def raporttitiiviste(tutkimus: dict, tilastot: list[dict] | None = None,
     if kysymykset is None:
         kysymykset = mallit.hae_kysymykset(tid)
     vastaus_tila = mallit.hae_vastaus_tiivisteet(tid)
-    kommentit = mallit.hae_arviokommentit_kaikki(tid)
+    hitl_vastaukset = mallit.hae_hitl_vastaukset(tid)
 
     tilasto_osa = json.dumps(sorted(
         [r["KKID"], r["KurssiYhteensa"], r["LLMKasitelty"], r["Mukana"], r["Hylatty"],
@@ -36,14 +36,18 @@ def raporttitiiviste(tutkimus: dict, tilastot: list[dict] | None = None,
     vastaus_osa = json.dumps(sorted(
         [kid, kysid, v.get("tiiviste") or "", bool(v.get("vastattu"))]
         for (kid, kysid), v in vastaus_tila.items()), ensure_ascii=False)
-    kommentti_osa = json.dumps(sorted(
-        [c["KID"], c["KysID"], c.get("Kommentti") or ""] for c in kommentit), ensure_ascii=False)
+    # Ihmisen korjaukset mukaan signatuuriin: korjaus muuttaa raportin sisällön
+    # samoin kuin uusi LLM-vastaus, joten raportti on sen jälkeen vanhentunut.
+    korjaus_osa = json.dumps(sorted(
+        [c["KID"], c["KysID"], c.get("Vastaus") or "", c.get("Luokka") or "",
+         c.get("Pisteet"), c.get("KayttajaNimi") or ""] for c in hitl_vastaukset),
+        ensure_ascii=False, default=str)
     kehote_osa = json.dumps([
         tutkimus.get("Luokittelukehote") or "", tutkimus.get("Arviointikehote") or "",
         tutkimus.get("Raportointikehote") or "", tutkimus.get("Tasorajaus") or "",
         tutkimus.get("Oppiainerajaus") or "",
     ], ensure_ascii=False)
-    return tiiviste.laske(tilasto_osa, kysymys_osa, vastaus_osa, kommentti_osa, kehote_osa)
+    return tiiviste.laske(tilasto_osa, kysymys_osa, vastaus_osa, korjaus_osa, kehote_osa)
 
 
 def _tuoreus(generointi_sig: str | None, tuoreustieto: dict | None) -> tuple[str, object]:
@@ -97,7 +101,7 @@ def koosta_tilanne(tutkimus: dict) -> dict:
         "tuoreus": tuoreus,
         "tarkistettu": tarkistettu,
         "hitl_jalkeen": mallit.laske_hitl_korjaukset_jalkeen(tid, generoitu_aika),
-        "kommentit_jalkeen": mallit.laske_arviokommentit_jalkeen(tid, generoitu_aika),
+        "arviokorjaukset_jalkeen": mallit.laske_hitl_vastaukset_jalkeen(tid, generoitu_aika),
     }
 
 
@@ -225,7 +229,7 @@ ei mallin virheestä)."""
 
 def _rakenna_arvioinnit_viesti(tutkimus: dict, kysymykset: list[dict], tilastot: list[dict]) -> str:
     mukana_yht = sum(r["Mukana"] for r in tilastot)
-    kommentit_lkm = len(mallit.hae_arviokommentit_kaikki(tutkimus["TID"]))
+    korjaukset_lkm = len(mallit.hae_hitl_vastaukset(tutkimus["TID"]))
     kysymysteksti = "\n".join(f"{i+1}. {k['Kysymys']}" for i, k in enumerate(kysymykset))
     raportointikehote = tutkimus.get("Raportointikehote") or ""
     return f"""Kirjoita tutkimusraportin arvioinnit-osio seuraavien tietojen pohjalta.
@@ -240,7 +244,7 @@ Arviointikysymykset ({len(kysymykset)} kpl):
 {kysymysteksti or '(ei kysymyksiä)'}
 
 Arvioitujen kurssien määrä: {mukana_yht}
-Ihmisten tekemien kommenttien määrä: {kommentit_lkm}
+Ihmisten korjaamien vastausten määrä: {korjaukset_lkm}
 
 Kirjoita osio, joka esittelee arviointimenetelmän, käytetyt kysymykset ja kuvaa
 arvioinnin laajuuden sekä ihmisten tekemien korjausten merkityksen."""
