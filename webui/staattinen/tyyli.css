@@ -561,9 +561,10 @@ td.arviointi-vastaus {
 .nappi-hyva:hover { background: #d4f5e0; }
 
 /* LLM-päätöksen hyväksyntä (peukutus): vaaleanvihreä rivi, haalea Hylkää. */
-.kurssi-rivi.hyvaksytty { background: #e8f8ee; }
+.kurssi-rivi.hyvaksytty, td.hyvaksytty { background: #e8f8ee; }
 .kurssi-rivi.hyvaksytty:hover { background: #d4f5e0; }
-.nappi-haalea { background: #f4f4f4; border-color: #ccc; color: #999; }
+.nappi-haalea, .arvio-korjaa-nappi.nappi-haalea { background: #f4f4f4; border-color: #ccc; color: #999; }
+.arvio-korjaa-nappi.nappi-hyva { background: #f0fff4; border-color: #27ae60; }
 .peukku { cursor: help; }
 
 .kehote-teksti {

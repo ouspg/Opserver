@@ -701,14 +701,15 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
   nappi.disabled = false;
 });
 
-// Peukutus: nimi HITL-lomakkeelta muistetusta, muuten yhteistyöprofiilin
-// anonyymi nimimerkki (Anonyymi_Otus_123); sähköposti vain jos tiedossa.
-async function hyvaksyLuokitus(nappi) {
+// Peukutus (luokitus tai arviointivastaus): nimi HITL-lomakkeelta muistetusta,
+// muuten yhteistyöprofiilin anonyymi nimimerkki (Anonyymi_Otus_123);
+// sähköposti vain jos tiedossa. polku = "<kid>" tai "<kid>/kysymykset/<kysid>".
+async function lahetaHyvaksynta(nappi, polku, kohde) {
   nappi.disabled = true;
   const nimi = hitl_nimi || window.omaNimimerkki?.() || "Anonyymi";
   try {
     const vastaus = await fetch(
-      `/api/tutkimukset/${aktiivinen_tutkimus.Slug}/kurssit/${nappi.dataset.kid}/hyvaksy`,
+      `/api/tutkimukset/${aktiivinen_tutkimus.Slug}/kurssit/${polku}/hyvaksy`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -719,11 +720,17 @@ async function hyvaksyLuokitus(nappi) {
   } catch (_) {
     nappi.textContent = "Virhe";
     nappi.disabled = false;
-    return;
+    return false;
   }
   const tutkimusNimi = aktiivinen_tutkimus?.LuokittelunNimi || aktiivinen_tutkimus?.Slug || "";
-  window.lahetaUutinen?.(`${nimi} hyväksyi kurssin "${nappi.dataset.nimi}" tutkimuksessa ${tutkimusNimi}`);
-  await renderTutkimusKurssit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
+  window.lahetaUutinen?.(`${nimi} hyväksyi ${kohde} tutkimuksessa ${tutkimusNimi}`);
+  return true;
+}
+
+async function hyvaksyLuokitus(nappi) {
+  if (await lahetaHyvaksynta(nappi, nappi.dataset.kid, `kurssin "${nappi.dataset.nimi}"`)) {
+    await renderTutkimusKurssit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
+  }
 }
 
 const TUTKIMUS_KURSSIT_KOKO = 100;
@@ -1121,12 +1128,30 @@ function renderArvioinnitTaulu() {
           `<span class="arvio-korjaaja">Korjannut ${escapeHtml(korjaus.nimi || "?")}` +
           `${korjaus.juurisyy ? " · " + escapeHtml(JUURISYY_NIMI[korjaus.juurisyy] || korjaus.juurisyy) : ""}</span></div>`
         : "";
+      // Hyväksyntä: ihmisen korjaus on aina hyväksytty, LLM-vastauksen voi
+      // peukuttaa. Pelkkä visuaalinen tila — Korjaa toimii yhä.
+      const hyvaksytty = !!korjaus || !!v.hyvaksyja;
+      let hyvaksyHtml = "";
+      if (!korjaus && v.hyvaksyja) {
+        hyvaksyHtml = `<button class="arvio-korjaa-nappi nappi-hyva peukku" title="Hyväksyjä: ${escapeHtml(v.hyvaksyja)}">👍</button> `;
+      } else if (!korjaus && _vastusOnAnnettu(v)) {
+        hyvaksyHtml = `<button class="arvio-korjaa-nappi arvio-hyvaksy-nappi" title="Hyväksy LLM:n tekemä arvio tästä">Hyväksy</button> `;
+      }
+      if (hyvaksytty) td.classList.add("hyvaksytty");
       td.innerHTML = `<span class="arvio-teksti">${_renderArviointiSolu(kys, v)}</span>` +
-        korjausHtml +
-        `<button class="arvio-korjaa-nappi" id="${korjaaId}">Korjaa</button>`;
-      td.querySelector(".arvio-korjaa-nappi").addEventListener("click", (e) => {
+        korjausHtml + hyvaksyHtml +
+        `<button class="arvio-korjaa-nappi${hyvaksytty ? " nappi-haalea" : ""}" id="${korjaaId}">Korjaa</button>`;
+      td.querySelector(`#${korjaaId}`).addEventListener("click", (e) => {
         e.stopPropagation();
         window.avaaArviointiMuokkaus?.(tid, aktiivinen_tutkimus.Slug, k.KID, kys, v, korjaus);
+      });
+      td.querySelector(".peukku")?.addEventListener("click", (e) => e.stopPropagation());
+      td.querySelector(".arvio-hyvaksy-nappi")?.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const kohde = `arvion "${k.KurssiNimi}" / "${kys.Kysymys.slice(0, 40)}"`;
+        if (await lahetaHyvaksynta(e.currentTarget, `${k.KID}/kysymykset/${kys.KysID}`, kohde)) {
+          await renderTutkimusArvioinnit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
+        }
       });
     });
   }
