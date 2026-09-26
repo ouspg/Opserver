@@ -701,6 +701,31 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
   nappi.disabled = false;
 });
 
+// Peukutus: nimi HITL-lomakkeelta muistetusta, muuten yhteistyöprofiilin
+// anonyymi nimimerkki (Anonyymi_Otus_123); sähköposti vain jos tiedossa.
+async function hyvaksyLuokitus(nappi) {
+  nappi.disabled = true;
+  const nimi = hitl_nimi || window.omaNimimerkki?.() || "Anonyymi";
+  try {
+    const vastaus = await fetch(
+      `/api/tutkimukset/${aktiivinen_tutkimus.Slug}/kurssit/${nappi.dataset.kid}/hyvaksy`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nimi, sahkoposti: hitl_sahkoposti }),
+      }
+    );
+    if (!vastaus.ok) throw new Error("Virhe tallennuksessa");
+  } catch (_) {
+    nappi.textContent = "Virhe";
+    nappi.disabled = false;
+    return;
+  }
+  const tutkimusNimi = aktiivinen_tutkimus?.LuokittelunNimi || aktiivinen_tutkimus?.Slug || "";
+  window.lahetaUutinen?.(`${nimi} hyväksyi kurssin "${nappi.dataset.nimi}" tutkimuksessa ${tutkimusNimi}`);
+  await renderTutkimusKurssit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
+}
+
 const TUTKIMUS_KURSSIT_KOKO = 100;
 let tutkimus_maarat = { mukana: 0, odottaa: 0, "hylätty": 0 };
 let tutkimus_sivu = 0;
@@ -874,17 +899,27 @@ function renderTutkimusKurssitRivit(rivit) {
     return;
   }
   for (const k of rivit) {
-    const perusteluHtml = perusteluSolu(k);
+    let perusteluHtml = perusteluSolu(k);
+
+    // Hyväksyntä (vain mukana-välilehdellä): HITL-päätös on aina hyväksytty,
+    // LLM-päätöksen voi peukuttaa. Pelkkä visuaalinen tila — Hylkää toimii yhä.
+    const hitlPaatos = (k.HitlKorjaukset || []).length > 0;
+    const hyvaksytty = aktiivinen_tila === "mukana" && (hitlPaatos || !!k.Hyvaksyja);
+    if (aktiivinen_tila === "mukana" && !hitlPaatos) {
+      perusteluHtml += k.Hyvaksyja
+        ? ` <button class="nappi-pieni nappi-hyva peukku" title="Hyväksyjä: ${escapeHtml(k.Hyvaksyja)}">👍</button>`
+        : ` <button class="nappi-pieni hyvaksy-nappi" data-kid="${k.KID}" data-nimi="${escapeHtml(k.KurssiNimi)}" title="Hyväksy LLM:n tekemä arvio tästä">Hyväksy</button>`;
+    }
 
     let toimintoHtml = "";
     if (aktiivinen_tila === "mukana") {
-      toimintoHtml = `<button class="nappi-pieni nappi-vaara hitl-nappi" data-kid="${k.KID}" data-nimi="${escapeHtml(k.KurssiNimi)}" data-perustelu="${escapeHtml(k.Luokitteluperuste || "")}" data-tila="0">Hylkää</button>`;
+      toimintoHtml = `<button class="nappi-pieni nappi-vaara hitl-nappi${hyvaksytty ? " nappi-haalea" : ""}" data-kid="${k.KID}" data-nimi="${escapeHtml(k.KurssiNimi)}" data-perustelu="${escapeHtml(k.Luokitteluperuste || "")}" data-tila="0">Hylkää</button>`;
     } else if (aktiivinen_tila === "hylätty") {
       toimintoHtml = `<button class="nappi-pieni nappi-hyva hitl-nappi" data-kid="${k.KID}" data-nimi="${escapeHtml(k.KurssiNimi)}" data-perustelu="${escapeHtml(k.Luokitteluperuste || "")}" data-tila="1">Sisällytä</button>`;
     }
 
     const rivi = document.createElement("tr");
-    rivi.className = "kurssi-rivi";
+    rivi.className = hyvaksytty ? "kurssi-rivi hyvaksytty" : "kurssi-rivi";
     rivi.innerHTML = `
       <td>${k.KurssiNimi}</td>
       <td class="koodi">${koodiJaOpasLinkki(k)}</td>
@@ -908,6 +943,14 @@ function renderTutkimusKurssitRivit(rivit) {
       );
     });
   });
+
+  runko.querySelectorAll(".hyvaksy-nappi").forEach((nappi) => {
+    nappi.addEventListener("click", (e) => {
+      e.stopPropagation();
+      hyvaksyLuokitus(nappi);
+    });
+  });
+  runko.querySelectorAll(".peukku").forEach((p) => p.addEventListener("click", (e) => e.stopPropagation()));
 
   runko.querySelectorAll(".perustelu-pylpyra").forEach((p) => {
     p.addEventListener("click", (e) => {
