@@ -581,6 +581,25 @@ def api_hitl_korjaus(slug: str, kid: int, pyynto: HitlPyynto) -> dict:
     return {"ok": True}
 
 
+class HyvaksyntaPyynto(BaseModel):
+    nimi: str
+    sahkoposti: str = ""
+
+
+@sovellus.post("/api/tutkimukset/{slug}/kurssit/{kid}/hyvaksy")
+def api_hyvaksy_luokitus(slug: str, kid: int, pyynto: HyvaksyntaPyynto) -> dict:
+    """Peukutus: LLM:n mukaan ottama kurssi merkitään ihmisen hyväksymäksi."""
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    nimi = pyynto.nimi.strip()
+    if not nimi:
+        raise HTTPException(status_code=400, detail="Nimi puuttuu")
+    if not mallit.hyvaksy_luokitus(tutkimus["TID"], kid, nimi, pyynto.sahkoposti.strip()):
+        raise HTTPException(status_code=409, detail="Kurssi ei ole mukana")
+    return {"ok": True}
+
+
 class ArvioKorjausPyynto(BaseModel):
     """Ihmisen korjaus yhteen arviointivastaukseen.
 

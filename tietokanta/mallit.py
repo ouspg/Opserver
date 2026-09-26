@@ -720,7 +720,8 @@ def hae_kurssit_luokituksilla(tid: int, tila: str | None = None,
         with yht.cursor() as kursori:
             kursori.execute(
                 f"SELECT k.KID, k.KKID, k.LahdeId, k.KurssiNimi, k.Koodi, k.Taso, k.Oppiaine, "
-                f"k.Opintopisteet, k.Opetusvuosi, kl.Mukana, kl.Luokitteluperuste "
+                f"k.Opintopisteet, k.Opetusvuosi, kl.Mukana, kl.Luokitteluperuste, "
+                f"kl.KayttajaNimi AS Hyvaksyja "
                 f"FROM Kurssi k LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s "
                 f"WHERE {where}{tila_sql}{suod_sql}{jarj_sql}{raja_sql}",
                 (tid, *params, *suod_params, *raja_params),
@@ -751,9 +752,26 @@ def aseta_luokitus(tid: int, kid: int, mukana: bool | None, perustelu: str,
                    VALUES (%s, %s, %s, %s, %s, %s)
                    ON DUPLICATE KEY UPDATE Mukana = VALUES(Mukana),
                        Luokitteluperuste = VALUES(Luokitteluperuste), Malli = VALUES(Malli),
-                       Kehotetiiviste = VALUES(Kehotetiiviste)""",
+                       Kehotetiiviste = VALUES(Kehotetiiviste),
+                       KayttajaNimi = NULL, Sahkoposti = NULL""",
                 (tid, kid, mukana, perustelu, malli, tiiviste),
             )
+
+
+def hyvaksy_luokitus(tid: int, kid: int, nimi: str, sahkoposti: str | None) -> bool:
+    """Ihminen hyväksyy (peukuttaa) mukaan otetun kurssin luokittelupäätöksen.
+
+    Vain visuaalinen merkintä: Mukana ei muutu. KayttajaNimi IS NULL = ei
+    hyväksytty. False, jos kurssi ei ole (enää) mukana — hylättyjä ei hyväksytä.
+    """
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                """UPDATE Kurssiluokitus SET KayttajaNimi = %s, Sahkoposti = %s
+                   WHERE TID = %s AND KID = %s AND Mukana = 1""",
+                (nimi, sahkoposti or None, tid, kid),
+            )
+            return kursori.rowcount > 0
 
 
 def hae_luokitukset(tid: int, mukana: bool | None = None) -> list[dict]:

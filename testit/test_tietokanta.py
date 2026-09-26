@@ -719,6 +719,26 @@ class TestKurssiluokitus:
         assert "COUNT(*)" in sql and "Mukana" not in sql
         assert list(params) == [1]
 
+    def test_aseta_luokitus_nollaa_hyvaksynnan(self, mock_yhteys):
+        """LLM:n uusi päätös ei peri vanhan päätöksen peukutusta."""
+        yht, kursori = mock_yhteys
+        mallit.aseta_luokitus(tid=1, kid=7, mukana=True, perustelu="x")
+        sql = kursori.execute.call_args[0][0]
+        assert "KayttajaNimi = NULL" in sql and "Sahkoposti = NULL" in sql
+
+    def test_hyvaksy_luokitus_vain_mukana_oleville(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.rowcount = 1
+        assert mallit.hyvaksy_luokitus(2, 9, "Liisa", "") is True
+        sql, params = kursori.execute.call_args[0]
+        assert "UPDATE Kurssiluokitus" in sql and "Mukana = 1" in sql
+        assert params == ("Liisa", None, 2, 9)
+
+    def test_hyvaksy_luokitus_palauttaa_false_kun_ei_osumaa(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.rowcount = 0
+        assert mallit.hyvaksy_luokitus(2, 9, "Liisa", "l@e.fi") is False
+
 
 class TestHitlKorjaus:
     def test_tallenna_hitl_korjaus_tekee_insert_ja_update(self, mock_yhteys):

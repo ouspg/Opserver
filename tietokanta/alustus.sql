@@ -66,6 +66,8 @@ CREATE TABLE IF NOT EXISTS `Kurssiluokitus` (
   `Luokitteluperuste` text,
   `Malli` varchar(120) DEFAULT NULL,
   `Kehotetiiviste` varchar(64) DEFAULT NULL,
+  `KayttajaNimi` varchar(255) DEFAULT NULL,
+  `Sahkoposti` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`KLID`),
   UNIQUE KEY `uniikki_tid_kid` (`TID`,`KID`),
   KEY `KID` (`KID`),
