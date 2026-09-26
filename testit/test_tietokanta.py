@@ -728,16 +728,24 @@ class TestKurssiluokitus:
 
     def test_hyvaksy_luokitus_vain_mukana_oleville(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.rowcount = 1
-        assert mallit.hyvaksy_luokitus(2, 9, "Liisa", "") is True
+        mallit.hyvaksy_luokitus(2, 9, "Liisa", "")
         sql, params = kursori.execute.call_args[0]
         assert "UPDATE Kurssiluokitus" in sql and "Mukana = 1" in sql
         assert params == ("Liisa", None, 2, 9)
 
-    def test_hyvaksy_luokitus_palauttaa_false_kun_ei_osumaa(self, mock_yhteys):
+    def test_aseta_vastaus_nollaa_hyvaksynnan(self, mock_yhteys):
+        """LLM:n uusi vastaus ei peri vanhan vastauksen peukutusta."""
         yht, kursori = mock_yhteys
-        kursori.rowcount = 0
-        assert mallit.hyvaksy_luokitus(2, 9, "Liisa", "l@e.fi") is False
+        mallit.aseta_vastaus(kysid=3, kid=7, vastaus="x", malli="m")
+        sql = kursori.execute.call_args[0][0]
+        assert "HyvaksyjaNimi = NULL" in sql and "HyvaksyjaSahkoposti = NULL" in sql
+
+    def test_hyvaksy_vastaus_vain_llm_riville(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.hyvaksy_vastaus(1, 7, 3, "Liisa", "l@e.fi")
+        sql, params = kursori.execute.call_args[0]
+        assert "UPDATE Vastaukset" in sql and "Malli IS NOT NULL" in sql
+        assert params == ("Liisa", "l@e.fi", 1, 7, 3)
 
 
 class TestHitlKorjaus:

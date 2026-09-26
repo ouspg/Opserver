@@ -68,6 +68,8 @@
   `Erakoko` int NOT NULL
   `Erakoko` int NOT NULL
   `HID` int NOT NULL AUTO_INCREMENT
+  `HyvaksyjaNimi` varchar(255) DEFAULT NULL
+  `HyvaksyjaSahkoposti` varchar(255) DEFAULT NULL
   `Juurisyy` varchar(32) DEFAULT NULL
   `Juurisyy` varchar(32) DEFAULT NULL
   `KAID` int NOT NULL AUTO_INCREMENT

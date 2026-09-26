@@ -157,6 +157,8 @@ CREATE TABLE IF NOT EXISTS `Vastaukset` (
   `Sahkoposti` varchar(255) NOT NULL DEFAULT '',
   `Aikaleima` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `Juurisyy` varchar(32) DEFAULT NULL,
+  `HyvaksyjaNimi` varchar(255) DEFAULT NULL,
+  `HyvaksyjaSahkoposti` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`VasID`),
   UNIQUE KEY `uniikki_kys_kid_kayttaja` (`KysID`,`KID`,`KayttajaNimi`),
   KEY `Vastaukset_ibfk_2` (`KID`),

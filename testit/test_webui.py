@@ -153,6 +153,20 @@ def test_api_tutkimus_arvioinnit_palauttaa_rakenteen():
     assert v["luokka"] is None
     assert v["pisteet"] is None
     assert "OpsKuvaus" not in data["kurssit"][0]
+    assert v["hyvaksyja"] is None
+
+
+def test_api_tutkimus_arvioinnit_palauttaa_hyvaksyjan_ilman_sahkopostia():
+    vastaus_rivi = {"VasID": 1, "KysID": 10, "KID": 1, "Vastaus": "Kyllä", "Malli": "m",
+                    "HyvaksyjaNimi": "Liisa", "HyvaksyjaSahkoposti": "l@e.fi"}
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_kysymykset", return_value=[KYSYMYS]), \
+         patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[KURSSI_MUKANA]), \
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[vastaus_rivi]), \
+         patch("webui.palvelin.mallit.hae_hitl_vastaukset", return_value=[]):
+        data = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit").json()
+    assert data["kurssit"][0]["vastaukset"][0]["hyvaksyja"] == "Liisa"
+    assert "l@e.fi" not in str(data)
 
 
 def test_api_tutkimus_arvioinnit_lista_vastaus():
@@ -229,7 +243,7 @@ def test_api_hitl_korjaus_hylkaa_tuntemattoman_juurisyyn():
 
 def test_api_hyvaksy_luokitus():
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
-         patch("webui.palvelin.mallit.hyvaksy_luokitus", return_value=True) as mock_hyv:
+         patch("webui.palvelin.mallit.hyvaksy_luokitus") as mock_hyv:
         vastaus = asiakas.post("/api/tutkimukset/kyber-2025/kurssit/7/hyvaksy",
                                json={"nimi": " Matti ", "sahkoposti": "m@esim.fi"})
     assert vastaus.status_code == 200
@@ -245,12 +259,22 @@ def test_api_hyvaksy_luokitus_vaatii_nimen():
     mock_hyv.assert_not_called()
 
 
-def test_api_hyvaksy_luokitus_409_kun_ei_mukana():
+def test_api_hyvaksy_vastaus():
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
-         patch("webui.palvelin.mallit.hyvaksy_luokitus", return_value=False):
-        vastaus = asiakas.post("/api/tutkimukset/kyber-2025/kurssit/7/hyvaksy",
-                               json={"nimi": "M"})
-    assert vastaus.status_code == 409
+         patch("webui.palvelin.mallit.hyvaksy_vastaus") as mock_hyv:
+        vastaus = asiakas.post("/api/tutkimukset/kyber-2025/kurssit/7/kysymykset/3/hyvaksy",
+                               json={"nimi": "Matti"})
+    assert vastaus.status_code == 200
+    mock_hyv.assert_called_once_with(1, 7, 3, "Matti", "")
+
+
+def test_api_hyvaksy_vastaus_vaatii_nimen():
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hyvaksy_vastaus") as mock_hyv:
+        vastaus = asiakas.post("/api/tutkimukset/kyber-2025/kurssit/7/kysymykset/3/hyvaksy",
+                               json={"nimi": ""})
+    assert vastaus.status_code == 400
+    mock_hyv.assert_not_called()
 
 
 def test_api_hitl_korjaus_404_kun_tutkimusta_ei_loydy():
