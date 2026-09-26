@@ -61,3 +61,30 @@ jäävät ajamatta vaikka ne olisivat oikeasti tarpeen. Tämä nähtiin
 Seuraukset havaitaan nyt `./testit/skeematarkistus.sh`:lla, mutta itse ansaa
 ei ole poistettu. Vaihtoehto: aja migraatiot `mysql --force`:lla ja päätä
 vasta kaikkien lauseiden virheistä, onko tiedosto oikeasti sovellettu.
+
+## 6. Migraationumero 021 jää väliin (020 → 022)
+
+PR #30 toi `migraatio_020.sql`, PR #32 `migraatio_022.sql` (numeroitiin 022:ksi,
+koska 020–021 olivat tuolloin varattuina yhdistämättömässä haarassa; 021 ei
+lopulta mergeytynyt). Runner ajaa nimijärjestyksessä, joten aukko ei riko
+mitään — mutta se hämää ("puuttuuko 021?"). Tarjottu nimeäminen 022 → 021
+ennen #32:n mergeä; käyttäjä ei vastannut. Jos #32 on jo mergetty, jätä
+aukko (uudelleennimeäminen mergen jälkeen rikkoisi `_migraatiot`-seurannan
+kannoissa, joihin 022 on jo ajettu).
+
+## 7. `api_arvio_korjaus` ei validoi lista-tyypin `max_kohdat`-rajaa palvelinpäässä
+
+`webui/palvelin.py` `api_arvio_korjaus` (PR #32) tarkistaa luokittelun
+sallitut luokat ja asteikon rajat, mutta lista-tyypin kohtien enimmäismäärä
+(`LuokitteluMaarittely.max_kohdat`) rajoitetaan vain frontissa
+(`arviointimuokkaus.js` `lisaaKohta`). Suora API-kutsu voi tallentaa
+pidemmän listan kuin kysymys sallii → raporttitilastot vinoutuvat hiljaa.
+Yksi tarkistus + 400-vastaus, samaan tapaan kuin luokka/pisteet.
+
+## 8. Migraatiotestin "edellinen skeema" -skenaario ajaa migraatiot tyhjään kantaan
+
+PR #32:n lisäämä skenaario alustaa kannan merge-base-mainin `alustus.sql`:stä
+ilman rivejä. Datariippuvat migraatiolauseet (esim. 022:n
+`UPDATE … SET TID` + `MODIFY … NOT NULL`, joka kaatuisi jos jokin rivi jäisi
+NULLiksi) eivät siis tule testatuiksi datalla. Harkitse pientä siemenriviä
+per taulu (Tutkimus, Kysymykset, Kurssi, Vastaukset) skenaarioon.
