@@ -137,7 +137,8 @@ _NAKYMIA_MAX = 30
 
 
 def _lisaa_nakyma(data: dict) -> bool:
-    """Validoi ja lisää asiakkaan luoma näkymä (luottamusraja: selain)."""
+    """Validoi ja lisää asiakkaan luoma näkymä (luottamusraja: selain).
+    Jo olemassa oleva id = onnistunut uudelleenlähetys → True, ei tuplaa."""
     sivu, nid, nimi, suodatin = (data.get(k) for k in ("sivu", "id", "nimi", "suodatin"))
     if not all(isinstance(x, str) and 0 < len(x) <= 200 for x in (sivu, nid, nimi)):
         return False
@@ -146,7 +147,9 @@ def _lisaa_nakyma(data: dict) -> bool:
             for k, v in suodatin.items()):
         return False
     lista = _nakymat.setdefault(sivu, [])
-    if len(lista) >= _NAKYMIA_MAX or any(n["id"] == nid for n in lista):
+    if any(n["id"] == nid for n in lista):
+        return True
+    if len(lista) >= _NAKYMIA_MAX:
         return False
     lista.append({"id": nid, "nimi": nimi[:40], "suodatin": suodatin})
     return True
@@ -203,6 +206,36 @@ async def _laheta_kaikille() -> None:
         _yhteydet.pop(uid, None)
 
 
+@sovellus.post("/api/nakymat")
+async def api_nakyma_luo(data: dict) -> dict:
+    """Uusi jaettu suodatinnäkymä (HTTP, jotta WebUI voi lähettää uudelleen ja näyttää tilan)."""
+    if not _lisaa_nakyma(data):
+        raise HTTPException(status_code=400, detail="Virheellinen näkymä")
+    viesti = json.dumps({"tyyppi": "nakymat", "data": _nakymat})
+    for ws2, _ in list(_yhteydet.values()):
+        try:
+            await ws2.send_text(viesti)
+        except Exception:
+            pass
+    return {"ok": True}
+
+
+class RaporttiOsioPyynto(BaseModel):
+    teksti: str
+
+
+@sovellus.post("/api/tutkimukset/{slug}/raportti/{avain}")
+def api_raportti_osio_tallenna(slug: str, avain: str, pyynto: RaporttiOsioPyynto) -> dict:
+    """Raporttiosion tallennus (idempotentti: sama teksti uudelleen = sama tila)."""
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    mallit.aseta_raportti_osio(tutkimus["TID"], avain, pyynto.teksti)
+    if (tutkimus["TID"], avain) in _raportti_teksti:
+        _raportti_teksti[(tutkimus["TID"], avain)] = pyynto.teksti
+    return {"ok": True}
+
+
 @sovellus.websocket("/ws")
 async def ws_kayttajat(ws: WebSocket) -> None:
     await ws.accept()
@@ -225,14 +258,6 @@ async def ws_kayttajat(ws: WebSocket) -> None:
                         katkaistut.append(u)
                 for u in katkaistut:
                     _yhteydet.pop(u, None)
-            elif tyyppi == "nakyma-luo":
-                if _lisaa_nakyma(data):
-                    viesti = json.dumps({"tyyppi": "nakymat", "data": _nakymat})
-                    for _, (ws2, _) in list(_yhteydet.items()):
-                        try:
-                            await ws2.send_text(viesti)
-                        except Exception:
-                            pass
             elif tyyppi == "muokkaus-liity":
                 avain = (data.get("tid"), data.get("kid"), data.get("kysid"))
                 if avain not in _muokkaussessiot:
@@ -289,13 +314,6 @@ async def ws_kayttajat(ws: WebSocket) -> None:
                         _raportti_teksti.pop(avain, None)
                     else:
                         await _laheta_raportti_sessio(avain)
-            elif tyyppi == "raportti-tallenna":
-                avain = (data.get("tid"), data.get("avain"))
-                teksti = data.get("teksti", "")
-                if avain[0] and avain[1]:
-                    mallit.aseta_raportti_osio(*avain, teksti)
-                    if avain in _raportti_teksti:
-                        _raportti_teksti[avain] = teksti
             else:
                 _yhteydet[uid] = (ws, data)
                 await _laheta_kaikille()
