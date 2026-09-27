@@ -88,6 +88,12 @@ class TestPuraVastaus:
         vastaus, *_ = llmarviointi.pura_vastaus({"Luokittelu": "luokittelu"}, raw)
         assert vastaus == '{katkennut'
 
+    def test_perassa_pilkku_jasentyy(self):
+        """Tuotannossa 6 vastausta päättyi '},' — json.loads hylkäsi ('Extra data')."""
+        raw = '{"luokka": "Täysin", "perustelu": "Itsenäisesti suoritettavissa."},'
+        vastaus, pisteet, luokka, lista = llmarviointi.pura_vastaus({"Luokittelu": "luokittelu"}, raw)
+        assert (vastaus, luokka) == ("Itsenäisesti suoritettavissa.", "Täysin")
+
 
 class TestAja:
     """aja() perustuu nyt hae_valitut_kurssit + hae_vastaus_tiivisteet -tietoihin.
