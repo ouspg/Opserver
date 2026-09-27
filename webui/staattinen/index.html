@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Opserver</title>
   <link rel="icon" href="/staattinen/Opserver.ico" sizes="any">
-  <link rel="stylesheet" href="/staattinen/tyyli.css?v=44">
+  <link rel="stylesheet" href="/staattinen/tyyli.css?v=45">
 </head>
 <body>
   <header>
@@ -116,25 +116,25 @@
       <form id="hitl-lomake">
         <div class="lomake-kentta">
           <label for="hitl-nimi">Nimesi</label>
-          <input type="text" id="hitl-nimi" autocomplete="name" required>
+          <input type="text" id="hitl-nimi" autocomplete="name" required data-jaettu="nimi">
         </div>
         <div class="lomake-kentta">
           <label for="hitl-sahkoposti">Sähköposti</label>
-          <input type="email" id="hitl-sahkoposti" autocomplete="email" required>
+          <input type="email" id="hitl-sahkoposti" autocomplete="email" required data-jaettu="sahkoposti">
         </div>
         <div class="lomake-kentta">
           <label for="hitl-perustelu">Perustelu poiketa tekoälyn näkemyksestä</label>
-          <textarea id="hitl-perustelu" rows="4" required></textarea>
+          <textarea id="hitl-perustelu" rows="4" required data-jaettu="perustelu"></textarea>
         </div>
         <fieldset class="lomake-kentta hitl-juurisyy">
           <legend>Virheen juurisyy</legend>
           <label class="hitl-juurisyy-valinta">
-            <input type="radio" name="hitl-juurisyy" value="riittamaton_opas" required>
+            <input type="radio" name="hitl-juurisyy" value="riittamaton_opas" required data-jaettu="juurisyy">
             <span><strong>Riittämätön opinto-opas</strong> — oikeaa vastausta ei voinut
             johtaa oppaan tekstistä (tieto puuttui). Kirjataan oppaiden laatutilastoon.</span>
           </label>
           <label class="hitl-juurisyy-valinta">
-            <input type="radio" name="hitl-juurisyy" value="llm_virhe" required>
+            <input type="radio" name="hitl-juurisyy" value="llm_virhe" required data-jaettu="juurisyy">
             <span><strong>LLM:n väärinymmärrys</strong> — vastaus oli johdettavissa
             tekstistä, mutta malli erehtyi. Korjataan kehotetta ja ajetaan uudelleen.</span>
           </label>
@@ -153,10 +153,11 @@
   </div>
 
   <script src="/staattinen/lahetys.js?v=1"></script>
+  <script src="/staattinen/lomakesessio.js?v=1"></script>
   <script src="/staattinen/nakymat.js?v=3"></script>
-  <script src="/staattinen/sovellus.js?v=52"></script>
-  <script src="/staattinen/yhteistyo.js?v=10"></script>
-  <script src="/staattinen/arviointimuokkaus.js?v=8"></script>
+  <script src="/staattinen/sovellus.js?v=53"></script>
+  <script src="/staattinen/yhteistyo.js?v=11"></script>
+  <script src="/staattinen/arviointimuokkaus.js?v=9"></script>
   <script src="/staattinen/raporttimuokkaus.js?v=3"></script>
 </body>
 </html>
