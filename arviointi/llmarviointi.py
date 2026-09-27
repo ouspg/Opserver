@@ -111,7 +111,9 @@ def pura_vastaus(kysymys: dict, raw) -> tuple:
     # tyhjiksi (tuotannossa 1218/1644 vastausta). Vapaa teksti jätetään rauhaan.
     if luokittelu != "vapaa_teksti" and isinstance(raw, str) and raw.lstrip().startswith("{"):
         try:
-            raw = json.loads(raw, strict=False)
+            # raw_decode: lukee ensimmäisen objektin ja jättää perässä olevan
+            # roskan huomiotta (tuotannossa '},' → json.loads: "Extra data").
+            raw = json.JSONDecoder(strict=False).raw_decode(raw.lstrip())[0]
         except json.JSONDecodeError:
             pass  # katkennut/viallinen → säilyy tekstinä, kuten ennenkin
     if luokittelu == "luokittelu" and isinstance(raw, dict):
