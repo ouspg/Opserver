@@ -118,7 +118,7 @@ async function renderoi() {
       await lataaKorkeakoulut();
     } else if (r.sivu === "kurssit") {
       document.getElementById("s-kurssit").classList.add("aktiivinen");
-      lataaKurssit();
+      rekisteroiKurssitNakymat();
     } else if (r.sivu === "tutkimukset") {
       document.getElementById("s-tutkimukset").classList.add("aktiivinen");
       laataaTutkimukset();
@@ -389,6 +389,40 @@ function renderKurssit() {
     });
     runko.appendChild(rivi);
   }
+}
+
+// Suodatinnäkymien (välilehdet, nakymat.js) välilehden nimi suodattimesta.
+function suodatinNimi(s) {
+  const koulu = kaikki_koulut.find((k) => String(k.KKID) === String(s.kkid));
+  return [
+    koulu && (koulunLyhenne(koulu) || koulu.KouluNimi),
+    s.taso && (TASO_SUOMI[s.taso] || s.taso),
+    s.lukuvuosi,
+    s.hakusana && `"${s.hakusana}"`,
+  ].filter(Boolean).join(" · ");
+}
+
+function rekisteroiKurssitNakymat() {
+  const lv = document.getElementById("suodatin-lukuvuosi");
+  const koulu = document.getElementById("suodatin-koulu");
+  const taso = document.getElementById("suodatin-taso");
+  const aseta = async (s) => {
+    if (!lv.options.length) await taytaLukuvuodet();
+    lv.value = s.lukuvuosi || lv.options[0]?.value || "";
+    koulu.value = s.kkid || "";
+    // taytaTasot säilyttää valinnan vain jos se on jo selectin arvo
+    taso.innerHTML = `<option value="${escapeHtml(s.taso || "")}"></option>`;
+    await lataaKurssit();
+  };
+  window.rekisteroiNakymat?.({
+    otsikko: document.querySelector("#s-kurssit h2"),
+    palkki: document.getElementById("kurssit-suodatin"),
+    lue: () => ({ lukuvuosi: lv.value || null, kkid: koulu.value || null, taso: taso.value || null }),
+    aseta,
+    // Oletuslukuvuotta (uusin) ei toisteta nimessä
+    nimea: (s) => suodatinNimi({ ...s, lukuvuosi: s.lukuvuosi === lv.options[0]?.value ? null : s.lukuvuosi }),
+  });
+  aseta({});
 }
 
 document.getElementById("suodatin-lukuvuosi").addEventListener("change", lataaKurssit);
@@ -757,6 +791,21 @@ function _suodatinParams(tila) {
   return p.toString();
 }
 
+// Tutkimussivun suodatinnäkymät (välilehdet): tila = jaetun suodatinpalkin tilaobjekti.
+function rekisteroiTutkimusNakymat(otsikkoId, palkki, tila, onChange) {
+  window.rekisteroiNakymat?.({
+    otsikko: document.getElementById(otsikkoId),
+    palkki,
+    lue: () => ({ ...tila }),
+    aseta: async (s) => {
+      Object.assign(tila, { kkid: null, taso: null, hakusana: null }, s);
+      await rakennaSuodatinPalkki(palkki, tila, onChange);
+      await onChange();
+    },
+    nimea: suodatinNimi,
+  });
+}
+
 // Rakentaa suodatinkontrollit elementtiin ja kutsuu onChange muutoksilla.
 async function rakennaSuodatinPalkki(el, tila, onChange) {
   const { koulut, tasot } = await _suodatinData();
@@ -788,11 +837,10 @@ async function renderTutkimusKurssit(slug, nimi, sailyta = false) {
   if (!sailyta) {
     luokitus_suodatin = { kkid: null, taso: null, hakusana: null };
     luokitus_jarjestys = { sarake: null, suunta: null };
-    await rakennaSuodatinPalkki(
-      document.getElementById("tutkimus-kurssit-suodatin"),
-      luokitus_suodatin,
-      () => { tutkimus_sivu = 0; paivitaLuokitusMaaratJaSivu(); },
-    );
+    const palkki = document.getElementById("tutkimus-kurssit-suodatin");
+    const onChange = () => { tutkimus_sivu = 0; return paivitaLuokitusMaaratJaSivu(); };
+    await rakennaSuodatinPalkki(palkki, luokitus_suodatin, onChange);
+    rekisteroiTutkimusNakymat("tutkimus-kurssit-otsikko", palkki, luokitus_suodatin, onChange);
     tutkimus_sivu = 0;
   }
   await paivitaLuokitusMaaratJaSivu();
@@ -1039,6 +1087,7 @@ async function renderTutkimusArvioinnit(slug, nimi, sailyta = false) {
   if (!arvioinnit_data.kysymykset.length) {
     document.getElementById("tutkimus-arvioinnit-lkm").textContent = "";
     suodatinEl.innerHTML = "";
+    document.querySelector("#s-tutkimus-arvioinnit .nakyma-nauha")?.remove();
     sisalto.innerHTML = '<p class="tulossa">Ei arviointikysymyksiä — lisää kysymyksiä tutkimukselle.</p>';
     return;
   }
@@ -1047,6 +1096,7 @@ async function renderTutkimusArvioinnit(slug, nimi, sailyta = false) {
     arvioinnit_suodatin = { kkid: null, taso: null, hakusana: null };
     arvioinnit_jarjestys = { sarake: null, suunta: null };
     await rakennaSuodatinPalkki(suodatinEl, arvioinnit_suodatin, renderArvioinnitTaulu);
+    rekisteroiTutkimusNakymat("tutkimus-arvioinnit-otsikko", suodatinEl, arvioinnit_suodatin, renderArvioinnitTaulu);
   }
   renderArvioinnitTaulu();
 }

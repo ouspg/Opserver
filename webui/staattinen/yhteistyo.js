@@ -477,8 +477,14 @@ function lahetaTila() {
     sijainti: hiiri,
     aktiivinen: oliAktiivinen,
     sivu: location.pathname,
+    nakyma: window.omaNakyma?.() ?? null,
   }));
 }
+
+window.lahetaTilaNyt = () => lahetaTila();
+window.lahetaWs = (viesti) => {
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(viesti));
+};
 
 function yhdista() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -497,6 +503,9 @@ function yhdista() {
       paivitaMuutYmpyrat();
       paivitaKursorit();
       paivitaNavIndikaattorit();
+      window.paivitaNakymaPallurat?.(muutKayttajat);
+    } else if (viesti.tyyppi === "nakymat") {
+      window.nakymatKuuntelija?.(viesti.data);
     } else if (viesti.tyyppi === "muokkaus-sessio") {
       window.muokkausKuuntelija?.(viesti);
     } else if (viesti.tyyppi === "raportti-sessio") {
@@ -534,7 +543,10 @@ function paivitaKursorit() {
   const kerros = document.getElementById("kursori-kerros");
   if (!kerros) return;
 
-  const samallaSimulla = muutKayttajat.filter((k) => k.sivu === location.pathname);
+  // Sama sivu JA sama suodatinnäkymä (välilehti); muut näkyvät välilehden pallurana.
+  const omaNakyma = window.omaNakyma?.() ?? null;
+  const samallaSimulla = muutKayttajat.filter(
+    (k) => k.sivu === location.pathname && (k.nakyma ?? null) === omaNakyma);
   const nytIdt = new Set(samallaSimulla.map((k) => k.id));
   for (const id of Object.keys(kursorielementit)) {
     if (!nytIdt.has(id)) {
