@@ -245,7 +245,10 @@ def hae_tutkimus_slugilla(slug: str) -> dict | None:
             return _rivi_diktina(kursori)
 
 
-def hae_valitut_kurssit(tid: int) -> list[dict]:
+def hae_valitut_kurssit(tid: int, raja: int | None = None, siirto: int = 0) -> list[dict]:
+    """Mukaan otetut kurssit; raja/siirto → yksi sivu (WebUI lataa osissa).
+    KID järjestyksen tasapelin ratkaisijana, jotta sivut eivät limity."""
+    sivutus = " LIMIT %s OFFSET %s" if raja is not None else ""
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute("""
@@ -253,9 +256,16 @@ def hae_valitut_kurssit(tid: int) -> list[dict]:
                 FROM Kurssi k
                 JOIN Kurssiluokitus kl ON k.KID = kl.KID
                 WHERE kl.TID = %s AND kl.Mukana = 1
-                ORDER BY k.KurssiNimi
-            """, (tid,))
+                ORDER BY k.KurssiNimi, k.KID""" + sivutus,
+                (tid, raja, siirto) if sivutus else (tid,))
             return _rivit_dikteina(kursori)
+
+
+def laske_valitut_kurssit(tid: int) -> int:
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute("SELECT COUNT(*) FROM Kurssiluokitus WHERE TID = %s AND Mukana = 1", (tid,))
+            return kursori.fetchone()[0]
 
 
 def paivita_tutkimus(tid: int, luokittelun_nimi: str, slug: str, lukuvuosi: str, luokittelukehote: str,

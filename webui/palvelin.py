@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Optional
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -112,6 +113,8 @@ class PerusAutentikointi:
 
 sovellus = FastAPI(title="Opserver")
 sovellus.add_middleware(PerusAutentikointi)
+# Pakkaus: JSON/JS pienenee ~5–10× — ratkaisevaa huonolla yhteydellä (tuotanto ei pakkaa muualla).
+sovellus.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # --- Reaaliaikainen läsnäolo ja muokkaussessiot (WebSocket) ---
 
@@ -399,8 +402,11 @@ def api_tasot(kkid: Optional[int] = None, lukuvuosi: Optional[str] = None) -> li
 
 
 @sovellus.get("/api/kurssit")
-def api_kurssit(kkid: Optional[int] = None, lukuvuosi: Optional[str] = None) -> list[dict]:
-    return _kurssit_valimuistissa(kkid, lukuvuosi)
+def api_kurssit(kkid: Optional[int] = None, lukuvuosi: Optional[str] = None,
+                alku: int = 0, koko: Optional[int] = None) -> list[dict]:
+    """koko annettu → vain rivit alku..alku+koko (WebUI lataa osissa; lyhyt osa = viimeinen)."""
+    rivit = _kurssit_valimuistissa(kkid, lukuvuosi)
+    return rivit if koko is None else rivit[alku:alku + koko]
 
 
 @sovellus.get("/api/kurssit/{kid}")
@@ -475,13 +481,21 @@ def api_tutkimus_luokitukset(slug: str, tila: Optional[str] = None,
 
 
 @sovellus.get("/api/tutkimukset/{slug}/arvioinnit")
-def api_tutkimus_arvioinnit(slug: str) -> dict:
+def api_tutkimus_arvioinnit(slug: str, sivu: int = 0, koko: Optional[int] = None) -> dict:
+    """koko annettu → vain sivun kurssit (WebUI lataa osissa) + yhteensa kaikista."""
     tutkimus = mallit.hae_tutkimus_slugilla(slug)
     if tutkimus is None:
         raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     tid = tutkimus["TID"]
     kysymykset = mallit.hae_kysymykset(tid)
-    kurssit = mallit.hae_valitut_kurssit(tid)
+    if koko is None:
+        kurssit = mallit.hae_valitut_kurssit(tid)
+        yhteensa = len(kurssit)
+    else:
+        kurssit = mallit.hae_valitut_kurssit(tid, raja=koko, siirto=sivu * koko)
+        yhteensa = mallit.laske_valitut_kurssit(tid)
+    # ponytail: vastaukset haetaan koko tutkimukselle joka sivulla (~1600 lyhyttä riviä,
+    # ms-luokkaa); rajaa KID-listalla jos vastausmäärä kasvaa kertaluokkia.
     vastaukset_lista = mallit.hae_vastaukset(tid)
     hitl_lista = mallit.hae_hitl_vastaukset(tid)
 
@@ -532,6 +546,7 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
     tyhjä_vastaus = {"vastaus": "", "luokka": None, "pisteet": None, "lista": None,
                      "vanhentunut": False, "hyvaksyja": None}
     return {
+        "yhteensa": yhteensa,
         "kysymykset": [
             {
                 "KysID": k["KysID"],
