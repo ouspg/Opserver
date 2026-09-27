@@ -1198,7 +1198,10 @@ td.arviointi-vastaus {
   border-radius: 50%;
 }
 
-.nakyma-luo { margin: 0 0 0.25rem 0.5rem; }
+/* "+"-välilehti: vain suodatinvalinnat + Luo-nappi, muu osion sisältö piiloon */
+.nakyma-luonti > :not(h2):not(.nakyma-nauha):not(.luonti-sailyta):not(.nakyma-luo) { display: none !important; }
+.nakyma-luonti .lkm { display: none; }
+.nakyma-luo { display: block; margin: 0 0 1rem; }
 
 /* Lähetysanimaatio napissa (lahetys.js): tasalevyinen, ettei nappi hypi; pre säilyttää rullan välilyönnit */
 .lahetys-kaynnissa { font-family: ui-monospace, monospace; white-space: pre; cursor: progress; }

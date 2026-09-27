@@ -456,13 +456,14 @@ function rekisteroiKurssitNakymat() {
   const lv = document.getElementById("suodatin-lukuvuosi");
   const koulu = document.getElementById("suodatin-koulu");
   const taso = document.getElementById("suodatin-taso");
-  const aseta = async (s) => {
+  const aseta = async (s, lataa = true) => {
     if (!lv.options.length) await taytaLukuvuodet();
     lv.value = s.lukuvuosi || lv.options[0]?.value || "";
     koulu.value = s.kkid || "";
     // taytaTasot säilyttää valinnan vain jos se on jo selectin arvo
     taso.innerHTML = `<option value="${escapeHtml(s.taso || "")}"></option>`;
-    await lataaKurssit();
+    if (lataa) await lataaKurssit();
+    else await taytaTasot(lv.value, koulu.value);
   };
   window.rekisteroiNakymat?.({
     otsikko: document.querySelector("#s-kurssit h2"),
@@ -475,8 +476,16 @@ function rekisteroiKurssitNakymat() {
   aseta({});
 }
 
-document.getElementById("suodatin-lukuvuosi").addEventListener("change", lataaKurssit);
-document.getElementById("suodatin-koulu").addEventListener("change", lataaKurssit);
+// "+"-tilassa (uuden näkymän luonti) lista on piilossa: päivitä vain tasovalikko, älä lataa.
+function kurssiSuodatinMuuttui() {
+  if (window.omaNakyma?.() === "+") {
+    taytaTasot(document.getElementById("suodatin-lukuvuosi").value, document.getElementById("suodatin-koulu").value);
+  } else {
+    lataaKurssit();
+  }
+}
+document.getElementById("suodatin-lukuvuosi").addEventListener("change", kurssiSuodatinMuuttui);
+document.getElementById("suodatin-koulu").addEventListener("change", kurssiSuodatinMuuttui);
 document.getElementById("suodatin-taso").addEventListener("change", renderKurssit);
 
 // --- Modaali (kurssin tiedot) ---
@@ -823,10 +832,10 @@ function rekisteroiTutkimusNakymat(otsikkoId, palkki, tila, onChange) {
     otsikko: document.getElementById(otsikkoId),
     palkki,
     lue: () => ({ ...tila }),
-    aseta: async (s) => {
+    aseta: async (s, lataa = true) => {
       Object.assign(tila, { kkid: null, taso: null, hakusana: null }, s);
       await rakennaSuodatinPalkki(palkki, tila, onChange);
-      await onChange();
+      if (lataa) await onChange();
     },
     nimea: suodatinNimi,
   });
@@ -847,12 +856,14 @@ async function rakennaSuodatinPalkki(el, tila, onChange) {
   const taso = el.querySelector(".suod-taso");
   const haku = el.querySelector(".suod-haku");
   koulu.value = tila.kkid || ""; taso.value = tila.taso || ""; haku.value = tila.hakusana || "";
-  koulu.onchange = () => { tila.kkid = koulu.value || null; onChange(); };
-  taso.onchange = () => { tila.taso = taso.value || null; onChange(); };
+  // "+"-tilassa (uuden näkymän luonti) valinnat vain kerätään — lista on piilossa, ei latausta.
+  const muuttui = () => { if (window.omaNakyma?.() !== "+") onChange(); };
+  koulu.onchange = () => { tila.kkid = koulu.value || null; muuttui(); };
+  taso.onchange = () => { tila.taso = taso.value || null; muuttui(); };
   let viive;
   haku.oninput = () => {
     clearTimeout(viive);
-    viive = setTimeout(() => { tila.hakusana = haku.value.trim() || null; onChange(); }, 300);
+    viive = setTimeout(() => { tila.hakusana = haku.value.trim() || null; muuttui(); }, 300);
   };
 }
 
@@ -1502,7 +1513,8 @@ function merkitsePaivitetty() {
 let paivitys_kaynnissa = false;
 
 async function paivitaNakyma() {
-  if (document.visibilityState !== "visible" || paivitys_kaynnissa || window.lahetyksiaKesken) return;
+  if (document.visibilityState !== "visible" || paivitys_kaynnissa || window.lahetyksiaKesken
+      || window.omaNakyma?.() === "+") return;  // "+": lista piilossa, ei päivitettävää
   paivitys_kaynnissa = true;
   try { await _paivitaNakyma(); } finally { paivitys_kaynnissa = false; }
 }
