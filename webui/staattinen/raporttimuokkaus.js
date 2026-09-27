@@ -1,5 +1,10 @@
 "use strict";
 
+// Lohko rajaa funktiot tiedoston sisään (vain window.* näkyy ulos). Ilman sitä
+// arviointimuokkaus.js:n samannimiset globaalit (tallenna, lahetaTeksti, …) ylikirjoittavat
+// nämä, ja esim. "Tallenna"-nappi kutsuu väärän tiedoston funktiota.
+{
+
 // Kollaboratiivinen raporttiosion muokkain (modaali, kuten arviointimuokkaus)
 
 let _rtid = null, _ravain = null;
@@ -184,3 +189,4 @@ window.avaaRaporttiMuokkaus = function (tid, avain, otsikko, nykyinenTeksti) {
 
   window.liityRaporttiSessioon?.(tid, avain);
 };
+}

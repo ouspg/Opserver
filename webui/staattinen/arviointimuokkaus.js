@@ -1,5 +1,10 @@
 "use strict";
 
+// Lohko rajaa funktiot tiedoston sisään (vain window.* näkyy ulos). Ilman sitä
+// raporttimuokkaus.js:n samannimiset globaalit (tallenna, lahetaTeksti, …) ylikirjoittavat
+// nämä, ja esim. "Tallenna"-nappi kutsuu väärän tiedoston funktiota.
+{
+
 // Arviointivastauksen HITL-korjaus. Lomake rakennetaan kysymystyypin mukaan:
 //   vapaa_teksti → pelkkä perustelu
 //   luokittelu   → SELECT kysymyksen luokista + perustelu
@@ -378,3 +383,4 @@ window.avaaArviointiMuokkaus = function (tid, slug, kid, kysymys, aiVastaus, kor
 
   window.liityMuokkausSessioon?.(tid, kid, kysymys.KysID);
 };
+}
