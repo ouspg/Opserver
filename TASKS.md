@@ -80,3 +80,50 @@ viimeiset 6 päättyivät `},`). Kaksi mahdollista aukkoa jäi, dataa ei nähty:
   ```` ```json ````-aidalla alkava rivi ei löydy korjaustoiminnolle.
 Tarkistus: `./db "... WHERE v.Vastaus LIKE '%perustelu%'"` (ks. #35:n keskustelu).
 Jos rivejä löytyy, korjaa `pura_vastaus` + testi.
+
+## 8. Tiedostokokoraja ylittyy: sovellus.js 1577 riviä (raja ~500)
+
+CLAUDE.md: "jokaisen tiedoston täytyy olla niin pieni, että Claude pystyy
+lukemaan sen kerralla (~500 riviä)". Tilanne 2026-09-27: `webui/staattinen/sovellus.js`
+1577, `tietokanta/mallit.py` 1259, `webui/palvelin.py` 871, `webui/staattinen/yhteistyo.js`
+638 riviä. `sovellus.js`:n luku vaatii jo kaksi osaa, ja kasvu jatkuu jokaisen
+WebUI-ominaisuuden myötä. Ehdotus: jaa `sovellus.js` näkymittäin (korkeakoulut/kurssit,
+tutkimuksen kurssit + HITL, arvioinnit, raportti) omiin tiedostoihinsa (lohkoon
+käärittyinä, ks. globaalien törmäystesti) ja `mallit.py` aihepiireittäin.
+
+## 9. Kapea ikkuna (~520 px): yläpalkin muiden käyttäjien ympyrät menevät logon päälle
+
+Havaittu 2026-09-27 PR #44:n selaintestissä (leveys 520 px): `#muut-ympyrat`
+(muiden käyttäjien 24 px profiiliympyrät headerissa) piirtyvät Opserver-logon päälle.
+Ei #44:n aiheuttama (vanha layout). Puhelimella/zoomilla sama. Korjaus esim.
+flex-wrap/rivitys headerin oikeaan reunaan tai ympyröiden piilotus kapealla.
+
+## 10. Modaalin avaamisen jälkeen heti kirjoitettu teksti voi korvautua (WS-liittymisen kilpailutilanne)
+
+Havaittu 2026-09-27 selaintestissä: raporttimodaalissa (`raporttimuokkaus.js`)
+heti avaamisen jälkeen kirjoitettu teksti ylikirjoittui, kun WebSocket-session
+liittymisvastaus (osion teksti palvelimelta) saapui perässä. Sama rakenne on
+jaetussa korjauslomakkeessa (`lomakesessio.js`): ensimmäinen `lomake-sessio`-vastaus
+asettaa kaikki kentät palvelimen arvoihin, joten ennen vastausta (hitaalla
+yhteydellä sekunteja) kirjoitetut merkit katoavat. Ihminen ehtii harvoin
+kirjoittaa ennen vastausta hyvällä yhteydellä, mutta huonolla kyllä. Korjaus: älä
+ylikirjoita kenttää, jota käyttäjä on jo muuttanut ennen ensimmäistä vastausta
+(lähetä muutos sen sijaan), tai lukitse kentät kunnes sessio on alustettu.
+
+## 11. Logo Opserver.png 212 kt kilpailee kaistasta hitaalla yhteydellä
+
+PR #39:n mittauksessa (400 kbit/s) logo latautui ~10 s ja jakoi kaistan
+datan kanssa. Pienennä (esim. oikean kokoinen PNG/WebP, tai SVG) — muutaman
+rivin muutos, mutta ei tehty #39:ssä rajauksen vuoksi.
+
+## 12. Tuotannon /api/tasot 27–75 s ja /api/lukuvuodet 64 s — verkko vai kone?
+
+2026-09-27 mitattuna klaudekin katkeilevan yhteyden yli tuotannosta: `/api/tasot`
+27–75 s (yksi aikakatkaisu), `/api/lukuvuodet` 6–64 s, vaikka vastaukset ovat
+alle 400 tavua. Paikallisesti tuotannon kokoisella datalla (Colima, 414 Mt) samat
+kutsut <0,4 s kylmänäkin. Todennäköisesti mittaajan verkko, mutta ei vahvistettu:
+kone voi olla muistin/levyn rajoittama (kyselyt skannaavat koko `Kurssi`-taulun,
+jossa ~8 kt OpsKuvaus/rivi). Tarkistus tuotantokoneella itsellään:
+`time curl -s -o /dev/null -u … https://<domain>/api/tasot` (tai mysql:n
+`SELECT Taso … GROUP BY Taso` -aika). Jos hidas: kattava indeksi `(Taso)` tai
+tasot-välimuistin TTL:n pidennys.
