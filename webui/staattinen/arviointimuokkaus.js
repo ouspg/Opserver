@@ -13,12 +13,10 @@
 // Vaihtoehdot ja rajat tulevat kysymyksen LuokitteluMaarittely-kentästä, joten
 // mitään ei ole kovakoodattu tähän.
 //
-// Perustelu-kentässä on yhä reaaliaikainen yhteismuokkaus (muiden kursorit);
-// rakenteiset kentät ovat kertaklikkauksia joissa kursorista ei ole hyötyä.
+// Lomake on jaettu (lomakesessio.js): saman vastauksen korjausta avanneet näkevät
+// samat kenttien arvot, toistensa pallurat ja tekstikursorit (data-jaettu-kentät).
 
 let _tid = null, _kid = null, _kysid = null, _kysymys = null, _slug = null;
-let _lahetysAjastin = null;
-const MUOKKAUS_LAHETYS_VALI_MS = 60;
 
 function luoMuokkausModaali() {
   if (document.getElementById("arviointimuokkaus-modaali")) return;
@@ -34,26 +32,21 @@ function luoMuokkausModaali() {
       <div id="arviointimuokkaus-kentat"></div>
       <div class="arviointimuokkaus-kommentti-alue">
         <label class="arviointimuokkaus-label" for="arviointimuokkaus-tekstialue">Perustelu:</label>
-        <div id="arviointimuokkaus-kursori-sailyo" style="position:relative;">
-          <textarea id="arviointimuokkaus-tekstialue" rows="4"
-            placeholder="Perustele korjaus..."></textarea>
-          <canvas id="arviointimuokkaus-kursorit" style="
-            position:absolute;top:0;left:0;pointer-events:none;"></canvas>
-        </div>
-        <div id="arviointimuokkaus-muokkaajat"></div>
+        <textarea id="arviointimuokkaus-tekstialue" rows="4" data-jaettu="perustelu"
+          placeholder="Perustele korjaus..."></textarea>
       </div>
       <div class="arviointimuokkaus-juurisyy">
         <label class="arviointimuokkaus-label">Virheen juurisyy:</label>
-        <label><input type="radio" name="arvio-juurisyy" value="riittamaton_opas">
+        <label><input type="radio" name="arvio-juurisyy" value="riittamaton_opas" data-jaettu="juurisyy">
           Riittämätön opinto-opas — oikea vastaus ei ollut johdettavissa tekstistä</label>
-        <label><input type="radio" name="arvio-juurisyy" value="llm_virhe">
+        <label><input type="radio" name="arvio-juurisyy" value="llm_virhe" data-jaettu="juurisyy">
           LLM:n väärinymmärrys — vastaus oli johdettavissa, mutta väärä</label>
       </div>
       <div class="arviointimuokkaus-tunnistus">
         <label class="arviointimuokkaus-label" for="arvio-nimi">Nimi:</label>
-        <input type="text" id="arvio-nimi" autocomplete="name">
+        <input type="text" id="arvio-nimi" autocomplete="name" data-jaettu="nimi">
         <label class="arviointimuokkaus-label" for="arvio-sahkoposti">Sähköposti:</label>
-        <input type="email" id="arvio-sahkoposti" autocomplete="email">
+        <input type="email" id="arvio-sahkoposti" autocomplete="email" data-jaettu="sahkoposti">
       </div>
       <div id="arviointimuokkaus-virhe" class="arviointimuokkaus-virhe"></div>
       <div class="modaali-napit">
@@ -70,11 +63,6 @@ function luoMuokkausModaali() {
   modaali.addEventListener("click", (e) => {
     if (e.target === modaali) suljeArviointiMuokkaus();
   });
-
-  const ta = document.getElementById("arviointimuokkaus-tekstialue");
-  ta.addEventListener("input", () => lahetaTeksti(ta));
-  ta.addEventListener("keyup", () => lahetaTeksti(ta));
-  ta.addEventListener("click", () => lahetaTeksti(ta));
 }
 
 // --- Tyyppikohtaiset kentät ---
@@ -96,7 +84,7 @@ function piirraKentat(nykyinen) {
     const luokat = m.luokat || [];
     sailio.innerHTML = `
       <label class="arviointimuokkaus-label" for="arvio-luokka">Luokka:</label>
-      <select id="arvio-luokka">
+      <select id="arvio-luokka" data-jaettu="luokka">
         <option value="">— valitse —</option>
         ${luokat.map((l) => `<option value="${escapeHtml(l.nimi)}" title="${escapeHtml(l.kuvaus || "")}">${escapeHtml(l.nimi)}</option>`).join("")}
       </select>
@@ -109,7 +97,7 @@ function piirraKentat(nykyinen) {
     const pisteselitteet = m.pisteet || [];
     sailio.innerHTML = `
       <label class="arviointimuokkaus-label" for="arvio-pisteet">Pisteet (${minimi}–${maksimi}):</label>
-      <input type="number" id="arvio-pisteet" min="${minimi}" max="${maksimi}" step="1">
+      <input type="number" id="arvio-pisteet" min="${minimi}" max="${maksimi}" step="1" data-jaettu="pisteet">
       ${pisteselitteet.length ? `<ul class="arvio-luokkaselitteet">${pisteselitteet.map((p) =>
         `<li><strong>${p.arvo}</strong>: ${escapeHtml(p.kuvaus || "")}</li>`).join("")}</ul>` : ""}`;
     if (nykyinen?.pisteet !== null && nykyinen?.pisteet !== undefined) {
@@ -118,19 +106,31 @@ function piirraKentat(nykyinen) {
   } else if (tyyppi() === "lista") {
     sailio.innerHTML = `
       <label class="arviointimuokkaus-label">Kohdat:</label>
-      <div id="arvio-lista-kohdat"></div>
+      <div id="arvio-lista-kohdat" data-jaettu="lista"></div>
       <button type="button" id="arvio-lisaa-kohta" class="arvio-lista-nappi">+ Lisää kohta</button>
       <div id="arvio-lista-raja" class="arvio-lista-raja"></div>`;
-    document.getElementById("arvio-lisaa-kohta").addEventListener("click", () => lisaaKohta(""));
-    (nykyinen?.lista || []).forEach((k) => lisaaKohta(k));
-    if (!(nykyinen?.lista || []).length) lisaaKohta("");
-    paivitaListaRaja();
+    document.getElementById("arvio-lisaa-kohta").addEventListener("click", () => {
+      lisaaKohta("");
+      window.lomakeMuuttui?.("lista");
+    });
+    asetaLista(nykyinen?.lista || [], false);
   } else {
     sailio.innerHTML = "";  // vapaa teksti: perustelukenttä riittää
   }
 }
 
-function lisaaKohta(arvo) {
+// Kohdelistan jaettu arvo (lomakesessio.js): kaikki kentät, myös tyhjät (uusi rivi näkyy muillekin).
+function lueLista() {
+  return [...document.querySelectorAll(".arvio-lista-kentta")].map((k) => k.value);
+}
+
+function asetaLista(kohdat, fokus = false) {
+  document.getElementById("arvio-lista-kohdat").innerHTML = "";
+  (kohdat.length ? kohdat : [""]).forEach((k) => lisaaKohta(k, fokus));
+  paivitaListaRaja();
+}
+
+function lisaaKohta(arvo, fokus = true) {
   const kohdat = document.getElementById("arvio-lista-kohdat");
   if (!kohdat) return;
   const maks = maarittely().max_kohdat;
@@ -149,11 +149,12 @@ function lisaaKohta(arvo) {
   poista.addEventListener("click", () => {
     rivi.remove();
     paivitaListaRaja();
+    window.lomakeMuuttui?.("lista");
   });
   rivi.append(kentta, poista);
   kohdat.appendChild(rivi);
   paivitaListaRaja();
-  kentta.focus();
+  if (fokus) kentta.focus();
 }
 
 function paivitaListaRaja() {
@@ -209,8 +210,11 @@ async function tallenna() {
     return;
   }
 
-  localStorage.setItem("hitl_nimi", nimi);
-  localStorage.setItem("hitl_sahkoposti", sahkoposti);
+  // Jaetussa lomakkeessa nimi voi olla ensimmäisen avaajan — ei tallenneta omaksi.
+  if (window.lomakeOlenAloittaja?.() ?? true) {
+    localStorage.setItem("hitl_nimi", nimi);
+    localStorage.setItem("hitl_sahkoposti", sahkoposti);
+  }
   virhe.textContent = "";
 
   try {
@@ -221,25 +225,16 @@ async function tallenna() {
     virhe.textContent = "Tallennus ei onnistunut: " + e.message;
     return;
   }
+  window.lomakeTallennettu?.();
   suljeArviointiMuokkaus();
   window.paivitaArvioinnit?.();
 }
 
 function suljeArviointiMuokkaus() {
-  if (_tid !== null) {
-    window.poistuMuokkausSessiosta?.(_tid, _kid, _kysid);
-  }
+  window.suljeLomakesessio?.();
   _tid = null; _kid = null; _kysid = null; _kysymys = null;
   const modaali = document.getElementById("arviointimuokkaus-modaali");
   if (modaali) modaali.classList.add("piilotettu");
-}
-
-function lahetaTeksti(ta) {
-  if (!_tid) return;
-  clearTimeout(_lahetysAjastin);
-  _lahetysAjastin = setTimeout(() => {
-    window.lahetaMuokkausTeksti?.(_tid, _kid, _kysid, ta.value, ta.selectionStart);
-  }, MUOKKAUS_LAHETYS_VALI_MS);
 }
 
 // --- Tekoälyn vastauksen esitys (vertailu, ei muokattavissa) ---
@@ -255,98 +250,6 @@ function aiYhteenveto(v) {
   if (v.vastaus) osat.push(escapeHtml(v.vastaus));
   return osat.length ? osat.join("<br>") : "<em>Ei vastausta</em>";
 }
-
-// --- Yhteismuokkaus: muiden kursorit perustelukentässä ---
-
-function kursorinPikseli(ta, sijainti) {
-  const tyyli = window.getComputedStyle(ta);
-  const peili = document.createElement("div");
-  // Sijoita peili pois näkyvistä mutta renderöi samanlaisena kuin textarea
-  peili.style.cssText = `
-    position:absolute;top:-9999px;left:-9999px;visibility:hidden;
-    white-space:pre-wrap;word-wrap:break-word;overflow:hidden;
-    width:${ta.offsetWidth}px;
-    font:${tyyli.font};
-    padding:${tyyli.padding};
-    border:${tyyli.border};
-    box-sizing:${tyyli.boxSizing};
-    line-height:${tyyli.lineHeight};
-  `;
-  peili.textContent = ta.value.slice(0, sijainti);
-  const span = document.createElement("span");
-  span.textContent = "|";
-  peili.appendChild(span);
-  document.body.appendChild(peili);
-  const peiliRect = peili.getBoundingClientRect();
-  const spanRect = span.getBoundingClientRect();
-  document.body.removeChild(peili);
-  return {
-    x: spanRect.left - peiliRect.left,
-    y: spanRect.top - peiliRect.top + ta.scrollTop,
-  };
-}
-
-function piirraKursorit(muokkaajat) {
-  const ta = document.getElementById("arviointimuokkaus-tekstialue");
-  const canvas = document.getElementById("arviointimuokkaus-kursorit");
-  if (!ta || !canvas) return;
-
-  canvas.width = ta.offsetWidth;
-  canvas.height = ta.offsetHeight;
-  canvas.style.top = ta.offsetTop + "px";
-  canvas.style.left = ta.offsetLeft + "px";
-
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  const omaId = window._omaId;
-  for (const m of muokkaajat) {
-    if (m.id === omaId || !m.profiili) continue;
-    const pos = kursorinPikseli(ta, m.kursori || 0);
-    ctx.strokeStyle = m.profiili.taustavari || "#c0392b";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
-    ctx.lineTo(pos.x, pos.y + 18);
-    ctx.stroke();
-    const offsc = document.createElement("canvas");
-    offsc.width = 14; offsc.height = 14;
-    window.piirraYmpyra?.(offsc, m.profiili);
-    ctx.drawImage(offsc, pos.x - 7, pos.y - 14);
-  }
-}
-
-function paivitaMuokkaajat(muokkaajat) {
-  const div = document.getElementById("arviointimuokkaus-muokkaajat");
-  if (!div) return;
-  const muut = muokkaajat.filter((m) => m.id !== window._omaId);
-  if (muut.length === 0) {
-    div.textContent = "";
-    return;
-  }
-  div.innerHTML = "Muokkaa nyt myös: " + muut.map((m) => {
-    const offsc = document.createElement("canvas");
-    offsc.width = 14; offsc.height = 14;
-    offsc.className = "vieras-ympyra-pieni";
-    window.piirraYmpyra?.(offsc, m.profiili);
-    return `<span class="muokkaaja-rivi">${offsc.outerHTML} ${escapeHtml(m.nimimerkki || "?")}</span>`;
-  }).join(", ");
-}
-
-// Kuuntelija muokkaussessio-viesteille (kutsutaan yhteistyo.js:stä)
-window.muokkausKuuntelija = function (viesti) {
-  if (viesti.tid !== _tid || viesti.kid !== _kid || viesti.kysid !== _kysid) return;
-  const ta = document.getElementById("arviointimuokkaus-tekstialue");
-  if (!ta) return;
-  // Päivitä teksti vain jos muuttui (muuten kursori hyppää)
-  if (ta.value !== viesti.teksti) {
-    const kursori = ta.selectionStart;
-    ta.value = viesti.teksti;
-    ta.setSelectionRange(kursori, kursori);
-  }
-  piirraKursorit(viesti.muokkaajat || []);
-  paivitaMuokkaajat(viesti.muokkaajat || []);
-};
 
 window.avaaArviointiMuokkaus = function (tid, slug, kid, kysymys, aiVastaus, korjaus) {
   luoMuokkausModaali();
@@ -367,11 +270,15 @@ window.avaaArviointiMuokkaus = function (tid, slug, kid, kysymys, aiVastaus, kor
     r.checked = Boolean(korjaus?.juurisyy) && r.value === korjaus.juurisyy;
   });
   document.getElementById("arviointimuokkaus-virhe").textContent = "";
-  document.getElementById("arviointimuokkaus-muokkaajat").textContent = "";
 
   document.getElementById("arviointimuokkaus-modaali").classList.remove("piilotettu");
   document.getElementById("arviointimuokkaus-tekstialue").focus();
 
-  window.liityMuokkausSessioon?.(tid, kid, kysymys.KysID);
+  // Jaettu lomake: muut saman vastauksen korjausta avanneet näkevät samat arvot.
+  const modaali = document.getElementById("arviointimuokkaus-modaali");
+  window.avaaLomakesessio?.(`arvio:${tid}:${kid}:${kysymys.KysID}`, modaali, {
+    erikois: tyyppi() === "lista" ? { lista: { lue: lueLista, aseta: (v) => asetaLista(v || []) } } : {},
+    tallennettu: () => { suljeArviointiMuokkaus(); window.paivitaArvioinnit?.(); },
+  });
 };
 }

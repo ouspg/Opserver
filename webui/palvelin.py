@@ -120,10 +120,10 @@ sovellus.add_middleware(GZipMiddleware, minimum_size=1000)
 
 _yhteydet: dict[str, tuple[WebSocket, dict]] = {}
 
-# avain = (tid, kid, kysid) → {uid: {nimimerkki, profiili, kursori}}
-_muokkaussessiot: dict[tuple, dict[str, dict]] = {}
-# avain = (tid, kid, kysid) → nykyinen tekstisisältö sessiossa
-_muokkaus_teksti: dict[tuple, str] = {}
+# Jaetut korjauslomakkeet (HITL-modaalit): avain (esim. "hitl:1:7", "arvio:1:7:3") →
+# {"arvot": {kentta: arvo}, "jasenet": {uid: {"kentta": str|None, "kursori": int}}}.
+# Ensimmäisen avaajan arvot alustavat lomakkeen; myöhemmät liittyjät saavat ne.
+_lomakkeet: dict[str, dict] = {}
 
 # avain = (tid, avain_str) → {uid: {nimimerkki, profiili, kursori}}
 _raportti_sessiot: dict[tuple, dict[str, dict]] = {}
@@ -155,23 +155,47 @@ def _lisaa_nakyma(data: dict) -> bool:
     return True
 
 
-async def _laheta_muokkaussessio(avain: tuple) -> None:
-    if avain not in _muokkaussessiot:
+def _kelpo_lomakearvo(arvo) -> bool:
+    """Lomakekentän arvo selaimelta (luottamusraja): teksti, None tai tekstilista."""
+    if arvo is None or (isinstance(arvo, str) and len(arvo) <= 20000):
+        return True
+    return isinstance(arvo, list) and len(arvo) <= 100 and all(
+        isinstance(x, str) and len(x) <= 1000 for x in arvo)
+
+
+def _kelpo_lomakearvot(arvot) -> bool:
+    return isinstance(arvot, dict) and len(arvot) <= 30 and all(
+        isinstance(k, str) and len(k) <= 50 and _kelpo_lomakearvo(v) for k, v in arvot.items())
+
+
+async def _laheta_lomake(avain: str, lahettaja: str | None = None, tyyppi: str = "lomake-sessio") -> None:
+    """Lomakkeen koko tila jäsenille. lahettaja = kenen muutos tämän laukaisi
+    (selain ei sovella omia muutoksiaan takaisin, ettei kirjoitus nyi)."""
+    lomake = _lomakkeet.get(avain)
+    if not lomake:
         return
-    tid, kid, kysid = avain
-    muokkaajat = [{"id": uid, **tiedot} for uid, tiedot in _muokkaussessiot[avain].items()]
-    viesti = json.dumps({
-        "tyyppi": "muokkaus-sessio",
-        "tid": tid, "kid": kid, "kysid": kysid,
-        "teksti": _muokkaus_teksti.get(avain, ""),
-        "muokkaajat": muokkaajat,
-    })
-    for uid in list(_muokkaussessiot[avain].keys()):
-        if uid in _yhteydet:
+    muokkaajat = []
+    for uid, tila in lomake["jasenet"].items():
+        tiedot = _yhteydet.get(uid, (None, {}))[1]
+        muokkaajat.append({"id": uid, "nimimerkki": tiedot.get("nimimerkki", "?"),
+                           "profiili": tiedot.get("profiili", {}), **tila})
+    viesti = json.dumps({"tyyppi": tyyppi, "avain": avain, "lahettaja": lahettaja,
+                         "arvot": lomake["arvot"], "muokkaajat": muokkaajat})
+    for uid in list(lomake["jasenet"]):
+        if uid in _yhteydet and (tyyppi == "lomake-sessio" or uid != lahettaja):
             try:
                 await _yhteydet[uid][0].send_text(viesti)
             except Exception:
                 pass
+
+
+async def _poistu_lomakkeesta(avain: str, uid: str) -> None:
+    lomake = _lomakkeet.get(avain)
+    if lomake and lomake["jasenet"].pop(uid, None) is not None:
+        if lomake["jasenet"]:
+            await _laheta_lomake(avain)
+        else:
+            del _lomakkeet[avain]  # viimeinen poistui → seuraava avaaja alustaa uudelleen
 
 
 async def _laheta_raportti_sessio(avain: tuple) -> None:
@@ -258,34 +282,35 @@ async def ws_kayttajat(ws: WebSocket) -> None:
                         katkaistut.append(u)
                 for u in katkaistut:
                     _yhteydet.pop(u, None)
-            elif tyyppi == "muokkaus-liity":
-                avain = (data.get("tid"), data.get("kid"), data.get("kysid"))
-                if avain not in _muokkaussessiot:
-                    _muokkaussessiot[avain] = {}
-                    _muokkaus_teksti[avain] = mallit.hae_vastauksen_teksti(*avain)
-                kayttaja = _yhteydet.get(uid, (None, {}))[1]
-                _muokkaussessiot[avain][uid] = {
-                    "nimimerkki": kayttaja.get("nimimerkki", "?"),
-                    "profiili": kayttaja.get("profiili", {}),
-                    "kursori": 0,
-                }
-                await _laheta_muokkaussessio(avain)
-            elif tyyppi == "muokkaus-teksti":
-                avain = (data.get("tid"), data.get("kid"), data.get("kysid"))
-                if avain in _muokkaussessiot:
-                    _muokkaus_teksti[avain] = data.get("teksti", "")
-                    if uid in _muokkaussessiot[avain]:
-                        _muokkaussessiot[avain][uid]["kursori"] = data.get("kursori", 0)
-                    await _laheta_muokkaussessio(avain)
-            elif tyyppi == "muokkaus-poistu":
-                avain = (data.get("tid"), data.get("kid"), data.get("kysid"))
-                if avain in _muokkaussessiot:
-                    _muokkaussessiot[avain].pop(uid, None)
-                    if not _muokkaussessiot[avain]:
-                        del _muokkaussessiot[avain]
-                        _muokkaus_teksti.pop(avain, None)
-                    else:
-                        await _laheta_muokkaussessio(avain)
+            elif tyyppi and tyyppi.startswith("lomake-"):
+                avain = data.get("avain")
+                if not (isinstance(avain, str) and 0 < len(avain) <= 100):
+                    continue
+                lomake = _lomakkeet.get(avain)
+                if tyyppi == "lomake-liity" and _kelpo_lomakearvot(data.get("arvot")):
+                    if lomake is None:
+                        lomake = _lomakkeet[avain] = {"arvot": data["arvot"], "jasenet": {}}
+                    lomake["jasenet"][uid] = {"kentta": None, "kursori": 0}
+                    await _laheta_lomake(avain)
+                elif lomake is None or uid not in lomake["jasenet"]:
+                    continue
+                elif tyyppi == "lomake-arvo":
+                    kentta = data.get("kentta")
+                    if not (isinstance(kentta, str) and len(kentta) <= 50):
+                        continue
+                    if "arvo" in data:
+                        if not _kelpo_lomakearvo(data["arvo"]) or (
+                                kentta not in lomake["arvot"] and len(lomake["arvot"]) >= 30):
+                            continue
+                        lomake["arvot"][kentta] = data["arvo"]
+                    kursori = data.get("kursori")
+                    lomake["jasenet"][uid] = {"kentta": kentta,
+                                              "kursori": kursori if isinstance(kursori, int) else 0}
+                    await _laheta_lomake(avain, lahettaja=uid)
+                elif tyyppi == "lomake-tallennettu":
+                    await _laheta_lomake(avain, lahettaja=uid, tyyppi="lomake-tallennettu")
+                elif tyyppi == "lomake-poistu":
+                    await _poistu_lomakkeesta(avain, uid)
             elif tyyppi == "raportti-liity":
                 avain = (data.get("tid"), data.get("avain"))
                 if avain not in _raportti_sessiot:
@@ -319,12 +344,8 @@ async def ws_kayttajat(ws: WebSocket) -> None:
                 await _laheta_kaikille()
     except WebSocketDisconnect:
         _yhteydet.pop(uid, None)
-        for avain in list(_muokkaussessiot.keys()):
-            if uid in _muokkaussessiot[avain]:
-                del _muokkaussessiot[avain][uid]
-                if not _muokkaussessiot[avain]:
-                    del _muokkaussessiot[avain]
-                    _muokkaus_teksti.pop(avain, None)
+        for avain in list(_lomakkeet):
+            await _poistu_lomakkeesta(avain, uid)
         for avain in list(_raportti_sessiot.keys()):
             if uid in _raportti_sessiot[avain]:
                 del _raportti_sessiot[avain][uid]
