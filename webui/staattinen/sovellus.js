@@ -8,6 +8,23 @@ function escapeHtml(arvo) {
 }
 window.escapeHtml = escapeHtml;
 
+// --- Vikasietoinen haku (huono/katkeileva yhteys) ---
+
+// fetch + JSON; verkkovirhe tai 5xx → uusi yritys kasvavalla viiveellä.
+async function haeJson(url, yrityksia = 4) {
+  for (let yritys = 1; ; yritys++) {
+    try {
+      const r = await fetch(url);
+      if (r.ok) return await r.json();
+      if (r.status < 500) throw Object.assign(new Error(`HTTP ${r.status}`), { lopullinen: true });
+      throw new Error(`HTTP ${r.status}`);
+    } catch (e) {
+      if (e.lopullinen || yritys >= yrityksia) throw e;
+    }
+    await new Promise((valmis) => setTimeout(valmis, 1000 * yritys));
+  }
+}
+
 // --- Otsikon sovitus yhdelle riville ---
 
 // Pienennä otsikon fonttia kunnes se mahtuu yhdelle riville; alaraja 16px.
@@ -332,17 +349,50 @@ async function taytaTasot(lukuvuosi, kkid) {
   if (valittu && tasot.includes(valittu)) sel.value = valittu;  // säilytä jos yhä tarjolla
 }
 
+// Kurssilista osissa (tuotannossa ~7 Mt kerralla); pieni ensimmäinen osa, jotta
+// rivit näkyvät heti, sitten isompia (vähemmän kiertoviiveitä). Taulukko renderöidään
+// ensimmäisen osan jälkeen, sitten korkeintaan KURSSIT_RENDER_VALI_MS välein ja
+// lopuksi — koko listan uudelleenrakennus joka osalla olisi O(n²).
+const KURSSIT_ENSIMMAINEN_OSA = 250;
+const KURSSIT_OSA = 2000;
+const KURSSIT_RENDER_VALI_MS = 2000;
+let kurssit_lataus = 0;
+let kurssit_kesken = false;
+
 async function lataaKurssit() {
+  const lataus = ++kurssit_lataus;
   const sel = document.getElementById("suodatin-lukuvuosi");
   if (!sel.options.length) await taytaLukuvuodet();
   const kkid = document.getElementById("suodatin-koulu").value;
-  await taytaTasot(sel.value, kkid);
+  taytaTasot(sel.value, kkid);  // ei awaitia: tasovalikko ei saa viivästää listaa
   const params = new URLSearchParams();
   if (sel.value) params.set("lukuvuosi", sel.value);
   if (kkid) params.set("kkid", kkid);
-  const kysely = params.toString();
-  kaikki_kurssit = await fetch("/api/kurssit" + (kysely ? `?${kysely}` : "")).then((r) => r.json());
-  renderKurssit();
+  kaikki_kurssit = [];
+  kurssit_kesken = true;
+  document.getElementById("kurssit-rungot").innerHTML = '<tr><td colspan="6">Ladataan kursseja…</td></tr>';
+  let renderoity = 0;
+  try {
+    for (;;) {
+      const koko = kaikki_kurssit.length ? KURSSIT_OSA : KURSSIT_ENSIMMAINEN_OSA;
+      params.set("alku", kaikki_kurssit.length);
+      params.set("koko", koko);
+      const osa = await haeJson(`/api/kurssit?${params}`);
+      if (lataus !== kurssit_lataus || location.pathname !== "/kurssit") return;  // suodatin vaihtui / poistuttiin
+      kaikki_kurssit.push(...osa);
+      kurssit_kesken = osa.length === koko;
+      if (!kurssit_kesken || Date.now() - renderoity > KURSSIT_RENDER_VALI_MS) {
+        renderKurssit();
+        renderoity = Date.now();
+      }
+      if (!kurssit_kesken) return;
+    }
+  } catch (_) {
+    if (lataus !== kurssit_lataus) return;
+    kurssit_kesken = false;
+    renderKurssit();
+    document.getElementById("kurssit-lkm").textContent += " — lataus keskeytyi (yhteysvirhe)";
+  }
 }
 
 function renderKurssit() {
@@ -351,7 +401,7 @@ function renderKurssit() {
   const ryhmat = ryhmitaKurssit(suodatettu);
   const runko = document.getElementById("kurssit-rungot");
   const lkm = Object.keys(ryhmat).length;
-  document.getElementById("kurssit-lkm").textContent = `${lkm} kurssia`;
+  document.getElementById("kurssit-lkm").textContent = `${lkm} kurssia${kurssit_kesken ? " — ladataan lisää…" : ""}`;
   varustaJarjestys(document.querySelector("#s-kurssit thead"), kurssit_jarjestys, renderKurssit);
   runko.innerHTML = "";
   if (lkm === 0) {
@@ -551,18 +601,17 @@ async function renderTutkimusKonteksti(slug, alasivu) {
   const navTila = document.getElementById("tutkimus-nav-tila");
   navTila.classList.toggle("piilotettu", alasivu !== "kurssit");
 
+  // Näkymä näkyviin heti — data täyttyy perässä (huonolla yhteydellä sekunteja).
+  document.getElementById(`s-tutkimus-${alasivu}`)?.classList.add("aktiivinen");
+  sovitaAktiivisetOtsikot();
   if (alasivu === "tiedot") {
     renderTutkimusTiedot(aktiivinen_tutkimus);
-    document.getElementById("s-tutkimus-tiedot").classList.add("aktiivinen");
   } else if (alasivu === "kurssit") {
     await renderTutkimusKurssit(slug, aktiivinen_tutkimus.LuokittelunNimi);
-    document.getElementById("s-tutkimus-kurssit").classList.add("aktiivinen");
   } else if (alasivu === "arvioinnit") {
     await renderTutkimusArvioinnit(slug, aktiivinen_tutkimus.LuokittelunNimi);
-    document.getElementById("s-tutkimus-arvioinnit").classList.add("aktiivinen");
   } else if (alasivu === "raportti") {
     await renderTutkimusRaportti(slug, aktiivinen_tutkimus);
-    document.getElementById("s-tutkimus-raportti").classList.add("aktiivinen");
   }
 }
 
@@ -788,7 +837,8 @@ async function renderTutkimusKurssit(slug, nimi, sailyta = false) {
   if (!sailyta) {
     luokitus_suodatin = { kkid: null, taso: null, hakusana: null };
     luokitus_jarjestys = { sarake: null, suunta: null };
-    await rakennaSuodatinPalkki(
+    // Ei awaitia: palkin data (korkeakoulut, tasot) ei saa viivästää kurssilistaa.
+    rakennaSuodatinPalkki(
       document.getElementById("tutkimus-kurssit-suodatin"),
       luokitus_suodatin,
       () => { tutkimus_sivu = 0; paivitaLuokitusMaaratJaSivu(); },
@@ -1030,25 +1080,61 @@ window.paivitaArvioinnit = function () {
   }
 };
 
+// Arvioinnit ladataan osissa ja taulukko kasvaa sitä mukaa (huono yhteys: koko
+// data kerralla oli ~0,5 Mt). arvioinnit_lataus = käynnissä olevan latauksen tunniste.
+const ARVIOINNIT_OSA = 25;
+let arvioinnit_lataus = 0;
+let arvioinnit_kesken = false;
+
 async function renderTutkimusArvioinnit(slug, nimi, sailyta = false) {
+  // Pollaus ei keskeytä käynnissä olevaa latausta (muuten taulu jäisi vajaaksi).
+  if (sailyta && arvioinnit_kesken) return;
+  const lataus = ++arvioinnit_lataus;
   document.getElementById("tutkimus-arvioinnit-otsikko").textContent = `${nimi} — arvioinnit`;
-  arvioinnit_data = await fetch(`/api/tutkimukset/${slug}/arvioinnit`).then((r) => r.json());
   const sisalto = document.getElementById("tutkimus-arvioinnit-sisalto");
   const suodatinEl = document.getElementById("tutkimus-arvioinnit-suodatin");
 
-  if (!arvioinnit_data.kysymykset.length) {
-    document.getElementById("tutkimus-arvioinnit-lkm").textContent = "";
-    suodatinEl.innerHTML = "";
-    sisalto.innerHTML = '<p class="tulossa">Ei arviointikysymyksiä — lisää kysymyksiä tutkimukselle.</p>';
-    return;
-  }
-  // sailyta=true (pollaus): päivitä vain data, säilytä suodatinvalinta.
+  // sailyta=true (pollaus/tallennus): lataa hiljaa, vaihda data vasta valmiina,
+  // säilytä suodatinvalinta. Muuten tyhjä pöytä ja rivit näkyviin osa kerrallaan.
   if (!sailyta) {
+    arvioinnit_data = null;
     arvioinnit_suodatin = { kkid: null, taso: null, hakusana: null };
     arvioinnit_jarjestys = { sarake: null, suunta: null };
-    await rakennaSuodatinPalkki(suodatinEl, arvioinnit_suodatin, renderArvioinnitTaulu);
+    document.getElementById("tutkimus-arvioinnit-lkm").textContent = "";
+    sisalto.innerHTML = '<p class="tulossa">Ladataan arviointeja…</p>';
+    rakennaSuodatinPalkki(suodatinEl, arvioinnit_suodatin, renderArvioinnitTaulu);
   }
-  renderArvioinnitTaulu();
+  arvioinnit_kesken = true;
+  let koottu = null;
+  try {
+    for (let sivu = 0; ; sivu++) {
+      const osa = await haeJson(`/api/tutkimukset/${slug}/arvioinnit?sivu=${sivu}&koko=${ARVIOINNIT_OSA}`);
+      // Uudempi lataus ohitti, tai käyttäjä siirtyi muualle (älä kuluta kaistaa piilonäkymään).
+      if (lataus !== arvioinnit_lataus || jaaPolku().alasivu !== "arvioinnit") return;
+      if (!osa.kysymykset.length) {
+        arvioinnit_data = null;
+        document.getElementById("tutkimus-arvioinnit-lkm").textContent = "";
+        suodatinEl.innerHTML = "";
+        sisalto.innerHTML = '<p class="tulossa">Ei arviointikysymyksiä — lisää kysymyksiä tutkimukselle.</p>';
+        return;
+      }
+      koottu = koottu ? { ...osa, kurssit: koottu.kurssit.concat(osa.kurssit) } : osa;
+      const valmis = !osa.kurssit.length || koottu.kurssit.length >= osa.yhteensa;
+      if (valmis) arvioinnit_kesken = false;
+      if (valmis || !sailyta) {
+        arvioinnit_data = koottu;
+        renderArvioinnitTaulu();
+      }
+      if (valmis) return;
+    }
+  } catch (_) {
+    if (lataus === arvioinnit_lataus && !sailyta) {
+      document.getElementById("tutkimus-arvioinnit-lkm").textContent +=
+        " — lataus keskeytyi (yhteysvirhe), päivittyy automaattisesti";
+    }
+  } finally {
+    if (lataus === arvioinnit_lataus) arvioinnit_kesken = false;
+  }
 }
 
 function _arvioinnitSuodatetut() {
@@ -1066,6 +1152,7 @@ function _arvioinnitSuodatetut() {
 const ARVIOINTI_SARAKKEET = { Nimi: "nimi", Taso: "taso", op: "op" };
 
 function renderArvioinnitTaulu() {
+  if (!arvioinnit_data) return;  // suodatinmuutos ennen ensimmäistä osaa
   const { kysymykset } = arvioinnit_data;
   const kurssit = _arvioinnitSuodatetut();
   if (arvioinnit_jarjestys.sarake) {
@@ -1075,7 +1162,8 @@ function renderArvioinnitTaulu() {
   const lkm = document.getElementById("tutkimus-arvioinnit-lkm");
 
   const arvioitu = kurssit.filter((k) => k.vastaukset.some(_vastusOnAnnettu)).length;
-  lkm.textContent = `${arvioitu} / ${kurssit.length} kurssia arvioitu`;
+  lkm.textContent = `${arvioitu} / ${kurssit.length} kurssia arvioitu`
+    + (arvioinnit_kesken ? ` — ladattu ${arvioinnit_data.kurssit.length} / ${arvioinnit_data.yhteensa}…` : "");
 
   if (!kurssit.length) {
     sisalto.innerHTML = '<p class="tulossa">Ei kursseja suodatuksella.</p>';
@@ -1383,8 +1471,16 @@ function merkitsePaivitetty() {
   if (el) el.textContent = `Päivitetty ${aika}`;
 }
 
+// Hitaalla yhteydellä päivitys voi kestää yli välin → ei päällekkäisiä kierroksia.
+let paivitys_kaynnissa = false;
+
 async function paivitaNakyma() {
-  if (document.visibilityState !== "visible") return;
+  if (document.visibilityState !== "visible" || paivitys_kaynnissa) return;
+  paivitys_kaynnissa = true;
+  try { await _paivitaNakyma(); } finally { paivitys_kaynnissa = false; }
+}
+
+async function _paivitaNakyma() {
   const r = jaaPolku();
   try {
     if (r.sivu === "tutkimukset" && r.slug && aktiivinen_tutkimus) {
