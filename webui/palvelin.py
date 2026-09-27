@@ -130,6 +130,27 @@ _raportti_sessiot: dict[tuple, dict[str, dict]] = {}
 # avain = (tid, avain_str) → nykyinen tekstisisältö sessiossa
 _raportti_teksti: dict[tuple, str] = {}
 
+# Jaetut suodatinnäkymät (välilehdet): sivupolku → [{id, nimi, suodatin}].
+# ponytail: vain muistissa — katoavat palvelimen uudelleenkäynnistyksessä; kantaan jos pitää säilyä.
+_nakymat: dict[str, list[dict]] = {}
+_NAKYMIA_MAX = 30
+
+
+def _lisaa_nakyma(data: dict) -> bool:
+    """Validoi ja lisää asiakkaan luoma näkymä (luottamusraja: selain)."""
+    sivu, nid, nimi, suodatin = (data.get(k) for k in ("sivu", "id", "nimi", "suodatin"))
+    if not all(isinstance(x, str) and 0 < len(x) <= 200 for x in (sivu, nid, nimi)):
+        return False
+    if not isinstance(suodatin, dict) or len(suodatin) > 10 or not all(
+            isinstance(k, str) and (v is None or (isinstance(v, str) and len(v) <= 200))
+            for k, v in suodatin.items()):
+        return False
+    lista = _nakymat.setdefault(sivu, [])
+    if len(lista) >= _NAKYMIA_MAX or any(n["id"] == nid for n in lista):
+        return False
+    lista.append({"id": nid, "nimi": nimi[:40], "suodatin": suodatin})
+    return True
+
 
 async def _laheta_muokkaussessio(avain: tuple) -> None:
     if avain not in _muokkaussessiot:
@@ -189,6 +210,7 @@ async def ws_kayttajat(ws: WebSocket) -> None:
     _yhteydet[uid] = (ws, {})
     try:
         await ws.send_text(json.dumps({"tyyppi": "oma-id", "id": uid}))
+        await ws.send_text(json.dumps({"tyyppi": "nakymat", "data": _nakymat}))
         while True:
             data = await ws.receive_json()
             tyyppi = data.get("tyyppi")
@@ -203,6 +225,14 @@ async def ws_kayttajat(ws: WebSocket) -> None:
                         katkaistut.append(u)
                 for u in katkaistut:
                     _yhteydet.pop(u, None)
+            elif tyyppi == "nakyma-luo":
+                if _lisaa_nakyma(data):
+                    viesti = json.dumps({"tyyppi": "nakymat", "data": _nakymat})
+                    for _, (ws2, _) in list(_yhteydet.items()):
+                        try:
+                            await ws2.send_text(viesti)
+                        except Exception:
+                            pass
             elif tyyppi == "muokkaus-liity":
                 avain = (data.get("tid"), data.get("kid"), data.get("kysid"))
                 if avain not in _muokkaussessiot:

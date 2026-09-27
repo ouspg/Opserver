@@ -519,6 +519,25 @@ def test_ws_toimii_ilman_authia():
     assert viesti["tyyppi"] == "oma-id"
 
 
+
+def test_ws_suodatinnakyma_jaetaan_ja_validoidaan(monkeypatch):
+    # Suodatetut näkymävälilehdet ovat jaettua tilaa: luotu näkymä lähetetään
+    # kaikille ja uusille yhteyksille; roskasyöte hylätään.
+    monkeypatch.setattr(palvelin, "_nakymat", {})
+    with asiakas.websocket_connect("/ws") as ws:
+        assert ws.receive_json()["tyyppi"] == "oma-id"
+        assert ws.receive_json() == {"tyyppi": "nakymat", "data": {}}
+        ws.send_json({"tyyppi": "nakyma-luo", "sivu": "/kurssit",
+                      "id": "abc", "nimi": "OULU", "suodatin": {"kkid": "3", "taso": None}})
+        ws.send_json({"tyyppi": "nakyma-luo", "sivu": "/kurssit",
+                      "id": "x", "nimi": "paha", "suodatin": {"kkid": {"sisakkainen": 1}}})
+        viesti = ws.receive_json()
+    odotettu = {"/kurssit": [{"id": "abc", "nimi": "OULU", "suodatin": {"kkid": "3", "taso": None}}]}
+    assert viesti == {"tyyppi": "nakymat", "data": odotettu}
+    with asiakas.websocket_connect("/ws") as ws:
+        ws.receive_json()
+        assert ws.receive_json()["data"] == odotettu
+
 # --- Staattisten kyselyjen TTL-välimuisti ---
 
 def test_lukuvuodet_valimuistitetaan():
@@ -688,3 +707,18 @@ def test_api_kurssit_sivutettuna():
     with patch("webui.palvelin.mallit.hae_kurssit", return_value=rivit):
         data = asiakas.get("/api/kurssit?alku=2&koko=2").json()
     assert [k["KID"] for k in data] == [2, 3]
+def test_webui_skripteissa_ei_paallekkaisia_globaaleja_funktioita():
+    # Klassiset <script>-tiedostot jakavat globaalin näkyvyysalueen: myöhemmin
+    # ladatun tiedoston samanniminen funktio ylikirjoittaa aiemman hiljaa
+    # (raporttimuokkaus.js:n tallenna() kaappasi arvioinnin "Tallenna korjaus").
+    # Lohkoon ("{" heti "use strict":n jälkeen) kääritty tiedosto ei vuoda globaaleja.
+    import re
+    from pathlib import Path
+    nahdyt: dict[str, str] = {}
+    for polku in sorted(Path("webui/staattinen").glob("*.js")):
+        teksti = polku.read_text()
+        if re.match(r'"use strict";\s*(//[^\n]*\n\s*)*\{\n', teksti):
+            continue
+        for nimi in re.findall(r"^(?:async )?function (\w+)", teksti, re.M):
+            assert nimi not in nahdyt, f"{nimi}: {nahdyt[nimi]} ja {polku.name}"
+            nahdyt[nimi] = polku.name
