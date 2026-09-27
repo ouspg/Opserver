@@ -14,11 +14,14 @@ cat > "$TYOTILA/sudo" <<'EOF'
 exec "$@"
 EOF
 
-# Kontit ovat pystyssä, mutta WebUI ei vastaa (curl epäonnistuu) — juuri se
-# tilanne, jossa vanha vahtikoira restartoi myös terveen kannan.
+# CURL_TILA=alhaalla: WebUI ei vastaa (timeout) — tilanne, jossa vanha
+# vahtikoira restartoi myös terveen kannan. CURL_TILA=ylhaalla: Caddy vastaa,
+# mutta kuten oikea Caddy vain domainin SNI:llä (https://localhost/ -> TLS-virhe 35).
 cat > "$TYOTILA/curl" <<'EOF'
 #!/usr/bin/env bash
-exit 28   # timeout
+[[ "$CURL_TILA" == alhaalla ]] && exit 28
+[[ "$*" == *"--resolve esimerkki.fi:443:127.0.0.1"*"https://esimerkki.fi/"* ]] || exit 35
+printf 401
 EOF
 
 cat > "$TYOTILA/docker" <<'EOF'
@@ -35,6 +38,7 @@ EOF
 chmod +x "$TYOTILA"/{sudo,curl,docker}
 export PATH="$TYOTILA:$PATH"
 export RESTART_LOKI="$TYOTILA/restart.txt"
+export TUOTANTO_DOMAIN=esimerkki.fi CURL_TILA=alhaalla
 
 aja() {
     MYSQL_TERVEYS="$1" : > "$RESTART_LOKI"
@@ -58,5 +62,8 @@ tarkista() {  # tarkista <kuvaus> <odotettu> <saatu>
 echo "vahtikoira: kova restart"
 tarkista "terve mysql jätetään rauhaan" "caddy webui" "$(aja healthy)"
 tarkista "epäterve mysql restartataan"  "caddy webui mysql" "$(aja unhealthy)"
+
+echo "vahtikoira: terveystarkistus"
+tarkista "vastaava Caddy tulkitaan terveeksi" 0 "$(CURL_TILA=ylhaalla "$JUURI/vahtikoira" --hiljaa >/dev/null 2>&1; echo $?)"
 
 exit "$virheita"
