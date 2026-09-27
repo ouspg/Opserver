@@ -671,3 +671,20 @@ def test_api_raportti_tilastot_ihmisen_korjaus_voittaa_eika_tuplaa():
     k = data["kysymykset"][0]
     assert k["jakauma"] == {"matala": 1, "korkea": 1}
     assert k["yhteensa"] == 2
+
+
+def test_webui_skripteissa_ei_paallekkaisia_globaaleja_funktioita():
+    # Klassiset <script>-tiedostot jakavat globaalin näkyvyysalueen: myöhemmin
+    # ladatun tiedoston samanniminen funktio ylikirjoittaa aiemman hiljaa
+    # (raporttimuokkaus.js:n tallenna() kaappasi arvioinnin "Tallenna korjaus").
+    # Lohkoon ("{" heti "use strict":n jälkeen) kääritty tiedosto ei vuoda globaaleja.
+    import re
+    from pathlib import Path
+    nahdyt: dict[str, str] = {}
+    for polku in sorted(Path("webui/staattinen").glob("*.js")):
+        teksti = polku.read_text()
+        if re.match(r'"use strict";\s*(//[^\n]*\n\s*)*\{\n', teksti):
+            continue
+        for nimi in re.findall(r"^(?:async )?function (\w+)", teksti, re.M):
+            assert nimi not in nahdyt, f"{nimi}: {nahdyt[nimi]} ja {polku.name}"
+            nahdyt[nimi] = polku.name
