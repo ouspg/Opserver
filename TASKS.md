@@ -42,14 +42,13 @@ Ehdotettu korjaus (tarjottu, käyttäjä ei ehtinyt vastata "sopiiko?"):
 olemassaolon ja poistuu heti jos se löytyy — operaattori voi `touch`ata sen
 ennen manuaalista debuggausta ja poistaa jälkeenpäin.
 
-## 4. Tuotannon caddy jäi `Restarting`-tilaan asennusajon lopussa
+## 4. Tuotannon caddy jäi `Restarting`-tilaan asennusajon lopussa — SELVITETTY
 
-Havaittu esr-projectilla 2026-09-22 onnistuneen `./asenna`-ajon lopussa:
-tuloste päättyi riviin `⠇ Container opserver-caddy-1 Restarting`. Käyttäjä ei
-vahvistanut tilannetta jälkikäteen, joten on auki jäikö caddy kiertämään
-restart-silmukkaan (ks. [[Caddy-ACME-ansa]], PR #13). Tarkistus:
-`sudo docker compose ps` + `sudo docker compose logs caddy`. Jos WebUI vastaa
-HTTPS:llä, tämä voi olla pelkkä ohimenevä tila asennuksen restart-komennosta.
+`Restarting` on pelkkä `docker compose restart caddy` -komennon tuloste.
+Todellinen vika (2026-09-27): `asenna`:n lopputarkistus ("WebUI ei vastannut
+60 s") epäonnistui aina, koska vahtikoira curlasi `https://localhost/` ja
+Caddylla on sertti vain domainille (TLS exit 35). Korjattu PR #34:ssä. Sulje,
+kun #34 on yhdistetty — ks. kohta 6.
 
 ## 5. Monilauseinen migraatio katkeaa ensimmäiseen duplikaattiin — loput lauseet jäävät hiljaa ajamatta
 
@@ -61,3 +60,23 @@ jäävät ajamatta vaikka ne olisivat oikeasti tarpeen. Tämä nähtiin
 Seuraukset havaitaan nyt `./testit/skeematarkistus.sh`:lla, mutta itse ansaa
 ei ole poistettu. Vaihtoehto: aja migraatiot `mysql --force`:lla ja päätä
 vasta kaikkien lauseiden virheistä, onko tiedosto oikeasti sovellettu.
+
+## 6. Tarkista tuotannon vahtikoira.log: restartoiko cron caddy+webui 10 min välein?
+
+Ennen PR #34:ää vahtikoiran terveystarkistus (`https://localhost/`) ei voinut
+koskaan onnistua, joten cronin pitäisi olla tehnyt kova restart caddylle ja
+webuille ~10 min välein asennuksesta lähtien (katkoksia käyttäjille, turhia
+Caddy-restartteja). Ei vahvistettu. Tarkistus tuotannossa:
+`grep -c restart ~/Opserver/vahtikoira.log`. #34:n jälkeen rivejä ei pitäisi
+enää tulla.
+
+## 7. pura_vastaus: jäljellä olevat jäsennysaukot (hypoteesi, ei havaittu)
+
+Tuotannon raaka-JSON-rivit (esr_kyber) korjattiin 2026-09-27 (PR #31 + #35,
+viimeiset 6 päättyivät `},`). Kaksi mahdollista aukkoa jäi, dataa ei nähty:
+- `vapaa_teksti`-kysymys, jolle malli palauttaa objektin → `str(raw)` tallentaa
+  Python-reprin (`{'perustelu': ...}`), joka ei ole JSONia eikä korjaannu.
+- `hae_raakana_tallennetut_vastaukset` hakee `LIKE '{%'`, joten tyhjällä tai
+  ```` ```json ````-aidalla alkava rivi ei löydy korjaustoiminnolle.
+Tarkistus: `./db "... WHERE v.Vastaus LIKE '%perustelu%'"` (ks. #35:n keskustelu).
+Jos rivejä löytyy, korjaa `pura_vastaus` + testi.
