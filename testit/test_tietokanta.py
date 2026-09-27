@@ -765,6 +765,16 @@ class TestHitlKorjaus:
         assert "UPDATE" in update_sql.upper()
         assert "Kurssiluokitus" in update_sql
 
+    def test_tallenna_hitl_korjaus_on_idempotentti(self, mock_yhteys):
+        """WebUI lähettää pyynnön uudelleen jos vastaus katoaa → sama korjaus ei
+        saa tuplata historiariviä (vääristäisi HITL-tilastot)."""
+        yht, kursori = mock_yhteys
+        mallit.tallenna_hitl_korjaus(tid=2, kid=9, uusi_tila=True, perustelu="p",
+                                     nimi="Liisa", sahkoposti="l@e.fi")
+        sql, params = kursori.execute.call_args_list[0][0]
+        assert "NOT EXISTS" in sql and "ORDER BY HID DESC LIMIT 1" in sql
+        assert params[7:] == (2, 9, True, "p", "Liisa")
+
     def test_tallenna_hitl_korjaus_valittaa_oikeat_parametrit(self, mock_yhteys):
         yht, kursori = mock_yhteys
         mallit.tallenna_hitl_korjaus(
@@ -773,8 +783,8 @@ class TestHitlKorjaus:
             juurisyy="riittamaton_opas",
         )
         insert_params = kursori.execute.call_args_list[0][0][1]
-        assert insert_params == (2, 9, True, "Sopii hyvin", "Liisa", "liisa@esim.fi",
-                                 "riittamaton_opas")
+        assert insert_params[:7] == (2, 9, True, "Sopii hyvin", "Liisa", "liisa@esim.fi",
+                                     "riittamaton_opas")
         update_params = kursori.execute.call_args_list[1][0][1]
         assert update_params == (True, 2, 9)
 
@@ -786,7 +796,7 @@ class TestHitlKorjaus:
             perustelu="x", nimi="N", sahkoposti="n@esim.fi",
         )
         insert_params = kursori.execute.call_args_list[0][0][1]
-        assert insert_params[-1] is None
+        assert insert_params[6] is None
 
     def test_JUURISYYT_sisaltaa_kaksi_taksonomia_arvoa(self):
         assert set(mallit.JUURISYYT) == {"riittamaton_opas", "llm_virhe"}
