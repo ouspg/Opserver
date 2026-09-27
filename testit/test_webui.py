@@ -673,6 +673,40 @@ def test_api_raportti_tilastot_ihmisen_korjaus_voittaa_eika_tuplaa():
     assert k["yhteensa"] == 2
 
 
+# --- Osittainen lataus (huono yhteys): gzip + sivutus ---
+
+def test_json_vastaus_pakataan_gzipilla():
+    koulut = [{"KKID": i, "KouluNimi": f"Koulu {i}", "OpsOsoite": "https://esim.fi", "OpsTyyppi": "Peppi"}
+              for i in range(100)]
+    with patch("webui.palvelin.mallit.hae_korkeakoulut", return_value=koulut), \
+         patch("webui.palvelin.mallit.hae_kurssimaarat_kouluittain", return_value={}):
+        vastaus = asiakas.get("/api/korkeakoulut", headers={"Accept-Encoding": "gzip"})
+    assert vastaus.headers.get("content-encoding") == "gzip"
+    assert len(vastaus.json()) == 100
+
+
+def test_api_tutkimus_arvioinnit_sivutettuna():
+    # sivu/koko → SQL-rajaus (LIMIT/OFFSET) + yhteensa; vastaukset vain sivun kursseille.
+    toinen = {**KURSSI_MUKANA, "KID": 2, "KurssiNimi": "Toinen"}
+    vastaukset = [{"VasID": n, "KysID": 10, "KID": n, "Vastaus": f"v{n}", "Malli": "m"} for n in (1, 2)]
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.hae_kysymykset", return_value=[KYSYMYS]), \
+         patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[toinen]) as valitut, \
+         patch("webui.palvelin.mallit.laske_valitut_kurssit", return_value=2), \
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=vastaukset), \
+         patch("webui.palvelin.mallit.hae_hitl_vastaukset", return_value=[]):
+        data = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit?sivu=1&koko=1").json()
+    valitut.assert_called_once_with(TUTKIMUS["TID"], raja=1, siirto=1)
+    assert data["yhteensa"] == 2
+    assert [k["KID"] for k in data["kurssit"]] == [2]
+    assert data["kurssit"][0]["vastaukset"][0]["vastaus"] == "v2"
+
+
+def test_api_kurssit_sivutettuna():
+    rivit = [{**KURSSI, "KID": n} for n in range(5)]
+    with patch("webui.palvelin.mallit.hae_kurssit", return_value=rivit):
+        data = asiakas.get("/api/kurssit?alku=2&koko=2").json()
+    assert [k["KID"] for k in data] == [2, 3]
 def test_webui_skripteissa_ei_paallekkaisia_globaaleja_funktioita():
     # Klassiset <script>-tiedostot jakavat globaalin näkyvyysalueen: myöhemmin
     # ladatun tiedoston samanniminen funktio ylikirjoittaa aiemman hiljaa
