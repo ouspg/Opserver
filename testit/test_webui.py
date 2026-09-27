@@ -519,6 +519,25 @@ def test_ws_toimii_ilman_authia():
     assert viesti["tyyppi"] == "oma-id"
 
 
+
+def test_ws_suodatinnakyma_jaetaan_ja_validoidaan(monkeypatch):
+    # Suodatetut näkymävälilehdet ovat jaettua tilaa: luotu näkymä lähetetään
+    # kaikille ja uusille yhteyksille; roskasyöte hylätään.
+    monkeypatch.setattr(palvelin, "_nakymat", {})
+    with asiakas.websocket_connect("/ws") as ws:
+        assert ws.receive_json()["tyyppi"] == "oma-id"
+        assert ws.receive_json() == {"tyyppi": "nakymat", "data": {}}
+        ws.send_json({"tyyppi": "nakyma-luo", "sivu": "/kurssit",
+                      "id": "abc", "nimi": "OULU", "suodatin": {"kkid": "3", "taso": None}})
+        ws.send_json({"tyyppi": "nakyma-luo", "sivu": "/kurssit",
+                      "id": "x", "nimi": "paha", "suodatin": {"kkid": {"sisakkainen": 1}}})
+        viesti = ws.receive_json()
+    odotettu = {"/kurssit": [{"id": "abc", "nimi": "OULU", "suodatin": {"kkid": "3", "taso": None}}]}
+    assert viesti == {"tyyppi": "nakymat", "data": odotettu}
+    with asiakas.websocket_connect("/ws") as ws:
+        ws.receive_json()
+        assert ws.receive_json()["data"] == odotettu
+
 # --- Staattisten kyselyjen TTL-välimuisti ---
 
 def test_lukuvuodet_valimuistitetaan():
