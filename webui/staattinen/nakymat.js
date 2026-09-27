@@ -19,7 +19,7 @@ function _sivunNakymat() {
 }
 
 function _renderNakymaNauha() {
-  if (!_nakymaKonf) return;
+  if (!_nakymaKonf || window.lahetyksiaKesken) return;  // ei korvata animoitua nappia
   const vanha = _nakymaKonf.otsikko.parentNode.querySelector(".nakyma-nauha");
   const nauha = document.createElement("div");
   nauha.className = "nakyma-nauha";
@@ -64,15 +64,23 @@ async function valitseNakyma(id) {
   await _nakymaKonf.aseta(v ? { ...v.suodatin } : {});
 }
 
-function luoNakyma() {
+async function luoNakyma(e) {
+  const nappi = e.currentTarget;  // null awaitin jälkeen
   const suodatin = _nakymaKonf.lue();
   const pohja = _nakymaKonf.nimea(suodatin) || "Kaikki";
   const samoja = _sivunNakymat().filter((n) => n.nimi === pohja || n.nimi.startsWith(`${pohja} (`)).length;
   const nimi = samoja ? `${pohja} (${samoja + 1})` : pohja;
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const uusi = { id, nimi, suodatin };
-  (_jaetutNakymat[_nakymaSivu] ||= []).push(uusi);  // heti näkyviin; palvelin vahvistaa broadcastilla
-  window.lahetaWs?.({ tyyppi: "nakyma-luo", sivu: _nakymaSivu, ...uusi });
+  try {
+    await lahetaNapilla(nappi, "/api/nakymat", { sivu: _nakymaSivu, ...uusi });
+  } catch (virhe) {
+    nappi.textContent = `Virhe: ${virhe.message}`;
+    return;
+  }
+  // Palvelimen broadcast tuo saman näkymän; lisää heti, ettei valinta odota sitä.
+  const lista = (_jaetutNakymat[_nakymaSivu] ||= []);
+  if (!lista.some((n) => n.id === id)) lista.push(uusi);
   _valittuNakyma = id;
   _renderNakymaNauha();
   window.lahetaTilaNyt?.();
