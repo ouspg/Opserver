@@ -93,13 +93,24 @@ WebUI:n esittely yleisölle (seminaari-lähiverkko ja etäkokous-Tailscale Funne
 - **`./db "SQL"`** — ajaa tietokantakyselyn lukien kirjautumistiedot `.env`:stä
 - **`docker compose up -d`** — käynnistää MySQL + WebUI kontit
 - **`docker compose build webui && docker compose up -d webui`** — pakollinen webui-koodimuutosten jälkeen
-- **WebUI JS/CSS versiointi:** kun muutat `sovellus.js` tai `tyyli.css`, kasvata `?v=N`-numeroa `index.html`:ssä
+- **WebUI JS/CSS versiointi:** kun muutat mitä tahansa `webui/staattinen/`-tiedostoa, kasvata sen `?v=N`-numeroa `index.html`:ssä. Kaksi rinnakkaista PR:ää nostaa helposti saman numeron — toisena yhdistettävässä nosta vielä kerran
 - **`./testit/skeematarkistus.sh`** — vertaa ajossa olevan kannan skeemaa tavoiteskeemaan (`testit/fixtures/tavoiteskeema.sql`); aja asennuksen tai migraatioiden jälkeen
 - **`./testit/migraatiotesti.sh`** — ajaa migraatioketjun kertakäyttökontissa vanhasta skeemasta ja vaatii saman lopputuloksen kuin tuore asennus (vaatii Dockerin, ei muuta ympäristöä)
 - **`./testit/savutesti.sh`** — savutesti: varmistaa, että MySQL + WebUI-kontit vastaavat oikein (olettaa konttien olevan käynnissä)
 - **`./asenna`** — tuotantoasennus tuoreelle koneelle (vain Docker + curl tarvitaan alkuun): asentaa python3-venvin pipelinelle, rakentaa/käynnistää Docker-pinon (MySQL + WebUI + Caddy 443:ssa, Let's Encrypt TLS-ALPN-01), ajaa tietokantamigraatiot ja todentaa skeeman (`skeematarkistus.sh`; keskeytyy jos kanta ei vastaa tavoitetta), asentaa `vahtikoira`-cronin. Idempotentti — uudelleenajo on turvallista. Vaatii `.env`:iin `TUOTANTO_DOMAIN`:in etukäteen.
 - **`./vahtikoira`** — cron-terveystarkistus tuotannolle (asennetaan `asenna`:n toimesta, ajaa minuutin välein): käynnistää pysähtyneet kontit; kova `docker compose restart` vasta 10 min yhtäjaksoisen epäkunnon jälkeen (ei keskeytä Caddyn ACME-sertifikaatin hakua). Kova restart koskee vain `caddy`- ja `webui`-kontteja — mysql restartataan vain jos se on itse epäterve, koska kannan katkaisu kaataa kesken olevan pipeline-ajon
 - **`./testit/vahtikoiratesti.sh`** — varmistaa stub-dockerilla, ettei vahtikoira restartoi tervettä mysqliä (ei vaadi Dockeria)
+
+## WebUI-käytännöt (huono yhteys + yhteisöllinen annotointi)
+
+WebUI:ta käytetään yhteisöllisissä sessioissa usein huonolla, katkeilevalla yhteydellä. Uusi koodi noudattaa samoja rakennuspalikoita:
+
+- **Datan haku:** `haeJson(url)` (`sovellus.js`) — yrittää uudelleen verkkovirheessä/5xx. Isot listat sivutetaan palvelimella (`?sivu&koko` / `?alku&koko`) ja renderöidään osa kerrallaan; näkymä ja otsikko näytetään heti, data täyttyy perässä. Palvelin pakkaa vastaukset (gzip).
+- **Käyttäjän toimenpide (tallentava nappi):** aina `lahetaNapilla(nappi, url, runko)` (`lahetys.js`) — lähetys-/odotusanimaatio ja automaattinen uudelleenlähetys. Siksi **jokaisen kirjoittavan API-käsittelijän on oltava idempotentti** (upsert, "jo olemassa = onnistui", ei tuplarivejä historiatauluihin). Ei tallennuksia WebSocketin kautta ilman kuittausta.
+- **Korjausmodaali (HITL):** jaettu lomake `avaaLomakesessio(avain, modaali, …)` (`lomakesessio.js`): kentät `data-jaettu="…"`, modaalin avaava nappi `data-lomake="<avain>"`. Muut näkevät avoimen lomakkeen napin kohdalla ja voivat liittyä siihen.
+- **Läsnäolo:** kaikki "missä käyttäjä on" -tieto kulkee `yhteistyo.js`:n `lahetaTila()`-objektissa (sivu, nakyma, tila, lomake) → muiden pallurat oikeaan kohtaan. Uusi sijaintitaso = uusi kenttä siihen.
+- **Klassiset skriptit jakavat globaalin näkyvyysalueen:** kääri modaalitiedostot lohkoon ja vie ulos vain `window.*` (testi estää päällekkäiset globaalit funktiot).
+- **Todenna selaimella ennen PR:ää:** headless-Chromium tuotantokokoista paikallista kantaa vasten, useampi käyttäjä = eri browser context; verkkokatkos/hitaus CDP:n verkkoemulaatiolla.
 
 ## Vaiheiden valmistumiskriteerit
 
