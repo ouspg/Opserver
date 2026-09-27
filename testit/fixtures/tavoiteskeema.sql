@@ -68,6 +68,8 @@
   `Erakoko` int NOT NULL
   `Erakoko` int NOT NULL
   `HID` int NOT NULL AUTO_INCREMENT
+  `HyvaksyjaNimi` varchar(255) DEFAULT NULL
+  `HyvaksyjaSahkoposti` varchar(255) DEFAULT NULL
   `Juurisyy` varchar(32) DEFAULT NULL
   `Juurisyy` varchar(32) DEFAULT NULL
   `KAID` int NOT NULL AUTO_INCREMENT
@@ -82,6 +84,7 @@
   `KKID` int NOT NULL
   `KKID` int NOT NULL AUTO_INCREMENT
   `KLID` int NOT NULL AUTO_INCREMENT
+  `KayttajaNimi` varchar(255) DEFAULT NULL
   `KayttajaNimi` varchar(255) NOT NULL
   `KayttajaNimi` varchar(255) NOT NULL DEFAULT ''
   `Kehotetiiviste` varchar(64) DEFAULT NULL
@@ -130,6 +133,7 @@
   `Pisteet` float DEFAULT NULL
   `RID` int NOT NULL AUTO_INCREMENT
   `Raportointikehote` text
+  `Sahkoposti` varchar(255) DEFAULT NULL
   `Sahkoposti` varchar(255) NOT NULL
   `Sahkoposti` varchar(255) NOT NULL DEFAULT ''
   `Signatuuri` varchar(64) DEFAULT NULL

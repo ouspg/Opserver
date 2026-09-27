@@ -507,6 +507,7 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
             "pisteet": v.get("Pisteet"),
             "lista": v.get("Lista"),
             "vanhentunut": on_vastaus and v.get("Kehotetiiviste") != nyky_tiiviste.get(v["KysID"]),
+            "hyvaksyja": v.get("HyvaksyjaNimi"),  # ei sähköpostia: WebUI on julkinen
         }
 
     # Ihmisen korjaukset omaan karttaansa: WebUI näyttää korjatun arvon ja kertoo
@@ -528,7 +529,8 @@ def api_tutkimus_arvioinnit(slug: str) -> dict:
         }
 
     kys_idt = [k["KysID"] for k in kysymykset]
-    tyhjä_vastaus = {"vastaus": "", "luokka": None, "pisteet": None, "lista": None, "vanhentunut": False}
+    tyhjä_vastaus = {"vastaus": "", "luokka": None, "pisteet": None, "lista": None,
+                     "vanhentunut": False, "hyvaksyja": None}
     return {
         "kysymykset": [
             {
@@ -578,6 +580,37 @@ def api_hitl_korjaus(slug: str, kid: int, pyynto: HitlPyynto) -> dict:
         tutkimus["TID"], kid, pyynto.uusi_tila,
         pyynto.perustelu, pyynto.nimi, pyynto.sahkoposti, pyynto.juurisyy,
     )
+    return {"ok": True}
+
+
+class HyvaksyntaPyynto(BaseModel):
+    nimi: str
+    sahkoposti: str = ""
+
+
+@sovellus.post("/api/tutkimukset/{slug}/kurssit/{kid}/hyvaksy")
+def api_hyvaksy_luokitus(slug: str, kid: int, pyynto: HyvaksyntaPyynto) -> dict:
+    """Peukutus: LLM:n mukaan ottama kurssi merkitään ihmisen hyväksymäksi."""
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    nimi = pyynto.nimi.strip()
+    if not nimi:
+        raise HTTPException(status_code=400, detail="Nimi puuttuu")
+    mallit.hyvaksy_luokitus(tutkimus["TID"], kid, nimi, pyynto.sahkoposti.strip())
+    return {"ok": True}
+
+
+@sovellus.post("/api/tutkimukset/{slug}/kurssit/{kid}/kysymykset/{kysid}/hyvaksy")
+def api_hyvaksy_vastaus(slug: str, kid: int, kysid: int, pyynto: HyvaksyntaPyynto) -> dict:
+    """Peukutus: LLM:n arviointivastaus merkitään ihmisen hyväksymäksi."""
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    nimi = pyynto.nimi.strip()
+    if not nimi:
+        raise HTTPException(status_code=400, detail="Nimi puuttuu")
+    mallit.hyvaksy_vastaus(tutkimus["TID"], kid, kysid, nimi, pyynto.sahkoposti.strip())
     return {"ok": True}
 
 

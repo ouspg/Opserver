@@ -418,8 +418,25 @@ def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "",
                    ON DUPLICATE KEY UPDATE
                        Vastaus = VALUES(Vastaus), Malli = VALUES(Malli),
                        Pisteet = VALUES(Pisteet), Luokka = VALUES(Luokka),
-                       Lista = VALUES(Lista), Kehotetiiviste = VALUES(Kehotetiiviste)""",
+                       Lista = VALUES(Lista), Kehotetiiviste = VALUES(Kehotetiiviste),
+                       HyvaksyjaNimi = NULL, HyvaksyjaSahkoposti = NULL""",
                 (kysid, kid, vastaus, malli or "", pisteet, luokka, lista_json, tiiviste, kysid),
+            )
+
+
+def hyvaksy_vastaus(tid: int, kid: int, kysid: int, nimi: str, sahkoposti: str | None) -> None:
+    """Ihminen hyväksyy (peukuttaa) LLM:n arviointivastauksen (migraatio_024).
+
+    Vain visuaalinen merkintä LLM-riville; HyvaksyjaNimi IS NULL = ei hyväksytty.
+    Oma sarake eikä KayttajaNimi, koska se kuuluu uniikkiavaimeen ja erottaa
+    LLM-rivin ('') ihmisten korjauksista.
+    """
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                """UPDATE Vastaukset SET HyvaksyjaNimi = %s, HyvaksyjaSahkoposti = %s
+                   WHERE TID = %s AND KID = %s AND KysID = %s AND Malli IS NOT NULL""",
+                (nimi, sahkoposti or None, tid, kid, kysid),
             )
 
 
@@ -720,7 +737,8 @@ def hae_kurssit_luokituksilla(tid: int, tila: str | None = None,
         with yht.cursor() as kursori:
             kursori.execute(
                 f"SELECT k.KID, k.KKID, k.LahdeId, k.KurssiNimi, k.Koodi, k.Taso, k.Oppiaine, "
-                f"k.Opintopisteet, k.Opetusvuosi, kl.Mukana, kl.Luokitteluperuste "
+                f"k.Opintopisteet, k.Opetusvuosi, kl.Mukana, kl.Luokitteluperuste, "
+                f"kl.KayttajaNimi AS Hyvaksyja "
                 f"FROM Kurssi k LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s "
                 f"WHERE {where}{tila_sql}{suod_sql}{jarj_sql}{raja_sql}",
                 (tid, *params, *suod_params, *raja_params),
@@ -751,8 +769,26 @@ def aseta_luokitus(tid: int, kid: int, mukana: bool | None, perustelu: str,
                    VALUES (%s, %s, %s, %s, %s, %s)
                    ON DUPLICATE KEY UPDATE Mukana = VALUES(Mukana),
                        Luokitteluperuste = VALUES(Luokitteluperuste), Malli = VALUES(Malli),
-                       Kehotetiiviste = VALUES(Kehotetiiviste)""",
+                       Kehotetiiviste = VALUES(Kehotetiiviste),
+                       KayttajaNimi = NULL, Sahkoposti = NULL""",
                 (tid, kid, mukana, perustelu, malli, tiiviste),
+            )
+
+
+def hyvaksy_luokitus(tid: int, kid: int, nimi: str, sahkoposti: str | None) -> None:
+    """Ihminen hyväksyy (peukuttaa) mukaan otetun kurssin luokittelupäätöksen.
+
+    Vain visuaalinen merkintä: Mukana ei muutu. KayttajaNimi IS NULL = ei
+    hyväksytty. Hylättyyn kurssiin ei osu (no-op) — hylättyjä ei hyväksytä.
+    Ei rowcount-tarkistusta: mysql-connector laskee vain muuttuneet rivit, joten
+    saman nimen uusi hyväksyntä näyttäisi epäonnistuneelta.
+    """
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                """UPDATE Kurssiluokitus SET KayttajaNimi = %s, Sahkoposti = %s
+                   WHERE TID = %s AND KID = %s AND Mukana = 1""",
+                (nimi, sahkoposti or None, tid, kid),
             )
 
 
