@@ -214,18 +214,9 @@ async function tallenna() {
   virhe.textContent = "";
 
   try {
-    const vastaus = await fetch(
-      `/api/tutkimukset/${_slug}/kurssit/${_kid}/kysymykset/${_kysid}/korjaus`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...runko, nimi, sahkoposti, juurisyy }),
-      });
-    if (!vastaus.ok) {
-      const data = await vastaus.json().catch(() => ({}));
-      virhe.textContent = "Tallennus ei onnistunut: " + (data.detail || vastaus.status);
-      return;
-    }
+    await lahetaNapilla(document.getElementById("arviointimuokkaus-tallenna"),
+                        `/api/tutkimukset/${_slug}/kurssit/${_kid}/kysymykset/${_kysid}/korjaus`,
+                        { ...runko, nimi, sahkoposti, juurisyy });
   } catch (e) {
     virhe.textContent = "Tallennus ei onnistunut: " + e.message;
     return;

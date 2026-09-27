@@ -973,14 +973,22 @@ def tallenna_hitl_korjaus(tid: int, kid: int, uusi_tila: bool, perustelu: str,
     """Tallentaa ihmisen tekemän luokittelun ohituksen ja päivittää Kurssiluokitus.Mukana.
 
     juurisyy: virhetaksonomian koodi (ks. JUURISYYT) tai None, jos merkitsemättä.
+    Idempotentti: WebUI lähettää pyynnön uudelleen jos vastaus katoaa, joten
+    historiariviä ei lisätä jos kurssin viimeisin korjaus on täsmälleen sama.
     """
     with yhteys() as yht:
         with yht.cursor() as kursori:
             kursori.execute(
                 """INSERT INTO HitlKorjaus
                        (TID, KID, UusiTila, Perustelu, KayttajaNimi, Sahkoposti, Juurisyy)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-                (tid, kid, uusi_tila, perustelu, nimi, sahkoposti, juurisyy),
+                   SELECT %s, %s, %s, %s, %s, %s, %s FROM DUAL
+                   WHERE NOT EXISTS (
+                       SELECT 1 FROM (SELECT UusiTila, Perustelu, KayttajaNimi FROM HitlKorjaus
+                                      WHERE TID = %s AND KID = %s ORDER BY HID DESC LIMIT 1) viimeisin
+                       WHERE viimeisin.UusiTila = %s AND viimeisin.Perustelu = %s
+                             AND viimeisin.KayttajaNimi = %s)""",
+                (tid, kid, uusi_tila, perustelu, nimi, sahkoposti, juurisyy,
+                 tid, kid, uusi_tila, perustelu, nimi),
             )
             kursori.execute(
                 "UPDATE Kurssiluokitus SET Mukana = %s WHERE TID = %s AND KID = %s",

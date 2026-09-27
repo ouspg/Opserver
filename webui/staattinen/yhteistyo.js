@@ -364,10 +364,6 @@ window.lahetaRaporttiTeksti = function (tid, avain, teksti, kursori) {
   ws.send(JSON.stringify({ tyyppi: "raportti-teksti", tid, avain, teksti, kursori }));
 };
 
-window.tallennRaporttiOsio = function (tid, avain, teksti) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ tyyppi: "raportti-tallenna", tid, avain, teksti }));
-};
 
 // --- Nav-indikaattorit ---
 
@@ -482,9 +478,6 @@ function lahetaTila() {
 }
 
 window.lahetaTilaNyt = () => lahetaTila();
-window.lahetaWs = (viesti) => {
-  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(viesti));
-};
 
 function yhdista() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";

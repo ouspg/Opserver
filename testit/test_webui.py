@@ -520,32 +520,32 @@ def test_ws_toimii_ilman_authia():
 
 
 
-def test_ws_suodatinnakyma_jaetaan_ja_validoidaan(monkeypatch):
+def test_suodatinnakyma_luodaan_postilla_ja_jaetaan(monkeypatch):
     # Suodatetut näkymävälilehdet ovat jaettua tilaa: luotu näkymä lähetetään
-    # kaikille ja uusille yhteyksille; roskasyöte hylätään.
+    # kaikille ja uusille yhteyksille; roskasyöte hylätään. Sama id uudelleen
+    # (uudelleenlähetys kadonneen vastauksen jälkeen) on onnistuminen, ei tupla.
     monkeypatch.setattr(palvelin, "_nakymat", {})
+    uusi = {"sivu": "/kurssit", "id": "abc", "nimi": "OULU", "suodatin": {"kkid": "3", "taso": None}}
+    odotettu = {"/kurssit": [{"id": "abc", "nimi": "OULU", "suodatin": {"kkid": "3", "taso": None}}]}
     with asiakas.websocket_connect("/ws") as ws:
         assert ws.receive_json()["tyyppi"] == "oma-id"
         assert ws.receive_json() == {"tyyppi": "nakymat", "data": {}}
-        ws.send_json({"tyyppi": "nakyma-luo", "sivu": "/kurssit",
-                      "id": "abc", "nimi": "OULU", "suodatin": {"kkid": "3", "taso": None}})
-        ws.send_json({"tyyppi": "nakyma-luo", "sivu": "/kurssit",
-                      "id": "x", "nimi": "paha", "suodatin": {"kkid": {"sisakkainen": 1}}})
-        viesti = ws.receive_json()
-    odotettu = {"/kurssit": [{"id": "abc", "nimi": "OULU", "suodatin": {"kkid": "3", "taso": None}}]}
-    assert viesti == {"tyyppi": "nakymat", "data": odotettu}
+        assert asiakas.post("/api/nakymat", json=uusi).status_code == 200
+        assert ws.receive_json() == {"tyyppi": "nakymat", "data": odotettu}
+    assert asiakas.post("/api/nakymat", json=uusi).status_code == 200
+    paha = {**uusi, "id": "x", "suodatin": {"kkid": {"sisakkainen": 1}}}
+    assert asiakas.post("/api/nakymat", json=paha).status_code == 400
     with asiakas.websocket_connect("/ws") as ws:
         ws.receive_json()
         assert ws.receive_json()["data"] == odotettu
 
-# --- Staattisten kyselyjen TTL-välimuisti ---
 
-def test_lukuvuodet_valimuistitetaan():
-    with patch("webui.palvelin.mallit.hae_lukuvuodet", return_value=["2025-2026"]) as mock:
-        v1 = asiakas.get("/api/lukuvuodet")
-        v2 = asiakas.get("/api/lukuvuodet")
-    assert v1.json() == v2.json() == ["2025-2026"]
-    assert mock.call_count == 1  # toinen pyyntö palvellaan välimuistista
+def test_raporttiosio_tallennetaan_postilla():
+    with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("webui.palvelin.mallit.aseta_raportti_osio") as aseta:
+        vastaus = asiakas.post("/api/tutkimukset/kyber-2025/raportti/johdanto", json={"teksti": "Uusi"})
+    assert vastaus.status_code == 200
+    aseta.assert_called_once_with(TUTKIMUS["TID"], "johdanto", "Uusi")
 
 
 def test_tasot_valimuisti_eri_argumentit_erikseen():

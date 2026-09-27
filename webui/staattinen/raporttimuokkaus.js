@@ -59,14 +59,21 @@ function lahetaTeksti(ta) {
   }, RAPORTTI_LAHETYS_VALI_MS);
 }
 
-function tallenna() {
+async function tallenna() {
   const ta = document.getElementById("raporttimuokkaus-tekstialue");
   if (_rtid === null) return;
   const teksti = ta.value;
-  window.tallennRaporttiOsio?.(_rtid, _ravain, teksti);
+  const avain = _ravain;
+  try {
+    await lahetaNapilla(document.getElementById("raporttimuokkaus-tallenna"),
+                        `/api/tutkimukset/${aktiivinen_tutkimus.Slug}/raportti/${avain}`, { teksti });
+  } catch (e) {
+    document.getElementById("raporttimuokkaus-tallenna").textContent = `Virhe: ${e.message}`;
+    return;
+  }
 
   // Päivitä osion teksti näkymässä heti
-  const osioDiv = document.querySelector(`.raportti-osio[data-avain="${_ravain}"]`);
+  const osioDiv = document.querySelector(`.raportti-osio[data-avain="${avain}"]`);
   if (osioDiv) {
     const tekstiDiv = osioDiv.querySelector(".raportti-osio-teksti");
     if (tekstiDiv) {

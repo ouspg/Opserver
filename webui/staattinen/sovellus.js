@@ -756,53 +756,30 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
   localStorage.setItem("hitl_sahkoposti", sahkoposti);
 
   const nappi = document.getElementById("hitl-laheta");
-  const alkuperainenTeksti = nappi.textContent;
-  nappi.disabled = true;
-  nappi.textContent = "Tallennetaan...";
-
   try {
-    const vastaus = await fetch(
-      `/api/tutkimukset/${aktiivinen_tutkimus.Slug}/kurssit/${hitl_kid}/hitl`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uusi_tila: hitl_uusi_tila, perustelu, nimi, sahkoposti, juurisyy }),
-      }
-    );
-    if (!vastaus.ok) throw new Error("Virhe tallennuksessa");
-    document.getElementById("hitl-modaali").classList.add("piilotettu");
-    const toiminto = hitl_uusi_tila ? "sisällytti" : "poisti";
-    const tutkimusNimi = aktiivinen_tutkimus?.LuokittelunNimi || aktiivinen_tutkimus?.Slug || "";
-    window.lahetaUutinen?.(`${window.omaNimimerkki?.()} ${toiminto} kurssin "${hitl_kurssiniimi}" tutkimuksesta ${tutkimusNimi}`);
-    await renderTutkimusKurssit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
-  } catch (_) {
-    nappi.textContent = "Virhe — yritä uudelleen";
-    nappi.disabled = false;
+    await lahetaNapilla(nappi, `/api/tutkimukset/${aktiivinen_tutkimus.Slug}/kurssit/${hitl_kid}/hitl`,
+                        { uusi_tila: hitl_uusi_tila, perustelu, nimi, sahkoposti, juurisyy });
+  } catch (e) {
+    nappi.textContent = `Virhe: ${e.message} — yritä uudelleen`;
     return;
   }
-  nappi.textContent = alkuperainenTeksti;
-  nappi.disabled = false;
+  document.getElementById("hitl-modaali").classList.add("piilotettu");
+  const toiminto = hitl_uusi_tila ? "sisällytti" : "poisti";
+  const tutkimusNimi = aktiivinen_tutkimus?.LuokittelunNimi || aktiivinen_tutkimus?.Slug || "";
+  window.lahetaUutinen?.(`${window.omaNimimerkki?.()} ${toiminto} kurssin "${hitl_kurssiniimi}" tutkimuksesta ${tutkimusNimi}`);
+  await renderTutkimusKurssit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
 });
 
 // Peukutus (luokitus tai arviointivastaus): nimi HITL-lomakkeelta muistetusta,
 // muuten yhteistyöprofiilin anonyymi nimimerkki (Anonyymi_Otus_123);
 // sähköposti vain jos tiedossa. polku = "<kid>" tai "<kid>/kysymykset/<kysid>".
 async function lahetaHyvaksynta(nappi, polku, kohde) {
-  nappi.disabled = true;
   const nimi = hitl_nimi || window.omaNimimerkki?.() || "Anonyymi";
   try {
-    const vastaus = await fetch(
-      `/api/tutkimukset/${aktiivinen_tutkimus.Slug}/kurssit/${polku}/hyvaksy`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nimi, sahkoposti: hitl_sahkoposti }),
-      }
-    );
-    if (!vastaus.ok) throw new Error("Virhe tallennuksessa");
+    await lahetaNapilla(nappi, `/api/tutkimukset/${aktiivinen_tutkimus.Slug}/kurssit/${polku}/hyvaksy`,
+                        { nimi, sahkoposti: hitl_sahkoposti });
   } catch (_) {
     nappi.textContent = "Virhe";
-    nappi.disabled = false;
     return false;
   }
   const tutkimusNimi = aktiivinen_tutkimus?.LuokittelunNimi || aktiivinen_tutkimus?.Slug || "";
@@ -1525,7 +1502,7 @@ function merkitsePaivitetty() {
 let paivitys_kaynnissa = false;
 
 async function paivitaNakyma() {
-  if (document.visibilityState !== "visible" || paivitys_kaynnissa) return;
+  if (document.visibilityState !== "visible" || paivitys_kaynnissa || window.lahetyksiaKesken) return;
   paivitys_kaynnissa = true;
   try { await _paivitaNakyma(); } finally { paivitys_kaynnissa = false; }
 }

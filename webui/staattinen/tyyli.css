@@ -1199,3 +1199,6 @@ td.arviointi-vastaus {
 }
 
 .nakyma-luo { margin: 0 0 0.25rem 0.5rem; }
+
+/* Lähetysanimaatio napissa (lahetys.js): tasalevyinen, ettei nappi hypi; pre säilyttää rullan välilyönnit */
+.lahetys-kaynnissa { font-family: ui-monospace, monospace; white-space: pre; cursor: progress; }
