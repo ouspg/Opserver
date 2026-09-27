@@ -375,12 +375,14 @@ const NAV_VALI = 2;
 
 // Pallurat nav-nappien alle. napit = [[avain, nappi]], avainKayttajalle(k) → avain | null.
 // rekisteri pitää canvasit, jotta pallura liukuu napilta toiselle eikä teleporttaa.
+// Säiliö peittää koko valikon (CSS), ja jokainen pallura sijoitetaan oman nappinsa
+// alareunaan — toimii myös kun valikko rivittyy (zoom, kapea ikkuna).
 function piirraNavPallurat(sailyo, napit, avainKayttajalle, rekisteri) {
   const sailyoRect = sailyo.getBoundingClientRect();
   const nappiKeskukset = {};
   for (const [avain, nap] of napit) {
     const r = nap.getBoundingClientRect();
-    nappiKeskukset[avain] = r.left - sailyoRect.left + r.width / 2;
+    nappiKeskukset[avain] = { x: r.left - sailyoRect.left + r.width / 2, y: r.bottom - sailyoRect.top + 1 };
   }
 
   // Ryhmittele käyttäjät nav-napin mukaan
@@ -403,7 +405,8 @@ function piirraNavPallurat(sailyo, napit, avainKayttajalle, rekisteri) {
 
   for (const [avain, kayttajat] of Object.entries(perAvain)) {
     const yhtLeveys = kayttajat.length * NAV_KOKO + Math.max(0, kayttajat.length - 1) * NAV_VALI;
-    let x = nappiKeskukset[avain] - yhtLeveys / 2;
+    let x = nappiKeskukset[avain].x - yhtLeveys / 2;
+    const y = nappiKeskukset[avain].y;
 
     for (const k of kayttajat) {
       let canvas = rekisteri[k.id];
@@ -411,15 +414,16 @@ function piirraNavPallurat(sailyo, napit, avainKayttajalle, rekisteri) {
         canvas = document.createElement("canvas");
         canvas.width = NAV_KOKO;
         canvas.height = NAV_KOKO;
-        canvas.style.cssText = `position:absolute;top:1px;left:${x}px;border-radius:50%;`;
+        canvas.style.cssText = `position:absolute;top:${y}px;left:${x}px;border-radius:50%;`;
         sailyo.appendChild(canvas);
         rekisteri[k.id] = canvas;
         // Lisää siirtymä vasta ensimmäisen piirron jälkeen (ei teleporttaa sisään)
         requestAnimationFrame(() => {
-          canvas.style.transition = "left 0.5s cubic-bezier(0.34,1.56,0.64,1)";
+          canvas.style.transition = "left 0.5s cubic-bezier(0.34,1.56,0.64,1), top 0.5s cubic-bezier(0.34,1.56,0.64,1)";
         });
       } else {
         canvas.style.left = `${x}px`;
+        canvas.style.top = `${y}px`;
       }
       piirraYmpyra(canvas, k.profiili, !k.aktiivinen);
       canvas.title = k.nimimerkki || "?";
