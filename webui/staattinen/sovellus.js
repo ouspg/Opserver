@@ -740,15 +740,25 @@ function avaaHitlModaali(kid, kurssiniimi, ai_perustelu, uusi_tila) {
   document.getElementById("hitl-perustelu").value = "";
   document.querySelectorAll('input[name="hitl-juurisyy"]').forEach((r) => (r.checked = false));
   document.getElementById("hitl-laheta").textContent = toiminto;
-  document.getElementById("hitl-modaali").classList.remove("piilotettu");
+  const modaali = document.getElementById("hitl-modaali");
+  modaali.classList.remove("piilotettu");
+  // Jaettu lomake: muut saman kurssin päätöstä korjaavat näkevät samat arvot ja toisensa.
+  window.avaaLomakesessio?.(`hitl:${aktiivinen_tutkimus.TID}:${kid}`, modaali, {
+    tallennettu: () => {
+      suljeHitlModaali();
+      renderTutkimusKurssit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
+    },
+  });
 }
 
-document.getElementById("hitl-modaali-sulje").addEventListener("click", () => {
+function suljeHitlModaali() {
+  window.suljeLomakesessio?.();
   document.getElementById("hitl-modaali").classList.add("piilotettu");
-});
+}
+
+document.getElementById("hitl-modaali-sulje").addEventListener("click", suljeHitlModaali);
 document.getElementById("hitl-modaali").addEventListener("click", (e) => {
-  if (e.target === e.currentTarget)
-    document.getElementById("hitl-modaali").classList.add("piilotettu");
+  if (e.target === e.currentTarget) suljeHitlModaali();
 });
 
 document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
@@ -759,10 +769,13 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
   const juurisyy = document.querySelector('input[name="hitl-juurisyy"]:checked')?.value || null;
   if (!nimi || !sahkoposti || !perustelu || !juurisyy) return;
 
-  hitl_nimi = nimi;
-  hitl_sahkoposti = sahkoposti;
-  localStorage.setItem("hitl_nimi", nimi);
-  localStorage.setItem("hitl_sahkoposti", sahkoposti);
+  // Jaetussa lomakkeessa nimi voi olla ensimmäisen avaajan — ei tallenneta omaksi.
+  if (window.lomakeOlenAloittaja?.() ?? true) {
+    hitl_nimi = nimi;
+    hitl_sahkoposti = sahkoposti;
+    localStorage.setItem("hitl_nimi", nimi);
+    localStorage.setItem("hitl_sahkoposti", sahkoposti);
+  }
 
   const nappi = document.getElementById("hitl-laheta");
   try {
@@ -772,7 +785,8 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
     nappi.textContent = `Virhe: ${e.message} — yritä uudelleen`;
     return;
   }
-  document.getElementById("hitl-modaali").classList.add("piilotettu");
+  window.lomakeTallennettu?.();
+  suljeHitlModaali();
   const toiminto = hitl_uusi_tila ? "sisällytti" : "poisti";
   const tutkimusNimi = aktiivinen_tutkimus?.LuokittelunNimi || aktiivinen_tutkimus?.Slug || "";
   window.lahetaUutinen?.(`${window.omaNimimerkki?.()} ${toiminto} kurssin "${hitl_kurssiniimi}" tutkimuksesta ${tutkimusNimi}`);
@@ -1005,10 +1019,11 @@ function renderTutkimusKurssitRivit(rivit) {
     }
 
     let toimintoHtml = "";
+    const lomake = `data-lomake="hitl:${aktiivinen_tutkimus.TID}:${k.KID}"`;
     if (aktiivinen_tila === "mukana") {
-      toimintoHtml = `<button class="nappi-pieni nappi-vaara hitl-nappi${hyvaksytty ? " nappi-haalea" : ""}" data-kid="${k.KID}" data-nimi="${escapeHtml(k.KurssiNimi)}" data-perustelu="${escapeHtml(k.Luokitteluperuste || "")}" data-tila="0">Hylkää</button>`;
+      toimintoHtml = `<button ${lomake} class="nappi-pieni nappi-vaara hitl-nappi${hyvaksytty ? " nappi-haalea" : ""}" data-kid="${k.KID}" data-nimi="${escapeHtml(k.KurssiNimi)}" data-perustelu="${escapeHtml(k.Luokitteluperuste || "")}" data-tila="0">Hylkää</button>`;
     } else if (aktiivinen_tila === "hylätty") {
-      toimintoHtml = `<button class="nappi-pieni nappi-hyva hitl-nappi" data-kid="${k.KID}" data-nimi="${escapeHtml(k.KurssiNimi)}" data-perustelu="${escapeHtml(k.Luokitteluperuste || "")}" data-tila="1">Sisällytä</button>`;
+      toimintoHtml = `<button ${lomake} class="nappi-pieni nappi-hyva hitl-nappi" data-kid="${k.KID}" data-nimi="${escapeHtml(k.KurssiNimi)}" data-perustelu="${escapeHtml(k.Luokitteluperuste || "")}" data-tila="1">Sisällytä</button>`;
     }
 
     const rivi = document.createElement("tr");
@@ -1270,7 +1285,7 @@ function renderArvioinnitTaulu() {
       if (hyvaksytty) td.classList.add("hyvaksytty");
       td.innerHTML = `<span class="arvio-teksti">${_renderArviointiSolu(kys, v)}</span>` +
         korjausHtml + hyvaksyHtml +
-        `<button class="arvio-korjaa-nappi${hyvaksytty ? " nappi-haalea" : ""}" id="${korjaaId}">Korjaa</button>`;
+        `<button class="arvio-korjaa-nappi${hyvaksytty ? " nappi-haalea" : ""}" id="${korjaaId}" data-lomake="arvio:${tid}:${k.KID}:${kys.KysID}">Korjaa</button>`;
       td.querySelector(`#${korjaaId}`).addEventListener("click", (e) => {
         e.stopPropagation();
         window.avaaArviointiMuokkaus?.(tid, aktiivinen_tutkimus.Slug, k.KID, kys, v, korjaus);

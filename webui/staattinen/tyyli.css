@@ -969,12 +969,8 @@ td.arviointi-vastaus {
   display: block;
 }
 
-#arviointimuokkaus-kursorit {
-  border-radius: 4px;
-  pointer-events: none;
-}
-
-#arviointimuokkaus-muokkaajat {
+/* Jaettu korjauslomake (lomakesessio.js): muokkaajarivi modaalissa */
+.lomake-muokkaajat {
   font-size: 0.78rem;
   color: #555;
   margin-top: 0.3rem;
@@ -1208,3 +1204,19 @@ td.arviointi-vastaus {
 
 /* Lähetysanimaatio napissa (lahetys.js): tasalevyinen, ettei nappi hypi; pre säilyttää rullan välilyönnit */
 .lahetys-kaynnissa { font-family: ui-monospace, monospace; white-space: pre; cursor: progress; }
+
+/* Jaettu korjauslomake (lomakesessio.js) */
+.lomake-muokkaajat:empty { display: none; }
+.lomake-muokkaaja { display: inline-flex; align-items: center; gap: 0.2rem; }
+.lomake-muokkaaja canvas { border-radius: 50%; }
+.lomake-kursorit { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.lomake-kursori { position: absolute; width: 0; border-left: 2px solid; }
+.lomake-kursori canvas { position: absolute; top: -13px; left: -7px; border-radius: 50%; }
+/* Muille: joku on avannut tämän napin lomakkeen → pallurat napin alle + sykkivä korostus */
+.lomake-pallurat { display: block; margin-top: 2px; line-height: 0; }
+.lomake-pallurat canvas { border-radius: 50%; margin-right: 2px; }
+.lomake-auki { animation: lomake-syke 1.4s ease-in-out infinite; }
+@keyframes lomake-syke {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(243, 156, 18, 0.9); background-color: #fff3d6; }
+  50% { box-shadow: 0 0 0 5px rgba(243, 156, 18, 0); background-color: #ffd98a; }
+}

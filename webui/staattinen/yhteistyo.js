@@ -338,19 +338,8 @@ window.lahetaUutinen = lahetaUutinen;
 window.omaNimimerkki = () => omaProfiili?.nimimerkki || "Anonyymi";
 window.piirraYmpyra = piirraYmpyra;
 
-window.liityMuokkausSessioon = function (tid, kid, kysid) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ tyyppi: "muokkaus-liity", tid, kid, kysid }));
-};
-
-window.poistuMuokkausSessiosta = function (tid, kid, kysid) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ tyyppi: "muokkaus-poistu", tid, kid, kysid }));
-};
-
-window.lahetaMuokkausTeksti = function (tid, kid, kysid, teksti, kursori) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ tyyppi: "muokkaus-teksti", tid, kid, kysid, teksti, kursori }));
+window.lahetaWs = (viesti) => {
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(viesti));
 };
 
 window.liityRaporttiSessioon = function (tid, avain) {
@@ -511,6 +500,7 @@ function lahetaTila() {
     sivu: location.pathname,
     nakyma: window.omaNakyma?.() ?? null,
     tila: window.omaTila?.() ?? null,  // valittujen kurssien välilehti (mukana/odottaa/hylätty)
+    lomake: window.omaLomake?.() ?? null,  // avoin korjauslomake (lomakesessio.js)
   }));
 }
 
@@ -526,6 +516,7 @@ function yhdista() {
       omaId = viesti.id;
       window._omaId = omaId;
       lahetaTila();
+      window.lomakeUudelleenliity?.();
     } else if (viesti.tyyppi === "uutinen") {
       lisaaUutinen(viesti.teksti, viesti.aika);
     } else if (viesti.tyyppi === "kayttajat") {
@@ -534,10 +525,11 @@ function yhdista() {
       paivitaKursorit();
       paivitaNavIndikaattorit();
       window.paivitaNakymaPallurat?.(muutKayttajat);
+      window.paivitaLomakePallurat?.(muutKayttajat);
     } else if (viesti.tyyppi === "nakymat") {
       window.nakymatKuuntelija?.(viesti.data);
-    } else if (viesti.tyyppi === "muokkaus-sessio") {
-      window.muokkausKuuntelija?.(viesti);
+    } else if (viesti.tyyppi === "lomake-sessio" || viesti.tyyppi === "lomake-tallennettu") {
+      window.lomakeKuuntelija?.(viesti);
     } else if (viesti.tyyppi === "raportti-sessio") {
       window.raporttisessioKuuntelija?.(viesti);
     }
@@ -625,7 +617,10 @@ document.addEventListener("mousemove", (e) => {
 document.addEventListener("keydown", merkitseAktiiviseksi);
 document.addEventListener("click", merkitseAktiiviseksi);
 
-setInterval(() => { lahetaTila(); paivitaKursorit(); paivitaNavIndikaattorit(); }, SYDANLYONTI_VALI_MS);
+setInterval(() => {
+  lahetaTila(); paivitaKursorit(); paivitaNavIndikaattorit();
+  window.paivitaLomakePallurat?.(muutKayttajat);  // taulukon uudelleenpiirto (pollaus) poistaa merkit
+}, SYDANLYONTI_VALI_MS);
 
 // --- Käynnistys ---
 
