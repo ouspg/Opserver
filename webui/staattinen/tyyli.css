@@ -778,15 +778,17 @@ td.arviointi-vastaus {
 
 /* Nav-indikaattorit */
 
+/* Pallurakerros peittää koko valikon; pallurat sijoitetaan kunkin napin alareunaan
+   (yhteistyo.js), joten ne pysyvät oikeassa kohdassa vaikka valikko rivittyisi.
+   Tila palluroille: jokaisen napin alle 12 px (myös rivittyneiden rivien väliin). */
+#paanav, #tutkimus-nav { position: relative; }
 #nav-indikaattorit, #tutkimus-nav-indikaattorit {
-  position: relative;
-  height: 12px;
+  position: absolute;
+  inset: 0;
   pointer-events: none;
   overflow: visible;
 }
-
-/* Alavalikko on rivittyvä flex: indikaattorit omalle rivilleen nappien alle */
-#tutkimus-nav-indikaattorit { flex-basis: 100%; }
+#paanav button, #tutkimus-nav button { margin-bottom: 12px; }
 
 /* Tooltip */
 
