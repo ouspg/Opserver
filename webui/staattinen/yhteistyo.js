@@ -162,6 +162,10 @@ function luoHeaderElementit() {
   indikaattorit.id = "nav-indikaattorit";
   document.getElementById("paanav").appendChild(indikaattorit);
 
+  const tutkimusIndikaattorit = document.createElement("div");
+  tutkimusIndikaattorit.id = "tutkimus-nav-indikaattorit";
+  document.getElementById("tutkimus-nav").appendChild(tutkimusIndikaattorit);
+
   const muokkaus = document.createElement("div");
   muokkaus.id = "profiili-muokkaus";
   muokkaus.className = "piilotettu";
@@ -364,54 +368,52 @@ function sivuNavPolku(sivu) {
   return null;
 }
 
-const navindikaattorit = {};
+const navindikaattorit = {};       // yläpalkki: käyttäjä-id → canvas
+const tutkimusindikaattorit = {};   // tutkimuksen alavalikko: käyttäjä-id → canvas
 const NAV_KOKO = 8;
 const NAV_VALI = 2;
 
-function paivitaNavIndikaattorit() {
-  const sailyo = document.getElementById("nav-indikaattorit");
-  const nav = document.getElementById("paanav");
-  if (!sailyo || !nav) return;
-
+// Pallurat nav-nappien alle. napit = [[avain, nappi]], avainKayttajalle(k) → avain | null.
+// rekisteri pitää canvasit, jotta pallura liukuu napilta toiselle eikä teleporttaa.
+function piirraNavPallurat(sailyo, napit, avainKayttajalle, rekisteri) {
   const sailyoRect = sailyo.getBoundingClientRect();
   const nappiKeskukset = {};
-  for (const nap of nav.querySelectorAll("button[data-polku]")) {
+  for (const [avain, nap] of napit) {
     const r = nap.getBoundingClientRect();
-    nappiKeskukset[nap.dataset.polku] = r.left - sailyoRect.left + r.width / 2;
-  }
-
-  const nytIdt = new Set(muutKayttajat.map((k) => k.id));
-  for (const id of Object.keys(navindikaattorit)) {
-    if (!nytIdt.has(id)) {
-      navindikaattorit[id].remove();
-      delete navindikaattorit[id];
-    }
+    nappiKeskukset[avain] = r.left - sailyoRect.left + r.width / 2;
   }
 
   // Ryhmittele käyttäjät nav-napin mukaan
-  const perPolku = {};
+  const perAvain = {};
   for (const k of muutKayttajat) {
     if (!k.profiili) continue;
-    const polku = sivuNavPolku(k.sivu);
-    if (!polku || nappiKeskukset[polku] === undefined) continue;
-    if (!perPolku[polku]) perPolku[polku] = [];
-    perPolku[polku].push(k);
+    const avain = avainKayttajalle(k);
+    if (!avain || nappiKeskukset[avain] === undefined) continue;
+    (perAvain[avain] ||= []).push(k);
   }
 
-  for (const [polku, kayttajat] of Object.entries(perPolku)) {
-    const centerX = nappiKeskukset[polku];
+  // Poista pallurat käyttäjiltä, jotka poistuivat tai eivät ole minkään napin kohdalla
+  const sijoitetut = new Set(Object.values(perAvain).flat().map((k) => k.id));
+  for (const id of Object.keys(rekisteri)) {
+    if (!sijoitetut.has(id)) {
+      rekisteri[id].remove();
+      delete rekisteri[id];
+    }
+  }
+
+  for (const [avain, kayttajat] of Object.entries(perAvain)) {
     const yhtLeveys = kayttajat.length * NAV_KOKO + Math.max(0, kayttajat.length - 1) * NAV_VALI;
-    let x = centerX - yhtLeveys / 2;
+    let x = nappiKeskukset[avain] - yhtLeveys / 2;
 
     for (const k of kayttajat) {
-      let canvas = navindikaattorit[k.id];
+      let canvas = rekisteri[k.id];
       if (!canvas) {
         canvas = document.createElement("canvas");
         canvas.width = NAV_KOKO;
         canvas.height = NAV_KOKO;
         canvas.style.cssText = `position:absolute;top:1px;left:${x}px;border-radius:50%;`;
         sailyo.appendChild(canvas);
-        navindikaattorit[k.id] = canvas;
+        rekisteri[k.id] = canvas;
         // Lisää siirtymä vasta ensimmäisen piirron jälkeen (ei teleporttaa sisään)
         requestAnimationFrame(() => {
           canvas.style.transition = "left 0.5s cubic-bezier(0.34,1.56,0.64,1)";
@@ -424,6 +426,40 @@ function paivitaNavIndikaattorit() {
       x += NAV_KOKO + NAV_VALI;
     }
   }
+}
+
+// Tutkimuksen alavalikon napin avain käyttäjälle: saman tutkimuksen alasivu
+// (tiedot/kurssit/arvioinnit/raportti), kurssisivulla tilavälilehti (mukana/odottaa/hylätty)
+// kun ne näkyvät alavalikossa. Muut tutkimukset näkyvät jo yläpalkin Tutkimukset-napilla.
+function tutkimusNavAvain(k, slug, tilatNakyvissa) {
+  const osat = (k.sivu || "").split("/").filter(Boolean);
+  if (osat[0] !== "tutkimukset" || osat[1] !== slug) return null;
+  const alasivu = osat[2] || "tiedot";
+  if (alasivu === "kurssit" && tilatNakyvissa) return `tila:${k.tila || "mukana"}`;
+  return `alasivu:${alasivu}`;
+}
+
+function paivitaNavIndikaattorit() {
+  const sailyo = document.getElementById("nav-indikaattorit");
+  const nav = document.getElementById("paanav");
+  if (sailyo && nav) {
+    piirraNavPallurat(sailyo, [...nav.querySelectorAll("button[data-polku]")].map((n) => [n.dataset.polku, n]),
+                      (k) => sivuNavPolku(k.sivu), navindikaattorit);
+  }
+
+  const tnav = document.getElementById("tutkimus-nav");
+  const tsailyo = document.getElementById("tutkimus-nav-indikaattorit");
+  if (!tnav || !tsailyo) return;
+  const osat = location.pathname.split("/").filter(Boolean);
+  const slug = osat[0] === "tutkimukset" && !tnav.classList.contains("piilotettu") ? osat[1] : null;
+  const tilatNakyvissa = !document.getElementById("tutkimus-nav-tila").classList.contains("piilotettu");
+  const napit = [...tnav.querySelectorAll("button[data-tutkimus-alasivu]")]
+    .map((n) => [`alasivu:${n.dataset.tutkimusAlasivu}`, n]);
+  if (tilatNakyvissa) {
+    napit.push(...[...tnav.querySelectorAll(".tila-nappi-nav")].map((n) => [`tila:${n.dataset.tila}`, n]));
+  }
+  piirraNavPallurat(tsailyo, slug ? napit : [], (k) => tutkimusNavAvain(k, slug, tilatNakyvissa),
+                    tutkimusindikaattorit);
 }
 
 // --- WebSocket ---
@@ -463,6 +499,7 @@ function lahetaTila() {
     aktiivinen: oliAktiivinen,
     sivu: location.pathname,
     nakyma: window.omaNakyma?.() ?? null,
+    tila: window.omaTila?.() ?? null,  // valittujen kurssien välilehti (mukana/odottaa/hylätty)
     lomake: window.omaLomake?.() ?? null,  // avoin korjauslomake (lomakesessio.js)
   }));
 }

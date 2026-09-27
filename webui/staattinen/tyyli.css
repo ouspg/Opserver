@@ -778,12 +778,15 @@ td.arviointi-vastaus {
 
 /* Nav-indikaattorit */
 
-#nav-indikaattorit {
+#nav-indikaattorit, #tutkimus-nav-indikaattorit {
   position: relative;
   height: 12px;
   pointer-events: none;
   overflow: visible;
 }
+
+/* Alavalikko on rivittyvä flex: indikaattorit omalle rivilleen nappien alle */
+#tutkimus-nav-indikaattorit { flex-basis: 100%; }
 
 /* Tooltip */
 

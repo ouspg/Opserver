@@ -1068,8 +1068,12 @@ function renderTutkimusKurssitRivit(rivit) {
   });
 }
 
+// Läsnäolotieto (yhteistyo.js): muut näkevät palluran oikean tilavälilehden alla.
+window.omaTila = () => aktiivinen_tila;
+
 function asetaTila(tila) {
   aktiivinen_tila = tila;
+  window.lahetaTilaNyt?.();
   tutkimus_sivu = 0;
   lataaTilaSivu().then(() => window.scrollTo(0, 0));
 }
