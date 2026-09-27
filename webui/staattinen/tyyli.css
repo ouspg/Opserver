@@ -1159,3 +1159,43 @@ td.arviointi-vastaus {
   min-height: 1.1rem;
   margin-bottom: 0.4rem;
 }
+
+/* --- Suodatinnäkymien välilehtinauha (nakymat.js) --- */
+#kurssit-suodatin:not(.piilotettu) { display: contents; }
+
+.nakyma-nauha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.25rem;
+  border-bottom: 1px solid #ccc;
+  margin-bottom: 1rem;
+}
+
+.nakyma-valilehti {
+  position: relative;
+  background: #ececf4;
+  border: 1px solid #ccc;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  padding: 0.35rem 0.9rem;
+  margin-bottom: -1px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.nakyma-valilehti:hover { background: #dfe0ee; }
+
+.nakyma-valilehti.aktiivinen {
+  background: #f4f4f8;
+  border-bottom: 1px solid #f4f4f8;
+  font-weight: 600;
+}
+
+.nakyma-pallura {
+  vertical-align: middle;
+  margin-left: 3px;
+  border-radius: 50%;
+}
+
+.nakyma-luo { margin: 0 0 0.25rem 0.5rem; }
