@@ -1026,25 +1026,6 @@ def tallenna_hitl_vastaus(tid: int, kid: int, kysid: int, vastaus: str,
             )
 
 
-def hae_vastauksen_teksti(tid: int, kid: int, kysid: int) -> str:
-    """Voimassa oleva perusteluteksti yhdelle (kurssi, kysymys) -parille.
-
-    Ihmisen korjaus voittaa LLM:n vastauksen. Käytetään yhteismuokkaussession
-    alustukseen, jotta korjausikkuna avautuu nykyiseen tekstiin eikä tyhjänä.
-    """
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                """SELECT Vastaus FROM Vastaukset
-                   WHERE TID = %s AND KID = %s AND KysID = %s
-                   ORDER BY (Malli IS NULL) DESC, Aikaleima DESC
-                   LIMIT 1""",
-                (tid, kid, kysid),
-            )
-            rivi = kursori.fetchone()
-            return (rivi[0] or "") if rivi else ""
-
-
 def hae_hitl_vastaukset(tid: int) -> list[dict]:
     """Ihmisten korjaamat vastaukset tälle tutkimukselle (uusin ensin)."""
     with yhteys() as yht:
