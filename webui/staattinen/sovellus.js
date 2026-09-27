@@ -1563,8 +1563,15 @@ async function _paivitaNakyma() {
 setInterval(paivitaNakyma, PAIVITYSVALI_MS);
 
 // Pidä sticky-otsikoiden offset ajan tasalla yläpalkin korkeuden mukaan
-// (nav piiloutuu/näkyy hiirilaitteilla → korkeus muuttuu).
+// (nav piilotetaan/tuodaan valikkovihjeellä → korkeus muuttuu).
 const _ylapalkki = document.querySelector("header");
+document.getElementById("valikkovihje").addEventListener("click", (e) => {
+  const koottu = _ylapalkki.classList.toggle("koottu");
+  const teksti = koottu ? "Näytä valikko" : "Piilota valikko";
+  Object.assign(e.currentTarget, { textContent: koottu ? "☰" : "^", title: teksti });
+  e.currentTarget.setAttribute("aria-label", teksti);
+  e.currentTarget.setAttribute("aria-expanded", String(!koottu));
+});
 if (_ylapalkki && window.ResizeObserver) {
   new ResizeObserver(() => {
     document.documentElement.style.setProperty("--otsikkokorkeus", _ylapalkki.offsetHeight + "px");
