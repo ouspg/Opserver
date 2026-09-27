@@ -6,7 +6,11 @@
 //
 // Sivu rekisteröi itsensä: rekisteroiNakymat({ otsikko, palkki, lue, aseta, nimea })
 //   otsikko = h2, jonka perään nauha tulee; palkki = suodatinkontrollit (näkyvät vain "+"-tilassa)
-//   lue() → nykyinen suodatin; aseta(s) → ota suodatin käyttöön ja lataa; nimea(s) → välilehden nimi
+//   lue() → nykyinen suodatin; aseta(s, lataa=true) → ota suodatin käyttöön (lataa=false: vain
+//   kontrollit, ei dataa); nimea(s) → välilehden nimi
+//
+// "+"-välilehti = uuden näkymän luonti: osiossa näkyvät vain suodatinvalinnat ja niiden alla
+// "Luo suodatettu näkymä" -nappi (ei kurssilistaa, ei datan latausta).
 
 let _nakymaKonf = null;
 let _nakymaSivu = null;
@@ -44,16 +48,30 @@ function _renderNakymaNauha() {
     }
     nauha.appendChild(b);
   }
-  if (_valittuNakyma === "+") {
-    const luo = document.createElement("button");
-    luo.className = "nappi-pieni nakyma-luo";
-    luo.textContent = "✓ Luo näkymä";
-    luo.addEventListener("click", luoNakyma);
-    nauha.appendChild(luo);
-  }
   if (vanha) vanha.replaceWith(nauha);
   else _nakymaKonf.otsikko.after(nauha);
-  _nakymaKonf.palkki.classList.toggle("piilotettu", _valittuNakyma !== "+");
+  _renderLuonti();
+}
+
+// "+"-tila: osio näyttää vain suodatinvalinnat (palkin osion tason sisältäjä saa
+// luokan luonti-sailyta) ja niiden alle Luo-napin; muu sisältö piilotetaan CSS:llä.
+function _renderLuonti() {
+  const { otsikko, palkki } = _nakymaKonf;
+  const osio = otsikko.parentNode;
+  const luonti = _valittuNakyma === "+";
+  let sailyta = palkki;
+  while (sailyta.parentNode !== osio) sailyta = sailyta.parentNode;
+  osio.classList.toggle("nakyma-luonti", luonti);
+  sailyta.classList.toggle("luonti-sailyta", luonti);
+  palkki.classList.toggle("piilotettu", !luonti);
+  osio.querySelector(".nakyma-luo")?.remove();
+  if (luonti) {
+    const luo = document.createElement("button");
+    luo.className = "nappi-toiminto nakyma-luo";
+    luo.textContent = "Luo suodatettu näkymä";
+    luo.addEventListener("click", luoNakyma);
+    sailyta.after(luo);
+  }
 }
 
 async function valitseNakyma(id) {
@@ -61,7 +79,8 @@ async function valitseNakyma(id) {
   _renderNakymaNauha();
   window.lahetaTilaNyt?.();
   const v = _sivunNakymat().find((n) => n.id === id);
-  await _nakymaKonf.aseta(v ? { ...v.suodatin } : {});
+  // "+": tyhjät suodatinvalinnat ilman datan latausta (lista on piilossa).
+  await _nakymaKonf.aseta(v ? { ...v.suodatin } : {}, id !== "+");
 }
 
 async function luoNakyma(e) {
@@ -81,9 +100,7 @@ async function luoNakyma(e) {
   // Palvelimen broadcast tuo saman näkymän; lisää heti, ettei valinta odota sitä.
   const lista = (_jaetutNakymat[_nakymaSivu] ||= []);
   if (!lista.some((n) => n.id === id)) lista.push(uusi);
-  _valittuNakyma = id;
-  _renderNakymaNauha();
-  window.lahetaTilaNyt?.();
+  await valitseNakyma(id);  // piilottaa valinnat, lataa datan, siirtää oman palluran
 }
 
 window.rekisteroiNakymat = function (konf) {
