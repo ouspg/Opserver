@@ -91,13 +91,17 @@ function arvoUusiProfiili() {
 
 // --- Canvas-piirto ---
 
-function piirraYmpyra(canvas, profiili, epaaktiivinen = false) {
+// taso (läsnäolo): aktiivinen = värillinen, passiivinen = harmaa, nukkuva = harmaa + zZz,
+// kummitus = läpinäkyvä harmaa + zZz.
+function piirraYmpyra(canvas, profiili, taso = "aktiivinen") {
   const ctx = canvas.getContext("2d");
   const w = canvas.width, h = canvas.height;
   const cx = w / 2, cy = h / 2;
   const r = Math.min(w, h) / 2 - 0.5;
+  const epaaktiivinen = taso !== "aktiivinen";
 
   ctx.clearRect(0, 0, w, h);
+  ctx.globalAlpha = taso === "kummitus" ? 0.35 : 1;
   ctx.save();
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -121,13 +125,19 @@ function piirraYmpyra(canvas, profiili, epaaktiivinen = false) {
   }
   ctx.restore();
 
-  if (epaaktiivinen) {
-    const fs = Math.max(6, Math.round(r * 0.38));
-    ctx.font = `bold ${fs}px monospace`;
+  if (taso === "nukkuva" || taso === "kummitus") {
+    // zzZ portaana oikeaan yläkulmaan: kirjaimet kasvavat ylös oikealle.
     ctx.textAlign = "right";
     ctx.textBaseline = "top";
-    ctx.fillStyle = profiili.etualavari || "#eee";
-    ctx.fillText("zZ", w - 1, 0);
+    ctx.strokeStyle = "#222";
+    ctx.fillStyle = "#fff";
+    [["z", 0.4, 0.95, 0.6], ["z", 0.5, 0.5, 0.3], ["Z", 0.65, 0, -0.05]].forEach(([k, koko, dx, dy]) => {
+      const fs = Math.max(4, Math.round(r * koko * 1.4));
+      ctx.font = `bold ${fs}px sans-serif`;
+      ctx.lineWidth = Math.max(1, fs / 4);
+      ctx.strokeText(k, w - 1 - dx * r, dy * r);
+      ctx.fillText(k, w - 1 - dx * r, dy * r);
+    });
   }
 }
 
@@ -425,7 +435,7 @@ function piirraNavPallurat(sailyo, napit, avainKayttajalle, rekisteri) {
         canvas.style.left = `${x}px`;
         canvas.style.top = `${y}px`;
       }
-      piirraYmpyra(canvas, k.profiili, !k.aktiivinen);
+      piirraYmpyra(canvas, k.profiili, k.taso);
       canvas.title = k.nimimerkki || "?";
       x += NAV_KOKO + NAV_VALI;
     }
@@ -471,23 +481,25 @@ function paivitaNavIndikaattorit() {
 let ws = null;
 let omaId = null;
 let lahetysAjastin = null;
-let aktiivisuusAjastin = null;
-let oliAktiivinen = true;
+let viimeisinAktiivisuus = Date.now();
 let hiiri = { x: 0.5, y: 0.5 };
 let muutKayttajat = [];
 
-const AKTIIVISUUS_TIMEOUT_MS = 30_000;
+// Läsnäolotaso ajasta viimeisestä hiiren/näppäimistön käytöstä; yli 30 min = kummitus.
+const AKTIIVISUUS_TASOT = [[60_000, "aktiivinen"], [10 * 60_000, "passiivinen"], [30 * 60_000, "nukkuva"]];
 const LAHETYS_VALI_MS = 80;
 const SYDANLYONTI_VALI_MS = 3_000;
 
+function omaTaso() {
+  const kulunut = Date.now() - viimeisinAktiivisuus;
+  return AKTIIVISUUS_TASOT.find(([raja]) => kulunut < raja)?.[1] ?? "kummitus";
+}
+
+// Tason laskut kulkevat sydänlyönnin mukana; herääminen lähetetään heti.
 function merkitseAktiiviseksi() {
-  oliAktiivinen = true;
-  clearTimeout(aktiivisuusAjastin);
-  aktiivisuusAjastin = setTimeout(() => {
-    oliAktiivinen = false;
-    lahetaTila();
-    paivitaMuutYmpyrat();
-  }, AKTIIVISUUS_TIMEOUT_MS);
+  const heraa = omaTaso() !== "aktiivinen";
+  viimeisinAktiivisuus = Date.now();
+  if (heraa) lahetaTila();
 }
 
 function lahetaTila() {
@@ -500,7 +512,7 @@ function lahetaTila() {
       bitmappi: omaProfiili.bitmappi,
     },
     sijainti: hiiri,
-    aktiivinen: oliAktiivinen,
+    taso: omaTaso(),
     sivu: location.pathname,
     nakyma: window.omaNakyma?.() ?? null,
     sivunumero: window.omaSivunumero?.() ?? null,  // valittujen kurssien sivutussivu
@@ -557,7 +569,7 @@ function paivitaMuutYmpyrat() {
     canvas.height = 24;
     canvas.className = "vieras-ympyra-pieni";
     canvas.title = k.nimimerkki || "?";
-    piirraYmpyra(canvas, k.profiili, !k.aktiivinen);
+    piirraYmpyra(canvas, k.profiili, k.taso);
     div.appendChild(canvas);
   }
 }
@@ -625,7 +637,7 @@ function paivitaKursorit() {
       kursorielementit[k.id] = el;
     }
 
-    piirraYmpyra(el.querySelector("canvas"), k.profiili, !k.aktiivinen);
+    piirraYmpyra(el.querySelector("canvas"), k.profiili, k.taso);
     el.title = k.nimimerkki || "?";
     el.classList.toggle("ulkona", ulkona);
     if (ulkona) el.style.setProperty("--kulma", `${kulma}rad`);

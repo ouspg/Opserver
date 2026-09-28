@@ -28,7 +28,7 @@ window.luoPikkupallura = function (k) {
   c.width = c.height = 10;
   c.className = "nakyma-pallura";
   c.title = k.nimimerkki || "?";
-  window.piirraYmpyra?.(c, k.profiili, !k.aktiivinen);
+  window.piirraYmpyra?.(c, k.profiili, k.taso);
   return c;
 };
 
@@ -128,7 +128,7 @@ window.nakymatKuuntelija = (data) => {
 let _palluraAvain = "";
 window.paivitaNakymaPallurat = (muut) => {
   _nakymaMuut = muut;
-  const avain = JSON.stringify(muut.map((k) => [k.id, k.sivu, k.nakyma, k.aktiivinen, k.nimimerkki, k.profiili]));
+  const avain = JSON.stringify(muut.map((k) => [k.id, k.sivu, k.nakyma, k.taso, k.nimimerkki, k.profiili]));
   if (avain === _palluraAvain) return;
   _palluraAvain = avain;
   _renderNakymaNauha();

@@ -997,7 +997,7 @@ function renderTutkimusKurssitSivutus() {
 let _sivutusAvain = "";
 window.paivitaSivutusPallurat = (muut) => {
   _sivutusMuut = muut;
-  const avain = JSON.stringify(muut.map((k) => [k.id, k.sivu, k.nakyma, k.sivunumero, k.aktiivinen, k.nimimerkki, k.profiili]));
+  const avain = JSON.stringify(muut.map((k) => [k.id, k.sivu, k.nakyma, k.sivunumero, k.taso, k.nimimerkki, k.profiili]));
   if (avain === _sivutusAvain) return;
   _sivutusAvain = avain;
   if (jaaPolku().alasivu === "kurssit") renderTutkimusKurssitSivutus();
