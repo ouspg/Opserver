@@ -685,7 +685,7 @@ td.arviointi-vastaus {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 50;
+  z-index: 150;  /* modaalien (100) yläpuolella, profiilimuokkauksen (200) alla */
   overflow: hidden;
 }
 

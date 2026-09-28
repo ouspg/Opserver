@@ -159,7 +159,7 @@ function paivitaMuokkaajat(muokkaajat) {
     div.textContent = "";
     return;
   }
-  div.innerHTML = "Muokkaa nyt myös: " + muut.map((m) => {
+  div.innerHTML = "Muut käyttäjät täällä: " + muut.map((m) => {
     const offsc = document.createElement("canvas");
     offsc.width = 14; offsc.height = 14;
     offsc.className = "vieras-ympyra-pieni";
