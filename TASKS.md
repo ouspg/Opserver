@@ -147,3 +147,13 @@ Tavoite:
 - Idempotentti: `lahetaNapilla`-uudelleenlähetys ei saa tuottaa tuplarivejä.
 - Näyttäminen: liittyessä uusimmat N tapahtumaa uutispalkkiin; erillinen
   sivutettu tapahtumalokinäkymä (`?alku&koko`), suodatus tutkimuksen mukaan.
+
+## 14. Modaalissa oleva käyttäjä näkymätön, jos hänen HITL-nappiaan ei ole renderöity
+
+PR #50: kun B on HITL-modaalissa ja A samassa suodatinnäkymässä, B:n pallura
+osoittaa A:n ruudun reunalta kohti B:n lomakkeen avausnappia (`[data-lomake]`).
+Jos nappia ei ole A:n DOMissa lainkaan (eri sivutussivu, `?alku&koko` /
+osittainen renderöinti ei vielä ehtinyt, eri välilehti mukana/hylätty), suuntaa
+ei tiedetä ja B on A:lle taas näkymätön (`yhteistyo.js` `paivitaKursorit`,
+`ponytail:`-kommentti). Päätä: riittääkö, vai esim. pallura reunaan/nurkkaan
+"muualla tällä sivulla" -merkinnällä tai sivutusnapin viereen.
