@@ -129,6 +129,8 @@ main { padding: 1.5rem; }
 }
 
 .lkm { color: #666; font-size: 0.9rem; }
+.lataus-rivi td { color: #666; font-style: italic; padding: 1.5rem; text-align: center; animation: lataus-syke 1.2s ease-in-out infinite; }
+@keyframes lataus-syke { 50% { opacity: 0.35; } }
 
 .suodattimet input.suod-haku {
   padding: 0.4rem 0.6rem;
