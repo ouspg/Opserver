@@ -1170,7 +1170,7 @@ td.arviointi-vastaus {
 .lomake-kursori { position: absolute; width: 0; border-left: 2px solid; }
 .lomake-kursori canvas { position: absolute; top: -13px; left: -7px; border-radius: 50%; }
 /* Muille: joku on avannut tämän napin lomakkeen → pallurat napin alle + sykkivä korostus */
-.lomake-pallurat { display: block; margin-top: 2px; line-height: 0; }
+.lomake-pallurat { display: inline-block; margin-left: 3px; line-height: 0; vertical-align: middle; }
 .lomake-pallurat canvas { border-radius: 50%; margin-right: 2px; }
 .lomake-auki { animation: lomake-syke 1.4s ease-in-out infinite; }
 @keyframes lomake-syke {

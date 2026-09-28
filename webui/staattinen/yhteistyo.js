@@ -569,10 +569,13 @@ function paivitaKursorit() {
   const kerros = document.getElementById("kursori-kerros");
   if (!kerros) return;
 
-  // Sama sivu JA sama suodatinnäkymä (välilehti); muut näkyvät välilehden pallurana.
+  // Sama sivu, sama suodatinnäkymä (välilehti) JA sama korjauslomake (tai ei lomaketta);
+  // muut näkyvät välilehden / lomakkeen avausnapin pallurana.
   const omaNakyma = window.omaNakyma?.() ?? null;
+  const omaLomake = window.omaLomake?.() ?? null;
   const samallaSimulla = muutKayttajat.filter(
-    (k) => k.sivu === location.pathname && (k.nakyma ?? null) === omaNakyma);
+    (k) => k.sivu === location.pathname && (k.nakyma ?? null) === omaNakyma
+      && (k.lomake ?? null) === omaLomake);
   const nytIdt = new Set(samallaSimulla.map((k) => k.id));
   for (const id of Object.keys(kursorielementit)) {
     if (!nytIdt.has(id)) {
