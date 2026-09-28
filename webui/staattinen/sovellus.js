@@ -1565,13 +1565,17 @@ setInterval(paivitaNakyma, PAIVITYSVALI_MS);
 // Pidä sticky-otsikoiden offset ajan tasalla yläpalkin korkeuden mukaan
 // (nav piilotetaan/tuodaan valikkovihjeellä → korkeus muuttuu).
 const _ylapalkki = document.querySelector("header");
-document.getElementById("valikkovihje").addEventListener("click", (e) => {
-  const koottu = _ylapalkki.classList.toggle("koottu");
+const _valikkovihje = document.getElementById("valikkovihje");
+function asetaYlapalkkiKoottu(koottu) {
+  _ylapalkki.classList.toggle("koottu", koottu);
+  localStorage.setItem("ylapalkki_koottu", koottu ? "1" : "");
   const teksti = koottu ? "Näytä valikko" : "Piilota valikko";
-  Object.assign(e.currentTarget, { textContent: koottu ? "☰" : "^", title: teksti });
-  e.currentTarget.setAttribute("aria-label", teksti);
-  e.currentTarget.setAttribute("aria-expanded", String(!koottu));
-});
+  Object.assign(_valikkovihje, { textContent: koottu ? "☰" : "^", title: teksti });
+  _valikkovihje.setAttribute("aria-label", teksti);
+  _valikkovihje.setAttribute("aria-expanded", String(!koottu));
+}
+_valikkovihje.addEventListener("click", () => asetaYlapalkkiKoottu(!_ylapalkki.classList.contains("koottu")));
+asetaYlapalkkiKoottu(!!localStorage.getItem("ylapalkki_koottu"));  // tila säilyy uudelleenlatauksessa
 if (_ylapalkki && window.ResizeObserver) {
   new ResizeObserver(() => {
     document.documentElement.style.setProperty("--otsikkokorkeus", _ylapalkki.offsetHeight + "px");
