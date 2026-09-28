@@ -143,6 +143,25 @@ rivi="* * * * * $PWD/vahtikoira >> $PWD/vahtikoira.log 2>&1"
 ( crontab -l 2>/dev/null | grep -vF "$PWD/vahtikoira" || true; echo "$rivi" ) | crontab -
 echo "Cron asennettu: $rivi"
 
+# Rootina (paivittaja ajaa asennan ja palauttaa kannan): automaattipäivitys
+# 5 min välein, kannan varmuuskopio joka yö. /etc/cron.d korvataan kokonaan → ei tuplia.
+sudo tee /etc/cron.d/opserver >/dev/null <<CRON
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+*/5 * * * * root $PWD/paivittaja >> $PWD/paivittaja.log 2>&1
+15 3 * * * root $PWD/varmuuskopio yo >> $PWD/varmuuskopio.log 2>&1
+CRON
+
+# Tietoturvapäivitykset automaattisesti; uudelleenkäynnistys klo 4.30 jos päivitys
+# vaatii (kontit nousevat itse: restart unless-stopped). Oma tiedosto voittaa 20auto-upgrades:n.
+sudo apt-get install -y unattended-upgrades >/dev/null
+sudo tee /etc/apt/apt.conf.d/52opserver >/dev/null <<'APT'
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-Time "04:30";
+APT
+
 # Odota että WebUI vastaa
 domain=$(grep -E '^TUOTANTO_DOMAIN=' .env | cut -d= -f2-)
 for _ in $(seq 30); do

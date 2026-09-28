@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# MySQL-varmuuskopio (root-cron joka yö + paivittaja ennen jokaista päivitystä).
+#   ./varmuuskopio [nimi]           → $HAKEMISTO/<aika>[-nimi].sql.gz, tulostaa polun
+#   ./varmuuskopio --palauta TIED   → korvaa koko kannan dumpin sisällöllä
+# --single-transaction: johdonmukainen vedos lukitsematta — WebUI ja pipeline jatkavat.
+set -euo pipefail
+cd "$(dirname "$(readlink -f "$0")")"
+if [[ $EUID -eq 0 ]]; then docker() { command docker "$@"; }; else docker() { sudo docker "$@"; }; fi
+source .env
+HAKEMISTO=${VARMUUSKOPIO_HAKEMISTO:-/var/backups/opserver}
+SAILYTYS_PV=14
+# root: DB_USER:lta puuttuu dumpin tarvitsemat oikeudet (PROCESS, rutiinit, DROP DATABASE).
+kanta() { local ohjelma=$1; shift; docker compose exec -T -e MYSQL_PWD="$DB_ROOT_PASSWORD" mysql "$ohjelma" -uroot "$@"; }
+
+if [[ "${1:-}" == --palauta ]]; then
+    gunzip -c "$2" | kanta mysql   # dumpissa DROP DATABASE + CREATE: uudet taulut häviävät myös
+    echo "Palautettu: $2" >&2
+    exit 0
+fi
+
+umask 077
+mkdir -p "$HAKEMISTO"
+tiedosto="$HAKEMISTO/$(date +%Y%m%d-%H%M%S)${1:+-$1}.sql.gz"
+kanta mysqldump --single-transaction --routines --triggers --events \
+    --add-drop-database --databases "$DB_NAME" < /dev/null | gzip > "$tiedosto.kesken"
+# Katkennut dumppi (kontti kaatui kesken) ei saa näyttää onnistuneelta palautuksessa.
+gunzip -c "$tiedosto.kesken" | tail -1 | grep -q 'Dump completed' \
+    || { rm -f "$tiedosto.kesken"; echo "Dumppi epätäydellinen" >&2; exit 1; }
+mv "$tiedosto.kesken" "$tiedosto"
+find "$HAKEMISTO" -name '*.sql.gz' -mtime +$SAILYTYS_PV -delete
+echo "$tiedosto"

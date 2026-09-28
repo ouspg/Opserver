@@ -34,3 +34,6 @@ loki.log
 testitulokset/
 vahtikoira.log
 .vahtikoira_epakunnossa_alkoi
+paivittaja.log
+varmuuskopio.log
+.paivitys_epaonnistui
