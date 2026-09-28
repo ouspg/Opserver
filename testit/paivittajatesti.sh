@@ -44,7 +44,8 @@ echo "varmuuskopio $*" >> "$LOKI"; echo /tmp/dumppi.sql.gz
 EOF
 cat > testit/savutesti.sh <<'EOF'
 #!/usr/bin/env bash
-[[ ! -f RIKKI && -z "${SIVU_RIKKI:-}" ]]
+[[ -z "${SIVU_RIKKI:-}" ]] || { echo "[OK]   WebUI etusivu"; echo "[FAIL] API /kurssit ei vastaa"; exit 1; }
+[[ ! -f RIKKI ]]
 EOF
 chmod +x asenna varmuuskopio testit/savutesti.sh
 git add -A && git commit -qm v1
@@ -52,7 +53,7 @@ git clone -q "$T/origin" "$T/tuotanto"
 echo "GITHUB_ISSUE_TOKEN=x" > "$T/tuotanto/.env"
 
 uusi_commit() { (cd "$T/origin" && "$@" && git add -A && git commit -qm "$RANDOM" && git rev-parse HEAD); }
-aja() { : > "$LOKI"; (cd "$T/tuotanto" && ./paivittaja >/dev/null 2>&1) || true; }
+aja() { : > "$LOKI"; (cd "$T/tuotanto" && ./paivittaja >"$T/ajo.log" 2>&1) || true; }
 head_() { git -C "$T/tuotanto" rev-parse HEAD; }
 odota() {  # kuvaus, ehto
     if eval "$2"; then echo "[OK]   $1"; else echo "[FAIL] $1"; echo "--- loki:"; cat "$LOKI"; virheita=$((virheita + 1)); fi
@@ -84,6 +85,7 @@ odota "samaa versiota ei yritetä uudelleen" '[[ ! -s "$LOKI" ]]'
 korjattu=$(uusi_commit rm RIKKI)
 SIVU_RIKKI=1 aja
 odota "ei päivitetä jos sivu on jo rikki" '[[ $(head_) == "$hyva" ]] && ! grep -q "^asenna" "$LOKI"'
+odota "lokiin kaatunut tarkistus" 'grep -q "ei toimi.*API /kurssit ei vastaa" "$T/ajo.log" && ! grep -q "WebUI etusivu" "$T/ajo.log"'
 odota "rikkinäisestä sivusta issue" 'grep -q "issue:.*${korjattu:0:7}" "$LOKI"'
 SIVU_RIKKI=1 aja
 odota "issue vain kerran per versio" '! grep -q issue "$LOKI"'
