@@ -564,6 +564,7 @@ function paivitaMuutYmpyrat() {
 // --- Leijuvat kursorit ---
 
 const kursorielementit = {};
+const KURSORI_REUNA = 30;  // px: pallura (28) + nuoli mahtuvat ruutuun
 
 function paivitaKursorit() {
   const kerros = document.getElementById("kursori-kerros");
@@ -595,20 +596,32 @@ function paivitaKursorit() {
       canvas.width = 28;
       canvas.height = 28;
       el.appendChild(canvas);
+      const nuoli = document.createElement("div");
+      nuoli.className = "kursori-nuoli";
+      el.appendChild(nuoli);
       kerros.appendChild(el);
       kursorielementit[k.id] = el;
     }
 
     piirraYmpyra(el.querySelector("canvas"), k.profiili, !k.aktiivinen);
     el.title = k.nimimerkki || "?";
-    el.style.left = `${k.sijainti.x - window.scrollX}px`;
-    el.style.top = `${k.sijainti.y - window.scrollY}px`;
+    // Ruudun ulkopuolella: pallura jää reunaan ja nuoli osoittaa todelliseen suuntaan.
+    const vx = k.sijainti.x - window.scrollX, vy = k.sijainti.y - window.scrollY;
+    const leveys = document.documentElement.clientWidth, korkeus = document.documentElement.clientHeight;
+    const x = Math.min(Math.max(vx, KURSORI_REUNA), leveys - KURSORI_REUNA);
+    const y = Math.min(Math.max(vy, KURSORI_REUNA), korkeus - KURSORI_REUNA);
+    const ulkona = x !== vx || y !== vy;
+    el.classList.toggle("ulkona", ulkona);
+    if (ulkona) el.style.setProperty("--kulma", `${Math.atan2(vy - y, vx - x)}rad`);
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
   }
 }
 
 // --- Syötetapahtumat ---
 
 document.addEventListener("scroll", () => paivitaKursorit(), { passive: true });
+window.addEventListener("resize", () => paivitaKursorit());
 
 document.addEventListener("mousemove", (e) => {
   hiiri = { x: e.pageX, y: e.pageY };

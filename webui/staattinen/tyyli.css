@@ -700,6 +700,22 @@ td.arviointi-vastaus {
   border-radius: 50%;
 }
 
+/* Ruudun ulkopuolella oleva käyttäjä: pallura reunassa, nuoli osoittaa suunnan. */
+.kursori-nuoli {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 9px solid #0e214b;
+  transform: translate(-50%, -50%) rotate(var(--kulma, 0rad)) translateX(19px);
+  filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff);  /* näkyy myös tummaa yläpalkkia vasten */
+}
+
+.vieras-kursori.ulkona .kursori-nuoli { display: block; }
+.vieras-kursori.ulkona canvas { opacity: 0.85; }
+
 /* Uutispalkki */
 
 #uutispalkki {
