@@ -902,30 +902,33 @@ async function renderTutkimusKurssit(slug, nimi, sailyta = false) {
     const onChange = () => {
       tutkimus_sivu = 0;
       window.lahetaTilaNyt?.();
-      return paivitaLuokitusMaaratJaSivu();
+      naytaLuokitusLataus();
+      return lataaTilaSivu(true);
     };
     // Ei awaitia: palkin data (korkeakoulut, tasot) ei saa viivästää kurssilistaa.
     rakennaSuodatinPalkki(palkki, luokitus_suodatin, onChange);
     rekisteroiTutkimusNakymat("tutkimus-kurssit-otsikko", palkki, luokitus_suodatin, onChange);
     tutkimus_sivu = 0;
+    naytaLuokitusLataus();
   }
-  await paivitaLuokitusMaaratJaSivu();
+  await lataaTilaSivu(true);
 }
 
-// Hae tilamäärät (suodatettuna) ja nykyinen sivu
-async function paivitaLuokitusMaaratJaSivu() {
-  const slug = aktiivinen_tutkimus.Slug;
-  const p = _suodatinParams(luokitus_suodatin);
-  tutkimus_maarat = await fetch(`/api/tutkimukset/${slug}/luokitukset/maarat?${p}`).then((r) => r.json());
-  const nimet = { mukana: "Mukana", odottaa: "Odottaa", "hylätty": "Hylätty" };
-  document.querySelectorAll(".tila-nappi").forEach((b) => {
-    b.textContent = `${nimet[b.dataset.tila]} (${tutkimus_maarat[b.dataset.tila] ?? 0})`;
-  });
-  await lataaTilaSivu();
+// Käyttäjän vaihto (tila/sivu/suodatin/järjestys): vanha lista pois heti ja latausrivi
+// tilalle — muuten edellinen näkymä jää näkyviin kuin mitään ei tapahtuisi.
+function naytaLuokitusLataus() {
+  document.getElementById("tutkimus-kurssit-rungot").innerHTML =
+    '<tr class="lataus-rivi"><td colspan="6">Ladataan kursseja…</td></tr>';
+  document.getElementById("tutkimus-kurssit-lkm").textContent = "Ladataan…";
 }
 
-// Hae aktiivisen välilehden nykyinen sivu palvelimelta ja renderöi
-async function lataaTilaSivu() {
+let _luokitusLataus = 0;
+
+// Hae aktiivisen välilehden nykyinen sivu (ja maaratKanssa: suodatetut tilamäärät
+// rinnakkain) palvelimelta ja renderöi. Vain uusin lataus renderöidään: hitaalla
+// yhteydellä edellisen tilan/sivun myöhästynyt vastaus ei saa korvata uutta.
+async function lataaTilaSivu(maaratKanssa = false) {
+  const lataus = ++_luokitusLataus;
   document.querySelectorAll(".tila-nappi, .tila-nappi-nav").forEach((b) => {
     b.classList.toggle("aktiivinen", b.dataset.tila === aktiivinen_tila);
   });
@@ -940,7 +943,19 @@ async function lataaTilaSivu() {
     ? `&jarjesta=${luokitus_jarjestys.sarake}&suunta=${luokitus_jarjestys.suunta}` : "";
   const url = `/api/tutkimukset/${slug}/luokitukset?tila=${encodeURIComponent(aktiivinen_tila)}`
     + `&sivu=${tutkimus_sivu}&koko=${TUTKIMUS_KURSSIT_KOKO}` + (p ? `&${p}` : "") + j;
-  tutkimus_luokitukset = await fetch(url).then((r) => r.json());
+  const [rivit, maarat] = await Promise.all([
+    haeJson(url),
+    maaratKanssa ? haeJson(`/api/tutkimukset/${slug}/luokitukset/maarat?${p}`) : null,
+  ]);
+  if (lataus !== _luokitusLataus) return;
+  if (maarat) {
+    tutkimus_maarat = maarat;
+    const nimet = { mukana: "Mukana", odottaa: "Odottaa", "hylätty": "Hylätty" };
+    document.querySelectorAll(".tila-nappi").forEach((b) => {
+      b.textContent = `${nimet[b.dataset.tila]} (${tutkimus_maarat[b.dataset.tila] ?? 0})`;
+    });
+  }
+  tutkimus_luokitukset = rivit;
   renderTutkimusKurssitRivit(tutkimus_luokitukset);
   renderTutkimusKurssitSivutus();
 }
@@ -948,7 +963,9 @@ async function lataaTilaSivu() {
 function vaihdaSivu(sivu) {
   tutkimus_sivu = sivu;
   window.lahetaTilaNyt?.();
-  lataaTilaSivu().then(() => window.scrollTo(0, 0));
+  naytaLuokitusLataus();
+  window.scrollTo(0, 0);
+  lataaTilaSivu();
 }
 
 // Läsnäolotieto (yhteistyo.js): sivutussivu, jotta muut näkevät palluran sivunumeron kohdalla.
