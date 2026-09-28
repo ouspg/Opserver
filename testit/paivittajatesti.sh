@@ -21,7 +21,7 @@ exec "$@"
 EOF
 printf '#!/bin/sh\nexit 0\n' > "$T/bin/flock"
 printf '#!/bin/sh\nexit 0\n' > "$T/bin/sleep"
-printf '#!/bin/sh\nexit 1\n' > "$T/bin/pgrep"
+printf '#!/bin/sh\n[ -n "$PIPELINE_KAYNNISSA" ]\n' > "$T/bin/pgrep"
 cat > "$T/bin/curl" <<'EOF'
 #!/usr/bin/env bash
 echo "issue: $(cat)" >> "$LOKI"
@@ -58,14 +58,18 @@ odota() {  # kuvaus, ehto
     if eval "$2"; then echo "[OK]   $1"; else echo "[FAIL] $1"; echo "--- loki:"; cat "$LOKI"; virheita=$((virheita + 1)); fi
 }
 
-aja
-odota "ei muutosta → ei asennusta" '! grep -q asenna "$LOKI"'
-
 hyva=$(uusi_commit touch uusi_ominaisuus)
+PIPELINE_KAYNNISSA=1 aja
+odota "pipeline käynnissä → lopetetaan heti (ei edes fetchiä)" \
+    '[[ ! -s "$LOKI" && $(git -C "$T/tuotanto" rev-parse origin/main) != "$hyva" ]]'
+
 aja
 odota "uusi versio asennetaan" '[[ $(head_) == "$hyva" ]] && grep -q "asenna ${hyva:0:7}" "$LOKI"'
 odota "varmuuskopio ennen asennusta" 'grep -q "^varmuuskopio" "$LOKI"'
 odota "onnistuneesta ei issueta" '! grep -q issue "$LOKI"'
+
+aja
+odota "ei muutosta → ei asennusta" '! grep -q asenna "$LOKI"'
 
 rikki=$(uusi_commit touch RIKKI)
 aja

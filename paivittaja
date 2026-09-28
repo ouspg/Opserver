@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Automaattipäivitys (root-cron 5 min välein, /etc/cron.d/opserver — asenna asentaa):
-# origin/main muuttunut → sivu toimii nyt? → varmuuskopio → ff-pull → ./asenna →
+# pipeline ei käynnissä → origin/main muuttunut → sivu toimii nyt? → varmuuskopio → ff-pull → ./asenna →
 # toimiiko? Jos ei: palautetaan koodi + kanta, GitHub-issue, eikä samaa versiota
 # yritetä enää (.paivitys_epaonnistui). Seuraava uusi commit yritetään normaalisti.
 # EI set -e: epäonnistumiset käsitellään itse (palautus).
@@ -9,6 +9,9 @@ set -uo pipefail
 {
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 exec 9<"$0"; flock -n 9 || exit 0   # edellinen ajo yhä kesken
+# Pipeline-ajo (cliui) käynnissä → lopetetaan heti, ei edes fetchiä: asenna ja
+# kannan palautus katkaisisivat sen. Hiljaa — ajo voi kestää tunteja.
+pgrep -f 'cliui[.]valikko' >/dev/null && exit 0   # ./run; ei osu esim. editoriin cliui/…-tiedostossa
 
 EPAONNISTUNUT=.paivitys_epaonnistui
 loki() { echo "$(date '+%F %T') $*"; }
@@ -41,8 +44,6 @@ git_ fetch -q origin main || { loki "git fetch epäonnistui"; exit 1; }
 vanha=$(git_ rev-parse HEAD)
 uusi=$(git_ rev-parse origin/main)
 [[ "$vanha" == "$uusi" || "$uusi" == "$(cat "$EPAONNISTUNUT" 2>/dev/null)" ]] && exit 0
-# ponytail: pipeline-ajo (cliui) keskeytyisi kannan palautukseen — odotetaan sen loppumista.
-pgrep -f cliui >/dev/null && { loki "pipeline käynnissä — päivitys odottaa"; exit 0; }
 savutesti >/dev/null 2>&1 || { loki "sivu ei toimi jo ennen päivitystä — ei päivitetä (${uusi:0:7})"; exit 1; }
 dumppi=$(./varmuuskopio "ennen-${uusi:0:7}") || { loki "varmuuskopio epäonnistui — ei päivitetä"; exit 1; }
 
