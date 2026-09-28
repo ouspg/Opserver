@@ -157,10 +157,3 @@ osittainen renderöinti ei vielä ehtinyt, eri välilehti mukana/hylätty), suun
 ei tiedetä ja B on A:lle taas näkymätön (`yhteistyo.js` `paivitaKursorit`,
 `ponytail:`-kommentti). Päätä: riittääkö, vai esim. pallura reunaan/nurkkaan
 "muualla tällä sivulla" -merkinnällä tai sivutusnapin viereen.
-
-## 15. Yläpalkin piilotustila ei säily uudelleenlatauksessa
-
-PR #46: yläpalkin ^/☰-piilotus on pelkkä `header.koottu`-luokka; sivun
-uudelleenlataus palauttaa valikon näkyviin. Tarjottu (ei vastausta):
-`localStorage`-muisti, yksi rivi (`sovellus.js`, `valikkovihje`-kuuntelija +
-alustus). Päätä tarvitaanko.
