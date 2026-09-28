@@ -84,6 +84,49 @@ class TestKurssi:
         assert "INSERT" in sql.upper()
         assert "DUPLICATE" in sql.upper()
 
+    def test_tallenna_kurssi_kuvaus_omaan_tauluun(self, mock_yhteys):
+        """OpsKuvaus on omassa taulussaan (KurssiKuvaus): Kurssi-taulun rivit pysyvät
+        kapeina, ettei jokainen listaus-/määräkysely lue satoja megatavuja kuvauksia.
+        KID myös päivityshaarassa (LAST_INSERT_ID(KID)) — muuten kuvaus ei päivity."""
+        yht, kursori = mock_yhteys
+        kursori.lastrowid = 7
+        mallit.tallenna_kurssi(
+            kkid=1, lahde_id="45690", koodi="IC00AU61",
+            kurssi_nimi="Kyberturvallisuuden perusteet", taso="aine",
+            oppiaine="Tietotekniikka", opintopisteet=5.0,
+            opetusvuosi="2025-2026", ops_kuvaus='{"id":"45690"}',
+        )
+        (kurssi_sql, _), (kuvaus_sql, kuvaus_params) = [c[0] for c in kursori.execute.call_args_list]
+        assert "INTO Kurssi\n" in kurssi_sql and "OpsKuvaus" not in kurssi_sql
+        assert "KID = LAST_INSERT_ID(KID)" in kurssi_sql
+        assert "INTO KurssiKuvaus" in kuvaus_sql and "DUPLICATE" in kuvaus_sql.upper()
+        assert list(kuvaus_params) == [7, '{"id":"45690"}']
+
+    def test_hae_kurssi_liittaa_kuvauksen(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchone.return_value = None
+        mallit.hae_kurssi(7)
+        sql = kursori.execute.call_args[0][0]
+        assert "LEFT JOIN KurssiKuvaus" in sql and "OpsKuvaus" in sql
+
+    def test_hae_kurssi_idlla_liittaa_kuvauksen(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        mallit.hae_kurssit_idlla([4])
+        sql = kursori.execute.call_args[0][0]
+        assert "LEFT JOIN KurssiKuvaus" in sql and "OpsKuvaus" in sql
+
+    def test_hae_valitut_kurssit_kuvauksin_tai_ilman(self, mock_yhteys):
+        """LLM-arviointi tarvitsee kuvaukset; WebUI:n listat eivät (kuvaus vain kurssimodaalissa)."""
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        mallit.hae_valitut_kurssit(1)
+        assert "LEFT JOIN KurssiKuvaus" in kursori.execute.call_args[0][0]
+        mallit.hae_valitut_kurssit(1, kuvaukset=False)
+        assert "KurssiKuvaus" not in kursori.execute.call_args[0][0]
+
     def test_hae_kurssit_suodattaa_kkid_perusteella(self, mock_yhteys):
         yht, kursori = mock_yhteys
         kursori.fetchall.return_value = []
@@ -166,6 +209,8 @@ class TestHaeArvioimattomat:
         sql, params = kursori.execute.call_args[0]
         assert "k.KKID IN" not in sql
         assert list(params) == [1, 1]
+        # LLM-arviointi tarvitsee kuvauksen (omasta taulustaan)
+        assert "LEFT JOIN KurssiKuvaus" in sql and "OpsKuvaus" in sql
 
     def test_laske_arvioimattomat_laskee_ei_hae_riveja(self, mock_yhteys):
         """Tilannesivu tarvitsee vain lukumäärän → COUNT(*), ei SELECT k.* (ei vedä
@@ -297,7 +342,7 @@ class TestHaeLuokittelemattomat:
         kursori.description = []
         mallit.hae_kurssit_idlla([4, 7])
         sql, params = kursori.execute.call_args[0]
-        assert "WHERE KID IN (%s,%s)" in sql
+        assert "WHERE k.KID IN (%s,%s)" in sql
         assert list(params) == [4, 7]
 
     def test_hae_kurssit_idlla_tyhjalla_ei_kysele(self, mock_yhteys):

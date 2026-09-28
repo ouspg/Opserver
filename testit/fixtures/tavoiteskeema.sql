@@ -3,6 +3,7 @@
 
   CONSTRAINT `HitlKorjaus_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE
   CONSTRAINT `HitlKorjaus_ibfk_2` FOREIGN KEY (`KID`) REFERENCES `Kurssi` (`KID`) ON DELETE CASCADE
+  CONSTRAINT `KurssiKuvaus_ibfk_1` FOREIGN KEY (`KID`) REFERENCES `Kurssi` (`KID`) ON DELETE CASCADE
   CONSTRAINT `Kurssi_ibfk_1` FOREIGN KEY (`KKID`) REFERENCES `Korkeakoulu` (`KKID`) ON DELETE CASCADE
   CONSTRAINT `Kurssiarviointi_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE
   CONSTRAINT `Kurssiarviointi_ibfk_2` FOREIGN KEY (`KID`) REFERENCES `Kurssi` (`KID`) ON DELETE CASCADE
@@ -37,6 +38,7 @@
   KEY `idx_tid` (`TID`)
   PRIMARY KEY (`HID`)
   PRIMARY KEY (`KAID`)
+  PRIMARY KEY (`KID`)
   PRIMARY KEY (`KID`)
   PRIMARY KEY (`KKID`)
   PRIMARY KEY (`KLID`)
@@ -73,6 +75,7 @@
   `Juurisyy` varchar(32) DEFAULT NULL
   `Juurisyy` varchar(32) DEFAULT NULL
   `KAID` int NOT NULL AUTO_INCREMENT
+  `KID` int NOT NULL
   `KID` int NOT NULL
   `KID` int NOT NULL
   `KID` int NOT NULL
@@ -178,6 +181,7 @@
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
 /*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
@@ -200,10 +204,12 @@
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -238,8 +244,10 @@
 /*!50503 SET character_set_client = utf8mb4 */;
 /*!50503 SET character_set_client = utf8mb4 */;
 /*!50503 SET character_set_client = utf8mb4 */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `HitlKorjaus` (
 CREATE TABLE `Korkeakoulu` (
+CREATE TABLE `KurssiKuvaus` (
 CREATE TABLE `Kurssi` (
 CREATE TABLE `Kurssiarviointi` (
 CREATE TABLE `Kurssiluokitus_testi` (
@@ -254,6 +262,7 @@ CREATE TABLE `Vastaukset` (
 CREATE TABLE `_migraatiot` (
 DROP TABLE IF EXISTS `HitlKorjaus`;
 DROP TABLE IF EXISTS `Korkeakoulu`;
+DROP TABLE IF EXISTS `KurssiKuvaus`;
 DROP TABLE IF EXISTS `Kurssi`;
 DROP TABLE IF EXISTS `Kurssiarviointi`;
 DROP TABLE IF EXISTS `Kurssiluokitus_testi`;
