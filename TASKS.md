@@ -127,3 +127,23 @@ jossa ~8 kt OpsKuvaus/rivi). Tarkistus tuotantokoneella itsellään:
 `time curl -s -o /dev/null -u … https://<domain>/api/tasot` (tai mysql:n
 `SELECT Taso … GROUP BY Taso` -aika). Jos hidas: kattava indeksi `(Taso)` tai
 tasot-välimuistin TTL:n pidennys.
+
+## 13. Tapahtumaloki: tallennus tietokantaan ja näyttäminen
+
+Nykyinen "uutispalkki" (`yhteistyo.js` `lahetaUutinen`/`lisaaUutinen`,
+`palvelin.py` `tyyppi == "uutinen"`) on pelkkä WS-välitys: palvelin ei tallenna
+mitään, joten myöhemmin liittyvä/uudelleenlataava/yhteyskatkoksessa ollut
+käyttäjä ei näe aiempia tapahtumia. Lisäksi asiakas lähettää uutisen itse
+tallennuksen jälkeen (pudotetaan hiljaa jos WS ei auki) ja teksti on
+vapaamuotoinen → kuka tahansa voi väärentää "uutisen". Uutisia lähtee vain
+HITL-korjauksesta ja peukutuksesta (`sovellus.js` ~792, ~809) — ei
+arviointi-/raporttimuokkauksista.
+
+Tavoite:
+- Palvelin kirjaa tapahtuman itse onnistuneen kirjoittavan API-kutsun
+  yhteydessä (HITL, hyväksyntä, arviointi-/raporttimuokkaus) uuteen
+  tauluun (`migraatio_NNN.sql`: aika, tutkimus, kurssi, toimija, tyyppi, kuvaus)
+  ja broadcastaa sen WS:llä — asiakkaan `uutinen`-viesti poistetaan.
+- Idempotentti: `lahetaNapilla`-uudelleenlähetys ei saa tuottaa tuplarivejä.
+- Näyttäminen: liittyessä uusimmat N tapahtumaa uutispalkkiin; erillinen
+  sivutettu tapahtumalokinäkymä (`?alku&koko`), suodatus tutkimuksen mukaan.
