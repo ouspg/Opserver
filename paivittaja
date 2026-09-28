@@ -44,8 +44,8 @@ git_ fetch -q origin main || { loki "git fetch epäonnistui"; exit 1; }
 vanha=$(git_ rev-parse HEAD)
 uusi=$(git_ rev-parse origin/main)
 [[ "$vanha" == "$uusi" || "$uusi" == "$(cat "$EPAONNISTUNUT" 2>/dev/null)" ]] && exit 0
-if ! savutesti >/dev/null 2>&1; then
-    loki "sivu ei toimi jo ennen päivitystä — ei päivitetä (${uusi:0:7})"
+if ! tulos=$(savutesti 2>&1); then
+    loki "sivu ei toimi jo ennen päivitystä — ei päivitetä (${uusi:0:7}): $(grep FAIL <<<"$tulos" | tr "\n" " ")"
     # Korjaava commit ei asennu itsestään → ihmiselle tieto, kerran per versio (ajo 5 min välein).
     if [[ "$uusi" != "$(cat .paivitys_rikki_ilmoitettu 2>/dev/null)" ]]; then
         echo "$uusi" > .paivitys_rikki_ilmoitettu

@@ -154,7 +154,8 @@ echo ""
 # 2. WebUI HTTP
 tarkista_http "WebUI etusivu"                "$WEBUI/"                     "Opserver"
 tarkista_http "API /korkeakoulut"            "$WEBUI/api/korkeakoulut"     ""
-tarkista_http "API /kurssit"                 "$WEBUI/api/kurssit"          ""
+# Vain yksi rivi: koko katalogi (~7 Mt) ei ehdi 5 s aikarajassa tuotannossa.
+tarkista_http "API /kurssit"                 "$WEBUI/api/kurssit?koko=1"   ""
 tarkista_http "API /tutkimukset"             "$WEBUI/api/tutkimukset"      ""
 
 # Raportti-endpoint: tarkistetaan jokaiselle tutkimukselle (jos niitä on).
