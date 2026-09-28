@@ -496,7 +496,7 @@ def api_tutkimus_kurssit(slug: str) -> list[dict]:
     tutkimus = mallit.hae_tutkimus_slugilla(slug)
     if tutkimus is None:
         raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
-    rivit = mallit.hae_valitut_kurssit(tutkimus["TID"])
+    rivit = mallit.hae_valitut_kurssit(tutkimus["TID"], kuvaukset=False)
     return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
 
 
@@ -558,10 +558,10 @@ def api_tutkimus_arvioinnit(slug: str, sivu: int = 0, koko: Optional[int] = None
     tid = tutkimus["TID"]
     kysymykset = mallit.hae_kysymykset(tid)
     if koko is None:
-        kurssit = mallit.hae_valitut_kurssit(tid)
+        kurssit = mallit.hae_valitut_kurssit(tid, kuvaukset=False)
         yhteensa = len(kurssit)
     else:
-        kurssit = mallit.hae_valitut_kurssit(tid, raja=koko, siirto=sivu * koko)
+        kurssit = mallit.hae_valitut_kurssit(tid, raja=koko, siirto=sivu * koko, kuvaukset=False)
         yhteensa = mallit.laske_valitut_kurssit(tid)
     # ponytail: vastaukset haetaan koko tutkimukselle joka sivulla (~1600 lyhyttä riviä,
     # ms-luokkaa); rajaa KID-listalla jos vastausmäärä kasvaa kertaluokkia.

@@ -696,7 +696,7 @@ def test_api_tutkimus_arvioinnit_sivutettuna():
          patch("webui.palvelin.mallit.hae_vastaukset", return_value=vastaukset), \
          patch("webui.palvelin.mallit.hae_hitl_vastaukset", return_value=[]):
         data = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit?sivu=1&koko=1").json()
-    valitut.assert_called_once_with(TUTKIMUS["TID"], raja=1, siirto=1)
+    valitut.assert_called_once_with(TUTKIMUS["TID"], raja=1, siirto=1, kuvaukset=False)
     assert data["yhteensa"] == 2
     assert [k["KID"] for k in data["kurssit"]] == [2]
     assert data["kurssit"][0]["vastaukset"][0]["vastaus"] == "v2"

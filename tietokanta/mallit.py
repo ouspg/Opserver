@@ -56,6 +56,12 @@ def poista_korkeakoulu(kkid: int) -> None:
 
 # --- Kurssi ---
 
+# OpsKuvaus on omassa taulussaan (KurssiKuvaus, migraatio 025): ainoa raskas kenttä
+# (mediumtext, ka. 6,3 kB) mahtui riville, jolloin Kurssi oli ~250 MB ja jokainen
+# sen läpikäyvä kysely (tilamäärät, odottaa/hylätty-listat) luki kuvaukset levyltä
+# (tuotannossa 9–22 s). Kuvaus liitetään vain sitä tarvitseviin hakuihin.
+_KUVAUS_JOIN = "LEFT JOIN KurssiKuvaus ku ON ku.KID = k.KID"
+
 # ponytail: uudelleenyritys vain kurssihaun pitkän ajon kutsuissa — muut kutsut
 # ovat kertaluontoisia ja kaatuvat siististi. Lisää dekoraattori jos ne kaatuilevat.
 @uudelleenyrita
@@ -64,21 +70,27 @@ def tallenna_kurssi(kkid: int, lahde_id: str, koodi: str, kurssi_nimi: str,
                     opetusvuosi: str, ops_kuvaus: str) -> int:
     with yhteys() as yht:
         with yht.cursor() as kursori:
+            # LAST_INSERT_ID(KID): lastrowid = KID myös päivityshaarassa (kuvausta varten).
             kursori.execute(
                 """INSERT INTO Kurssi
-                       (KKID, LahdeId, Koodi, KurssiNimi, Taso, Oppiaine, Opintopisteet, Opetusvuosi, OpsKuvaus)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE
+                       (KKID, LahdeId, Koodi, KurssiNimi, Taso, Oppiaine, Opintopisteet, Opetusvuosi)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                   ON DUPLICATE KEY UPDATE KID = LAST_INSERT_ID(KID),
                        Koodi = VALUES(Koodi), KurssiNimi = VALUES(KurssiNimi),
                        Taso = VALUES(Taso), Oppiaine = VALUES(Oppiaine),
-                       Opintopisteet = VALUES(Opintopisteet), OpsKuvaus = VALUES(OpsKuvaus)""",
-                (kkid, lahde_id, koodi, kurssi_nimi, taso, oppiaine, opintopisteet, opetusvuosi, ops_kuvaus),
+                       Opintopisteet = VALUES(Opintopisteet)""",
+                (kkid, lahde_id, koodi, kurssi_nimi, taso, oppiaine, opintopisteet, opetusvuosi),
             )
-            return kursori.lastrowid
+            kid = kursori.lastrowid
+            kursori.execute(
+                """INSERT INTO KurssiKuvaus (KID, OpsKuvaus) VALUES (%s, %s)
+                   ON DUPLICATE KEY UPDATE OpsKuvaus = VALUES(OpsKuvaus)""",
+                (kid, ops_kuvaus),
+            )
+            return kid
 
 
-# Listanäkymän kentät — EI raskasta OpsKuvaus-blobia (koko aineistossa ~248 MB,
-# joka muuten luettaisiin turhaan jokaiseen listahakuun).
+# Listanäkymän kentät (OpsKuvaus on omassa taulussaan, ks. _KUVAUS_JOIN).
 _KURSSI_LISTA_SARAKKEET = (
     "KID, KKID, LahdeId, Koodi, KurssiNimi, Taso, Oppiaine, Opintopisteet, Opetusvuosi"
 )
@@ -193,7 +205,7 @@ def hae_tallennetut_lahde_idt(kkid: int, opetusvuosi: str) -> set[str]:
 def hae_kurssi(kid: int) -> dict | None:
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute("SELECT * FROM Kurssi WHERE KID = %s", (kid,))
+            kursori.execute(f"SELECT k.*, ku.OpsKuvaus FROM Kurssi k {_KUVAUS_JOIN} WHERE k.KID = %s", (kid,))
             return _rivi_diktina(kursori)
 
 
@@ -245,15 +257,18 @@ def hae_tutkimus_slugilla(slug: str) -> dict | None:
             return _rivi_diktina(kursori)
 
 
-def hae_valitut_kurssit(tid: int, raja: int | None = None, siirto: int = 0) -> list[dict]:
+def hae_valitut_kurssit(tid: int, raja: int | None = None, siirto: int = 0,
+                        kuvaukset: bool = True) -> list[dict]:
     """Mukaan otetut kurssit; raja/siirto → yksi sivu (WebUI lataa osissa).
-    KID järjestyksen tasapelin ratkaisijana, jotta sivut eivät limity."""
+    KID järjestyksen tasapelin ratkaisijana, jotta sivut eivät limity.
+    kuvaukset=False: ilman OpsKuvausta (WebUI:n listat; LLM-arviointi tarvitsee sen)."""
     sivutus = " LIMIT %s OFFSET %s" if raja is not None else ""
+    kuvaus_sql = (", ku.OpsKuvaus", _KUVAUS_JOIN) if kuvaukset else ("", "")
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute("""
-                SELECT k.*
-                FROM Kurssi k
+            kursori.execute(f"""
+                SELECT k.*{kuvaus_sql[0]}
+                FROM Kurssi k {kuvaus_sql[1]}
                 JOIN Kurssiluokitus kl ON k.KID = kl.KID
                 WHERE kl.TID = %s AND kl.Mukana = 1
                 ORDER BY k.KurssiNimi, k.KID""" + sivutus,
@@ -578,7 +593,7 @@ def _luokittelemattomat_ehto(tid: int, tiiviste: str | None) -> tuple[str, tuple
 
 
 # Kurssin kentät ilman OpsKuvausta: ainoa raskas kenttä (mediumtext, ka. 6,3 kB
-# / rivi) jätetään pois ehdokaslistasta ja haetaan erä kerrallaan.
+# / rivi, omassa taulussaan) haetaan erä kerrallaan (hae_kurssit_idlla).
 _KEVYET_SARAKKEET = ("KID", "KKID", "LahdeId", "Koodi", "KurssiNimi",
                      "Taso", "Oppiaine", "Opintopisteet", "Opetusvuosi")
 
@@ -614,7 +629,8 @@ def hae_kurssit_idlla(kidit: list[int]) -> list[dict]:
     paikat = ",".join(["%s"] * len(kidit))
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute(f"SELECT * FROM Kurssi WHERE KID IN ({paikat})", tuple(kidit))
+            kursori.execute(f"SELECT k.*, ku.OpsKuvaus FROM Kurssi k {_KUVAUS_JOIN} "
+                            f"WHERE k.KID IN ({paikat})", tuple(kidit))
             return _rivit_dikteina(kursori)
 
 
@@ -942,7 +958,9 @@ def hae_arvioimattomat(tid: int) -> list[dict]:
     ehto, params = _arvioimattomat_ehto(tid)
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute(f"SELECT k.* {ehto} ORDER BY k.KurssiNimi", params)
+            # Kuvaus liitetään GROUP BY:n ulkopuolella (ONLY_FULL_GROUP_BY).
+            kursori.execute(f"SELECT t.*, ku.OpsKuvaus FROM (SELECT k.* {ehto}) t "
+                            f"LEFT JOIN KurssiKuvaus ku ON ku.KID = t.KID ORDER BY t.KurssiNimi", params)
             return _rivit_dikteina(kursori)
 
 
