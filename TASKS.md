@@ -157,3 +157,20 @@ osittainen renderöinti ei vielä ehtinyt, eri välilehti mukana/hylätty), suun
 ei tiedetä ja B on A:lle taas näkymätön (`yhteistyo.js` `paivitaKursorit`,
 `ponytail:`-kommentti). Päätä: riittääkö, vai esim. pallura reunaan/nurkkaan
 "muualla tällä sivulla" -merkinnällä tai sivutusnapin viereen.
+
+## 16. Kannan varmuuskopiot vain tuotantokoneen omalla levyllä (offsite puuttuu)
+
+PR #53 (`varmuuskopio`): dumpit → `/var/backups/opserver/` samalla koneella →
+eivät kestä levyn/koneen menetystä eivätkä murtoa (root voi poistaa ne).
+Suositus: toinen kone *hakee* dumpit (pull, esim. `rsync` ssh:lla lukuoikeudella),
+jolloin tuotantokone ei pääse poistamaan kopioita. Kysytty käyttäjältä
+2026-09-28 — kohdekone päättämättä. Harkitse samalla `.env`:n (LLM-avain,
+GITHUB_ISSUE_TOKEN) säilytystä muualla.
+
+## 17. Automaattipäivitys ei asenna korjausta, jos sivu on jo valmiiksi rikki
+
+PR #53 (`paivittaja`): käyttäjän pyynnöstä päivitys tehdään vain, jos savutesti
+menee läpi ennen päivitystä. Seuraus: jos tuotanto hajoaa muusta syystä, sen
+korjaava commit ei asennu itsestään — asennus käsin (`git pull && sudo ./asenna`).
+Lokissa näkyy "sivu ei toimi jo ennen päivitystä" 5 min välein. Päätä: riittääkö,
+vai esim. issue GitHubiin tästäkin tilasta (kerran per versio).
