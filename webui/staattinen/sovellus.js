@@ -106,10 +106,15 @@ function navigoi(polku) {
 
 window.addEventListener("popstate", renderoi);
 
+// Valittujen kurssien tilat ovat omia sivujaan (/tutkimukset/<slug>/kurssit-valittu …),
+// jotta suodatinnäkymät ja läsnäolo koskevat vain yhtä tilaa eikä muita ladata turhaan.
+const KURSSIT_TILAT = { "kurssit-valittu": "mukana", "kurssit-odottaa": "odottaa", "kurssit-hylatty": "hylätty" };
+
 function jaaPolku() {
   const osat = location.pathname.replace(/^\//, "").split("/").filter(Boolean);
   if (osat[0] === "tutkimukset" && osat[1]) {
-    return { sivu: "tutkimukset", slug: osat[1], alasivu: osat[2] || "tiedot" };
+    const tila = KURSSIT_TILAT[osat[2]] || null;
+    return { sivu: "tutkimukset", slug: osat[1], alasivu: tila ? "kurssit" : osat[2] || "tiedot", tila };
   }
   return { sivu: osat[0] || "korkeakoulut", slug: null, alasivu: null };
 }
@@ -127,6 +132,11 @@ async function renderoi() {
   document.querySelectorAll(".nakyma").forEach((s) => s.classList.remove("aktiivinen"));
 
   if (r.sivu === "tutkimukset" && r.slug) {
+    if (r.alasivu === "kurssit" && !r.tila) {  // alavalikon nappi / vanha polku → oletustila
+      history.replaceState({}, "", `/tutkimukset/${r.slug}/kurssit-valittu`);
+      return renderoi();
+    }
+    if (r.tila) aktiivinen_tila = r.tila;
     await renderTutkimusKonteksti(r.slug, r.alasivu);
   } else {
     document.getElementById("tutkimus-nav").classList.add("piilotettu");
@@ -889,7 +899,11 @@ async function renderTutkimusKurssit(slug, nimi, sailyta = false) {
     luokitus_suodatin = { kkid: null, taso: null, hakusana: null };
     luokitus_jarjestys = { sarake: null, suunta: null };
     const palkki = document.getElementById("tutkimus-kurssit-suodatin");
-    const onChange = () => { tutkimus_sivu = 0; return paivitaLuokitusMaaratJaSivu(); };
+    const onChange = () => {
+      tutkimus_sivu = 0;
+      window.lahetaTilaNyt?.();
+      return paivitaLuokitusMaaratJaSivu();
+    };
     // Ei awaitia: palkin data (korkeakoulut, tasot) ei saa viivästää kurssilistaa.
     rakennaSuodatinPalkki(palkki, luokitus_suodatin, onChange);
     rekisteroiTutkimusNakymat("tutkimus-kurssit-otsikko", palkki, luokitus_suodatin, onChange);
@@ -918,7 +932,7 @@ async function lataaTilaSivu() {
   varustaJarjestys(
     document.querySelector("#s-tutkimus-kurssit thead"),
     luokitus_jarjestys,
-    () => { tutkimus_sivu = 0; lataaTilaSivu(); window.scrollTo(0, 0); },
+    () => vaihdaSivu(0),
   );
   const slug = aktiivinen_tutkimus.Slug;
   const p = _suodatinParams(luokitus_suodatin);
@@ -931,24 +945,63 @@ async function lataaTilaSivu() {
   renderTutkimusKurssitSivutus();
 }
 
+function vaihdaSivu(sivu) {
+  tutkimus_sivu = sivu;
+  window.lahetaTilaNyt?.();
+  lataaTilaSivu().then(() => window.scrollTo(0, 0));
+}
+
+// Läsnäolotieto (yhteistyo.js): sivutussivu, jotta muut näkevät palluran sivunumeron kohdalla.
+window.omaSivunumero = () => (jaaPolku().alasivu === "kurssit" ? tutkimus_sivu : null);
+
+let _sivutusMuut = [];
+
+// Sivutus ylä- ja alalaitaan: Edellinen, sivunumerot, Seuraava. Samassa näkymässä
+// eri sivulla olevat muut käyttäjät näkyvät pallurana oman sivunumeronsa kohdalla.
 function renderTutkimusKurssitSivutus() {
   const kpl = tutkimus_maarat[aktiivinen_tila] ?? 0;
   document.getElementById("tutkimus-kurssit-lkm").textContent = `${kpl} kurssia`;
-  const sivuja = Math.max(1, Math.ceil(kpl / TUTKIMUS_KURSSIT_KOKO));
-  const el = document.getElementById("tutkimus-kurssit-sivutus");
-  if (!el) return;
-  if (sivuja <= 1) { el.innerHTML = ""; return; }
-  el.innerHTML =
-    `<button id="sivu-edellinen" ${tutkimus_sivu <= 0 ? "disabled" : ""}>← Edellinen</button>`
-    + `<span class="sivu-tieto">Sivu ${tutkimus_sivu + 1} / ${sivuja}</span>`
-    + `<button id="sivu-seuraava" ${tutkimus_sivu >= sivuja - 1 ? "disabled" : ""}>Seuraava →</button>`;
-  document.getElementById("sivu-edellinen").addEventListener("click", () => {
-    if (tutkimus_sivu > 0) { tutkimus_sivu--; lataaTilaSivu(); window.scrollTo(0, 0); }
-  });
-  document.getElementById("sivu-seuraava").addEventListener("click", () => {
-    if (tutkimus_sivu < sivuja - 1) { tutkimus_sivu++; lataaTilaSivu(); window.scrollTo(0, 0); }
+  const sivuja = Math.ceil(kpl / TUTKIMUS_KURSSIT_KOKO);
+  const omaNakyma = window.omaNakyma?.() ?? null;
+  const muut = _sivutusMuut.filter((k) => k.profiili && k.sivu === location.pathname
+    && (k.nakyma ?? null) === omaNakyma && k.sivunumero != null && k.sivunumero !== tutkimus_sivu);
+  // Ensimmäinen, viimeinen, nykyinen ±2 ja sivut, joilla on muita käyttäjiä; välit "…".
+  const naytettavat = [...new Set([0, sivuja - 1, ...muut.map((k) => k.sivunumero),
+    ...[-2, -1, 0, 1, 2].map((d) => tutkimus_sivu + d)])]
+    .filter((i) => i >= 0 && i < sivuja).sort((a, b) => a - b);
+  document.querySelectorAll(".tutkimus-kurssit-sivutus").forEach((el) => {
+    el.innerHTML = "";
+    if (sivuja <= 1) return;
+    const nappi = (teksti, sivu, luokka = "") => {
+      const b = document.createElement("button");
+      b.textContent = teksti;
+      b.className = luokka;
+      b.disabled = sivu < 0 || sivu >= sivuja || sivu === tutkimus_sivu;
+      b.addEventListener("click", () => vaihdaSivu(sivu));
+      el.appendChild(b);
+      return b;
+    };
+    nappi("← Edellinen", tutkimus_sivu - 1);
+    let edellinen = -1;
+    for (const i of naytettavat) {
+      if (i > edellinen + 1) el.insertAdjacentHTML("beforeend", '<span class="sivu-vali">…</span>');
+      const b = nappi(String(i + 1), i, i === tutkimus_sivu ? "sivu-numero aktiivinen" : "sivu-numero");
+      for (const k of muut) if (k.sivunumero === i) b.appendChild(window.luoPikkupallura(k));
+      edellinen = i;
+    }
+    nappi("Seuraava →", tutkimus_sivu + 1);
   });
 }
+
+// Kutsutaan jokaisella kursoriliikkeellä → renderöi vain kun sivutuspallurat muuttuvat.
+let _sivutusAvain = "";
+window.paivitaSivutusPallurat = (muut) => {
+  _sivutusMuut = muut;
+  const avain = JSON.stringify(muut.map((k) => [k.id, k.sivu, k.nakyma, k.sivunumero, k.aktiivinen, k.nimimerkki, k.profiili]));
+  if (avain === _sivutusAvain) return;
+  _sivutusAvain = avain;
+  if (jaaPolku().alasivu === "kurssit") renderTutkimusKurssitSivutus();
+};
 
 // Meta-perustelun (metasuodatus.py) ystävällinen esitys: säilytä kurssin oma
 // taso/oppiaine, mutta pudota koko rajauslista (voi olla satoja alkioita).
@@ -1068,18 +1121,8 @@ function renderTutkimusKurssitRivit(rivit) {
   });
 }
 
-// Läsnäolotieto (yhteistyo.js): muut näkevät palluran oikean tilavälilehden alla.
-window.omaTila = () => aktiivinen_tila;
-
-function asetaTila(tila) {
-  aktiivinen_tila = tila;
-  window.lahetaTilaNyt?.();
-  tutkimus_sivu = 0;
-  lataaTilaSivu().then(() => window.scrollTo(0, 0));
-}
-
 document.querySelectorAll(".tila-nappi, .tila-nappi-nav").forEach((b) => {
-  b.addEventListener("click", () => asetaTila(b.dataset.tila));
+  b.addEventListener("click", () => navigoi(`/tutkimukset/${aktiivinen_tutkimus.Slug}/${b.dataset.alasivu}`));
 });
 
 // --- Tutkimus-arvioinnit ---
