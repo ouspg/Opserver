@@ -106,7 +106,7 @@
     rivi.innerHTML = "";
     const muut = _muokkaajat.filter((m) => m.id !== omaId() && m.profiili);
     if (!muut.length) return;
-    rivi.append("Muokkaa nyt myös: ");
+    rivi.append("Muut käyttäjät täällä: ");
     for (const m of muut) {
       const c = document.createElement("canvas");
       c.width = c.height = 16;
