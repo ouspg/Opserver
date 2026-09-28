@@ -433,13 +433,13 @@ function piirraNavPallurat(sailyo, napit, avainKayttajalle, rekisteri) {
 }
 
 // Tutkimuksen alavalikon napin avain käyttäjälle: saman tutkimuksen alasivu
-// (tiedot/kurssit/arvioinnit/raportti), kurssisivulla tilavälilehti (mukana/odottaa/hylätty)
+// (tiedot/kurssit/arvioinnit/raportti), kurssisivulla tilasivu (kurssit-valittu/-odottaa/-hylatty)
 // kun ne näkyvät alavalikossa. Muut tutkimukset näkyvät jo yläpalkin Tutkimukset-napilla.
 function tutkimusNavAvain(k, slug, tilatNakyvissa) {
   const osat = (k.sivu || "").split("/").filter(Boolean);
   if (osat[0] !== "tutkimukset" || osat[1] !== slug) return null;
   const alasivu = osat[2] || "tiedot";
-  if (alasivu === "kurssit" && tilatNakyvissa) return `tila:${k.tila || "mukana"}`;
+  if (alasivu.startsWith("kurssit")) return `alasivu:${tilatNakyvissa ? alasivu : "kurssit"}`;
   return `alasivu:${alasivu}`;
 }
 
@@ -460,7 +460,7 @@ function paivitaNavIndikaattorit() {
   const napit = [...tnav.querySelectorAll("button[data-tutkimus-alasivu]")]
     .map((n) => [`alasivu:${n.dataset.tutkimusAlasivu}`, n]);
   if (tilatNakyvissa) {
-    napit.push(...[...tnav.querySelectorAll(".tila-nappi-nav")].map((n) => [`tila:${n.dataset.tila}`, n]));
+    napit.push(...[...tnav.querySelectorAll(".tila-nappi-nav")].map((n) => [`alasivu:${n.dataset.alasivu}`, n]));
   }
   piirraNavPallurat(tsailyo, slug ? napit : [], (k) => tutkimusNavAvain(k, slug, tilatNakyvissa),
                     tutkimusindikaattorit);
@@ -503,7 +503,7 @@ function lahetaTila() {
     aktiivinen: oliAktiivinen,
     sivu: location.pathname,
     nakyma: window.omaNakyma?.() ?? null,
-    tila: window.omaTila?.() ?? null,  // valittujen kurssien välilehti (mukana/odottaa/hylätty)
+    sivunumero: window.omaSivunumero?.() ?? null,  // valittujen kurssien sivutussivu
     lomake: window.omaLomake?.() ?? null,  // avoin korjauslomake (lomakesessio.js)
   }));
 }
@@ -529,6 +529,7 @@ function yhdista() {
       paivitaKursorit();
       paivitaNavIndikaattorit();
       window.paivitaNakymaPallurat?.(muutKayttajat);
+      window.paivitaSivutusPallurat?.(muutKayttajat);
       window.paivitaLomakePallurat?.(muutKayttajat);
     } else if (viesti.tyyppi === "nakymat") {
       window.nakymatKuuntelija?.(viesti.data);
@@ -576,10 +577,12 @@ function paivitaKursorit() {
   // jos nappi on ruudun ulkopuolella, iso pallura reunassa nuoli napin suuntaan.
   const omaNakyma = window.omaNakyma?.() ?? null;
   const omaLomake = window.omaLomake?.() ?? null;
+  const omaSivunumero = window.omaSivunumero?.() ?? null;
   const leveys = document.documentElement.clientWidth, korkeus = document.documentElement.clientHeight;
   const naytettavat = [];
   for (const k of muutKayttajat) {
     if (!k.profiili || k.sivu !== location.pathname || (k.nakyma ?? null) !== omaNakyma) continue;
+    if ((k.sivunumero ?? null) !== omaSivunumero) continue;  // eri sivutussivulla → pallura sivunumerossa
     const lomake = k.lomake ?? null;
     let vx, vy;
     if (lomake === omaLomake && k.sijainti) {

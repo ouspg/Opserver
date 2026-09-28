@@ -221,9 +221,12 @@ thead th {
 .kk-tiili-eihaettu { background: #eef0f4; color: #9a9aa5; font-style: italic; }
 
 /* Sivutus (tutkimuksen kurssilista) */
-.sivutus { display: flex; align-items: center; gap: 1rem; justify-content: center; padding: 1rem 0; }
-.sivutus .sivu-tieto { color: #555; }
+.sivutus { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; justify-content: center; padding: 0.5rem 0; }
+.sivutus:empty { display: none; }
 .sivutus button[disabled] { opacity: 0.4; cursor: default; }
+.sivutus .sivu-numero { min-width: 2.2rem; }
+.sivutus .sivu-vali { color: #777; }
+.sivutus .sivu-numero.aktiivinen { opacity: 1; background: #16213e; color: #fff; font-weight: 600; }
 
 td a { color: #16213e; text-underline-offset: 2px; }
 td a:hover { color: #e94560; }

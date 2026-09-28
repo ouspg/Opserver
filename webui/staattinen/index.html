@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Opserver</title>
   <link rel="icon" href="/staattinen/Opserver.ico" sizes="any">
-  <link rel="stylesheet" href="/staattinen/tyyli.css?v=51">
+  <link rel="stylesheet" href="/staattinen/tyyli.css?v=52">
 </head>
 <body>
   <header>
@@ -23,9 +23,9 @@
       <button data-tutkimus-alasivu="raportti">Raportti</button>
       <span id="tutkimus-nav-tila" class="piilotettu">
         <span class="nav-erotin">|</span>
-        <button class="tila-nappi-nav aktiivinen" data-tila="mukana">Mukana</button>
-        <button class="tila-nappi-nav" data-tila="odottaa">Odottaa</button>
-        <button class="tila-nappi-nav" data-tila="hylätty">Hylätty</button>
+        <button class="tila-nappi-nav aktiivinen" data-tila="mukana" data-alasivu="kurssit-valittu">Mukana</button>
+        <button class="tila-nappi-nav" data-tila="odottaa" data-alasivu="kurssit-odottaa">Odottaa</button>
+        <button class="tila-nappi-nav" data-tila="hylätty" data-alasivu="kurssit-hylatty">Hylätty</button>
       </span>
     </nav>
     <button id="valikkovihje" type="button" title="Piilota valikko" aria-label="Piilota valikko" aria-expanded="true">^</button>
@@ -78,19 +78,20 @@
     <section id="s-tutkimus-kurssit" class="nakyma">
       <h2 id="tutkimus-kurssit-otsikko"></h2>
       <div class="suodattimet">
-        <button class="tila-nappi aktiivinen" data-tila="mukana">Mukana</button>
-        <button class="tila-nappi" data-tila="odottaa">Odottaa</button>
-        <button class="tila-nappi" data-tila="hylätty">Hylätty</button>
+        <button class="tila-nappi aktiivinen" data-tila="mukana" data-alasivu="kurssit-valittu">Mukana</button>
+        <button class="tila-nappi" data-tila="odottaa" data-alasivu="kurssit-odottaa">Odottaa</button>
+        <button class="tila-nappi" data-tila="hylätty" data-alasivu="kurssit-hylatty">Hylätty</button>
         <span id="tutkimus-kurssit-lkm" class="lkm"></span>
       </div>
       <div id="tutkimus-kurssit-suodatin" class="suodattimet"></div>
+      <div class="sivutus tutkimus-kurssit-sivutus"></div>
       <table>
         <thead>
           <tr><th data-jarjesta="nimi">Nimi</th><th data-jarjesta="koodi">Koodi</th><th data-jarjesta="taso">Taso</th><th data-jarjesta="oppiaine">Oppiaine</th><th data-jarjesta="op">op</th><th>Perustelu</th></tr>
         </thead>
         <tbody id="tutkimus-kurssit-rungot"></tbody>
       </table>
-      <div id="tutkimus-kurssit-sivutus" class="sivutus"></div>
+      <div class="sivutus tutkimus-kurssit-sivutus"></div>
     </section>
 
     <section id="s-tutkimus-arvioinnit" class="nakyma">
@@ -154,9 +155,9 @@
 
   <script src="/staattinen/lahetys.js?v=1"></script>
   <script src="/staattinen/lomakesessio.js?v=2"></script>
-  <script src="/staattinen/nakymat.js?v=3"></script>
-  <script src="/staattinen/sovellus.js?v=56"></script>
-  <script src="/staattinen/yhteistyo.js?v=16"></script>
+  <script src="/staattinen/nakymat.js?v=4"></script>
+  <script src="/staattinen/sovellus.js?v=57"></script>
+  <script src="/staattinen/yhteistyo.js?v=17"></script>
   <script src="/staattinen/arviointimuokkaus.js?v=9"></script>
   <script src="/staattinen/raporttimuokkaus.js?v=4"></script>
 </body>
