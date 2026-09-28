@@ -44,7 +44,19 @@ git_ fetch -q origin main || { loki "git fetch epäonnistui"; exit 1; }
 vanha=$(git_ rev-parse HEAD)
 uusi=$(git_ rev-parse origin/main)
 [[ "$vanha" == "$uusi" || "$uusi" == "$(cat "$EPAONNISTUNUT" 2>/dev/null)" ]] && exit 0
-savutesti >/dev/null 2>&1 || { loki "sivu ei toimi jo ennen päivitystä — ei päivitetä (${uusi:0:7})"; exit 1; }
+if ! savutesti >/dev/null 2>&1; then
+    loki "sivu ei toimi jo ennen päivitystä — ei päivitetä (${uusi:0:7})"
+    # Korjaava commit ei asennu itsestään → ihmiselle tieto, kerran per versio (ajo 5 min välein).
+    if [[ "$uusi" != "$(cat .paivitys_rikki_ilmoitettu 2>/dev/null)" ]]; then
+        echo "$uusi" > .paivitys_rikki_ilmoitettu
+        ilmoita "Tuotanto rikki — automaattipäivitys ${uusi:0:7} odottaa" \
+"Tuotannon savutesti epäonnistuu jo ennen päivitystä, joten versiota $uusi ei asenneta automaattisesti.
+
+Korjaa tuotanto tai asenna käsin: \`git pull && sudo ./asenna\`. Kun savutesti menee taas läpi, päivittäjä jatkaa itsestään.
+Loki tuotantokoneella: \`paivittaja.log\`, \`vahtikoira.log\`."
+    fi
+    exit 1
+fi
 dumppi=$(./varmuuskopio "ennen-${uusi:0:7}") || { loki "varmuuskopio epäonnistui — ei päivitetä"; exit 1; }
 
 loki "päivitetään ${vanha:0:7} → ${uusi:0:7} (varmuuskopio $dumppi)"

@@ -69,7 +69,7 @@ odota "varmuuskopio ennen asennusta" 'grep -q "^varmuuskopio" "$LOKI"'
 odota "onnistuneesta ei issueta" '! grep -q issue "$LOKI"'
 
 aja
-odota "ei muutosta → ei asennusta" '! grep -q asenna "$LOKI"'
+odota "ei muutosta → ei asennusta" '! grep -q "^asenna" "$LOKI"'
 
 rikki=$(uusi_commit touch RIKKI)
 aja
@@ -83,7 +83,10 @@ odota "samaa versiota ei yritetä uudelleen" '[[ ! -s "$LOKI" ]]'
 
 korjattu=$(uusi_commit rm RIKKI)
 SIVU_RIKKI=1 aja
-odota "ei päivitetä jos sivu on jo rikki" '[[ $(head_) == "$hyva" ]] && ! grep -q asenna "$LOKI"'
+odota "ei päivitetä jos sivu on jo rikki" '[[ $(head_) == "$hyva" ]] && ! grep -q "^asenna" "$LOKI"'
+odota "rikkinäisestä sivusta issue" 'grep -q "issue:.*${korjattu:0:7}" "$LOKI"'
+SIVU_RIKKI=1 aja
+odota "issue vain kerran per versio" '! grep -q issue "$LOKI"'
 
 aja
 odota "seuraava versio asennetaan epäonnistuneen jälkeen" '[[ $(head_) == "$korjattu" ]]'
