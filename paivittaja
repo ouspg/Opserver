@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Automaattipäivitys (root-cron 5 min välein, /etc/cron.d/opserver — asenna asentaa):
+# origin/main muuttunut → sivu toimii nyt? → varmuuskopio → ff-pull → ./asenna →
+# toimiiko? Jos ei: palautetaan koodi + kanta, GitHub-issue, eikä samaa versiota
+# yritetä enää (.paivitys_epaonnistui). Seuraava uusi commit yritetään normaalisti.
+# EI set -e: epäonnistumiset käsitellään itse (palautus).
+set -uo pipefail
+# Koko runko lohkossa: git vaihtaa tämän tiedoston kesken ajon, bash lukee sen siis ensin kokonaan.
+{
+cd "$(dirname "$(readlink -f "$0")")" || exit 1
+exec 9<"$0"; flock -n 9 || exit 0   # edellinen ajo yhä kesken
+
+EPAONNISTUNUT=.paivitys_epaonnistui
+loki() { echo "$(date '+%F %T') $*"; }
+# Git repon omistajana: rootina ajettu git tekisi tiedostoista root-omisteisia.
+omistaja=$(ls -ld . | awk '{print $3}')
+git_() { sudo -u "$omistaja" git "$@"; }
+
+# Sivut latautuvat + API vastaa. Domain ohjataan paikalliseen Caddyyn (ks. vahtikoira).
+domain=$(grep -E '^TUOTANTO_DOMAIN=' .env | cut -d= -f2-)
+savutesti() { WEBUI_OSOITE="https://$domain" SAVUTESTI_RESOLVE="$domain:443:127.0.0.1" ./testit/savutesti.sh; }
+toimii() {  # kontit käynnistyvät hetken: max ~3 min
+    for _ in $(seq 18); do savutesti >/dev/null 2>&1 && return 0; sleep 10; done
+    savutesti   # viimeinen yritys lokiin näkyviin
+}
+
+ilmoita() {  # otsikko runko — issue GitHubiin (token: fine-grained PAT, vain Issues: write)
+    local token repo
+    token=$(grep -E '^GITHUB_ISSUE_TOKEN=' .env | cut -d= -f2-)
+    [[ -n "$token" ]] || { loki "GITHUB_ISSUE_TOKEN puuttuu .env:stä — issueta ei luotu"; return; }
+    repo=$(git_ remote get-url origin | sed -E 's#.*github\.com[:/]##; s#\.git$##')
+    python3 -c 'import json,sys; print(json.dumps({"title": sys.argv[1], "body": sys.argv[2]}))' "$1" "$2" \
+        | curl -sf -o /dev/null -X POST --data @- \
+            -H @<(printf 'Authorization: Bearer %s\nAccept: application/vnd.github+json\n' "$token") \
+            "https://api.github.com/repos/$repo/issues" \
+        || loki "issuen luonti epäonnistui"
+}
+
+[[ "$(git_ symbolic-ref --short HEAD)" == main ]] || { loki "ei main-haaralla — ei päivitetä"; exit 1; }
+git_ fetch -q origin main || { loki "git fetch epäonnistui"; exit 1; }
+vanha=$(git_ rev-parse HEAD)
+uusi=$(git_ rev-parse origin/main)
+[[ "$vanha" == "$uusi" || "$uusi" == "$(cat "$EPAONNISTUNUT" 2>/dev/null)" ]] && exit 0
+# ponytail: pipeline-ajo (cliui) keskeytyisi kannan palautukseen — odotetaan sen loppumista.
+pgrep -f cliui >/dev/null && { loki "pipeline käynnissä — päivitys odottaa"; exit 0; }
+savutesti >/dev/null 2>&1 || { loki "sivu ei toimi jo ennen päivitystä — ei päivitetä (${uusi:0:7})"; exit 1; }
+dumppi=$(./varmuuskopio "ennen-${uusi:0:7}") || { loki "varmuuskopio epäonnistui — ei päivitetä"; exit 1; }
+
+loki "päivitetään ${vanha:0:7} → ${uusi:0:7} (varmuuskopio $dumppi)"
+if git_ merge -q --ff-only origin/main && ./asenna && toimii; then
+    loki "päivitetty: ${uusi:0:7}"
+    exit 0
+fi
+
+loki "päivitys ${uusi:0:7} epäonnistui — palautetaan ${vanha:0:7}"
+echo "$uusi" > "$EPAONNISTUNUT"
+# Kanta ensin: vanhan koodin asenna vertaa skeemaa vanhaan tavoitteeseen.
+git_ reset -q --hard "$vanha"
+if ./varmuuskopio --palauta "$dumppi" && ./asenna && toimii; then
+    tila="Palautettu versioon ${vanha:0:7} ja kanta varmuuskopiosta — tuotanto toimii."
+else
+    tila="**PALAUTUS EPÄONNISTUI** — tuotanto vaatii käsin korjausta."
+fi
+loki "$tila"
+ilmoita "Automaattipäivitys epäonnistui: ${uusi:0:7}" \
+"Tuotannon automaattipäivitys versioon $uusi epäonnistui (asennus tai savutesti).
+
+$tila
+
+Samaa versiota ei yritetä uudelleen; seuraava main-commit yritetään normaalisti.
+Loki tuotantokoneella: \`paivittaja.log\`. Kannan varmuuskopio: \`$dumppi\`."
+exit 1
+}

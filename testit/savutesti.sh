@@ -38,6 +38,9 @@ WEBUI="${WEBUI%/}"
 
 VIRHEET=0
 AUTH_ARGS=()
+# SAVUTESTI_RESOLVE=domain:443:127.0.0.1 — tuotannossa domain paikalliseen Caddyyn
+# (paivittaja): sertti on vain domainille, eikä koneelta välttämättä pääse omaan julkiseen IP:hen.
+[[ -n "${SAVUTESTI_RESOLVE:-}" ]] && AUTH_ARGS=(--resolve "$SAVUTESTI_RESOLVE")
 
 # Värit: epäonnistumiset punaisella erottuvat heti silmämääräisesti. Pois päältä
 # jos stdout ei ole pääte (putki/tiedosto) tai NO_COLOR on asetettu.
@@ -64,7 +67,7 @@ hae() {
 # lataa WEBUI_AUTH_* .env:stä ja ota käyttöön lopuille pyynnöille.
 maarita_autentikointi() {
     local koodi env_tiedosto kayttaja salasana
-    koodi=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$WEBUI/" 2>/dev/null) || koodi=000
+    koodi=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 ${AUTH_ARGS[@]+"${AUTH_ARGS[@]}"} "$WEBUI/" 2>/dev/null) || koodi=000
     if [[ "$koodi" != "401" ]]; then
         info "Autentikointi ei käytössä (etusivu palautti $koodi)"
         return
@@ -73,7 +76,7 @@ maarita_autentikointi() {
     kayttaja=$(grep -E '^WEBUI_AUTH_KAYTTAJA=' "$env_tiedosto" | cut -d= -f2-) || true
     salasana=$(grep -E '^WEBUI_AUTH_SALASANA=' "$env_tiedosto" | cut -d= -f2-) || true
     if [[ -n "$kayttaja" && -n "$salasana" ]]; then
-        AUTH_ARGS=(-u "$kayttaja:$salasana")
+        AUTH_ARGS+=(-u "$kayttaja:$salasana")
         info "Autentikointi käytössä — käytetään .env:n tunnuksia"
     else
         fail "Autentikointi käytössä (401), mutta WEBUI_AUTH_* puuttuu .env:stä"
