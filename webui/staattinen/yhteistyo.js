@@ -570,14 +570,35 @@ function paivitaKursorit() {
   const kerros = document.getElementById("kursori-kerros");
   if (!kerros) return;
 
-  // Sama sivu, sama suodatinnäkymä (välilehti) JA sama korjauslomake (tai ei lomaketta);
-  // muut näkyvät välilehden / lomakkeen avausnapin pallurana.
+  // Sama sivu ja suodatinnäkymä (välilehti); muut näkyvät välilehden pallurana.
+  // Sama korjauslomake (tai ei lomaketta): pallura hiiren kohdalla. Muu lomakkeessa oleva,
+  // kun itse ei ole lomakkeessa: pikkupallura avausnapin vieressä (lomakesessio.js) — ja
+  // jos nappi on ruudun ulkopuolella, iso pallura reunassa nuoli napin suuntaan.
   const omaNakyma = window.omaNakyma?.() ?? null;
   const omaLomake = window.omaLomake?.() ?? null;
-  const samallaSimulla = muutKayttajat.filter(
-    (k) => k.sivu === location.pathname && (k.nakyma ?? null) === omaNakyma
-      && (k.lomake ?? null) === omaLomake);
-  const nytIdt = new Set(samallaSimulla.map((k) => k.id));
+  const leveys = document.documentElement.clientWidth, korkeus = document.documentElement.clientHeight;
+  const naytettavat = [];
+  for (const k of muutKayttajat) {
+    if (!k.profiili || k.sivu !== location.pathname || (k.nakyma ?? null) !== omaNakyma) continue;
+    const lomake = k.lomake ?? null;
+    let vx, vy;
+    if (lomake === omaLomake && k.sijainti) {
+      vx = k.sijainti.x - window.scrollX; vy = k.sijainti.y - window.scrollY;
+    } else if (lomake && !omaLomake) {
+      const nappi = document.querySelector(`[data-lomake="${CSS.escape(lomake)}"]`);
+      if (!nappi) continue;  // ponytail: nappi ei renderöity (esim. eri sivutussivulla) → ei suuntaa
+      const r = nappi.getBoundingClientRect();
+      vx = r.left + r.width / 2; vy = r.top + r.height / 2;
+    } else continue;
+    // Ruudun ulkopuolella: pallura jää reunaan ja nuoli osoittaa todelliseen suuntaan.
+    const x = Math.min(Math.max(vx, KURSORI_REUNA), leveys - KURSORI_REUNA);
+    const y = Math.min(Math.max(vy, KURSORI_REUNA), korkeus - KURSORI_REUNA);
+    const ulkona = x !== vx || y !== vy;
+    if (lomake !== omaLomake && !ulkona) continue;  // nappi näkyvissä → riittää pikkupallura
+    naytettavat.push({ k, x, y, ulkona, kulma: Math.atan2(vy - y, vx - x) });
+  }
+
+  const nytIdt = new Set(naytettavat.map((n) => n.k.id));
   for (const id of Object.keys(kursorielementit)) {
     if (!nytIdt.has(id)) {
       kerros.removeChild(kursorielementit[id]);
@@ -585,9 +606,7 @@ function paivitaKursorit() {
     }
   }
 
-  for (const k of samallaSimulla) {
-    if (!k.profiili || !k.sijainti) continue;
-
+  for (const { k, x, y, ulkona, kulma } of naytettavat) {
     let el = kursorielementit[k.id];
     if (!el) {
       el = document.createElement("div");
@@ -605,14 +624,8 @@ function paivitaKursorit() {
 
     piirraYmpyra(el.querySelector("canvas"), k.profiili, !k.aktiivinen);
     el.title = k.nimimerkki || "?";
-    // Ruudun ulkopuolella: pallura jää reunaan ja nuoli osoittaa todelliseen suuntaan.
-    const vx = k.sijainti.x - window.scrollX, vy = k.sijainti.y - window.scrollY;
-    const leveys = document.documentElement.clientWidth, korkeus = document.documentElement.clientHeight;
-    const x = Math.min(Math.max(vx, KURSORI_REUNA), leveys - KURSORI_REUNA);
-    const y = Math.min(Math.max(vy, KURSORI_REUNA), korkeus - KURSORI_REUNA);
-    const ulkona = x !== vx || y !== vy;
     el.classList.toggle("ulkona", ulkona);
-    if (ulkona) el.style.setProperty("--kulma", `${Math.atan2(vy - y, vx - x)}rad`);
+    if (ulkona) el.style.setProperty("--kulma", `${kulma}rad`);
     el.style.left = `${x}px`;
     el.style.top = `${y}px`;
   }
@@ -620,7 +633,8 @@ function paivitaKursorit() {
 
 // --- Syötetapahtumat ---
 
-document.addEventListener("scroll", () => paivitaKursorit(), { passive: true });
+// capture: myös taulukon oma (vaaka)vieritys, jotta lomakenappien suunta päivittyy.
+document.addEventListener("scroll", () => paivitaKursorit(), { passive: true, capture: true });
 window.addEventListener("resize", () => paivitaKursorit());
 
 document.addEventListener("mousemove", (e) => {
