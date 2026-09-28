@@ -232,7 +232,7 @@
     for (const k of muut) if (k.lomake && k.profiili) (perAvain[k.lomake] ||= []).push(k);
     document.querySelectorAll("[data-lomake]").forEach((nappi) => {
       const kayttajat = perAvain[nappi.dataset.lomake] || [];
-      const tunniste = JSON.stringify(kayttajat.map((k) => [k.id, k.aktiivinen, k.nimimerkki, k.profiili]));
+      const tunniste = JSON.stringify(kayttajat.map((k) => [k.id, k.taso, k.nimimerkki, k.profiili]));
       if (nappi.dataset.lomakeTila === tunniste) return;
       nappi.dataset.lomakeTila = tunniste;
       nappi.classList.toggle("lomake-auki", kayttajat.length > 0);
@@ -248,7 +248,7 @@
         const c = document.createElement("canvas");
         c.width = c.height = 10;
         c.title = `${k.nimimerkki || "?"} muokkaa tätä`;
-        window.piirraYmpyra?.(c, k.profiili, !k.aktiivinen);
+        window.piirraYmpyra?.(c, k.profiili, k.taso);
         rivi.appendChild(c);
       }
     });
