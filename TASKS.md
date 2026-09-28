@@ -157,3 +157,22 @@ osittainen renderöinti ei vielä ehtinyt, eri välilehti mukana/hylätty), suun
 ei tiedetä ja B on A:lle taas näkymätön (`yhteistyo.js` `paivitaKursorit`,
 `ponytail:`-kommentti). Päätä: riittääkö, vai esim. pallura reunaan/nurkkaan
 "muualla tällä sivulla" -merkinnällä tai sivutusnapin viereen.
+
+## 16. Kannan varmuuskopiot vain tuotantokoneen omalla levyllä (offsite puuttuu)
+
+PR #53 (`varmuuskopio`): dumpit → `/var/backups/opserver/` samalla koneella →
+eivät kestä levyn/koneen menetystä eivätkä murtoa (root voi poistaa ne).
+Suositus: toinen kone *hakee* dumpit (pull, esim. `rsync` ssh:lla lukuoikeudella),
+jolloin tuotantokone ei pääse poistamaan kopioita. Kysytty käyttäjältä
+2026-09-28 — kohdekone päättämättä. Harkitse samalla `.env`:n (LLM-avain,
+GITHUB_ISSUE_TOKEN) säilytystä muualla.
+
+## 18. paivittaja käsin ajettuna: hiljainen exit 0 ei kerro syytä
+
+Tuotannossa 2026-09-28 (`ubuntu@esr-project`): `sudo ./paivittaja` → `exit 0`,
+`paivittaja.log` tyhjä. Hiljaisia poistumisia on neljä (lukko, `cliui.valikko`
+käynnissä, HEAD == origin/main, versio `.paivitys_epaonnistui`:ssa) — cronille
+oikein (ei lokispämmiä 5 min välein), mutta käsin testaava ei näe miksi.
+Syy jäi todentamatta (todennäköisesti HEAD == origin/main; ohjeeksi annettu
+`sudo bash -x ./paivittaja 2>&1 | tail -15`). Ehdotus: jos `[[ -t 1 ]]`
+(pääte), tulosta poistumisen syy; cronissa pysyy hiljaisena.
