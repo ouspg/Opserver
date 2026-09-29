@@ -1,5 +1,5 @@
-"""Reaaliaikainen yhteistyö (WebSocket): läsnäolo, jaetut korjauslomakkeet, raporttiosion
-yhteismuokkaus ja jaetut suodatinnäkymät. Tila on vain muistissa."""
+"""Reaaliaikainen yhteistyö (WebSocket): läsnäolo, jaetut lomakkeet (HITL-korjaukset ja
+raporttiosioiden yhteismuokkaus) ja jaetut suodatinnäkymät. Tila on vain muistissa."""
 import asyncio
 import json
 import uuid
@@ -22,11 +22,6 @@ _yhteydet: dict[str, tuple[WebSocket, dict]] = {}
 # {"arvot": {kentta: arvo}, "jasenet": {uid: {"kentta": str|None, "kursori": int}}}.
 # Ensimmäisen avaajan arvot alustavat lomakkeen; myöhemmät liittyjät saavat ne.
 _lomakkeet: dict[str, dict] = {}
-
-# avain = (tid, avain_str) → {uid: {nimimerkki, profiili, kursori}}
-_raportti_sessiot: dict[tuple, dict[str, dict]] = {}
-# avain = (tid, avain_str) → nykyinen tekstisisältö sessiossa
-_raportti_teksti: dict[tuple, str] = {}
 
 # Jaetut suodatinnäkymät (välilehdet): sivupolku → [{id, nimi, suodatin}].
 # ponytail: vain muistissa — katoavat palvelimen uudelleenkäynnistyksessä; kantaan jos pitää säilyä.
@@ -54,8 +49,9 @@ def _lisaa_nakyma(data: dict) -> bool:
 
 
 def _kelpo_lomakearvo(arvo) -> bool:
-    """Lomakekentän arvo selaimelta (luottamusraja): teksti, None tai tekstilista."""
-    if arvo is None or (isinstance(arvo, str) and len(arvo) <= 20000):
+    """Lomakekentän arvo selaimelta (luottamusraja): teksti, None tai tekstilista.
+    Teksti voi olla koko raporttiosio (raporttimuokkain on jaettu lomake)."""
+    if arvo is None or (isinstance(arvo, str) and len(arvo) <= 200000):
         return True
     return isinstance(arvo, list) and len(arvo) <= 100 and all(
         isinstance(x, str) and len(x) <= 1000 for x in arvo)
@@ -68,7 +64,7 @@ def _kelpo_lomakearvot(arvot) -> bool:
 
 async def _laheta(viesti: str, uidit=None) -> None:
     """Viesti annetuille (oletus: kaikille) yhteyksille. Katkennut yhteys poistetaan;
-    sen oma ws-käsittelijä siivoaa lomake- ja raporttisessiot."""
+    sen oma ws-käsittelijä siivoaa lomakesessiot."""
     for uid in list(_yhteydet if uidit is None else uidit):
         yht = _yhteydet.get(uid)
         if yht is None:
@@ -105,30 +101,6 @@ async def _poistu_lomakkeesta(avain: str, uid: str) -> None:
             await _laheta_lomake(avain)
         else:
             del _lomakkeet[avain]  # viimeinen poistui → seuraava avaaja alustaa uudelleen
-
-
-async def _laheta_raportti_sessio(avain: tuple) -> None:
-    if avain not in _raportti_sessiot:
-        return
-    tid, osio_avain = avain
-    muokkaajat = [{"id": uid, **tiedot} for uid, tiedot in _raportti_sessiot[avain].items()]
-    viesti = json.dumps({
-        "tyyppi": "raportti-sessio",
-        "tid": tid, "avain": osio_avain,
-        "teksti": _raportti_teksti.get(avain, ""),
-        "muokkaajat": muokkaajat,
-    })
-    await _laheta(viesti, _raportti_sessiot[avain])
-
-
-async def _poistu_raportista(avain: tuple, uid: str) -> None:
-    sessio = _raportti_sessiot.get(avain)
-    if sessio and sessio.pop(uid, None) is not None:
-        if sessio:
-            await _laheta_raportti_sessio(avain)
-        else:
-            del _raportti_sessiot[avain]
-            _raportti_teksti.pop(avain, None)
 
 
 # Läsnäolon koonti: tilapäivitykset (hiiren liike 80 ms välein/käyttäjä) kerätään
@@ -168,8 +140,6 @@ class RaporttiOsioPyynto(BaseModel):
 def api_raportti_osio_tallenna(tutkimus: TutkimusSlugista, avain: str, pyynto: RaporttiOsioPyynto) -> dict:
     """Raporttiosion tallennus (idempotentti: sama teksti uudelleen = sama tila)."""
     mallit.aseta_raportti_osio(tutkimus["TID"], avain, pyynto.teksti)
-    if (tutkimus["TID"], avain) in _raportti_teksti:
-        _raportti_teksti[(tutkimus["TID"], avain)] = pyynto.teksti
     return {"ok": True}
 
 
@@ -216,24 +186,6 @@ async def ws_kayttajat(ws: WebSocket) -> None:
                     await _laheta_lomake(avain, lahettaja=uid, tyyppi="lomake-tallennettu")
                 elif tyyppi == "lomake-poistu":
                     await _poistu_lomakkeesta(avain, uid)
-            elif tyyppi == "raportti-liity":
-                avain = (data.get("tid"), data.get("avain"))
-                if avain not in _raportti_sessiot:
-                    _raportti_sessiot[avain] = {}
-                    # Säikeessä: synkroninen etäkantakutsu pysäyttäisi event loopin
-                    # eli kaikki WebSocket-yhteydet ja async-reitit kyselyn ajaksi.
-                    _raportti_teksti[avain] = await asyncio.to_thread(mallit.hae_raportti_osio, *avain)
-                _raportti_sessiot[avain][uid] = {**_kayttajatiedot(uid), "kursori": 0}
-                await _laheta_raportti_sessio(avain)
-            elif tyyppi == "raportti-teksti":
-                avain = (data.get("tid"), data.get("avain"))
-                if avain in _raportti_sessiot:
-                    _raportti_teksti[avain] = data.get("teksti", "")
-                    if uid in _raportti_sessiot[avain]:
-                        _raportti_sessiot[avain][uid]["kursori"] = data.get("kursori", 0)
-                    await _laheta_raportti_sessio(avain)
-            elif tyyppi == "raportti-poistu":
-                await _poistu_raportista((data.get("tid"), data.get("avain")), uid)
             else:
                 _yhteydet[uid] = (ws, data)
                 await _laheta_kaikille()
@@ -241,6 +193,4 @@ async def ws_kayttajat(ws: WebSocket) -> None:
         _yhteydet.pop(uid, None)
         for avain in list(_lomakkeet):
             await _poistu_lomakkeesta(avain, uid)
-        for avain in list(_raportti_sessiot):
-            await _poistu_raportista(avain, uid)
         await _laheta_kaikille()

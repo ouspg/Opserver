@@ -344,10 +344,6 @@ function lahetaWs(viesti) {
 }
 window.lahetaWs = lahetaWs;
 
-window.liityRaporttiSessioon = (tid, avain) => lahetaWs({ tyyppi: "raportti-liity", tid, avain });
-window.poistuRaporttiSessiosta = (tid, avain) => lahetaWs({ tyyppi: "raportti-poistu", tid, avain });
-window.lahetaRaporttiTeksti = (tid, avain, teksti, kursori) =>
-  lahetaWs({ tyyppi: "raportti-teksti", tid, avain, teksti, kursori });
 
 
 // --- Nav-indikaattorit ---
@@ -532,8 +528,6 @@ function yhdista() {
       window.nakymatKuuntelija?.(viesti.data);
     } else if (viesti.tyyppi === "lomake-sessio" || viesti.tyyppi === "lomake-tallennettu") {
       window.lomakeKuuntelija?.(viesti);
-    } else if (viesti.tyyppi === "raportti-sessio") {
-      window.raporttisessioKuuntelija?.(viesti);
     }
   });
 

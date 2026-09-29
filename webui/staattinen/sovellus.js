@@ -1597,13 +1597,12 @@ async function renderTutkimusRaportti(slug, tutkimus, sailyta = false) {
     div.innerHTML = `
       <div class="raportti-osio-otsikkorivi">
         <h2 class="raportti-osio-otsikko">${otsikko}</h2>
-        <button class="arvio-korjaa-nappi raportti-muokkaa-nappi" data-avain="${avain}">Muokkaa</button>
+        <button class="arvio-korjaa-nappi raportti-muokkaa-nappi" data-lomake="raportti:${tid}:${avain}">Muokkaa</button>
       </div>
       ${tilastotHtml}
-      <div class="raportti-osio-teksti">${raporttiOsioHtml(teksti)}</div>
-      <div class="raportti-muokkaajat" id="raportti-muokkaajat-${avain}"></div>`;
+      <div class="raportti-osio-teksti">${raporttiOsioHtml(teksti)}</div>`;
     div.querySelector(".raportti-muokkaa-nappi").addEventListener("click", () => {
-      window.avaaRaporttiMuokkaus?.(tid, avain, otsikko, teksti);
+      window.avaaRaporttiMuokkaus?.(tid, slug, avain, otsikko);
     });
     sisalto.appendChild(div);
   }

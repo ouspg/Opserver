@@ -1,5 +1,4 @@
-"""WebUI-testit: reaaliaikainen yhteistyö: näkymät, lomake- ja raporttisessiot (webui/yhteistyo.py)."""
-from unittest.mock import patch
+"""WebUI-testit: reaaliaikainen yhteistyö: näkymät, jaetut lomakkeet ja läsnäolo (webui/yhteistyo.py)."""
 from webui import yhteistyo
 from testit.webui_apu import _auth_pois  # noqa: F401 — autouse-fixture
 from testit.webui_apu import asiakas
@@ -67,31 +66,20 @@ def test_lomakesessio_jaetaan_ja_ensimmaisen_arvot_sailyvat(monkeypatch):
         assert _lomakeviesti(b)["arvot"] == {"nimi": "Bertta"}
 
 
-def _raporttiviesti(ws):
-    while True:
-        viesti = ws.receive_json()
-        if viesti["tyyppi"] == "raportti-sessio":
-            return viesti
-
-
-def test_raporttisessio_liity_poistu_ja_katkeaminen(monkeypatch):
-    monkeypatch.setattr(yhteistyo, "_raportti_sessiot", {})
-    monkeypatch.setattr(yhteistyo, "_raportti_teksti", {})
-    with patch("tietokanta.mallit.hae_raportti_osio", return_value="alku"), \
-         asiakas.websocket_connect("/ws") as a:
-        with asiakas.websocket_connect("/ws") as b:
-            a.send_json({"tyyppi": "raportti-liity", "tid": 1, "avain": "yhteenveto"})
-            assert _raporttiviesti(a)["teksti"] == "alku"
-            b.send_json({"tyyppi": "raportti-liity", "tid": 1, "avain": "yhteenveto"})
-            assert len(_raporttiviesti(b)["muokkaajat"]) == 2
-            assert len(_raporttiviesti(a)["muokkaajat"]) == 2
-        # B:n yhteys katkesi → A näkee jäljelle jääneet
-        assert len(_raporttiviesti(a)["muokkaajat"]) == 1
-        a.send_json({"tyyppi": "raportti-poistu", "tid": 1, "avain": "yhteenveto"})
+def test_lomakesessio_hyvaksyy_pitkan_raporttiosion(monkeypatch):
+    # Raporttimuokkain on jaettu lomake (kenttä "teksti"): LLM:n kirjoittama osio voi
+    # olla kymmeniä tuhansia merkkejä. Kohtuuton koko hylätään yhä (luottamusraja).
+    monkeypatch.setattr(yhteistyo, "_lomakkeet", {})
+    pitka = "x" * 60000
+    with asiakas.websocket_connect("/ws") as a:
+        a.send_json({"tyyppi": "lomake-liity", "avain": "raportti:1:johdanto", "arvot": {"teksti": pitka}})
+        assert _lomakeviesti(a)["arvot"]["teksti"] == pitka
+        a.send_json({"tyyppi": "lomake-liity", "avain": "raportti:1:liian", "arvot": {"teksti": "x" * 200001}})
+        a.send_json({"tyyppi": "lomake-poistu", "avain": "raportti:1:johdanto"})
         a.send_json({"tyyppi": "uutinen", "teksti": "synkronointi"})
         while a.receive_json()["tyyppi"] != "uutinen":
             pass
-    assert yhteistyo._raportti_sessiot == {} and yhteistyo._raportti_teksti == {}
+    assert yhteistyo._lomakkeet == {}
 
 
 # --- Läsnäolo: tilapäivitysten koonti ---

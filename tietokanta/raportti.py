@@ -31,17 +31,6 @@ def aseta_raportti_osio(tid: int, avain: str, teksti: str,
     )
 
 
-def hae_raportti_osio(tid: int, avain: str) -> str:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                "SELECT Teksti FROM RaporttiOsio WHERE TID = %s AND OsioAvain = %s",
-                (tid, avain),
-            )
-            rivi = kursori.fetchone()
-            return rivi[0] if rivi else ""
-
-
 def hae_raportti_tila(tid: int) -> list[dict]:
     """Per-osio metatieto raportin tilannesivulle: milloin kirjoitettu ja millä
     laskentatiivisteellä (lähdeaineiston hash generoinnin hetkellä). Ei hae
