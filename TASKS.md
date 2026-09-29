@@ -4,15 +4,23 @@ Session-aikana (2026-09-22, tuotannon `asenna`/Caddy/migraatio-työ) havaittuja
 asioita jotka mainittiin mutta ei korjattu tai vahvistettu käyttäjän kanssa.
 Triagoi: korjaa tai sulje.
 
-## 8. Tiedostokokoraja ylittyy: sovellus.js 1577 riviä (raja ~500)
+## 8. Tiedostokokoraja ylittyy: sovellus.js 1648 ja yhteistyo.js 683 riviä (raja ~500)
 
 CLAUDE.md: "jokaisen tiedoston täytyy olla niin pieni, että Claude pystyy
-lukemaan sen kerralla (~500 riviä)". Tilanne 2026-09-27: `webui/staattinen/sovellus.js`
-1577, `tietokanta/mallit.py` 1259, `webui/palvelin.py` 871, `webui/staattinen/yhteistyo.js`
-638 riviä. `sovellus.js`:n luku vaatii jo kaksi osaa, ja kasvu jatkuu jokaisen
-WebUI-ominaisuuden myötä. Ehdotus: jaa `sovellus.js` näkymittäin (korkeakoulut/kurssit,
-tutkimuksen kurssit + HITL, arvioinnit, raportti) omiin tiedostoihinsa (lohkoon
-käärittyinä, ks. globaalien törmäystesti) ja `mallit.py` aihepiireittäin.
+lukemaan sen kerralla (~500 riviä)".
+
+**Python-osa tehty 2026-09-29:** katselmointi (bugit #64, DRY #66, optimoinnit #75)
+ja jaot: `tietokanta/mallit.py` → aihepiirimoduulit + julkisivu (#76),
+`webui/palvelin.py` → APIRouterit (#77), `cliui/apurit.py` → tekstikenttä + lomake
+(#78); testit jaettu samoin. #76–#78 yhdistämisen jälkeen suurin Python-tiedosto
+449 riviä. Kaava: ast-skripti siirtää funktiot sellaisinaan, julkisivu/kokoaja
+pitää kutsujat ennallaan, patchit määrittelevään moduuliin, vanha vs. uusi
+rinnakkain perf-kantaa vasten.
+
+**Jäljellä JS:** `webui/staattinen/sovellus.js` 1648 ja `yhteistyo.js` 683 riviä.
+Ehdotus: jaa `sovellus.js` näkymittäin (korkeakoulut/kurssit, tutkimuksen kurssit
++ HITL, arvioinnit, raportti) omiin tiedostoihinsa (lohkoon käärittyinä, ks.
+globaalien törmäystesti); muista `?v=N` index.html:ssä ja selaintodennus.
 
 ## 9. Kapea ikkuna (~520 px): yläpalkin muiden käyttäjien ympyrät menevät logon päälle
 
@@ -124,16 +132,27 @@ ohittaa ~30 k riviä. Uusi sivunumerovalitsin (PR #56) tekee viimeisille sivuill
 hyppäämisestä helppoa. Jos haittaa: keyset-sivutus (WHERE KurssiNimi > viimeinen)
 tai kattava indeksi `(KKID, VuosiAlku, VuosiLoppu, KurssiNimi)`.
 
-## 21. /luokitukset hakee koko tutkimuksen HITL-historian joka pyynnöllä
-
-`webui/palvelin.py` `api_tutkimus_luokitukset`: `mallit.hae_hitl_historia(tid)`
-vetää kaikki HitlKorjaus-rivit jokaiseen sivuhakuun (myös 15 s pollaukseen),
-vaikka sivulla on 100 kurssia. Nyt rivejä vähän, mutta kasvaa annotointisessioissa
-lineaarisesti. Korjaus: rajaa `WHERE TID = %s AND KID IN (<sivun KID:t>)`.
-
 ## 22. Nukkuvan/kummituksen zzZ ei erotu 8–10 px pallurissa
 
 PR #57: zzZ piirretään canvasin sisään; 24–28 px pallurissa luettava, mutta
 alavalikon (8 px), välilehti- ja sivutuspallurissa (10 px) se on valkoinen
 läiskä. Harmaa väri ja kummituksen läpinäkyvyys erottuvat silti. Jos haittaa:
 pieniin pallurihin pelkkä "z" tai CSS-merkki canvasin viereen.
+
+## 23. Tuotannon automaattipäivityksen toipuminen #74:n jälkeen todentamatta
+
+Issuet #63/#68/#72: webui-kontti jäi ajamaan poistettua kuvaa (containerd antaa
+rebuildissa uuden ID:n, compose ei luonut konttia uudelleen) → savutestin
+kuvatuoreus FAIL esti päivitykset. PR #74 korjaa `asenna`:n, mutta päivittäjän
+esitarkistus kaatuu yhä vanhaan konttiin, joten tuotannossa tarvitaan kerran
+`cd ~/Opserver && sudo docker compose up -d --force-recreate webui`. Todenna:
+`sudo docker compose ps` (webui IMAGE = `opserver-webui`, ei `sha256:…`),
+`tail paivittaja.log` ("päivitetty: …" uusimpaan mainiin) ja ettei uusia
+"Automaattipäivitys epäonnistui" -issueita synny. Uudet issuet sisältävät nyt
+ajon lokin (#70).
+
+## 24. pyflakes: f-merkkijono ilman muuttujia
+
+`cliui/luokittelunaytto.py` (n. rivi 356, ennen #78:n jakoa) ja
+`raportti/_kehotteet.py` (rivit 17 ja 39): `f"..."` ilman `{}`-kenttiä. Harmiton,
+mutta kohinaa lint-ajoissa; poista `f`-etuliite.
