@@ -54,6 +54,8 @@ function sovitaOtsikko(el) {
   el.style.whiteSpace = "nowrap";
   el.style.fontSize = "";
   let koko = parseFloat(getComputedStyle(el).fontSize) || 24;
+  // Arvio suoraan leveyssuhteesta (yksi asettelu), sitten hienosäätö 1 px kerrallaan.
+  if (el.scrollWidth > el.clientWidth) koko = Math.max(16, Math.floor(koko * el.clientWidth / el.scrollWidth));
   el.style.fontSize = koko + "px";
   while (koko > 16 && el.scrollWidth > el.clientWidth) {
     koko -= 1;
@@ -76,6 +78,9 @@ const KURSSI_SARAKKEET = {
   op:       { avain: "Opintopisteet", tyyppi: "numero" },
 };
 
+// localeCompare(…, "fi") rakentaisi lajittelusäännöt joka vertailussa (~10 000 riviä).
+const LAJITTELIJA = new Intl.Collator("fi");
+
 // Vertailufunktio kurssiobjekteille valitun sarakkeen ja suunnan mukaan.
 function vertaaKursseja(sarake, suunta) {
   const s = KURSSI_SARAKKEET[sarake];
@@ -85,7 +90,7 @@ function vertaaKursseja(sarake, suunta) {
       const av = a[s.avain] ?? -Infinity, bv = b[s.avain] ?? -Infinity;
       return (av - bv) * kerroin;
     }
-    return String(a[s.avain] ?? "").localeCompare(String(b[s.avain] ?? ""), "fi") * kerroin;
+    return LAJITTELIJA.compare(String(a[s.avain] ?? ""), String(b[s.avain] ?? "")) * kerroin;
   };
 }
 
@@ -399,13 +404,15 @@ async function taytaTasot(lukuvuosi, kkid) {
 
 // Kurssilista osissa (tuotannossa ~7 Mt kerralla); pieni ensimmäinen osa, jotta
 // rivit näkyvät heti, sitten isompia (vähemmän kiertoviiveitä). Taulukko renderöidään
-// ensimmäisen osan jälkeen, sitten korkeintaan KURSSIT_RENDER_VALI_MS välein ja
+// ensimmäisen osan jälkeen, sitten korkeintaan OSARENDER_VALI_MS välein ja
 // lopuksi — koko listan uudelleenrakennus joka osalla olisi O(n²).
 const KURSSIT_ENSIMMAINEN_OSA = 250;
 const KURSSIT_OSA = 2000;
-const KURSSIT_RENDER_VALI_MS = 2000;
+const OSARENDER_VALI_MS = 2000;
+const KURSSIT_RIVIERA = 300;
 let kurssit_lataus = 0;
 let kurssit_kesken = false;
+let kurssit_renderointi = 0;
 
 async function lataaKurssit() {
   const lataus = ++kurssit_lataus;
@@ -418,6 +425,7 @@ async function lataaKurssit() {
   if (kkid) params.set("kkid", kkid);
   kaikki_kurssit = [];
   kurssit_kesken = true;
+  kurssit_renderointi++;  // edellisen listan erät eivät jatku latausrivin perään
   document.getElementById("kurssit-rungot").innerHTML = '<tr><td colspan="6">Ladataan kursseja…</td></tr>';
   let renderoity = 0;
   try {
@@ -430,7 +438,7 @@ async function lataaKurssit() {
       if (lataus !== kurssit_lataus || location.pathname !== "/kurssit") return;  // suodatin vaihtui / poistuttiin
       kaikki_kurssit.push(...osa);
       kurssit_kesken = osa.length === koko;
-      if (!kurssit_kesken || Date.now() - renderoity > KURSSIT_RENDER_VALI_MS) {
+      if (!kurssit_kesken || Date.now() - renderoity > OSARENDER_VALI_MS) {
         renderKurssit();
         renderoity = Date.now();
       }
@@ -452,7 +460,7 @@ function renderKurssit() {
   const lkm = Object.keys(ryhmat).length;
   document.getElementById("kurssit-lkm").textContent = `${lkm} kurssia${kurssit_kesken ? " — ladataan lisää…" : ""}`;
   varustaJarjestys(document.querySelector("#s-kurssit thead"), kurssit_jarjestys, renderKurssit);
-  runko.innerHTML = "";
+  const kierros = ++kurssit_renderointi;  // keskeyttää edellisen renderöinnin erät
   if (lkm === 0) {
     runko.innerHTML = '<tr><td colspan="6">Ei kursseja.</td></tr>';
     return;
@@ -462,31 +470,39 @@ function renderKurssit() {
     const vertaa = vertaaKursseja(kurssit_jarjestys.sarake, kurssit_jarjestys.suunta);
     ryhmatLista.sort((a, b) => vertaa(a[0], b[0]));
   }
-  for (const versiot of ryhmatLista) {
+  // Rivit merkkijonoina ja delegoitu klikkikäsittelijä (alla): ~10 000 riviä ilman
+  // rivikohtaisia elementtejä ja kuuntelijoita.
+  const rivit = ryhmatLista.map((versiot) => {
     const uusin = versiot[0];
-    const rivi = document.createElement("tr");
-    rivi.className = "kurssi-rivi";
-    let vuosiSolmu;
-    if (versiot.length > 1) {
-      const valinnat = versiot.map((v) => `<option value="${v.KID}">${escapeHtml(v.Opetusvuosi)}</option>`).join("");
-      vuosiSolmu = `<select class="vuosivalinta" onclick="event.stopPropagation()">${valinnat}</select>`;
-    } else {
-      vuosiSolmu = escapeHtml(uusin.Opetusvuosi);
-    }
-    rivi.innerHTML = `
+    const vuosiSolmu = versiot.length > 1
+      ? `<select class="vuosivalinta">${versiot.map((v) =>
+          `<option value="${v.KID}">${escapeHtml(v.Opetusvuosi)}</option>`).join("")}</select>`
+      : escapeHtml(uusin.Opetusvuosi);
+    return `<tr class="kurssi-rivi" data-kid="${uusin.KID}">
       <td>${escapeHtml(uusin.KurssiNimi)}</td>
       <td class="koodi">${koodiJaOpasLinkki(uusin)}</td>
       ${kurssiMetaSolut(uusin)}
-      <td>${vuosiSolmu}</td>`;
-    rivi.querySelector("a")?.addEventListener("click", (e) => e.stopPropagation());
-    rivi.addEventListener("click", () => {
-      const select = rivi.querySelector(".vuosivalinta");
-      const kid = select ? parseInt(select.value) : uusin.KID;
-      avaaModaali(kid);
-    });
-    runko.appendChild(rivi);
-  }
+      <td>${vuosiSolmu}</td></tr>`;
+  });
+  // DOMiin erissä: koko listan asettelu kerralla jumitti sivun ~1 s (8 700 riviä),
+  // erä ~50 ms. Kaikki rivit päätyvät lopulta DOMiin (selaimen haku toimii).
+  let i = 0;
+  const era = () => {
+    if (kierros !== kurssit_renderointi) return;
+    runko.insertAdjacentHTML("beforeend", rivit.slice(i, i += KURSSIT_RIVIERA).join(""));
+    if (i < rivit.length) setTimeout(era);
+  };
+  runko.innerHTML = "";
+  era();
 }
+
+// Rivin klikkaus avaa kurssin (valitun vuoden version); linkki ja vuosivalinta eivät.
+document.getElementById("kurssit-rungot").addEventListener("click", (e) => {
+  const rivi = e.target.closest("tr.kurssi-rivi");
+  if (!rivi || e.target.closest("a, select")) return;
+  const valinta = rivi.querySelector(".vuosivalinta");
+  avaaModaali(parseInt(valinta ? valinta.value : rivi.dataset.kid));
+});
 
 // Suodatinnäkymien (välilehdet, nakymat.js) välilehden nimi suodattimesta.
 function suodatinNimi(s) {
@@ -1114,6 +1130,7 @@ function renderTutkimusKurssitRivit(rivit) {
     runko.innerHTML = `<tr><td colspan="6">Ei kursseja tässä kategoriassa.</td></tr>`;
     return;
   }
+  let html = "";
   for (const k of rivit) {
     let perusteluHtml = perusteluSolu(k);
 
@@ -1135,45 +1152,33 @@ function renderTutkimusKurssitRivit(rivit) {
       toimintoHtml = `<button ${lomake} class="nappi-pieni nappi-hyva hitl-nappi" data-kid="${k.KID}" data-nimi="${escapeHtml(k.KurssiNimi)}" data-perustelu="${escapeHtml(k.Luokitteluperuste || "")}" data-tila="1">Sisällytä</button>`;
     }
 
-    const rivi = document.createElement("tr");
-    rivi.className = hyvaksytty ? "kurssi-rivi hyvaksytty" : "kurssi-rivi";
-    rivi.innerHTML = `
+    html += `<tr class="kurssi-rivi${hyvaksytty ? " hyvaksytty" : ""}" data-kid="${k.KID}">
       <td>${escapeHtml(k.KurssiNimi)}</td>
       <td class="koodi">${koodiJaOpasLinkki(k)}</td>
       ${kurssiMetaSolut(k)}
-      <td class="perustelu">${perusteluHtml}${toimintoHtml ? `<div class="perustelu-toiminto">${toimintoHtml}</div>` : ""}</td>`;
-    rivi.querySelector("a.ops-linkki")?.addEventListener("click", (e) => e.stopPropagation());
-    rivi.addEventListener("click", () => avaaModaali(k.KID));
-    runko.appendChild(rivi);
+      <td class="perustelu">${perusteluHtml}${toimintoHtml ? `<div class="perustelu-toiminto">${toimintoHtml}</div>` : ""}</td></tr>`;
   }
-
-  runko.querySelectorAll(".hitl-nappi").forEach((nappi) => {
-    nappi.addEventListener("click", (e) => {
-      e.stopPropagation();
-      avaaHitlModaali(
-        parseInt(nappi.dataset.kid),
-        nappi.dataset.nimi,
-        nappi.dataset.perustelu,
-        nappi.dataset.tila === "1",
-      );
-    });
-  });
-
-  runko.querySelectorAll(".hyvaksy-nappi").forEach((nappi) => {
-    nappi.addEventListener("click", (e) => {
-      e.stopPropagation();
-      hyvaksyLuokitus(nappi);
-    });
-  });
-  runko.querySelectorAll(".peukku").forEach((p) => p.addEventListener("click", (e) => e.stopPropagation()));
-
-  runko.querySelectorAll(".perustelu-pylpyra").forEach((p) => {
-    p.addEventListener("click", (e) => {
-      e.stopPropagation();
-      p.classList.toggle("auki");
-    });
-  });
+  runko.innerHTML = html;
 }
+
+// Delegoitu klikkaus (rivit renderöidään uudelleen joka pollauksella): napit ja
+// pylpyrät hoitavat oman toimintonsa, muu rivin klikkaus avaa kurssin tiedot.
+document.getElementById("tutkimus-kurssit-rungot").addEventListener("click", (e) => {
+  const kohde = e.target.closest(".hitl-nappi, .hyvaksy-nappi, .peukku, .perustelu-pylpyra, a");
+  if (kohde) {
+    if (kohde.matches(".hitl-nappi")) {
+      const d = kohde.dataset;
+      avaaHitlModaali(parseInt(d.kid), d.nimi, d.perustelu, d.tila === "1");
+    } else if (kohde.matches(".hyvaksy-nappi")) {
+      hyvaksyLuokitus(kohde);
+    } else if (kohde.matches(".perustelu-pylpyra")) {
+      kohde.classList.toggle("auki");
+    }
+    return;
+  }
+  const rivi = e.target.closest("tr.kurssi-rivi");
+  if (rivi) avaaModaali(parseInt(rivi.dataset.kid));
+});
 
 document.querySelectorAll(".tila-nappi, .tila-nappi-nav").forEach((b) => {
   b.addEventListener("click", () => navigoi(`/tutkimukset/${aktiivinen_tutkimus.Slug}/${b.dataset.alasivu}`));
@@ -1206,10 +1211,6 @@ function _renderArviointiSolu(kys, v) {
   return vanha + body;
 }
 
-function _vastusTeksti(v) {
-  return typeof v === "string" ? v : (v?.vastaus || "");
-}
-
 function _vastusOnAnnettu(v) {
   if (typeof v === "string") return !!v;
   return !!(v?.vastaus || v?.luokka || v?.pisteet != null || (Array.isArray(v?.lista) && v.lista.length));
@@ -1235,6 +1236,9 @@ window.paivitaArvioinnit = function () {
 // Arvioinnit ladataan osissa ja taulukko kasvaa sitä mukaa (huono yhteys: koko
 // data kerralla oli ~0,5 Mt). arvioinnit_lataus = käynnissä olevan latauksen tunniste.
 const ARVIOINNIT_OSA = 25;
+// Hiljainen päivitys (pollaus 15 s) hakee kaiken uudelleen: isommat osat = vähemmän
+// pyyntöjä (palvelin hakee tutkimuksen vastaukset jokaiselle osalle).
+const ARVIOINNIT_POLLAUS_OSA = 200;
 let arvioinnit_lataus = 0;
 let arvioinnit_kesken = false;
 
@@ -1259,9 +1263,11 @@ async function renderTutkimusArvioinnit(slug, nimi, sailyta = false) {
   }
   arvioinnit_kesken = true;
   let koottu = null;
+  let renderoity = 0;
+  const koko = sailyta ? ARVIOINNIT_POLLAUS_OSA : ARVIOINNIT_OSA;
   try {
     for (let sivu = 0; ; sivu++) {
-      const osa = await haeJson(`/api/tutkimukset/${slug}/arvioinnit?sivu=${sivu}&koko=${ARVIOINNIT_OSA}`);
+      const osa = await haeJson(`/api/tutkimukset/${slug}/arvioinnit?sivu=${sivu}&koko=${koko}`);
       await koulut_ladattu;
       // Uudempi lataus ohitti, tai käyttäjä siirtyi muualle (älä kuluta kaistaa piilonäkymään).
       if (lataus !== arvioinnit_lataus || jaaPolku().alasivu !== "arvioinnit") return;
@@ -1276,9 +1282,11 @@ async function renderTutkimusArvioinnit(slug, nimi, sailyta = false) {
       koottu = koottu ? { ...osa, kurssit: koottu.kurssit.concat(osa.kurssit) } : osa;
       const valmis = !osa.kurssit.length || koottu.kurssit.length >= osa.yhteensa;
       if (valmis) arvioinnit_kesken = false;
-      if (valmis || !sailyta) {
+      // Koko taulun uudelleenrakennus joka osalla olisi O(n²): korkeintaan OSARENDER_VALI_MS välein.
+      if (valmis || (!sailyta && Date.now() - renderoity > OSARENDER_VALI_MS)) {
         arvioinnit_data = koottu;
         renderArvioinnitTaulu();
+        renderoity = Date.now();
       }
       if (valmis) return;
     }
@@ -1305,6 +1313,30 @@ function _arvioinnitSuodatetut() {
 }
 
 const ARVIOINTI_SARAKKEET = { Nimi: "nimi", Taso: "taso", op: "op" };
+
+// Arviointitaulun delegoitu klikkaus: Korjaa / Hyväksy solun kysymykselle, muu rivin
+// klikkaus avaa kurssin. Kurssi haetaan klikkaushetken datasta (pollaus vaihtaa sen).
+document.getElementById("tutkimus-arvioinnit-sisalto").addEventListener("click", async (e) => {
+  const rivi = e.target.closest("tr.kurssi-rivi");
+  if (!rivi || e.target.closest("a, .peukku")) return;
+  const kid = parseInt(rivi.dataset.kid);
+  const nappi = e.target.closest("button[data-lomake], .arvio-hyvaksy-nappi");
+  if (!nappi) { avaaModaali(kid); return; }
+  const k = arvioinnit_data?.kurssit.find((x) => x.KID === kid);
+  const i = parseInt(nappi.closest("td").dataset.i);
+  const kys = arvioinnit_data?.kysymykset[i];
+  if (!k || !kys) return;
+  const v = k.vastaukset[i];
+  if (nappi.matches("[data-lomake]")) {
+    window.avaaArviointiMuokkaus?.(aktiivinen_tutkimus.TID, aktiivinen_tutkimus.Slug, kid, kys, v,
+                                   k.korjaukset?.[kys.KysID] || null);
+    return;
+  }
+  const kohde = `arvion "${k.KurssiNimi}" / "${kys.Kysymys.slice(0, 40)}"`;
+  if (await lahetaHyvaksynta(nappi, `${kid}/kysymykset/${kys.KysID}`, kohde)) {
+    await renderTutkimusArvioinnit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
+  }
+});
 
 function renderArvioinnitTaulu() {
   if (!arvioinnit_data) return;  // suodatinmuutos ennen ensimmäistä osaa
@@ -1346,23 +1378,12 @@ function renderArvioinnitTaulu() {
   varustaJarjestys(thead, arvioinnit_jarjestys, renderArvioinnitTaulu);
 
   const tid = aktiivinen_tutkimus?.TID;
-  const tbody = taulu.createTBody();
-  for (const k of kurssit) {
-    const rivi = tbody.insertRow();
-    rivi.className = "kurssi-rivi";
-    rivi.innerHTML = `
-      <td>${kurssiLinkki(k)}</td>
-      <td>${tasoTeksti(k.Taso)}</td>
-      <td class="op">${escapeHtml(k.Opintopisteet ?? "—")}</td>`;
-    rivi.querySelector("a.ops-linkki")?.addEventListener("click", (e) => e.stopPropagation());
-    rivi.addEventListener("click", () => avaaModaali(k.KID));
-    kysymykset.forEach((kys, i) => {
+  // Merkkijonona ja delegoidulla kuuntelijalla (alla): rivit × kysymykset soluja,
+  // joissa kussakin oli 3–4 omaa kuuntelijaa.
+  taulu.createTBody().innerHTML = kurssit.map((k) => {
+    const solut = kysymykset.map((kys, i) => {
       const v = k.vastaukset[i];
-      const vastausTeksti = _vastusTeksti(v);
       const korjaus = k.korjaukset?.[kys.KysID] || null;
-      const td = rivi.insertCell();
-      td.className = "arviointi-vastaus";
-      const korjaaId = `korjaa-${k.KID}-${kys.KysID}`;
       // Ihmisen korjaus näkyy tekoälyn vastauksen alla, ei sen tilalla: molemmat
       // tarvitaan virhetaksonomian arviointiin (oliko opas puutteellinen vai LLM väärässä).
       const korjausHtml = korjaus
@@ -1379,24 +1400,15 @@ function renderArvioinnitTaulu() {
       } else if (!korjaus && _vastusOnAnnettu(v)) {
         hyvaksyHtml = `<button class="arvio-korjaa-nappi arvio-hyvaksy-nappi" title="Hyväksy LLM:n tekemä arvio tästä">Hyväksy</button> `;
       }
-      if (hyvaksytty) td.classList.add("hyvaksytty");
-      td.innerHTML = `<span class="arvio-teksti">${_renderArviointiSolu(kys, v)}</span>` +
-        korjausHtml + hyvaksyHtml +
-        `<button class="arvio-korjaa-nappi${hyvaksytty ? " nappi-haalea" : ""}" id="${korjaaId}" data-lomake="arvio:${tid}:${k.KID}:${kys.KysID}">Korjaa</button>`;
-      td.querySelector(`#${korjaaId}`).addEventListener("click", (e) => {
-        e.stopPropagation();
-        window.avaaArviointiMuokkaus?.(tid, aktiivinen_tutkimus.Slug, k.KID, kys, v, korjaus);
-      });
-      td.querySelector(".peukku")?.addEventListener("click", (e) => e.stopPropagation());
-      td.querySelector(".arvio-hyvaksy-nappi")?.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        const kohde = `arvion "${k.KurssiNimi}" / "${kys.Kysymys.slice(0, 40)}"`;
-        if (await lahetaHyvaksynta(e.currentTarget, `${k.KID}/kysymykset/${kys.KysID}`, kohde)) {
-          await renderTutkimusArvioinnit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
-        }
-      });
-    });
-  }
+      return `<td class="arviointi-vastaus${hyvaksytty ? " hyvaksytty" : ""}" data-i="${i}">` +
+        `<span class="arvio-teksti">${_renderArviointiSolu(kys, v)}</span>` + korjausHtml + hyvaksyHtml +
+        `<button class="arvio-korjaa-nappi${hyvaksytty ? " nappi-haalea" : ""}" data-lomake="arvio:${tid}:${k.KID}:${kys.KysID}">Korjaa</button></td>`;
+    }).join("");
+    return `<tr class="kurssi-rivi" data-kid="${k.KID}">
+      <td>${kurssiLinkki(k)}</td>
+      <td>${tasoTeksti(k.Taso)}</td>
+      <td class="op">${escapeHtml(k.Opintopisteet ?? "—")}</td>${solut}</tr>`;
+  }).join("");
 
   sisalto.innerHTML = "";
   sisalto.appendChild(taulu);
