@@ -149,7 +149,7 @@
     const pohja = kerros.getBoundingClientRect();
     for (const m of _muokkaajat) {
       if (m.id === omaId() || !m.kentta || !m.profiili) continue;
-      const el = _modaali.querySelector(`[data-jaettu="${m.kentta}"]`);
+      const el = _modaali.querySelector(`[data-jaettu="${CSS.escape(m.kentta)}"]`);
       if (!el || !(el.tagName === "TEXTAREA" || ["text", "email", "search"].includes(el.type))) continue;
       const r = el.getBoundingClientRect();
       const p = kursoriPiste(el, m.kursori || 0);
