@@ -4,14 +4,6 @@ Session-aikana (2026-09-22, tuotannon `asenna`/Caddy/migraatio-työ) havaittuja
 asioita jotka mainittiin mutta ei korjattu tai vahvistettu käyttäjän kanssa.
 Triagoi: korjaa tai sulje.
 
-## 4. Tuotannon caddy jäi `Restarting`-tilaan asennusajon lopussa — SELVITETTY
-
-`Restarting` on pelkkä `docker compose restart caddy` -komennon tuloste.
-Todellinen vika (2026-09-27): `asenna`:n lopputarkistus ("WebUI ei vastannut
-60 s") epäonnistui aina, koska vahtikoira curlasi `https://localhost/` ja
-Caddylla on sertti vain domainille (TLS exit 35). Korjattu PR #34:ssä. Sulje,
-kun #34 on yhdistetty — ks. kohta 6.
-
 ## 5. Monilauseinen migraatio katkeaa ensimmäiseen duplikaattiin — loput lauseet jäävät hiljaa ajamatta
 
 `asenna`:n migraatioajuri tulkitsee duplikaattiluokan virheen "jo
