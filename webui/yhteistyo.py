@@ -131,9 +131,24 @@ async def _poistu_raportista(avain: tuple, uid: str) -> None:
             _raportti_teksti.pop(avain, None)
 
 
-async def _laheta_kaikille() -> None:
+# Läsnäolon koonti: tilapäivitykset (hiiren liike 80 ms välein/käyttäjä) kerätään
+# yhteen lähetykseen enintään _KOONTI_S välein — muuten jokainen liike lähettäisi
+# kaikkien tilan kaikille (O(käyttäjät²) viestiä jaetussa WiFissä).
+_KOONTI_S = 0.1
+_koonti: asyncio.Task | None = None
+
+
+async def _laheta_kootusti() -> None:
+    await asyncio.sleep(_KOONTI_S)
     kayttajat = [{"id": uid, **data} for uid, (_, data) in _yhteydet.items() if data]
     await _laheta(json.dumps({"tyyppi": "kayttajat", "data": kayttajat}))
+
+
+async def _laheta_kaikille() -> None:
+    """Ajastaa kootun läsnäololähetyksen (uusin tila lähtöhetkellä); ei odota sitä."""
+    global _koonti
+    if _koonti is None or _koonti.done():
+        _koonti = asyncio.create_task(_laheta_kootusti())
 
 
 @reititin.post("/api/nakymat")
