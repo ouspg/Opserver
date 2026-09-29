@@ -68,7 +68,7 @@ docker compose up -d
 #   b) Väliversio (esim. alustus.sql:ää päivitetty osittain käsin ajan myötä,
 #      kuten ApiOsoite-sarakkeen puuttuminen paljasti): osa migraatioista voi
 #      olla jo sovellettuna ilman _migraatiot-merkintää. "Duplicate"-luokan
-#      virhe (sarake/avain/taulu on jo olemassa) tulkitaan "jo sovellettu,
+#      virheet (sarake/avain/taulu on jo olemassa tai jo poistettu) tulkitaan "jo sovellettu,
 #      merkitään tehdyksi" -eikä pysäytetä koko asennusta siihen. Muu virhe
 #      pysäyttää — se on oikea bugi, ei jätetä sitä hiljaa piiloon.
 # _migraatiot-taulu muistaa jo ajetut/jo-olemassa-olevat, joten uudelleenajo
@@ -109,15 +109,24 @@ for tiedosto in tietokanta/migraatio_*.sql; do
     fi
     [[ -n "$ajettu" ]] && continue
 
-    # HUOM: virhe=$(...) TÄYTYY olla if:n ehtona (rivi alla), ei erillinen
+    # HUOM: tuloste=$(...) TÄYTYY olla if:n ehtona (rivi alla), ei erillinen
     # sijoitus jota tarkistetaan jälkikäteen — set -e katkaisi tässä koko
     # skriptin hiljaa heti ensimmäisessä "jo olemassa"-migraatiossa, koska
     # epäonnistunut komento oli tavallinen lause, ei if/while-ehto (bashin
     # -e-poikkeus koskee vain jälkimmäistä). Havaittu tuotannossa bash -x:llä.
-    if virhe=$(aja_sql < "$tiedosto" 2>&1 1>/dev/null); then
+    # --force: aja kaikki lauseet virheistä huolimatta. Ilman sitä mysql pysähtyi
+    # ensimmäiseen duplikaattiin ja tiedoston loput lauseet jäivät hiljaa ajamatta.
+    # "Jo sovellettu" vain jos JOKAINEN virherivi on duplikaattiluokkaa.
+    # --force palauttaa 0 virheistä huolimatta → päätös ERROR-riveistä; nollasta
+    # poikkeava paluuarvo = yhteys/docker-vika.
+    if ! tuloste=$(aja_sql --force < "$tiedosto" 2>&1 1>/dev/null); then
+        echo "Migraatio $nimi epäonnistui: $tuloste"; exit 1
+    fi
+    virhe=$(grep '^ERROR' <<< "$tuloste" || true)
+    if [[ -z "$virhe" ]]; then
         echo "Migraatio ajettu: $nimi"
-    elif echo "$virhe" | grep -qE "Duplicate column|Duplicate key name|Duplicate entry|already exists"; then
-        echo "Migraatio jo sovellettuna (ohitettu): $nimi"
+    elif ! grep -vqE "Duplicate column|Duplicate key name|Duplicate entry|already exists|Can.t DROP" <<< "$virhe"; then
+        echo "Migraatio jo sovellettuna (duplikaatit ohitettu): $nimi"
     else
         echo "Migraatio $nimi epäonnistui: $virhe"; exit 1
     fi
@@ -126,8 +135,8 @@ for tiedosto in tietokanta/migraatio_*.sql; do
 done
 
 # Todennetaan lopputulos: migraatioiden "ajettu"-rivit eivät vielä kerro, että
-# skeema on oikea (osa migraatioista ohitetaan duplikaattivirheeseen, jolloin
-# tiedoston loput lauseet jäävät ajamatta). Vertaa tavoiteskeemaan ja pysäytä
+# skeema on oikea (esim. sarake käsin lisätty eri tyyppisenä → duplikaatti
+# ohitetaan). Vertaa tavoiteskeemaan ja pysäytä
 # asennus jos ei täsmää — rikkinäinen skeema kaataisi sovelluksen joka tapauksessa.
 ./testit/skeematarkistus.sh \
     || { echo "Kannan skeema ei vastaa tavoitetta — ks. erot yllä. Asennus keskeytetty."; exit 1; }

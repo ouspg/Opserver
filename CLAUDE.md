@@ -55,7 +55,7 @@ Automaattinen pipeline suomalaisten yliopistojen opinto-oppaiden läpikäymiseen
 
 Käyttöliittymät ovat toisistaan riippumattomia: curses-UI ohjaa pipelinen suoritusta; web-UI on vain tulosten ja annotointien luku/kirjoitusliittymä.
 
-WebUI:n esittely yleisölle (seminaari-lähiverkko ja etäkokous-Tailscale Funnel) sekä suojaus (HTTP Basic Auth, `WEBUI_AUTH_*`): ks. **`DEMO.md`**. Suositus: aja demo aina Funnelin (HTTPS) kautta, jolloin Basic Auth on turvallinen.
+WebUI:n esittely yleisölle = tuotannon `https://<TUOTANTO_DOMAIN>` (Caddy päättää TLS:n), suojattu HTTP Basic Authilla (`WEBUI_AUTH_KAYTTAJA`/`WEBUI_AUTH_SALASANA` `.env`:ssä). Webui ei julkaise porttia 12121 hostiin (vain `expose`) — kaikki liikenne Caddyn kautta.
 
 ## Kehityskäytännöt
 
@@ -98,7 +98,7 @@ WebUI:n esittely yleisölle (seminaari-lähiverkko ja etäkokous-Tailscale Funne
 - **`./testit/migraatiotesti.sh`** — ajaa migraatioketjun kertakäyttökontissa vanhasta skeemasta ja vaatii saman lopputuloksen kuin tuore asennus (vaatii Dockerin, ei muuta ympäristöä)
 - **`./testit/savutesti.sh`** — savutesti: varmistaa, että MySQL + WebUI-kontit vastaavat oikein (olettaa konttien olevan käynnissä)
 - **`./asenna`** — tuotantoasennus tuoreelle koneelle (vain Docker + curl tarvitaan alkuun): asentaa python3-venvin pipelinelle, rakentaa/käynnistää Docker-pinon (MySQL + WebUI + Caddy 443:ssa, Let's Encrypt TLS-ALPN-01), ajaa tietokantamigraatiot ja todentaa skeeman (`skeematarkistus.sh`; keskeytyy jos kanta ei vastaa tavoitetta), asentaa `vahtikoira`-cronin. Idempotentti — uudelleenajo on turvallista. Vaatii `.env`:iin `TUOTANTO_DOMAIN`:in etukäteen.
-- **`./vahtikoira`** — cron-terveystarkistus tuotannolle (asennetaan `asenna`:n toimesta, ajaa minuutin välein): käynnistää pysähtyneet kontit; kova `docker compose restart` vasta 10 min yhtäjaksoisen epäkunnon jälkeen (ei keskeytä Caddyn ACME-sertifikaatin hakua). Kova restart koskee vain `caddy`- ja `webui`-kontteja — mysql restartataan vain jos se on itse epäterve, koska kannan katkaisu kaataa kesken olevan pipeline-ajon
+- **`./vahtikoira`** — cron-terveystarkistus tuotannolle (asennetaan `asenna`:n toimesta, ajaa minuutin välein): käynnistää pysähtyneet kontit; kova `docker compose restart` vasta 10 min yhtäjaksoisen epäkunnon jälkeen (ei keskeytä Caddyn ACME-sertifikaatin hakua). Kova restart koskee vain `caddy`- ja `webui`-kontteja — mysql restartataan vain jos se on itse epäterve, koska kannan katkaisu kaataa kesken olevan pipeline-ajon. Käsin debugatessa `touch .vahtikoira_tauolla` (vanhenee 2 h:ssa)
 - **`./paivittaja`** — tuotannon automaattipäivitys (root-cron 5 min, `/etc/cron.d/opserver`, asennetaan `asenna`:n toimesta): uusi origin/main → savutesti → `varmuuskopio` → ff-pull → `./asenna` → savutesti; epäonnistuessa koodi + kanta palautetaan, GitHub-issue (`GITHUB_ISSUE_TOKEN` .env:ssä) eikä samaa versiota yritetä uudelleen (`.paivitys_epaonnistui`). Jos sivu on rikki jo ennen päivitystä: ei päivitetä, issue kerran per versio (`.paivitys_rikki_ilmoitettu`). Jos pipeline (`cliui.valikko`) on käynnissä, lopettaa heti ennen fetchiä
 - **`./varmuuskopio [nimi]`** / **`./varmuuskopio --palauta TIED`** — mysqldump (gzip) hakemistoon `/var/backups/opserver`, 14 vrk säilytys; cron joka yö 03:15. `asenna` asentaa myös unattended-upgradesin (uudelleenkäynnistys tarvittaessa 04:30)
 - **`./testit/paivittajatesti.sh`** / **`./testit/varmuuskopiotesti.sh`** — päivittäjän logiikka stubeilla (ei Dockeria) / dumppi+palautus kertakäyttökontissa (vaatii Dockerin)

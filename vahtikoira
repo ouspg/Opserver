@@ -6,6 +6,9 @@
 # tappaa neuvottelun kesken ja polttaa Let's Encryptin failed-authorizations
 # -rate limitin (nähty käytännössä — ks. commit-viesti).
 # --hiljaa: vain tarkista (exit 0 = kunnossa), älä korjaa.
+# Tauko käsin debugatessa: `touch .vahtikoira_tauolla` (ei up -d, ei restarttia,
+# 10 min -laskuri nollautuu); poista kun valmis. Yli 2 h vanha tauko ohitetaan,
+# ettei unohtunut tiedosto jätä tuotantoa ilman vahtia.
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
 
 # Cron ajaa tämän ilman sudoa — jos käyttäjä ei ole docker-ryhmässä (esr-project),
@@ -19,6 +22,7 @@ else
 fi
 
 TILA_TIEDOSTO="$PWD/.vahtikoira_epakunnossa_alkoi"
+TAUKO="$PWD/.vahtikoira_tauolla"
 
 kunnossa() {
     [[ "$(docker compose ps --status running --services 2>/dev/null | sort | tr '\n' ' ')" == "caddy mysql webui " ]] || return 1
@@ -40,6 +44,15 @@ if kunnossa; then
     exit 0
 fi
 [[ "${1:-}" == "--hiljaa" ]] && exit 1
+
+if [[ -f "$TAUKO" ]]; then
+    if [[ -n "$(find "$TAUKO" -mmin -120)" ]]; then
+        rm -f "$TILA_TIEDOSTO"
+        exit 0
+    fi
+    echo "$(date -Is) $TAUKO yli 2 h vanha — ohitetaan ja poistetaan"
+    rm -f "$TAUKO"
+fi
 
 echo "$(date -Is) WebUI/MySQL/Caddy alhaalla — käynnistetään pysähtyneet kontit"
 docker compose up -d   # ei koske jo käynnissä oleviin — ei keskeytä Caddyn ACME-neuvottelua
