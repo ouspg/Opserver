@@ -14,6 +14,12 @@ exec 9<"$0"; flock -n 9 || exit 0   # edellinen ajo yhä kesken
 pgrep -f 'cliui[.]valikko' >/dev/null && exit 0   # ./run; ei osu esim. editoriin cliui/…-tiedostossa
 
 EPAONNISTUNUT=.paivitys_epaonnistui
+# Ajon tuloste talteen issueta varten (issue ilman lokia ei kerro juurisyytä, ja
+# loki on vain tuotantokoneella). Kirjoitetaan cron-lokiin ajon lopussa.
+exec 3>&1
+ajo=$(mktemp)
+exec >>"$ajo" 2>&1
+trap 'cat "$ajo" >&3; rm -f "$ajo"' EXIT
 loki() { echo "$(date '+%F %T') $*"; }
 # Git repon omistajana: rootina ajettu git tekisi tiedostoista root-omisteisia.
 omistaja=$(ls -ld . | awk '{print $3}')
@@ -27,12 +33,28 @@ toimii() {  # kontit käynnistyvät hetken: max ~3 min
     savutesti   # viimeinen yritys lokiin näkyviin
 }
 
+# Lokiote issueen (repo on julkinen): .env:n salaisuudet (*PASSWORD*, *SALASANA*,
+# *TOKEN*, *KEY*, *SECRET*) peitetään, ja ote rajataan GitHubin runkorajan alle.
+lokiote() {  # otsikko < teksti
+    printf '\n\n<details><summary>%s</summary>\n\n```\n' "$1"
+    python3 -c '
+import re, sys
+salat = [a for r in open(".env") for a in [r.partition("=")[2].strip().strip(chr(34) + chr(39))]
+         if re.match(r"[A-Z_]*(PASSWORD|SALASANA|TOKEN|KEY|SECRET)[A-Z_]*=", r) and len(a) >= 4]
+teksti = sys.stdin.read()
+for s in sorted(salat, key=len, reverse=True):
+    teksti = teksti.replace(s, "***")
+print(teksti[-20000:].rstrip())'
+    printf '```\n</details>'
+}
+
 ilmoita() {  # otsikko runko — issue GitHubiin (token: fine-grained PAT, vain Issues: write)
-    local token repo
+    local token repo runko
     token=$(grep -E '^GITHUB_ISSUE_TOKEN=' .env | cut -d= -f2-)
     [[ -n "$token" ]] || { loki "GITHUB_ISSUE_TOKEN puuttuu .env:stä — issueta ei luotu"; return; }
     repo=$(git_ remote get-url origin | sed -E 's#.*github\.com[:/]##; s#\.git$##')
-    python3 -c 'import json,sys; print(json.dumps({"title": sys.argv[1], "body": sys.argv[2]}))' "$1" "$2" \
+    runko="$2$(tail -n 150 "$ajo" | lokiote "Tämän ajon loki (paivittaja)")${3:-}"
+    python3 -c 'import json,sys; print(json.dumps({"title": sys.argv[1], "body": sys.argv[2]}))' "$1" "$runko" \
         | curl -sf -o /dev/null -X POST --data @- \
             -H @<(printf 'Authorization: Bearer %s\nAccept: application/vnd.github+json\n' "$token") \
             "https://api.github.com/repos/$repo/issues" \
@@ -53,7 +75,8 @@ if ! tulos=$(savutesti 2>&1); then
 "Tuotannon savutesti epäonnistuu jo ennen päivitystä, joten versiota $uusi ei asenneta automaattisesti.
 
 Korjaa tuotanto tai asenna käsin: \`git pull && sudo ./asenna\`. Kun savutesti menee taas läpi, päivittäjä jatkaa itsestään.
-Loki tuotantokoneella: \`paivittaja.log\`, \`vahtikoira.log\`."
+Loki tuotantokoneella: \`paivittaja.log\`, \`vahtikoira.log\`." \
+"$(lokiote "Savutesti" <<<"$tulos")$(tail -n 30 vahtikoira.log 2>/dev/null | lokiote "vahtikoira.log (viimeiset 30 riviä)")"
     fi
     exit 1
 fi
