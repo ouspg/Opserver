@@ -32,11 +32,6 @@ tilastot = mallit.hae_tilastot_yliopistoittain(tid)
 kysymykset = mallit.hae_kysymykset(tid)
 jarjestelma = llmraportti._lue_jarjestelmakehote()
 
-viestirakentajat = {
-    "johdanto":   lambda: llmraportti._rakenna_johdanto_viesti(tutkimus, tilastot),
-    "kurssit":    lambda: llmraportti._rakenna_kurssit_viesti(tutkimus, tilastot),
-    "arvioinnit": lambda: llmraportti._rakenna_arvioinnit_viesti(tutkimus, kysymykset, tilastot),
-}
 
 viiva = "=" * 72
 
@@ -45,10 +40,10 @@ print(f"  JÄRJESTELMÄKEHOTE (kaikille osioille)")
 print(viiva)
 print(jarjestelma)
 
-for avain, rakentaja in viestirakentajat.items():
+for avain, viesti in llmraportti.rakenna_viestit(tutkimus, tilastot, kysymykset).items():
     print(f"\n{viiva}")
     print(f"  OSIO: {avain.upper()}")
     print(viiva)
-    print(rakentaja())
+    print(viesti)
 
 print(f"\n{viiva}\n")

@@ -353,3 +353,8 @@ class TestPaivitaTuoreus:
         assert sig == "sig123"
         mock_tiiviste.assert_called_once()
         mock_tallenna.assert_called_once_with(7, "sig123")
+
+
+def test_jarjestelmakehote_luetaan_kehotetiedostosta():
+    from raportti import llmraportti
+    assert llmraportti._lue_jarjestelmakehote().strip()

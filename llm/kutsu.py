@@ -48,6 +48,13 @@ def hae_malli() -> str:
     return os.environ.get("LLM_MODEL", "")
 
 
+def _kasvata_viivetta() -> None:
+    """429: tuplaa pyyntövälin (vähintään alkuviive, enintään katto)."""
+    global _viive_s
+    with _lukko:
+        _viive_s = min(max(_viive_s * 2, _ALKUVIIVE_S), _MAKSIMIVIIVE_S)
+
+
 def hae_viimeisin_kaytto() -> dict:
     """Palauttaa viimeisimmän onnistuneen pyynnön usage-tiedot ja finish_reasonin."""
     return dict(_viimeisin_kaytto)
@@ -123,7 +130,7 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
     global _viive_s, _viimeisin_kaytto
     perus_url = os.environ.get("LLM_PROVIDER")
     api_avain = os.environ.get("LLM_API_KEY")
-    malli = os.environ.get("LLM_MODEL")
+    malli = hae_malli()
     if not (perus_url and api_avain and malli):
         raise EnvironmentError(
             "LLM_PROVIDER, LLM_API_KEY tai LLM_MODEL puuttuu .env-tiedostosta"
@@ -158,8 +165,7 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
             timeout=_AIKAKATKAISU_S,
         )
         if vastaus.status_code == 429:
-            with _lukko:
-                _viive_s = min(max(_viive_s * 2, _ALKUVIIVE_S), _MAKSIMIVIIVE_S)
+            _kasvata_viivetta()
             continue
         vastaus.raise_for_status()
         with _lukko:
@@ -170,8 +176,7 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
             koodi = virhe.get("code", 0)
             viesti_teksti = virhe.get("message", str(virhe))
             if koodi == 429:
-                with _lukko:
-                    _viive_s = min(max(_viive_s * 2, _ALKUVIIVE_S), _MAKSIMIVIIVE_S)
+                _kasvata_viivetta()
                 continue
             raise RuntimeError(f"OpenRouter-virhe ({koodi}): {viesti_teksti}")
         valinnat = data.get("choices") or []

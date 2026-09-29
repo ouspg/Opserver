@@ -16,6 +16,19 @@ def _rivi_diktina(kursori) -> dict | None:
     return dict(zip(sarakkeet, rivi)) if rivi else None
 
 
+def _json(arvo) -> str | None:
+    """Python-arvo JSON-sarakkeeseen (None → NULL)."""
+    return json.dumps(arvo, ensure_ascii=False) if arvo is not None else None
+
+
+def _pura_json(rivit: list[dict], kentta: str) -> list[dict]:
+    """JSON-sarake takaisin Python-arvoksi (connector palauttaa sen merkkijonona)."""
+    for r in rivit:
+        if r.get(kentta) and isinstance(r[kentta], str):
+            r[kentta] = json.loads(r[kentta])
+    return rivit
+
+
 # Yhden lauseen kyselyt: oma yhteys poolista (commit/rollback yhteys():ssä).
 # Useamman lauseen transaktiot kirjoitetaan auki with yhteys() -lohkoon.
 
@@ -385,7 +398,7 @@ def hae_oppiaineet(kkid_lista: list[int]) -> list[str]:
 
 def lisaa_kysymys(tid: int, kysymys: str, luokittelu: str = "vapaa_teksti",
                   luokittelu_maarittely: dict | None = None) -> int:
-    maarittely_json = json.dumps(luokittelu_maarittely, ensure_ascii=False) if luokittelu_maarittely else None
+    maarittely_json = _json(luokittelu_maarittely or None)
     return _suorita(
         "INSERT INTO Kysymykset (TID, Kysymys, Luokittelu, LuokitteluMaarittely) VALUES (%s, %s, %s, %s)",
         (tid, kysymys, luokittelu, maarittely_json),
@@ -400,15 +413,12 @@ def hae_kysymykset(tid: int) -> list[dict]:
                 (tid,),
             )
             rivit = _rivit_dikteina(kursori)
-    for r in rivit:
-        if r.get("LuokitteluMaarittely") and isinstance(r["LuokitteluMaarittely"], str):
-            r["LuokitteluMaarittely"] = json.loads(r["LuokitteluMaarittely"])
-    return rivit
+    return _pura_json(rivit, "LuokitteluMaarittely")
 
 
 def paivita_kysymys(kysid: int, kysymys: str, luokittelu: str = "vapaa_teksti",
                     luokittelu_maarittely: dict | None = None) -> None:
-    maarittely_json = json.dumps(luokittelu_maarittely, ensure_ascii=False) if luokittelu_maarittely else None
+    maarittely_json = _json(luokittelu_maarittely or None)
     _suorita(
         "UPDATE Kysymykset SET Kysymys = %s, Luokittelu = %s, LuokitteluMaarittely = %s WHERE KysID = %s",
         (kysymys, luokittelu, maarittely_json, kysid),
@@ -442,7 +452,7 @@ def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "",
     per (kysymys, kurssi) kuten ennen, eli uudelleenajo päivittää saman rivin.
     Malli ei koskaan NULL: se erottaa LLM-rivin ihmisen korjauksesta.
     """
-    lista_json = json.dumps(lista, ensure_ascii=False) if lista is not None else None
+    lista_json = _json(lista)
     _suorita(
         """INSERT INTO Vastaukset
                (TID, KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)
@@ -543,10 +553,7 @@ def hae_vastaukset(tid: int) -> list[dict]:
                 ORDER BY v.KID, v.KysID, (v.Malli IS NULL) DESC, v.Aikaleima DESC
             """, (tid,))
             rivit = _rivit_dikteina(kursori)
-    for r in rivit:
-        if isinstance(r.get("Lista"), str):
-            r["Lista"] = json.loads(r["Lista"])
-    return rivit
+    return _pura_json(rivit, "Lista")
 
 
 # --- Luokittelun apufunktiot ---
@@ -1007,7 +1014,7 @@ def tallenna_hitl_vastaus(tid: int, kid: int, kysid: int, vastaus: str,
     Sama korjaaja päivittää oman aiemman korjauksensa (uniikki_kys_kid_kayttaja),
     eri korjaajien rivit säilyvät erillisinä. Aikaleima päivittyy korjatessa.
     """
-    lista_json = json.dumps(lista, ensure_ascii=False) if lista is not None else None
+    lista_json = _json(lista)
     _suorita(
         """INSERT INTO Vastaukset
                (TID, KysID, KID, Vastaus, Pisteet, Luokka, Lista,
@@ -1036,10 +1043,7 @@ def hae_hitl_vastaukset(tid: int) -> list[dict]:
                 (tid,),
             )
             rivit = _rivit_dikteina(kursori)
-    for r in rivit:
-        if isinstance(r.get("Lista"), str):
-            r["Lista"] = json.loads(r["Lista"])
-    return rivit
+    return _pura_json(rivit, "Lista")
 
 
 # --- RaporttiOsio ---

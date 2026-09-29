@@ -3,18 +3,21 @@ taso- ja oppiainerajauksilla."""
 from tietokanta import mallit
 
 
-def _taso_ok(kurssi: dict, tasorajaus: str | None) -> bool:
-    if not tasorajaus:
+def _sisaltaa_jonkin(arvo: str | None, rajaus: str | None) -> bool:
+    """Tyhjä rajaus = kaikki käy; muuten jokin pilkulla erotetuista osajonoista
+    löytyy arvosta (kirjainkoosta riippumatta)."""
+    if not rajaus:
         return True
-    kurssi_taso = (kurssi.get("Taso") or "").lower()
-    return any(t.strip().lower() in kurssi_taso for t in tasorajaus.split(",") if t.strip())
+    arvo = (arvo or "").lower()
+    return any(t.strip().lower() in arvo for t in rajaus.split(",") if t.strip())
+
+
+def _taso_ok(kurssi: dict, tasorajaus: str | None) -> bool:
+    return _sisaltaa_jonkin(kurssi.get("Taso"), tasorajaus)
 
 
 def _oppiaine_ok(kurssi: dict, oppiainerajaus: str | None) -> bool:
-    if not oppiainerajaus:
-        return True
-    oppiaine = (kurssi.get("Oppiaine") or "").lower()
-    return any(t.strip().lower() in oppiaine for t in oppiainerajaus.split(",") if t.strip())
+    return _sisaltaa_jonkin(kurssi.get("Oppiaine"), oppiainerajaus)
 
 
 def aja(tutkimus: dict, edistyminen_cb=None, kohde: str = "uudet") -> tuple[int, int]:

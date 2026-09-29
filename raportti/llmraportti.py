@@ -1,8 +1,7 @@
 """LLM-raporttigenerointi: koostaa raporttiosiot tietokannasta ja täydentää LLM:llä."""
 import json
-import os
 from tietokanta import mallit
-from llm import kutsu, tiiviste
+from llm import kutsu, tiiviste, kehotteet
 
 OSIOT = ["johdanto", "kurssit", "arvioinnit"]
 
@@ -116,9 +115,16 @@ def paivita_tuoreus(tutkimus: dict) -> str:
 
 
 def _lue_jarjestelmakehote() -> str:
-    polku = os.path.join(os.path.dirname(__file__), "..", "kehotteet", "raporttijarjestelma.txt")
-    with open(polku, encoding="utf-8") as f:
-        return f.read().strip()
+    return kehotteet.lue("raporttijarjestelma.txt")
+
+
+def rakenna_viestit(tutkimus: dict, tilastot: list[dict], kysymykset: list[dict]) -> dict[str, str]:
+    """Raportin osioiden LLM-viestit {osio: viesti} (myös ./kehoteraportti käyttää)."""
+    return {
+        "johdanto": _rakenna_johdanto_viesti(tutkimus, tilastot),
+        "kurssit": _rakenna_kurssit_viesti(tutkimus, tilastot),
+        "arvioinnit": _rakenna_arvioinnit_viesti(tutkimus, kysymykset, tilastot),
+    }
 
 
 def _tilasto_taulukko(rivit: list[dict]) -> str:
@@ -263,18 +269,13 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> int:
     # tuoreustarkistusta varten (CLIUI:n "Näytä tilanne" vertaa tähän).
     laskenta = raporttitiiviste(tutkimus, tilastot, kysymykset)
 
-    viestirakentajat = {
-        "johdanto": lambda: _rakenna_johdanto_viesti(tutkimus, tilastot),
-        "kurssit": lambda: _rakenna_kurssit_viesti(tutkimus, tilastot),
-        "arvioinnit": lambda: _rakenna_arvioinnit_viesti(tutkimus, kysymykset, tilastot),
-    }
+    viestit = rakenna_viestit(tutkimus, tilastot, kysymykset)
 
     generoitu = 0
     for i, avain in enumerate(OSIOT):
         if edistyminen_cb:
             edistyminen_cb(i, len(OSIOT), avain)
-        viesti = viestirakentajat[avain]()
-        teksti = kutsu.kysy(viesti, jarjestelma)
+        teksti = kutsu.kysy(viestit[avain], jarjestelma)
         mallit.aseta_raportti_osio(tid, avain, teksti, laskentatiiviste=laskenta)
         generoitu += 1
 

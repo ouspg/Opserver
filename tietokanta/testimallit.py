@@ -4,10 +4,9 @@ Erillään oikeiden tulosten funktioista (mallit.py): testiajot kirjataan
 ajotunnuksella (Ajo) ja voidaan poistaa kohdennetusti oikeita tuloksia
 koskematta. Ks. migraatio_015.sql.
 """
-import json
 from tietokanta.yhteys import yhteys
 from tietokanta.mallit import (
-    _hae_kaikki, _hae_sarake, _suorita, LUOKITUS_PAIVITYS, VASTAUS_PAIVITYS,
+    _hae_kaikki, _hae_sarake, _suorita, _json, LUOKITUS_PAIVITYS, VASTAUS_PAIVITYS,
 )
 
 
@@ -81,7 +80,7 @@ def aseta_testivastaus(ajo: str, erakoko: int, tid: int, kysid: int, kid: int, v
                        malli: str = "", pisteet: float | None = None, luokka: str | None = None,
                        lista: list | None = None, tiiviste: str | None = None) -> None:
     """Kirjaa yhden (kysymys, kurssi) -testivastauksen. Idempotentti (Ajo, KysID, KID) -avaimella."""
-    lista_json = json.dumps(lista, ensure_ascii=False) if lista is not None else None
+    lista_json = _json(lista)
     _suorita(
         """INSERT INTO Vastaukset_testi
                (Ajo, Erakoko, TID, KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)
