@@ -1,4 +1,5 @@
 """Opserver web-käyttöliittymän FastAPI-palvelin."""
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -330,7 +331,9 @@ async def ws_kayttajat(ws: WebSocket) -> None:
                 avain = (data.get("tid"), data.get("avain"))
                 if avain not in _raportti_sessiot:
                     _raportti_sessiot[avain] = {}
-                    _raportti_teksti[avain] = mallit.hae_raportti_osio(*avain)
+                    # Säikeessä: synkroninen etäkantakutsu pysäyttäisi event loopin
+                    # eli kaikki WebSocket-yhteydet ja async-reitit kyselyn ajaksi.
+                    _raportti_teksti[avain] = await asyncio.to_thread(mallit.hae_raportti_osio, *avain)
                 _raportti_sessiot[avain][uid] = {**_kayttajatiedot(uid), "kursori": 0}
                 await _laheta_raportti_sessio(avain)
             elif tyyppi == "raportti-teksti":
@@ -357,8 +360,6 @@ STAATTINEN = os.path.join(os.path.dirname(__file__), "staattinen")
 _INDEX = os.path.join(STAATTINEN, "index.html")
 _NO_STORE = {"Cache-Control": "no-store"}
 
-# Kentät jotka jätetään pois kurssilistasta (suuri JSON-kenttä)
-_KURSSI_LISTA_KENTAT = {"OpsKuvaus"}
 
 
 # --- Staattisten referenssikyselyjen TTL-välimuisti ---
@@ -389,8 +390,7 @@ def _tasot_valimuistissa(kkid, lukuvuosi) -> list[str]:
 
 @ttl_valimuisti(_VALIMUISTI_TTL)
 def _kurssit_valimuistissa(kkid, lukuvuosi) -> list[dict]:
-    rivit = mallit.hae_kurssit(kkid=kkid, lukuvuosi=lukuvuosi)
-    return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
+    return mallit.hae_kurssit(kkid=kkid, lukuvuosi=lukuvuosi)
 
 
 # Raskas tuoreuslaskenta (raporttitiiviste) ajetaan taustalla — ei estä pollausta.
@@ -492,8 +492,7 @@ def api_tutkimukset() -> list[dict]:
 
 @sovellus.get("/api/tutkimukset/{slug}/kurssit")
 def api_tutkimus_kurssit(tutkimus: TutkimusSlugista) -> list[dict]:
-    rivit = mallit.hae_valitut_kurssit(tutkimus["TID"], kuvaukset=False)
-    return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
+    return mallit.hae_valitut_kurssit(tutkimus["TID"], kuvaukset=False)
 
 
 @sovellus.get("/api/tutkimukset/{slug}/luokitukset/maarat")
@@ -527,16 +526,13 @@ def api_tutkimus_luokitukset(tutkimus: TutkimusSlugista, tila: Optional[str] = N
             "KayttajaNimi": h["KayttajaNimi"],
         })
 
-    tulos = []
-    for r in rivit:
-        d = {k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT}
+    for d in rivit:
         kid = d["KID"]
         korjaukset = historia.get(kid, [])
         d["HitlKorjaukset"] = korjaukset
         # Tekoälyn alkuperäinen tila: ensimmäisen korjauksen käänteinen
         d["AiMukana"] = (not korjaukset[0]["UusiTila"]) if korjaukset else d.get("Mukana")
-        tulos.append(d)
-    return tulos
+    return rivit
 
 
 @sovellus.get("/api/tutkimukset/{slug}/arvioinnit")

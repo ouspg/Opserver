@@ -42,7 +42,6 @@ def test_api_kurssit_palauttaa_listan():
     data = vastaus.json()
     assert len(data) == 1
     assert data[0]["KurssiNimi"] == "Kyberturvallisuuden perusteet"
-    assert "OpsKuvaus" not in data[0]  # suuri kenttä jätetään pois listanäkymästä
 
 
 def test_api_kurssit_suodattaa_kkid_perusteella():
