@@ -79,6 +79,7 @@ class SisuLukija(OpsLukija):
             except requests.exceptions.RequestException:
                 ohitettu += len(era)
                 kurssit_data = []
+            uudet = []
             for kurssi_data in kurssit_data:
                 # Sisulla LahdeId = kurssin yksilöivä UUID (id-kenttä),
                 # ei groupId — groupId ei toimi Sisun SPA-reitityksessä.
@@ -86,19 +87,11 @@ class SisuLukija(OpsLukija):
                 if uuid in jo_kannassa:
                     continue
                 kurssi = self._jasenna_kurssi(kurssi_data, organisaatiot)
-                mallit.tallenna_kurssi(
-                    kkid=kkid,
-                    lahde_id=uuid,
-                    koodi=kurssi["koodi"],
-                    kurssi_nimi=kurssi["kurssi_nimi"],
-                    taso=kurssi["taso"],
-                    oppiaine=kurssi["oppiaine"],
-                    opintopisteet=kurssi["opintopisteet"],
-                    opetusvuosi=kausi,
-                    ops_kuvaus=json.dumps(kurssi_data, ensure_ascii=False),
-                )
-                tallennettu += 1
+                uudet.append({**kurssi, "lahde_id": uuid,
+                              "ops_kuvaus": json.dumps(kurssi_data, ensure_ascii=False)})
                 viimeisin = kurssi["kurssi_nimi"]
+            mallit.tallenna_kurssit(kkid, kausi, uudet)  # koko API-erä yhdellä kertaa
+            tallennettu += len(uudet)
             # Edistyminen mitataan käsitellyistä kurssilistauksista, ei tallennetuista:
             # erä voi palauttaa vähemmän kursseja kuin pyydettiin ja osa on jo kannassa
             # → tallennettu-laskuri jäisi jälkeen ja näyttäisi jumittuneelta.

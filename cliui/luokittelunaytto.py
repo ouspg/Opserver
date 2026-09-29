@@ -95,11 +95,9 @@ def _aja_llm(stdscr, tutkimus: dict) -> None:
         return
     piirra_otsikko(stdscr, f"LLM-luokittelu — {tutkimus['LuokittelunNimi']}")
 
-    uudet = mallit.laske_luokittelemattomat(tid)            # ei vielä LLM-luokiteltu
-    kaikki = mallit.laske_luokittelemattomat(tid, tiiv)     # + vanhentuneen kehotteen tulokset
-    vanhentuneet = kaikki - uudet
+    uudet, vanhentuneet = mallit.laske_luokittelutyo(tid, tiiv)  # ei vielä luokiteltu / kehote muuttunut
 
-    if kaikki == 0:
+    if uudet + vanhentuneet == 0:
         nayta_viesti(stdscr, "Kaikki kurssit on jo luokiteltu nykyisellä kehotteella.")
         return
 

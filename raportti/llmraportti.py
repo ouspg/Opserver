@@ -100,7 +100,7 @@ def koosta_tilanne(tutkimus: dict) -> dict:
         "tuoreus": tuoreus,
         "tarkistettu": tarkistettu,
         "hitl_jalkeen": mallit.laske_hitl_korjaukset_jalkeen(tid, generoitu_aika),
-        "arviokorjaukset_jalkeen": mallit.laske_hitl_vastaukset_jalkeen(tid, generoitu_aika),
+        "arviokorjaukset_jalkeen": mallit.laske_hitl_vastaukset(tid, jalkeen=generoitu_aika),
     }
 
 
@@ -235,7 +235,7 @@ ei mallin virheestä)."""
 
 def _rakenna_arvioinnit_viesti(tutkimus: dict, kysymykset: list[dict], tilastot: list[dict]) -> str:
     mukana_yht = sum(r["Mukana"] for r in tilastot)
-    korjaukset_lkm = len(mallit.hae_hitl_vastaukset(tutkimus["TID"]))
+    korjaukset_lkm = mallit.laske_hitl_vastaukset(tutkimus["TID"])
     kysymysteksti = "\n".join(f"{i+1}. {k['Kysymys']}" for i, k in enumerate(kysymykset))
     raportointikehote = tutkimus.get("Raportointikehote") or ""
     return f"""Kirjoita tutkimusraportin arvioinnit-osio seuraavien tietojen pohjalta.

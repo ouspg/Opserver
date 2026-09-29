@@ -138,8 +138,7 @@ def test_api_tutkimus_arvioinnit_palauttaa_rakenteen():
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=[KYSYMYS]), \
          patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[KURSSI_MUKANA]), \
-         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[vastaus_rivi]), \
-         patch("webui.palvelin.mallit.hae_hitl_vastaukset", return_value=[]):
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[vastaus_rivi]):
         vastaus = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit")
     assert vastaus.status_code == 200
     data = vastaus.json()
@@ -161,8 +160,7 @@ def test_api_tutkimus_arvioinnit_palauttaa_hyvaksyjan_ilman_sahkopostia():
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=[KYSYMYS]), \
          patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[KURSSI_MUKANA]), \
-         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[vastaus_rivi]), \
-         patch("webui.palvelin.mallit.hae_hitl_vastaukset", return_value=[]):
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[vastaus_rivi]):
         data = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit").json()
     assert data["kurssit"][0]["vastaukset"][0]["hyvaksyja"] == "Liisa"
     assert "l@e.fi" not in str(data)
@@ -176,8 +174,7 @@ def test_api_tutkimus_arvioinnit_lista_vastaus():
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=[kysymys_lista]), \
          patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[KURSSI_MUKANA]), \
-         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[vastaus_rivi]), \
-         patch("webui.palvelin.mallit.hae_hitl_vastaukset", return_value=[]):
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[vastaus_rivi]):
         vastaus = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit")
     assert vastaus.status_code == 200
     data = vastaus.json()
@@ -191,8 +188,7 @@ def test_api_tutkimus_arvioinnit_tyhjat_vastaukset():
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=[KYSYMYS]), \
          patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[KURSSI_MUKANA]), \
-         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[]), \
-         patch("webui.palvelin.mallit.hae_hitl_vastaukset", return_value=[]):
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[]):
         vastaus = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit")
     assert vastaus.status_code == 200
     data = vastaus.json()
@@ -636,20 +632,22 @@ def test_arvioinnit_erottaa_llm_vastauksen_ja_korjauksen():
     llm_rivi = {"VasID": 1, "KysID": 10, "KID": 1, "Vastaus": "LLM sanoi", "Pisteet": None,
                 "Luokka": None, "Malli": "testimalli"}
     hitl_rivi = {"KID": 1, "KysID": 10, "Vastaus": "Ihminen korjasi", "Pisteet": None,
-                 "Luokka": None, "Lista": None, "KayttajaNimi": "Testi",
+                 "Luokka": None, "Lista": None, "KayttajaNimi": "Testi", "Malli": None,
                  "Sahkoposti": "t@e.fi", "Juurisyy": "riittamaton_opas",
                  "Aikaleima": "2026-09-25 10:00:00"}
+    vanha_hitl = {**hitl_rivi, "Vastaus": "Vanhempi korjaus", "Aikaleima": "2026-09-24 10:00:00"}
     with patch("webui.palvelin.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=[KYSYMYS]), \
          patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[KURSSI_MUKANA]), \
-         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[llm_rivi]), \
-         patch("webui.palvelin.mallit.hae_hitl_vastaukset", return_value=[hitl_rivi]):
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=[hitl_rivi, vanha_hitl, llm_rivi]), \
+         patch("webui.palvelin.mallit.hae_hitl_vastaukset") as ylimaarainen:
         data = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit").json()
     kurssi = data["kurssit"][0]
     assert kurssi["vastaukset"][0]["vastaus"] == "LLM sanoi"      # tekoälyn vastaus säilyy
     korjaus = kurssi["korjaukset"]["10"]  # JSON-avaimet ovat merkkijonoja
     assert korjaus["vastaus"] == "Ihminen korjasi"
     assert korjaus["nimi"] == "Testi" and korjaus["juurisyy"] == "riittamaton_opas"
+    ylimaarainen.assert_not_called()   # ihmisen rivit tulevat jo hae_vastaukset-haussa
 
 
 def test_api_raportti_tilastot_ihmisen_korjaus_voittaa_eika_tuplaa():
@@ -692,8 +690,7 @@ def test_api_tutkimus_arvioinnit_sivutettuna():
          patch("webui.palvelin.mallit.hae_kysymykset", return_value=[KYSYMYS]), \
          patch("webui.palvelin.mallit.hae_valitut_kurssit", return_value=[toinen]) as valitut, \
          patch("webui.palvelin.mallit.laske_valitut_kurssit", return_value=2), \
-         patch("webui.palvelin.mallit.hae_vastaukset", return_value=vastaukset), \
-         patch("webui.palvelin.mallit.hae_hitl_vastaukset", return_value=[]):
+         patch("webui.palvelin.mallit.hae_vastaukset", return_value=vastaukset):
         data = asiakas.get("/api/tutkimukset/kyber-2025/arvioinnit?sivu=1&koko=1").json()
     valitut.assert_called_once_with(TUTKIMUS["TID"], raja=1, siirto=1, kuvaukset=False)
     assert data["yhteensa"] == 2

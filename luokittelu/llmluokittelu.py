@@ -75,13 +75,12 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int, int]:
     # Tyhjä valintakehote → meta-luokittelu: hyväksy kaikki meta-läpäisseet
     # kurssit suoraan ilman LLM-vaihetta. (Meta-hylätyt eivät ole ehdokkaita.)
     if not (luokittelukehote or "").strip():
-        for n, k in enumerate(kandidaatit, 1):
-            mallit.aseta_luokitus(tid, k["KID"], True,
-                                  "Valittu meta-tietojen perusteella (ei valintakehotetta).",
-                                  "", tiiviste=tiiv)
-            if edistyminen_cb:
-                edistyminen_cb(n, len(kandidaatit), 1, 1, n, 0, 0)  # kaikki mukaan
-        return len(kandidaatit), 0, 0
+        perustelu = "Valittu meta-tietojen perusteella (ei valintakehotetta)."
+        mallit.aseta_luokitukset(tid, [(k["KID"], True, perustelu) for k in kandidaatit], "", tiiviste=tiiv)
+        n = len(kandidaatit)
+        if edistyminen_cb:
+            edistyminen_cb(n, n, 1, 1, n, 0, 0)  # kaikki mukaan
+        return n, 0, 0
 
     malli = kutsu.hae_malli()
     koko = erakoko()
@@ -132,18 +131,13 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int, int]:
                     menetetyt_erat += 1
                     menetetyt_kurssit += len(erä)
                 tulokset = kurssimuoto.siivoa_tulokset(tulokset, {k["KID"] for k in erä})
-                saadut = set()
-                for tulos in tulokset:
-                    kid = tulos["id"]
-                    saadut.add(kid)
-                    on_mukana = bool(tulos.get("mukana"))
-                    perustelu = tulos.get("perustelu", "")
-                    mallit.aseta_luokitus(tid, kid, on_mukana, perustelu, malli, tiiviste=tiiv)
-                    if on_mukana:
-                        mukana += 1
-                    else:
-                        hylätty += 1
-                    passin_paatokset += 1
+                rivit = [(t["id"], bool(t.get("mukana")), t.get("perustelu", "")) for t in tulokset]
+                mallit.aseta_luokitukset(tid, rivit, malli, tiiviste=tiiv)  # yksi kierros per erä
+                saadut = {kid for kid, _, _ in rivit}
+                mukaan_nyt = sum(1 for _, m, _ in rivit if m)
+                mukana += mukaan_nyt
+                hylätty += len(rivit) - mukaan_nyt
+                passin_paatokset += len(rivit)
                 # Muuten kelvollinen erä, josta LLM jätti kursseja pois (ei menetetty erä).
                 if tulokset:
                     ilman_vastausta += sum(1 for k in erä if k["KID"] not in saadut)

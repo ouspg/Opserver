@@ -548,8 +548,7 @@ def api_tutkimus_arvioinnit(tutkimus: TutkimusSlugista, sivu: int = 0, koko: Opt
         yhteensa = mallit.laske_valitut_kurssit(tid)
     # ponytail: vastaukset haetaan koko tutkimukselle joka sivulla (~1600 lyhyttä riviä,
     # ms-luokkaa); rajaa KID-listalla jos vastausmäärä kasvaa kertaluokkia.
-    vastaukset_lista = mallit.hae_vastaukset(tid)
-    hitl_lista = mallit.hae_hitl_vastaukset(tid)
+    vastaukset_lista = mallit.hae_vastaukset(tid)   # LLM- ja ihmisen rivit samassa haussa
 
     # Nykyiset kysymystiivisteet: tunnistavat vastaukset jotka on generoitu
     # vanhentuneeseen kysymykseen/kehotteeseen (ennen seuraavaa LLM-ajoa).
@@ -559,9 +558,11 @@ def api_tutkimus_arvioinnit(tutkimus: TutkimusSlugista, sivu: int = 0, koko: Opt
     )
 
     vastaus_kartta: dict[int, dict[int, dict]] = {}
+    hitl_lista = []
     for v in vastaukset_lista:
         if v.get("Malli") is None:
-            continue  # ihmisen korjaus → korjaus_kartta
+            hitl_lista.append(v)  # ihmisen korjaus → korjaus_kartta
+            continue
         kid = v["KID"]
         if kid not in vastaus_kartta:
             vastaus_kartta[kid] = {}
@@ -578,7 +579,8 @@ def api_tutkimus_arvioinnit(tutkimus: TutkimusSlugista, sivu: int = 0, koko: Opt
 
     # Ihmisen korjaukset omaan karttaansa: WebUI näyttää korjatun arvon ja kertoo
     # kuka sen teki, mutta tekoälyn alkuperäinen vastaus jää näkyviin vertailuun.
-    # hae_hitl_vastaukset palauttaa uusimman ensin → ensimmäinen osuma voittaa.
+    # hae_vastaukset järjestää ihmisen rivit uusin ensin (KID, KysID) -parin
+    # sisällä → ensimmäinen osuma voittaa.
     korjaus_kartta: dict[int, dict[int, dict]] = {}
     for h in hitl_lista:
         per_kysymys = korjaus_kartta.setdefault(h["KID"], {})

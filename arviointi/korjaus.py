@@ -13,6 +13,8 @@ paikassa. Idempotentti: korjattu rivi ei enää ala '{'-merkillä.
 from tietokanta import mallit
 from arviointi.llmarviointi import pura_vastaus
 
+_ERA = 200  # korjattua riviä per tietokantakierros
+
 
 def korjaa_raaka_json(tid: int, edistyminen_cb=None) -> tuple[int, int]:
     """Korjaa tutkimuksen raakana tallennetut vastaukset. Palauttaa (korjatut, ohitetut).
@@ -23,17 +25,20 @@ def korjaa_raaka_json(tid: int, edistyminen_cb=None) -> tuple[int, int]:
     rivit = mallit.hae_raakana_tallennetut_vastaukset(tid)
     kysymykset = {k["KysID"]: k for k in mallit.hae_kysymykset(tid)}
     korjatut = ohitetut = 0
-    for n, rivi in enumerate(rivit, 1):
-        kysymys = kysymykset.get(rivi["KysID"], {})
-        vastaus, pisteet, luokka, lista = pura_vastaus(kysymys, rivi["Vastaus"])
-        # Jäsentymätön teksti palaa sellaisenaan → ei ole korjattavissa.
-        if vastaus == rivi["Vastaus"]:
-            ohitetut += 1
-        else:
-            mallit.aseta_vastaus(rivi["KysID"], rivi["KID"], vastaus,
-                                 rivi.get("Malli") or "", pisteet=pisteet, luokka=luokka,
-                                 lista=lista, tiiviste=rivi.get("Kehotetiiviste"))
-            korjatut += 1
+    for alku in range(0, len(rivit), _ERA):
+        osa = []
+        for rivi in rivit[alku:alku + _ERA]:
+            kysymys = kysymykset.get(rivi["KysID"], {})
+            vastaus, pisteet, luokka, lista = pura_vastaus(kysymys, rivi["Vastaus"])
+            # Jäsentymätön teksti palaa sellaisenaan → ei ole korjattavissa.
+            if vastaus == rivi["Vastaus"]:
+                ohitetut += 1
+            else:
+                osa.append((rivi["KysID"], rivi["KID"], vastaus, rivi.get("Malli") or "",
+                            pisteet, luokka, lista, rivi.get("Kehotetiiviste")))
+        if osa:
+            mallit.aseta_vastaukset(tid, osa)
+            korjatut += len(osa)
         if edistyminen_cb:
-            edistyminen_cb(n, len(rivit), korjatut, ohitetut)
+            edistyminen_cb(min(alku + _ERA, len(rivit)), len(rivit), korjatut, ohitetut)
     return korjatut, ohitetut
