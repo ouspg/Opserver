@@ -6,7 +6,6 @@ function escapeHtml(arvo) {
   return String(arvo ?? "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
-window.escapeHtml = escapeHtml;
 
 // Opinto-oppaan rikas teksti (Sisu: HTML, Peppi: teksti): vain sallitut tagit ilman
 // attribuutteja; muut tagit puretaan tekstiksi. DOMParser ei aja skriptejä.
@@ -354,9 +353,12 @@ function kurssiLinkki(kurssi) {
   return linkki ? `${nimi} ${linkki}` : nimi;
 }
 
-// Taso suomeksi (tai raakana) solun tekstiksi; "—" jos puuttuu.
+// Taso suomeksi, tai raakana jos tuntematon muoto.
+const tasoNimi = (taso) => TASO_SUOMI[taso] || taso;
+
+// Taso solun tekstiksi (escapoitu); "—" jos puuttuu.
 function tasoTeksti(taso) {
-  return taso ? escapeHtml(TASO_SUOMI[taso] || taso) : "—";
+  return taso ? escapeHtml(tasoNimi(taso)) : "—";
 }
 
 // Kurssirivin taso-, oppiaine- ja op-solut (kurssilista ja tutkimuksen kurssit).
@@ -509,7 +511,7 @@ function suodatinNimi(s) {
   const koulu = kaikki_koulut.find((k) => String(k.KKID) === String(s.kkid));
   return [
     koulu && (koulunLyhenne(koulu) || koulu.KouluNimi),
-    s.taso && (TASO_SUOMI[s.taso] || s.taso),
+    s.taso && tasoNimi(s.taso),
     s.lukuvuosi,
     s.hakusana && `"${s.hakusana}"`,
   ].filter(Boolean).join(" · ");
@@ -633,13 +635,14 @@ async function avaaModaali(kid) {
   document.getElementById("modaali").classList.remove("piilotettu");
 }
 
-document.getElementById("modaali-sulje").addEventListener("click", () => {
-  document.getElementById("modaali").classList.add("piilotettu");
-});
-document.getElementById("modaali").addEventListener("click", (e) => {
-  if (e.target === e.currentTarget)
-    document.getElementById("modaali").classList.add("piilotettu");
-});
+// Modaalin sulkeminen ✕-napista ja taustan klikkauksesta (myös muokkausmodaalit).
+function kytkeSulkeminen(modaali, sulje) {
+  modaali.querySelector(".modaali-sulje").addEventListener("click", sulje);
+  modaali.addEventListener("click", (e) => { if (e.target === modaali) sulje(); });
+}
+
+kytkeSulkeminen(document.getElementById("modaali"),
+                () => document.getElementById("modaali").classList.add("piilotettu"));
 
 // --- Tutkimukset ---
 
@@ -787,6 +790,25 @@ let hitl_kurssiniimi = "";
 let hitl_nimi = localStorage.getItem("hitl_nimi") || "";
 let hitl_sahkoposti = localStorage.getItem("hitl_sahkoposti") || "";
 
+// Korjauslomakkeen (HITL, arvion korjaus) nimi ja sähköposti muistiin seuraaviin
+// lomakkeisiin ja peukutuksiin. Jaetussa lomakkeessa ne voivat olla ensimmäisen
+// avaajan — silloin niitä ei tallenneta omiksi.
+function muistaTunnistus(nimi, sahkoposti) {
+  if (!(window.lomakeOlenAloittaja?.() ?? true)) return;
+  hitl_nimi = nimi;
+  hitl_sahkoposti = sahkoposti;
+  localStorage.setItem("hitl_nimi", nimi);
+  localStorage.setItem("hitl_sahkoposti", sahkoposti);
+}
+
+// Uutispalkin tutkimusnimi.
+const tutkimusNimi = () => aktiivinen_tutkimus?.LuokittelunNimi || aktiivinen_tutkimus?.Slug || "";
+
+// Luokitusten hiljainen päivitys (tallennuksen jälkeen): suodatin ja sivu säilyvät.
+function paivitaTutkimusKurssit() {
+  return renderTutkimusKurssit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
+}
+
 function avaaHitlModaali(kid, kurssiniimi, ai_perustelu, uusi_tila) {
   hitl_kid = kid;
   hitl_uusi_tila = uusi_tila;
@@ -810,7 +832,7 @@ function avaaHitlModaali(kid, kurssiniimi, ai_perustelu, uusi_tila) {
   window.avaaLomakesessio?.(`hitl:${aktiivinen_tutkimus.TID}:${kid}`, modaali, {
     tallennettu: () => {
       suljeHitlModaali();
-      renderTutkimusKurssit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
+      paivitaTutkimusKurssit();
     },
   });
 }
@@ -820,10 +842,7 @@ function suljeHitlModaali() {
   document.getElementById("hitl-modaali").classList.add("piilotettu");
 }
 
-document.getElementById("hitl-modaali-sulje").addEventListener("click", suljeHitlModaali);
-document.getElementById("hitl-modaali").addEventListener("click", (e) => {
-  if (e.target === e.currentTarget) suljeHitlModaali();
-});
+kytkeSulkeminen(document.getElementById("hitl-modaali"), suljeHitlModaali);
 
 document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -833,13 +852,7 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
   const juurisyy = document.querySelector('input[name="hitl-juurisyy"]:checked')?.value || null;
   if (!nimi || !sahkoposti || !perustelu || !juurisyy) return;
 
-  // Jaetussa lomakkeessa nimi voi olla ensimmäisen avaajan — ei tallenneta omaksi.
-  if (window.lomakeOlenAloittaja?.() ?? true) {
-    hitl_nimi = nimi;
-    hitl_sahkoposti = sahkoposti;
-    localStorage.setItem("hitl_nimi", nimi);
-    localStorage.setItem("hitl_sahkoposti", sahkoposti);
-  }
+  muistaTunnistus(nimi, sahkoposti);
 
   const nappi = document.getElementById("hitl-laheta");
   try {
@@ -852,9 +865,8 @@ document.getElementById("hitl-lomake").addEventListener("submit", async (e) => {
   window.lomakeTallennettu?.();
   suljeHitlModaali();
   const toiminto = hitl_uusi_tila ? "sisällytti" : "poisti";
-  const tutkimusNimi = aktiivinen_tutkimus?.LuokittelunNimi || aktiivinen_tutkimus?.Slug || "";
-  window.lahetaUutinen?.(`${window.omaNimimerkki?.()} ${toiminto} kurssin "${hitl_kurssiniimi}" tutkimuksesta ${tutkimusNimi}`);
-  await renderTutkimusKurssit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
+  window.lahetaUutinen?.(`${window.omaNimimerkki?.()} ${toiminto} kurssin "${hitl_kurssiniimi}" tutkimuksesta ${tutkimusNimi()}`);
+  await paivitaTutkimusKurssit();
 });
 
 // Peukutus (luokitus tai arviointivastaus): nimi HITL-lomakkeelta muistetusta,
@@ -869,21 +881,22 @@ async function lahetaHyvaksynta(nappi, polku, kohde) {
     nappi.textContent = "Virhe";
     return false;
   }
-  const tutkimusNimi = aktiivinen_tutkimus?.LuokittelunNimi || aktiivinen_tutkimus?.Slug || "";
-  window.lahetaUutinen?.(`${nimi} hyväksyi ${kohde} tutkimuksessa ${tutkimusNimi}`);
+  window.lahetaUutinen?.(`${nimi} hyväksyi ${kohde} tutkimuksessa ${tutkimusNimi()}`);
   return true;
 }
 
 async function hyvaksyLuokitus(nappi) {
   if (await lahetaHyvaksynta(nappi, nappi.dataset.kid, `kurssin "${nappi.dataset.nimi}"`)) {
-    await renderTutkimusKurssit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
+    await paivitaTutkimusKurssit();
   }
 }
 
 const TUTKIMUS_KURSSIT_KOKO = 100;
 let tutkimus_maarat = { mukana: 0, odottaa: 0, "hylätty": 0 };
 let tutkimus_sivu = 0;
-let luokitus_suodatin = { kkid: null, taso: null, hakusana: null };
+// Jaetun suodatinpalkin tila (luokitukset, arvioinnit).
+const tyhjaSuodatin = () => ({ kkid: null, taso: null, hakusana: null });
+let luokitus_suodatin = tyhjaSuodatin();
 let luokitus_jarjestys = { sarake: null, suunta: null };
 
 // --- Jaettu suodatinpalkki (yliopisto + taso + hakusana) — DRY ---
@@ -911,7 +924,7 @@ function rekisteroiTutkimusNakymat(otsikkoId, palkki, tila, onChange) {
     palkki,
     lue: () => ({ ...tila }),
     aseta: async (s, lataa = true) => {
-      Object.assign(tila, { kkid: null, taso: null, hakusana: null }, s);
+      Object.assign(tila, tyhjaSuodatin(), s);
       await rakennaSuodatinPalkki(palkki, tila, onChange);
       if (lataa) await onChange();
     },
@@ -927,7 +940,7 @@ async function rakennaSuodatinPalkki(el, tila, onChange) {
     + koulut.map((k) => `<option value="${k.KKID}">${escapeHtml(koulunLyhenne(k) || k.KouluNimi)}</option>`).join("")
     + `</select>`
     + `<select class="suod-taso" title="Taso"><option value="">Kaikki tasot</option>`
-    + tasot.map((x) => `<option value="${escapeHtml(x)}">${escapeHtml(TASO_SUOMI[x] || x)}</option>`).join("")
+    + tasot.map((x) => `<option value="${escapeHtml(x)}">${escapeHtml(tasoNimi(x))}</option>`).join("")
     + `</select>`
     + `<input class="suod-haku" type="search" placeholder="Hae nimestä tai koodista…" />`;
   const koulu = el.querySelector(".suod-koulu");
@@ -950,7 +963,7 @@ async function renderTutkimusKurssit(slug, nimi, sailyta = false) {
   // Pollaus / annotoinnin jälkeinen päivitys (sailyta=true) päivittää vain datan
   // — ei nollaa käyttäjän suodatinvalintaa eikä sivua eikä rakenna palkkia uusiksi.
   if (!sailyta) {
-    luokitus_suodatin = { kkid: null, taso: null, hakusana: null };
+    luokitus_suodatin = tyhjaSuodatin();
     luokitus_jarjestys = { sarake: null, suunta: null };
     const palkki = document.getElementById("tutkimus-kurssit-suodatin");
     const onChange = () => {
@@ -1217,7 +1230,7 @@ function _vastusOnAnnettu(v) {
 }
 
 let arvioinnit_data = null;
-let arvioinnit_suodatin = { kkid: null, taso: null, hakusana: null };
+let arvioinnit_suodatin = tyhjaSuodatin();
 let arvioinnit_jarjestys = { sarake: null, suunta: null };
 
 // Virhetaksonomian juurisyyt (mallit.JUURISYYT) ihmisluettavina.
@@ -1227,9 +1240,9 @@ const JUURISYY_NIMI = {
 };
 
 // Korjausikkuna kutsuu tätä tallennuksen jälkeen, jotta solu päivittyy heti.
-window.paivitaArvioinnit = function () {
+window.paivitaArvioinnit = async function () {
   if (aktiivinen_tutkimus) {
-    renderTutkimusArvioinnit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
+    await renderTutkimusArvioinnit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
   }
 };
 
@@ -1254,7 +1267,7 @@ async function renderTutkimusArvioinnit(slug, nimi, sailyta = false) {
   // säilytä suodatinvalinta. Muuten tyhjä pöytä ja rivit näkyviin osa kerrallaan.
   if (!sailyta) {
     arvioinnit_data = null;
-    arvioinnit_suodatin = { kkid: null, taso: null, hakusana: null };
+    arvioinnit_suodatin = tyhjaSuodatin();
     arvioinnit_jarjestys = { sarake: null, suunta: null };
     document.getElementById("tutkimus-arvioinnit-lkm").textContent = "";
     sisalto.innerHTML = '<p class="tulossa">Ladataan arviointeja…</p>';
@@ -1334,7 +1347,7 @@ document.getElementById("tutkimus-arvioinnit-sisalto").addEventListener("click",
   }
   const kohde = `arvion "${k.KurssiNimi}" / "${kys.Kysymys.slice(0, 40)}"`;
   if (await lahetaHyvaksynta(nappi, `${kid}/kysymykset/${kys.KysID}`, kohde)) {
-    await renderTutkimusArvioinnit(aktiivinen_tutkimus.Slug, aktiivinen_tutkimus.LuokittelunNimi, true);
+    await window.paivitaArvioinnit();
   }
 });
 
@@ -1479,15 +1492,12 @@ function _renderTilastotTaulukko(tilastot) {
 // muutettiin käsin, ja montako % korjauksista johtui riittämättömästä
 // oppaasta (data) vs. LLM:n virheestä (kehote). Auktoritatiivinen rakenteellinen
 // luku — erillään LLM-generoidusta proosasta.
-function _renderHitlMittarit(hitl) {
-  if (!hitl || !hitl.llm_kasitelty) return "";
+// Mittariteksti + juurisyytaulukko; näkymässä (tyyli.css) ja tulosteessa (oma <style>).
+function _hitlMittaritHtml(hitl) {
   const p = (x) => (x ?? 0).toFixed(1);
   const rivi = (nimi, lkm, pros) =>
     `<tr><td>${nimi}</td><td>${lkm}</td><td>${p(pros)} %</td></tr>`;
-  return `
-    <div class="tilastot-osio hitl-mittarit">
-      <h3>Ihmistarkistuksen laatumittarit</h3>
-      <p>Käsin muutettuja luokittelupäätöksiä:
+  return `<p>Käsin muutettuja luokittelupäätöksiä:
         <strong>${hitl.muutettu} / ${hitl.llm_kasitelty}</strong>
         LLM-luokiteltua kurssia (<strong>${p(hitl.muutettu_pros)} %</strong>).</p>
       <table class="tilasto-taulu">
@@ -1495,7 +1505,15 @@ function _renderHitlMittarit(hitl) {
         ${rivi("Riittämätön opinto-opas (oppaan laatu)", hitl.opas, hitl.opas_pros)}
         ${rivi("LLM:n väärinymmärrys (kehote)", hitl.llm_virhe, hitl.llm_virhe_pros)}
         ${rivi("Juurisyy merkitsemättä", hitl.tuntematon, hitl.tuntematon_pros)}
-      </table>
+      </table>`;
+}
+
+function _renderHitlMittarit(hitl) {
+  if (!hitl || !hitl.llm_kasitelty) return "";
+  return `
+    <div class="tilastot-osio hitl-mittarit">
+      <h3>Ihmistarkistuksen laatumittarit</h3>
+      ${_hitlMittaritHtml(hitl)}
     </div>`;
 }
 
@@ -1591,24 +1609,6 @@ async function renderTutkimusRaportti(slug, tutkimus, sailyta = false) {
   }
 }
 
-function _hitlMittaritTulostus(hitl) {
-  if (!hitl || !hitl.llm_kasitelty) return "";
-  const p = (x) => (x ?? 0).toFixed(1);
-  const rivi = (nimi, lkm, pros) =>
-    `<tr><td>${nimi}</td><td style="text-align:right">${lkm}</td>` +
-    `<td style="text-align:right">${p(pros)} %</td></tr>`;
-  return `<p>Käsin muutettuja luokittelupäätöksiä: <strong>${hitl.muutettu} / ` +
-    `${hitl.llm_kasitelty}</strong> LLM-luokiteltua kurssia (<strong>${p(hitl.muutettu_pros)} %</strong>).</p>` +
-    `<table style="border-collapse:collapse;margin:0.5rem 0"><tr>` +
-    `<th style="text-align:left;padding:0.2rem 0.6rem">Korjauksen juurisyy</th>` +
-    `<th style="padding:0.2rem 0.6rem">Kursseja</th>` +
-    `<th style="padding:0.2rem 0.6rem">Osuus korjauksista</th></tr>` +
-    rivi("Riittämätön opinto-opas (oppaan laatu)", hitl.opas, hitl.opas_pros) +
-    rivi("LLM:n väärinymmärrys (kehote)", hitl.llm_virhe, hitl.llm_virhe_pros) +
-    rivi("Juurisyy merkitsemättä", hitl.tuntematon, hitl.tuntematon_pros) +
-    `</table>`;
-}
-
 function avaaRaporttiTulostus(slug, tutkimus, osiot, tilastot) {
   const nimi = escapeHtml(tutkimus?.LuokittelunNimi || slug);
   let html = `<!DOCTYPE html><html lang="fi"><head><meta charset="utf-8">
@@ -1618,13 +1618,16 @@ function avaaRaporttiTulostus(slug, tutkimus, osiot, tilastot) {
       h1 { font-size: 1.6rem; margin-bottom: 0.5rem; }
       h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #ccc; padding-bottom: 0.3rem; }
       p { line-height: 1.7; margin: 0.5rem 0; }
+      table { border-collapse: collapse; margin: 0.5rem 0; }
       td, th { border: 1px solid #ccc; padding: 0.2rem 0.6rem; }
+      th:first-child { text-align: left; }
+      td + td { text-align: right; }
     </style></head><body>
     <h1>${nimi}</h1>`;
   for (const { avain, otsikko } of RAPORTTI_OSIOT) {
     const teksti = osiot[avain] || "";
     html += `<h2>${otsikko}</h2><p>${escapeHtml(teksti).replace(/\n/g, "</p><p>")}</p>`;
-    if (avain === "kurssit") html += _hitlMittaritTulostus(tilastot?.hitl);
+    if (avain === "kurssit" && tilastot?.hitl?.llm_kasitelty) html += _hitlMittaritHtml(tilastot.hitl);
   }
   html += `<script>window.print();<\/script></body></html>`;
   const ikkuna = window.open("", "_blank");

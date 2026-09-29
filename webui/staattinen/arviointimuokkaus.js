@@ -56,13 +56,9 @@ function luoMuokkausModaali() {
     </div>`;
   document.body.appendChild(modaali);
 
-  document.getElementById("arviointimuokkaus-sulje").addEventListener("click", suljeArviointiMuokkaus);
+  kytkeSulkeminen(modaali, suljeArviointiMuokkaus);
   document.getElementById("arviointimuokkaus-peruuta").addEventListener("click", suljeArviointiMuokkaus);
   document.getElementById("arviointimuokkaus-tallenna").addEventListener("click", tallenna);
-
-  modaali.addEventListener("click", (e) => {
-    if (e.target === modaali) suljeArviointiMuokkaus();
-  });
 }
 
 // --- Tyyppikohtaiset kentät ---
@@ -210,11 +206,7 @@ async function tallenna() {
     return;
   }
 
-  // Jaetussa lomakkeessa nimi voi olla ensimmäisen avaajan — ei tallenneta omaksi.
-  if (window.lomakeOlenAloittaja?.() ?? true) {
-    localStorage.setItem("hitl_nimi", nimi);
-    localStorage.setItem("hitl_sahkoposti", sahkoposti);
-  }
+  muistaTunnistus(nimi, sahkoposti);
   virhe.textContent = "";
 
   try {
@@ -264,8 +256,8 @@ window.avaaArviointiMuokkaus = function (tid, slug, kid, kysymys, aiVastaus, kor
   const pohja = korjaus || aiVastaus || {};
   piirraKentat(pohja);
   document.getElementById("arviointimuokkaus-tekstialue").value = pohja.vastaus || "";
-  document.getElementById("arvio-nimi").value = localStorage.getItem("hitl_nimi") || "";
-  document.getElementById("arvio-sahkoposti").value = localStorage.getItem("hitl_sahkoposti") || "";
+  document.getElementById("arvio-nimi").value = hitl_nimi;
+  document.getElementById("arvio-sahkoposti").value = hitl_sahkoposti;
   document.querySelectorAll('input[name="arvio-juurisyy"]').forEach((r) => {
     r.checked = Boolean(korjaus?.juurisyy) && r.value === korjaus.juurisyy;
   });
