@@ -8,8 +8,8 @@ import secrets
 import threading
 import uuid
 from datetime import datetime
-from typing import Optional
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from typing import Annotated, Optional
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -115,6 +115,17 @@ sovellus = FastAPI(title="Opserver")
 sovellus.add_middleware(PerusAutentikointi)
 # Pakkaus: JSON/JS pienenee ~5–10× — ratkaisevaa huonolla yhteydellä (tuotanto ei pakkaa muualla).
 sovellus.add_middleware(GZipMiddleware, minimum_size=1000)
+
+
+def _tutkimus_slugista(slug: str) -> dict:
+    """Polun {slug} → tutkimusrivi, tai 404."""
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    return tutkimus
+
+
+TutkimusSlugista = Annotated[dict, Depends(_tutkimus_slugista)]
 
 # --- Reaaliaikainen läsnäolo ja muokkaussessiot (WebSocket) ---
 
@@ -249,11 +260,8 @@ class RaporttiOsioPyynto(BaseModel):
 
 
 @sovellus.post("/api/tutkimukset/{slug}/raportti/{avain}")
-def api_raportti_osio_tallenna(slug: str, avain: str, pyynto: RaporttiOsioPyynto) -> dict:
+def api_raportti_osio_tallenna(tutkimus: TutkimusSlugista, avain: str, pyynto: RaporttiOsioPyynto) -> dict:
     """Raporttiosion tallennus (idempotentti: sama teksti uudelleen = sama tila)."""
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     mallit.aseta_raportti_osio(tutkimus["TID"], avain, pyynto.teksti)
     if (tutkimus["TID"], avain) in _raportti_teksti:
         _raportti_teksti[(tutkimus["TID"], avain)] = pyynto.teksti
@@ -492,34 +500,25 @@ def api_tutkimukset() -> list[dict]:
 
 
 @sovellus.get("/api/tutkimukset/{slug}/kurssit")
-def api_tutkimus_kurssit(slug: str) -> list[dict]:
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+def api_tutkimus_kurssit(tutkimus: TutkimusSlugista) -> list[dict]:
     rivit = mallit.hae_valitut_kurssit(tutkimus["TID"], kuvaukset=False)
     return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
 
 
 @sovellus.get("/api/tutkimukset/{slug}/luokitukset/maarat")
-def api_tutkimus_luokitukset_maarat(slug: str, kkid: Optional[int] = None,
+def api_tutkimus_luokitukset_maarat(tutkimus: TutkimusSlugista, kkid: Optional[int] = None,
                                     taso: Optional[str] = None,
                                     hakusana: Optional[str] = None) -> dict:
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     return mallit.hae_tutkimuksen_tilamaarat(tutkimus["TID"], kkid=kkid, taso=taso, hakusana=hakusana)
 
 
 @sovellus.get("/api/tutkimukset/{slug}/luokitukset")
-def api_tutkimus_luokitukset(slug: str, tila: Optional[str] = None,
+def api_tutkimus_luokitukset(tutkimus: TutkimusSlugista, tila: Optional[str] = None,
                              sivu: int = 0, koko: int = 200,
                              kkid: Optional[int] = None, taso: Optional[str] = None,
                              hakusana: Optional[str] = None,
                              jarjesta: Optional[str] = None,
                              suunta: Optional[str] = None) -> list[dict]:
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     tid = tutkimus["TID"]
     rivit = mallit.hae_kurssit_luokituksilla(tid, tila=tila, sivu=sivu, koko=koko,
                                              kkid=kkid, taso=taso, hakusana=hakusana,
@@ -550,11 +549,8 @@ def api_tutkimus_luokitukset(slug: str, tila: Optional[str] = None,
 
 
 @sovellus.get("/api/tutkimukset/{slug}/arvioinnit")
-def api_tutkimus_arvioinnit(slug: str, sivu: int = 0, koko: Optional[int] = None) -> dict:
+def api_tutkimus_arvioinnit(tutkimus: TutkimusSlugista, sivu: int = 0, koko: Optional[int] = None) -> dict:
     """koko annettu → vain sivun kurssit (WebUI lataa osissa) + yhteensa kaikista."""
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     tid = tutkimus["TID"]
     kysymykset = mallit.hae_kysymykset(tid)
     if koko is None:
@@ -654,10 +650,7 @@ class HitlPyynto(BaseModel):
 
 
 @sovellus.post("/api/tutkimukset/{slug}/kurssit/{kid}/hitl")
-def api_hitl_korjaus(slug: str, kid: int, pyynto: HitlPyynto) -> dict:
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+def api_hitl_korjaus(tutkimus: TutkimusSlugista, kid: int, pyynto: HitlPyynto) -> dict:
     if pyynto.juurisyy is not None and pyynto.juurisyy not in mallit.JUURISYYT:
         raise HTTPException(status_code=400, detail="Tuntematon juurisyy")
     mallit.tallenna_hitl_korjaus(
@@ -673,11 +666,8 @@ class HyvaksyntaPyynto(BaseModel):
 
 
 @sovellus.post("/api/tutkimukset/{slug}/kurssit/{kid}/hyvaksy")
-def api_hyvaksy_luokitus(slug: str, kid: int, pyynto: HyvaksyntaPyynto) -> dict:
+def api_hyvaksy_luokitus(tutkimus: TutkimusSlugista, kid: int, pyynto: HyvaksyntaPyynto) -> dict:
     """Peukutus: LLM:n mukaan ottama kurssi merkitään ihmisen hyväksymäksi."""
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     nimi = pyynto.nimi.strip()
     if not nimi:
         raise HTTPException(status_code=400, detail="Nimi puuttuu")
@@ -686,11 +676,8 @@ def api_hyvaksy_luokitus(slug: str, kid: int, pyynto: HyvaksyntaPyynto) -> dict:
 
 
 @sovellus.post("/api/tutkimukset/{slug}/kurssit/{kid}/kysymykset/{kysid}/hyvaksy")
-def api_hyvaksy_vastaus(slug: str, kid: int, kysid: int, pyynto: HyvaksyntaPyynto) -> dict:
+def api_hyvaksy_vastaus(tutkimus: TutkimusSlugista, kid: int, kysid: int, pyynto: HyvaksyntaPyynto) -> dict:
     """Peukutus: LLM:n arviointivastaus merkitään ihmisen hyväksymäksi."""
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     nimi = pyynto.nimi.strip()
     if not nimi:
         raise HTTPException(status_code=400, detail="Nimi puuttuu")
@@ -715,10 +702,7 @@ class ArvioKorjausPyynto(BaseModel):
 
 
 @sovellus.post("/api/tutkimukset/{slug}/kurssit/{kid}/kysymykset/{kysid}/korjaus")
-def api_arvio_korjaus(slug: str, kid: int, kysid: int, pyynto: ArvioKorjausPyynto) -> dict:
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+def api_arvio_korjaus(tutkimus: TutkimusSlugista, kid: int, kysid: int, pyynto: ArvioKorjausPyynto) -> dict:
     if pyynto.juurisyy is not None and pyynto.juurisyy not in mallit.JUURISYYT:
         raise HTTPException(status_code=400, detail="Tuntematon juurisyy")
     if not pyynto.nimi.strip():
@@ -749,20 +733,14 @@ def api_arvio_korjaus(slug: str, kid: int, kysid: int, pyynto: ArvioKorjausPyynt
 
 
 @sovellus.get("/api/tutkimukset/{slug}/raportti")
-def api_raportti(slug: str) -> dict:
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+def api_raportti(tutkimus: TutkimusSlugista) -> dict:
     osiot = mallit.hae_raportti_osiot(tutkimus["TID"])
     return {"tid": tutkimus["TID"], "osiot": osiot}
 
 
 @sovellus.get("/api/tutkimukset/{slug}/raportti/tilastot")
-def api_raportti_tilastot(slug: str) -> dict:
+def api_raportti_tilastot(tutkimus: TutkimusSlugista) -> dict:
     """Palauttaa per-kysymys-tilastot rakenteellisille arvioinneille ilman LLM-kutsua."""
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     tid = tutkimus["TID"]
     kysymykset = mallit.hae_kysymykset(tid)
     vastaukset_lista = mallit.hae_vastaukset(tid)
@@ -847,10 +825,7 @@ def api_raportti_tilanne(slug: str) -> dict:
 
 
 @sovellus.get("/api/tutkimukset/{slug}")
-def api_tutkimus(slug: str) -> dict:
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+def api_tutkimus(tutkimus: TutkimusSlugista) -> dict:
     tutkimus["Kysymykset"] = mallit.hae_kysymykset(tutkimus["TID"])
     return tutkimus
 
