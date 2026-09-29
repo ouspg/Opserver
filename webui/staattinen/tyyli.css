@@ -1010,16 +1010,6 @@ td.arviointi-vastaus {
   font-size: 0.95rem;
 }
 
-.raportti-muokkaajat {
-  font-size: 0.78rem;
-  color: #555;
-  margin-top: 0.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  flex-wrap: wrap;
-}
-
 #raporttimuokkaus-tekstialue {
   width: 100%;
   box-sizing: border-box;
@@ -1032,25 +1022,10 @@ td.arviointi-vastaus {
   display: block;
 }
 
-#raporttimuokkaus-kursorit {
-  border-radius: 4px;
-  pointer-events: none;
-}
-
-#raporttimuokkaus-muokkaajat {
-  font-size: 0.78rem;
-  color: #555;
-  margin-top: 0.3rem;
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  flex-wrap: wrap;
-}
-
 @media print {
   header, #hitl-modaali, #modaali, #arviointimuokkaus-modaali,
   #raporttimuokkaus-modaali, .raportti-toiminnot, .raportti-muokkaa-nappi,
-  .raportti-muokkaajat { display: none !important; }
+  .lomake-pallurat { display: none !important; }
   .raportti-osio { box-shadow: none; border: none; padding: 0; }
 }
 
