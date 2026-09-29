@@ -2,6 +2,8 @@
 taso- ja oppiainerajauksilla."""
 from tietokanta import mallit
 
+_ERA = 500  # riviä per tietokantakierros
+
 
 def _sisaltaa_jonkin(arvo: str | None, rajaus: str | None) -> bool:
     """Tyhjä rajaus = kaikki käy; muuten jokin pilkulla erotetuista osajonoista
@@ -49,24 +51,26 @@ def aja(tutkimus: dict, edistyminen_cb=None, kohde: str = "uudet") -> tuple[int,
     kasiteltavat = [k for k in kurssit
                     if _kuuluu_kohteeseen(k if k["Luokiteltu"] else None, kohde)]
 
+    # Päätökset kirjoitetaan erissä (_ERA riviä / kierros) rivikohtaisen kutsun sijaan.
     lapaisseet = 0
-    for i, kurssi in enumerate(kasiteltavat):
-        taso_ok = _taso_ok(kurssi, tasorajaus)
-        oa_ok = _oppiaine_ok(kurssi, oppiainerajaus)
-
-        if taso_ok and oa_ok:
-            lapaisseet += 1
-            mallit.aseta_luokitus(tid, kurssi["KID"], None, "meta: odottaa LLM-seulontaa")
-        else:
-            syyt = []
-            if not taso_ok:
-                syyt.append(f"taso '{kurssi.get('Taso')}' ∉ '{tasorajaus}'")
-            if not oa_ok:
-                syyt.append(f"oppiaine '{kurssi.get('Oppiaine')}' ≉ '{oppiainerajaus}'")
-            mallit.aseta_luokitus(tid, kurssi["KID"], False, "meta: " + "; ".join(syyt))
-
+    for alku in range(0, len(kasiteltavat), _ERA):
+        rivit = []
+        for kurssi in kasiteltavat[alku:alku + _ERA]:
+            taso_ok = _taso_ok(kurssi, tasorajaus)
+            oa_ok = _oppiaine_ok(kurssi, oppiainerajaus)
+            if taso_ok and oa_ok:
+                lapaisseet += 1
+                rivit.append((kurssi["KID"], None, "meta: odottaa LLM-seulontaa"))
+            else:
+                syyt = []
+                if not taso_ok:
+                    syyt.append(f"taso '{kurssi.get('Taso')}' ∉ '{tasorajaus}'")
+                if not oa_ok:
+                    syyt.append(f"oppiaine '{kurssi.get('Oppiaine')}' ≉ '{oppiainerajaus}'")
+                rivit.append((kurssi["KID"], False, "meta: " + "; ".join(syyt)))
+        mallit.aseta_luokitukset(tid, rivit)
         if edistyminen_cb:
-            edistyminen_cb(i + 1, len(kasiteltavat), lapaisseet)
+            edistyminen_cb(alku + len(rivit), len(kasiteltavat), lapaisseet)
 
     return lapaisseet, len(kasiteltavat)
 

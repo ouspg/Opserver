@@ -61,6 +61,20 @@ def _suorita(sql: str, params=(), *, rivimaara: bool = False) -> int:
     return _kysely(sql, params, lambda k: k.rowcount if rivimaara else k.lastrowid)
 
 
+def _lisaa_rivit(kursori, alku: str, rivit: list[tuple], loppu: str = "", koko: int = 500) -> None:
+    """Monirivinen INSERT paloittain: yksi kierros per `koko` riviä rivikohtaisen
+    kutsun sijaan (etäkanta: kierros = satoja ms). Rakennetaan itse, koska
+    connectorin executemany-uudelleenkirjoitus ei luotettavasti tunnista
+    ON DUPLICATE KEY UPDATE ... VALUES(x) -lauseita."""
+    if not rivit:
+        return
+    paikat = "(" + ",".join(["%s"] * len(rivit[0])) + ")"
+    for i in range(0, len(rivit), koko):
+        osa = rivit[i:i + koko]
+        kursori.execute(f"{alku} VALUES {','.join([paikat] * len(osa))} {loppu}",
+                        [arvo for rivi in osa for arvo in rivi])
+
+
 # --- Korkeakoulu ---
 
 def lisaa_korkeakoulu(koulu_nimi: str, ops_osoite: str, ops_tyyppi: str,
@@ -100,29 +114,35 @@ _KUVAUS_JOIN = "LEFT JOIN KurssiKuvaus ku ON ku.KID = k.KID"
 # ponytail: uudelleenyritys vain kurssihaun pitkän ajon kutsuissa — muut kutsut
 # ovat kertaluontoisia ja kaatuvat siististi. Lisää dekoraattori jos ne kaatuilevat.
 @uudelleenyrita
-def tallenna_kurssi(kkid: int, lahde_id: str, koodi: str, kurssi_nimi: str,
-                    taso: str | None, oppiaine: str, opintopisteet: str | None,
-                    opetusvuosi: str, ops_kuvaus: str) -> int:
+def tallenna_kurssit(kkid: int, opetusvuosi: str, kurssit: list[dict]) -> None:
+    """Tallentaa erän kursseja (upsert) kuvauksineen kolmella kierroksella.
+    kurssit: {lahde_id, koodi, kurssi_nimi, taso, oppiaine, opintopisteet, ops_kuvaus}."""
+    if not kurssit:
+        return
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            # LAST_INSERT_ID(KID): lastrowid = KID myös päivityshaarassa (kuvausta varten).
-            kursori.execute(
-                """INSERT INTO Kurssi
-                       (KKID, LahdeId, Koodi, KurssiNimi, Taso, Oppiaine, Opintopisteet, Opetusvuosi)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE KID = LAST_INSERT_ID(KID),
-                       Koodi = VALUES(Koodi), KurssiNimi = VALUES(KurssiNimi),
+            _lisaa_rivit(
+                kursori,
+                "INSERT INTO Kurssi (KKID, LahdeId, Koodi, KurssiNimi, Taso, Oppiaine, Opintopisteet, Opetusvuosi)",
+                [(kkid, k["lahde_id"], k["koodi"], k["kurssi_nimi"], k["taso"], k["oppiaine"],
+                  k["opintopisteet"], opetusvuosi) for k in kurssit],
+                """ON DUPLICATE KEY UPDATE Koodi = VALUES(Koodi), KurssiNimi = VALUES(KurssiNimi),
                        Taso = VALUES(Taso), Oppiaine = VALUES(Oppiaine),
                        Opintopisteet = VALUES(Opintopisteet)""",
-                (kkid, lahde_id, koodi, kurssi_nimi, taso, oppiaine, opintopisteet, opetusvuosi),
             )
-            kid = kursori.lastrowid
+            lahde_idt = list({k["lahde_id"] for k in kurssit})
             kursori.execute(
-                """INSERT INTO KurssiKuvaus (KID, OpsKuvaus) VALUES (%s, %s)
-                   ON DUPLICATE KEY UPDATE OpsKuvaus = VALUES(OpsKuvaus)""",
-                (kid, ops_kuvaus),
+                f"""SELECT LahdeId, KID FROM Kurssi WHERE KKID = %s AND Opetusvuosi = %s
+                    AND LahdeId IN ({",".join(["%s"] * len(lahde_idt))})""",
+                (kkid, opetusvuosi, *lahde_idt),
             )
-            return kid
+            kidit = dict(kursori.fetchall())
+            # Kuvaukset ovat isoja (JSON, kymmeniä kt) → pienemmät palat.
+            _lisaa_rivit(
+                kursori, "INSERT INTO KurssiKuvaus (KID, OpsKuvaus)",
+                [(kidit[k["lahde_id"]], k["ops_kuvaus"]) for k in kurssit],
+                "ON DUPLICATE KEY UPDATE OpsKuvaus = VALUES(OpsKuvaus)", koko=50,
+            )
 
 
 # Listanäkymän kentät (OpsKuvaus on omassa taulussaan, ks. _KUVAUS_JOIN).
@@ -443,24 +463,23 @@ LUOKITUS_PAIVITYS = """ON DUPLICATE KEY UPDATE Mukana = VALUES(Mukana),
     KayttajaNimi = NULL, Sahkoposti = NULL"""
 
 
-def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "",
-                  pisteet: float | None = None, luokka: str | None = None,
-                  lista: list | None = None, tiiviste: str | None = None) -> None:
-    """LLM:n vastaus. TID johdetaan kysymyksestä, joten kutsujan ei tarvitse tietää sitä.
+def aseta_vastaukset(tid: int, rivit: list[tuple]) -> None:
+    """LLM:n vastaukset yhdellä monirivisellä upsertilla.
+    rivit: (kysid, kid, vastaus, malli, pisteet, luokka, lista, tiiviste).
 
     KayttajaNimi jää tyhjäksi → uniikki_kys_kid_kayttaja antaa yhden LLM-rivin
-    per (kysymys, kurssi) kuten ennen, eli uudelleenajo päivittää saman rivin.
+    per (kysymys, kurssi), eli uudelleenajo päivittää saman rivin.
     Malli ei koskaan NULL: se erottaa LLM-rivin ihmisen korjauksesta.
     """
-    lista_json = _json(lista)
-    _suorita(
-        """INSERT INTO Vastaukset
-               (TID, KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)
-           SELECT k.TID, %s, %s, %s, %s, %s, %s, %s, %s
-           FROM Kysymykset k WHERE k.KysID = %s
-           """ + VASTAUS_PAIVITYS,
-        (kysid, kid, vastaus, malli or "", pisteet, luokka, lista_json, tiiviste, kysid),
-    )
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            _lisaa_rivit(
+                kursori,
+                "INSERT INTO Vastaukset (TID, KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)",
+                [(tid, kysid, kid, vastaus, malli or "", pisteet, luokka, _json(lista), tiiviste)
+                 for kysid, kid, vastaus, malli, pisteet, luokka, lista, tiiviste in rivit],
+                VASTAUS_PAIVITYS,
+            )
 
 
 def hyvaksy_vastaus(tid: int, kid: int, kysid: int, nimi: str, sahkoposti: str | None) -> None:
@@ -570,9 +589,8 @@ def _luokittelemattomat_ehto(tid: int, tiiviste: str | None) -> tuple[str, tuple
     meta-suodatuksessa — muuten rajauksen ulkopuoliset kurssit (väärä vuosi /
     korkeakoulu) joutuisivat LLM-ajoon, koska niillä ei ole meta-riviä.
     """
-    scope_where, scope_params = _tutkimus_kurssi_scope(tid)
-    scope_sql = f" AND {scope_where}" if scope_where else ""
-    sp = scope_params or []
+    scope_where, sp = _tutkimus_kurssi_scope(tid)
+    scope_sql = f" AND {scope_where}"
     if tiiviste is None:
         ehto = f"""
             FROM Kurssi k
@@ -631,15 +649,13 @@ def hae_kurssit_idlla(kidit: list[int]) -> list[dict]:
     )
 
 
-def laske_luokittelemattomat(tid: int, tiiviste: str | None = None) -> int:
-    """LLM-seulontaa odottavien kurssien lukumäärä (COUNT(*), ei rivinoutoa).
-
-    Erillinen hae_luokittelemattomat:sta, jottei OpsKuvaus-kenttää (~satoja MB
-    koko aineistossa) ladata pelkkää laskentaa varten — tämä hidasti aiemmin
-    LLM-näkymän avaamista, koska näkymä laskee sekä uudet että vanhentuneet.
-    """
+def laske_luokittelutyo(tid: int, tiiviste: str) -> tuple[int, int]:
+    """(uudet, vanhentuneet): vielä LLM-luokittelemattomat ja vanhentuneen kehotteen
+    tulokset yhdellä COUNT-kyselyllä (ei rivinoutoa, ei kahta kierrosta)."""
     ehto, params = _luokittelemattomat_ehto(tid, tiiviste)
-    return _hae_arvo(f"SELECT COUNT(*) {ehto}", params)
+    kaikki, uudet = _kysely(f"SELECT COUNT(*), COALESCE(SUM(kl.KID IS NULL OR kl.Mukana IS NULL), 0) {ehto}",
+                            params, lambda k: k.fetchone())
+    return int(uudet), int(kaikki) - int(uudet)
 
 
 # Tila-välilehden ehto Kurssiluokitus.Mukana-arvosta.
@@ -693,27 +709,36 @@ def _rajaus(kursori, tid: int) -> tuple[str | None, list[int]]:
     return (rivit[0][0] if rivit else None), [r[1] for r in rivit if r[1] is not None]
 
 
-def _tutkimus_kurssi_scope(tid: int) -> tuple[str | None, list]:
+def _tutkimus_kurssi_scope(tid: int) -> tuple[str, list]:
     """SQL-WHERE + parametrit jotka rajaavat Kurssi-rivit tutkimuksen korkeakouluihin
-    ja lukuvuoteen (OPS-kausi kattaa lukuvuoden). (None, None) jos rajaus puuttuu."""
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            lukuvuosi, korkeakoulut = _rajaus(kursori, tid)
-    if not korkeakoulut or not lukuvuosi:
-        return None, None
-    paikat = ",".join(["%s"] * len(korkeakoulut))
-    vuosi_sql, vuosi_params = _vuosi_kattaa_sql("k.Opetusvuosi", lukuvuosi)
-    where = f"k.KKID IN ({paikat}) AND {vuosi_sql}"
-    return where, [*korkeakoulut, *vuosi_params]
+    ja lukuvuoteen (OPS-kausi kattaa lukuvuoden).
+
+    Alikyselyinä, ei omaa kierrosta: MySQL laskee skalaarialikyselyt (perusavain-
+    haku) kerran vakioiksi, joten idx_kkid_vuosi kelpaa kuten literaaleilla.
+    Puuttuva lukuvuosi tai korkeakoulut → ei yhtään kurssia (kuten tilannenäkymä).
+    Lukuvuosi jäsennetään kuten Kurssi.VuosiAlku/VuosiLoppu (YYYY-YYYY / YYYY-YY)."""
+    alku = "CAST(SUBSTRING_INDEX(t.Lukuvuosi, '-', 1) AS UNSIGNED)"
+    loppu_osa = "SUBSTRING_INDEX(t.Lukuvuosi, '-', -1)"
+    loppu = (f"CASE WHEN CHAR_LENGTH({loppu_osa}) = 4 THEN CAST({loppu_osa} AS UNSIGNED) "
+             f"ELSE ({alku} DIV 100) * 100 + CAST({loppu_osa} AS UNSIGNED) END")
+    return (
+        "k.KKID IN (SELECT tk.KKID FROM TutkimusKorkeakoulu tk WHERE tk.TID = %s)"
+        f" AND k.VuosiAlku <= (SELECT {alku} FROM Tutkimus t WHERE t.TID = %s)"
+        f" AND k.VuosiLoppu >= (SELECT {loppu} FROM Tutkimus t WHERE t.TID = %s)",
+        [tid, tid, tid],
+    )
 
 
 def hae_meta_ehdokkaat(tid: int) -> list[dict] | None:
     """Tutkimuksen rajauksen (korkeakoulut + lukuvuosi) kurssit meta-suodatusta varten,
     nykyinen luokitus liitettynä (Luokiteltu, Mukana, Luokitteluperuste). Vain
     suodatuksen tarvitsemat sarakkeet. None jos rajaus puuttuu."""
-    where, params = _tutkimus_kurssi_scope(tid)
-    if where is None:
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            lukuvuosi, korkeakoulut = _rajaus(kursori, tid)
+    if not lukuvuosi or not korkeakoulut:
         return None
+    where, params = _tutkimus_kurssi_scope(tid)
     return _hae_kaikki(
         f"""SELECT k.KID, k.Taso, k.Oppiaine, kl.KID IS NOT NULL AS Luokiteltu,
                    kl.Mukana, kl.Luokitteluperuste
@@ -731,8 +756,6 @@ def hae_tutkimuksen_tilamaarat(tid: int, kkid: int | None = None, taso: str | No
     (samat kuin listauksessa, jotta välilehtien luvut vastaavat näkymää)."""
     maarat = {"mukana": 0, "odottaa": 0, "hylätty": 0}
     where, params = _tutkimus_kurssi_scope(tid)
-    if where is None:
-        return maarat
     suod_sql, suod_params = _kurssi_suodatin_sql(kkid, taso, hakusana)
     with yhteys() as yht:
         with yht.cursor() as kursori:
@@ -771,8 +794,6 @@ def hae_kurssit_luokituksilla(tid: int, tila: str | None = None,
     sarakejärjestys (jarjesta = valkolistattu sarake, suunta = nouseva/laskeva).
     """
     where, params = _tutkimus_kurssi_scope(tid)
-    if where is None:
-        return []
     tila_sql = f" AND {_TILA_EHTO[tila]}" if tila in _TILA_EHTO else ""
     suod_sql, suod_params = _kurssi_suodatin_sql(kkid, taso, hakusana)
     sarake_sql = _LUOKITUS_JARJESTYS.get(jarjesta or "", "k.KurssiNimi")
@@ -807,14 +828,17 @@ def hae_hitl_historia(tid: int, kidit: list[int]) -> list[dict]:
 
 # --- Kurssiluokitus ---
 
-def aseta_luokitus(tid: int, kid: int, mukana: bool | None, perustelu: str,
-                   malli: str = "", tiiviste: str | None = None) -> None:
-    _suorita(
-        """INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste, Malli, Kehotetiiviste)
-           VALUES (%s, %s, %s, %s, %s, %s)
-           """ + LUOKITUS_PAIVITYS,
-        (tid, kid, mukana, perustelu, malli, tiiviste),
-    )
+def aseta_luokitukset(tid: int, rivit: list[tuple], malli: str = "",
+                      tiiviste: str | None = None) -> None:
+    """Luokitukset yhdellä monirivisellä upsertilla. rivit: (kid, mukana, perustelu)."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            _lisaa_rivit(
+                kursori,
+                "INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste, Malli, Kehotetiiviste)",
+                [(tid, kid, mukana, perustelu, malli, tiiviste) for kid, mukana, perustelu in rivit],
+                LUOKITUS_PAIVITYS,
+            )
 
 
 def hyvaksy_luokitus(tid: int, kid: int, nimi: str, sahkoposti: str | None) -> None:
@@ -942,9 +966,8 @@ def _arvioimattomat_ehto(tid: int) -> tuple[str, tuple]:
     Palauttaa fragmentin, joka ryhmittelee k.KID:n mukaan → kutsuja kietoo sen:
     rivihaku `SELECT k.* {ehto}`, lukumäärä `SELECT COUNT(*) FROM (SELECT k.KID {ehto}) t`.
     """
-    scope_where, scope_params = _tutkimus_kurssi_scope(tid)
-    where_sql = f"WHERE {scope_where}" if scope_where else ""
-    sp = scope_params or []
+    scope_where, sp = _tutkimus_kurssi_scope(tid)
+    where_sql = f"WHERE {scope_where}"
     ehto = f"""
         FROM Kurssi k
         JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s AND kl.Mukana = 1
@@ -1123,12 +1146,12 @@ def laske_hitl_korjaukset_jalkeen(tid: int, aika) -> int:
     ))
 
 
-def laske_hitl_vastaukset_jalkeen(tid: int, aika) -> int:
-    """Ihmisen korjaamien vastausten määrä, jotka on tehty/muokattu ajan jälkeen."""
+def laske_hitl_vastaukset(tid: int, jalkeen=None) -> int:
+    """Ihmisen korjaamien vastausten määrä (COUNT, ei rivinoutoa); jalkeen annettuna
+    vain sen jälkeen tehdyt/muokatut."""
+    aika_sql, params = (" AND Aikaleima > %s", (tid, jalkeen)) if jalkeen is not None else ("", (tid,))
     return int(_hae_arvo(
-        "SELECT COUNT(*) FROM Vastaukset "
-        "WHERE TID = %s AND Malli IS NULL AND Aikaleima > %s",
-        (tid, aika),
+        f"SELECT COUNT(*) FROM Vastaukset WHERE TID = %s AND Malli IS NULL{aika_sql}", params,
     ))
 
 

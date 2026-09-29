@@ -7,6 +7,11 @@ from tiedonhaku.sisulukija import SisuLukija, _muunna_taso, _fi
 DIR = os.path.dirname(__file__)
 
 
+
+def _tallennetut(mock) -> list[dict]:
+    """tallenna_kurssit(kkid, kausi, kurssit) -kutsujen kurssit yhteen listaan."""
+    return [k for c in mock.call_args_list for k in c.args[2]]
+
 def _fixture(nimi: str):
     with open(os.path.join(DIR, "fixtures", nimi), encoding="utf-8") as f:
         return json.load(f)
@@ -127,16 +132,15 @@ def test_hae_kurssit_tallentaa_uudet_kurssit():
     lukija._yliopisto_id = "jyu-university-root-id"
     with patch.object(SisuLukija, "_hae_json", side_effect=_mock_hae_json), \
          patch("tiedonhaku.sisulukija.mallit.hae_tallennetut_lahde_idt", return_value=set()), \
-         patch("tiedonhaku.sisulukija.mallit.tallenna_kurssi") as mock_tallenna:
+         patch("tiedonhaku.sisulukija.mallit.tallenna_kurssit") as mock_tallenna:
         tallennettu, ohitettu = lukija.hae_kurssit("2025-2026")
     assert tallennettu == 1
     assert ohitettu == 0
-    mock_tallenna.assert_called_once()
-    kutsu_kwargs = mock_tallenna.call_args.kwargs
-    assert kutsu_kwargs["lahde_id"] == "otm-1e84a2f0-5e70-4e01-937c-60337616cff3"
-    assert kutsu_kwargs["koodi"] == "TJTA237"
-    assert kutsu_kwargs["taso"] == "aine"
-    assert kutsu_kwargs["opetusvuosi"] == "2025-2026"
+    (kurssi,) = _tallennetut(mock_tallenna)
+    assert kurssi["lahde_id"] == "otm-1e84a2f0-5e70-4e01-937c-60337616cff3"
+    assert kurssi["koodi"] == "TJTA237"
+    assert kurssi["taso"] == "aine"
+    assert mock_tallenna.call_args.args[1] == "2025-2026"
 
 
 def test_hae_kurssit_ohittaa_jo_kannassa_olevat():
@@ -145,9 +149,9 @@ def test_hae_kurssit_ohittaa_jo_kannassa_olevat():
     with patch.object(SisuLukija, "_hae_json", side_effect=_mock_hae_json), \
          patch("tiedonhaku.sisulukija.mallit.hae_tallennetut_lahde_idt",
                return_value={"otm-1e84a2f0-5e70-4e01-937c-60337616cff3"}), \
-         patch("tiedonhaku.sisulukija.mallit.tallenna_kurssi") as mock_tallenna:
+         patch("tiedonhaku.sisulukija.mallit.tallenna_kurssit") as mock_tallenna:
         tallennettu, ohitettu = lukija.hae_kurssit("2025-2026")
-    mock_tallenna.assert_not_called()
+    assert _tallennetut(mock_tallenna) == []
     assert tallennettu == 0
 
 
@@ -162,9 +166,9 @@ def test_hae_kurssit_ohittaa_verkkovirheet():
 
     with patch.object(SisuLukija, "_hae_json", side_effect=hae_json_virhe), \
          patch("tiedonhaku.sisulukija.mallit.hae_tallennetut_lahde_idt", return_value=set()), \
-         patch("tiedonhaku.sisulukija.mallit.tallenna_kurssi") as mock_tallenna:
+         patch("tiedonhaku.sisulukija.mallit.tallenna_kurssit") as mock_tallenna:
         tallennettu, ohitettu = lukija.hae_kurssit("2025-2026")
-    mock_tallenna.assert_not_called()
+    assert _tallennetut(mock_tallenna) == []
     assert ohitettu > 0
     assert tallennettu == 0
 
@@ -175,7 +179,7 @@ def test_hae_kurssit_kutsuu_edistyminen_cb():
     kutsut = []
     with patch.object(SisuLukija, "_hae_json", side_effect=_mock_hae_json), \
          patch("tiedonhaku.sisulukija.mallit.hae_tallennetut_lahde_idt", return_value=set()), \
-         patch("tiedonhaku.sisulukija.mallit.tallenna_kurssi"):
+         patch("tiedonhaku.sisulukija.mallit.tallenna_kurssit"):
         lukija.hae_kurssit("2025-2026", edistyminen_cb=lambda n, yht, nimi: kutsut.append((n, yht)))
     # Fixture: 2 groupId:tä, joista by-group-id palauttaa 1 kurssin → edistyminen
     # mittaa käsiteltyjä listauksia (2/2), ei tallennettuja, jottei näkymä jumitu.

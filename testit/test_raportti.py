@@ -161,24 +161,28 @@ class TestRaporttiTiiviste:
         assert a != b
 
 
+@pytest.fixture(autouse=True)
+def _hitl_maara():
+    """Arvioinnit-osion korjausmäärä on COUNT-kysely; oletuksena 0."""
+    with patch("raportti.llmraportti.mallit.laske_hitl_vastaukset", return_value=0) as m:
+        yield m
+
+
 class TestRakennaViestiArvioinnit:
     def test_sisaltaa_arviointikehot(self):
-        with patch("raportti.llmraportti.mallit.hae_hitl_vastaukset", return_value=[]):
-            viesti = llmraportti._rakenna_arvioinnit_viesti(TUTKIMUS, KYSYMYKSET, TILASTOT)
+        viesti = llmraportti._rakenna_arvioinnit_viesti(TUTKIMUS, KYSYMYKSET, TILASTOT)
         assert "Arvioi kurssin soveltuvuus" in viesti
 
     def test_sisaltaa_kysymykset(self):
-        with patch("raportti.llmraportti.mallit.hae_hitl_vastaukset", return_value=[]):
-            viesti = llmraportti._rakenna_arvioinnit_viesti(TUTKIMUS, KYSYMYKSET, TILASTOT)
+        viesti = llmraportti._rakenna_arvioinnit_viesti(TUTKIMUS, KYSYMYKSET, TILASTOT)
         assert "Liittyykö kurssi kyberturvallisuuteen" in viesti
         assert "Soveltuuko kurssi ESR-hankkeeseen" in viesti
 
     def test_sisaltaa_korjausten_maaran(self):
-        kommentit = [{"KID": 1, "KysID": 10, "Vastaus": "OK", "KayttajaNimi": "A"},
-                     {"KID": 2, "KysID": 11, "Vastaus": "Ei", "KayttajaNimi": "B"}]
-        with patch("raportti.llmraportti.mallit.hae_hitl_vastaukset", return_value=kommentit):
+        with patch("raportti.llmraportti.mallit.laske_hitl_vastaukset", return_value=27) as laske:
             viesti = llmraportti._rakenna_arvioinnit_viesti(TUTKIMUS, KYSYMYKSET, TILASTOT)
-        assert "2" in viesti
+        assert "27" in viesti
+        laske.assert_called_once_with(TUTKIMUS["TID"])   # COUNT, ei rivinoutoa
 
 
 class TestAja:
@@ -285,7 +289,7 @@ class TestKoostaTilanne:
         with patch("raportti.llmraportti.mallit.hae_raportti_tila", return_value=tila), \
              patch("raportti.llmraportti.mallit.hae_raportti_tuoreus", return_value=tuoreustieto), \
              patch("raportti.llmraportti.mallit.laske_hitl_korjaukset_jalkeen", return_value=hitl), \
-             patch("raportti.llmraportti.mallit.laske_hitl_vastaukset_jalkeen", return_value=kommentit), \
+             patch("raportti.llmraportti.mallit.laske_hitl_vastaukset", return_value=kommentit), \
              patch("raportti.llmraportti.raporttitiiviste",
                    side_effect=AssertionError("koosta_tilanne ei saa laskea tiivistettä")):
             return llmraportti.koosta_tilanne(self.TUTKIMUS_T)
