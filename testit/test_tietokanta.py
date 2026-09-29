@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch, call
-from tietokanta import mallit
+from tietokanta import mallit, _yhteiset, tutkimukset
+from tietokanta import raportti as tk_raportti
 
 
 class TestKorkeakoulu:
@@ -132,7 +133,7 @@ class TestLaskeLuokittelemattomat:
         """Uudet + vanhentuneet yhdellä kyselyllä (ennen kaksi COUNT-kierrosta)."""
         yht, kursori = mock_yhteys
         kursori.fetchone.return_value = (10, 7)   # kaikki, uudet
-        with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=("k.KKID IN (%s)", [5])):
+        with patch("tietokanta.luokitukset._tutkimus_kurssi_scope", return_value=("k.KKID IN (%s)", [5])):
             assert mallit.laske_luokittelutyo(1, "tiiv-x") == (7, 3)
         kursori.execute.assert_called_once()
         sql, params = kursori.execute.call_args[0]
@@ -149,7 +150,7 @@ class TestHaeArvioimattomat:
     def test_soveltaa_tutkimuksen_rajausta(self, mock_yhteys):
         yht, kursori = mock_yhteys
         kursori.fetchone.return_value = (0,)
-        with patch("tietokanta.mallit._tutkimus_kurssi_scope",
+        with patch("tietokanta.vastaukset._tutkimus_kurssi_scope",
                    return_value=("k.KKID IN (%s) AND vuosirajaus", [4, 2024, 2025])):
             mallit.laske_arvioimattomat(1)
         sql, params = kursori.execute.call_args[0]
@@ -164,7 +165,7 @@ class TestHaeArvioimattomat:
         OpsKuvaus-tekstejä verkon yli). Sama WHERE-ehto kuin rivihaussa."""
         yht, kursori = mock_yhteys
         kursori.fetchone.return_value = (7,)
-        with patch("tietokanta.mallit._tutkimus_kurssi_scope",
+        with patch("tietokanta.vastaukset._tutkimus_kurssi_scope",
                    return_value=("k.KKID IN (%s) AND vuosirajaus", [4, 2024, 2025])):
             tulos = mallit.laske_arvioimattomat(1)
         assert tulos == 7
@@ -209,7 +210,7 @@ class TestHaeTutkimuksenTilanne:
         yht, kursori = mock_yhteys
         # järjestys: COUNT(*) Kurssi, (rajaus), kurssi-agg, luokitus-agg
         kursori.fetchone.side_effect = [(100,), (80, 65), (10, 5, 30, 15, 60)]
-        with patch.object(mallit, "_rajaus", return_value=("2025-2026", [1, 2])):
+        with patch("tietokanta.luokitukset._rajaus", return_value=("2025-2026", [1, 2])):
             t = mallit.hae_tutkimuksen_tilanne(1)
         assert t == {
             "kursseja_yht": 100,
@@ -236,7 +237,7 @@ class TestHaeLuokittelemattomat:
     def test_soveltaa_tutkimuksen_rajausta(self, mock_yhteys):
         yht, kursori = mock_yhteys
         kursori.fetchone.return_value = (0,)
-        with patch("tietokanta.mallit._tutkimus_kurssi_scope",
+        with patch("tietokanta.luokitukset._tutkimus_kurssi_scope",
                    return_value=("k.KKID IN (%s,%s) AND vuosirajaus", [2, 3, 2024, 2025])):
             mallit.hae_luokittelemattomat_kevyet(1)
         sql, params = kursori.execute.call_args[0]
@@ -247,7 +248,7 @@ class TestHaeLuokittelemattomat:
     def test_tiivisteella_soveltaa_rajausta_ja_threadaa_parametrit(self, mock_yhteys):
         yht, kursori = mock_yhteys
         kursori.fetchone.return_value = (0,)
-        with patch("tietokanta.mallit._tutkimus_kurssi_scope",
+        with patch("tietokanta.luokitukset._tutkimus_kurssi_scope",
                    return_value=("k.KKID IN (%s)", [5])):
             mallit.hae_luokittelemattomat_kevyet(1, "tiiv-abc")
         sql, params = kursori.execute.call_args[0]
@@ -344,7 +345,7 @@ class TestTutkimus:
         yht, kursori = mock_yhteys
         kursori.lastrowid = 9
         assert mallit.monista_tutkimus(1, "Kopio", "kopio") == 9
-        assert mallit.yhteys.call_count == 1
+        assert tutkimukset.yhteys.call_count == 1   # yksi yhteys = yksi transaktio
         sqlt = [c.args for c in kursori.execute.call_args_list]
         assert len(sqlt) == 3
         tutkimus_sql, tutkimus_p = sqlt[0]
@@ -402,8 +403,8 @@ class TestLukuvuodet:
         yht, kursori = mock_yhteys
         kursori.description = [("KID",)]
         kursori.fetchall.return_value = []
-        with patch.object(mallit, "_rajaus", return_value=("2025-2026", [4])), \
-             patch("tietokanta.mallit._tutkimus_kurssi_scope",
+        with patch("tietokanta.luokitukset._rajaus", return_value=("2025-2026", [4])), \
+             patch("tietokanta.luokitukset._tutkimus_kurssi_scope",
                    return_value=("k.KKID IN (%s) AND vuosirajaus", [4, 2025, 2026])):
             assert mallit.hae_meta_ehdokkaat(1) == []
         sql, params = kursori.execute.call_args[0]
@@ -412,7 +413,7 @@ class TestLukuvuodet:
         assert list(params) == [1, 4, 2025, 2026]
         # metasuodatus vaatii rajauksen: puuttuva lukuvuosi tai korkeakoulut → None
         for rajaus in ((None, [4]), ("2025-2026", [])):
-            with patch.object(mallit, "_rajaus", return_value=rajaus):
+            with patch("tietokanta.luokitukset._rajaus", return_value=rajaus):
                 assert mallit.hae_meta_ehdokkaat(1) is None
 
 
@@ -900,17 +901,17 @@ def test_kattavat_kaudet_ohittaa_virheellisen_kauden():
     """Virheellinen/puuttuva Opetusvuosi aineistossa ei saa kaataa raportin tilastoja."""
     kursori = MagicMock()
     kursori.fetchall.return_value = [("2025-2026",), ("rikki",), (None,)]
-    assert mallit._kattavat_kaudet(kursori, "2025-2026") == ["2025-2026"]
+    assert tk_raportti._kattavat_kaudet(kursori, "2025-2026") == ["2025-2026"]
 
 
 def test_rajaus_lukuvuosi_ja_korkeakoulut_yhdella_kyselylla():
     kursori = MagicMock()
     kursori.fetchall.return_value = [("2025-2026", 1), ("2025-2026", 3)]
-    assert mallit._rajaus(kursori, 1) == ("2025-2026", [1, 3])
+    assert _yhteiset._rajaus(kursori, 1) == ("2025-2026", [1, 3])
     kursori.fetchall.return_value = [("2025-2026", None)]   # ei valittuja korkeakouluja
-    assert mallit._rajaus(kursori, 1) == ("2025-2026", [])
+    assert _yhteiset._rajaus(kursori, 1) == ("2025-2026", [])
     kursori.fetchall.return_value = []                      # tuntematon tutkimus
-    assert mallit._rajaus(kursori, 1) == (None, [])
+    assert _yhteiset._rajaus(kursori, 1) == (None, [])
     assert kursori.execute.call_count == 3
 
 
