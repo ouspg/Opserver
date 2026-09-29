@@ -92,3 +92,27 @@ def test_raporttisessio_liity_poistu_ja_katkeaminen(monkeypatch):
         while a.receive_json()["tyyppi"] != "uutinen":
             pass
     assert yhteistyo._raportti_sessiot == {} and yhteistyo._raportti_teksti == {}
+
+
+# --- Läsnäolo: tilapäivitysten koonti ---
+
+def _kayttajaviesti(ws):
+    while True:
+        viesti = ws.receive_json()
+        if viesti["tyyppi"] == "kayttajat":
+            return viesti
+
+
+def test_lasnaolopaivitykset_kootaan_yhdeksi_lahetykseksi(monkeypatch):
+    # Jokainen hiiren liike (80 ms) lähetti kaikkien tilan kaikille: O(käyttäjät²)
+    # viestiä yhteisellä WiFillä. Koontiväli kerää peräkkäiset päivitykset yhteen
+    # lähetykseen, jossa on uusin tila.
+    # Yksi yhteys: TestClient ajaa jokaisen yhteyden omassa silmukassaan, eikä
+    # koontitehtävän lähetys toisen silmukan yhteyteen toimi testissä (tuotannossa yksi silmukka).
+    monkeypatch.setattr(yhteistyo, "_KOONTI_S", 0.2)
+    monkeypatch.setattr(yhteistyo, "_koonti", None)
+    with asiakas.websocket_connect("/ws") as a:
+        for x in range(5):
+            a.send_json({"nimimerkki": "A", "sijainti": {"x": x, "y": 0}})
+        data = _kayttajaviesti(a)["data"]
+        assert [k["sijainti"]["x"] for k in data] == [4]
