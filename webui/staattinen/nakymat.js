@@ -22,16 +22,6 @@ function _sivunNakymat() {
   return _jaetutNakymat[_nakymaSivu] || [];
 }
 
-// Muun käyttäjän pikkupallura napin sisään (välilehti, sivutuksen sivunumero).
-window.luoPikkupallura = function (k) {
-  const c = document.createElement("canvas");
-  c.width = c.height = 10;
-  c.className = "nakyma-pallura";
-  c.title = k.nimimerkki || "?";
-  window.piirraYmpyra?.(c, k.profiili, k.taso);
-  return c;
-};
-
 function _renderNakymaNauha() {
   if (!_nakymaKonf || window.lahetyksiaKesken) return;  // ei korvata animoitua nappia
   const vanha = _nakymaKonf.otsikko.parentNode.querySelector(".nakyma-nauha");
@@ -48,7 +38,7 @@ function _renderNakymaNauha() {
     if (v.id !== _valittuNakyma) {
       for (const k of _nakymaMuut) {
         if (!k.profiili || k.sivu !== _nakymaSivu || (k.nakyma ?? null) !== v.id) continue;
-        b.appendChild(luoPikkupallura(k));
+        b.appendChild(window.luoPikkupallura(k));
       }
     }
     nauha.appendChild(b);

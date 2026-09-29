@@ -141,6 +141,19 @@ function piirraYmpyra(canvas, profiili, taso = "aktiivinen") {
   }
 }
 
+// Käyttäjän pallura (canvas) annetussa koossa; title = nimimerkki.
+function luoPallura(k, koko, luokka = "") {
+  const c = document.createElement("canvas");
+  c.width = c.height = koko;
+  c.className = luokka;
+  c.title = k.nimimerkki || "?";
+  piirraYmpyra(c, k.profiili, k.taso);
+  return c;
+}
+window.luoPallura = luoPallura;
+// Muun käyttäjän pikkupallura napin sisään (välilehti, sivutuksen sivunumero).
+window.luoPikkupallura = (k) => luoPallura(k, 10, "nakyma-pallura");
+
 // --- Header-elementit ---
 
 function luoHeaderElementit() {
@@ -200,43 +213,28 @@ function luoHeaderElementit() {
 
 // --- Profiilimuokkaus ---
 
-function rakennaTaustaVarit() {
-  const div = document.getElementById("tausta-varit");
-  div.innerHTML = "";
-  for (const vari of TAUSTAVRIT) {
-    const nap = document.createElement("button");
-    nap.className = "vari-nappula" + (vari === omaProfiili.taustavari ? " valittu" : "");
-    nap.style.background = vari;
-    nap.title = vari;
-    nap.addEventListener("click", (e) => {
-      e.stopPropagation();
-      omaProfiili.taustavari = vari;
-      tallennaProfiili();
-      paivitaOmaYmpyra();
-      rakennaTaustaVarit();
-      piirraYmpyra(document.getElementById("profiili-esikatselu"), omaProfiili);
-      lahetaTila();
-    });
-    div.appendChild(nap);
-  }
+// Oma profiili muuttui: tallenna, piirrä omat ympyrät ja kerro muille.
+function profiiliMuuttui() {
+  tallennaProfiili();
+  paivitaOmaYmpyra();
+  piirraYmpyra(document.getElementById("profiili-esikatselu"), omaProfiili);
+  lahetaTila();
 }
 
-function rakennaEtualaVarit() {
-  const div = document.getElementById("etuala-varit");
+// Väripaletti (tausta/etuala): valittu korostettuna, klikkaus vaihtaa profiilin värin.
+function rakennaVarit(divId, varit, kentta) {
+  const div = document.getElementById(divId);
   div.innerHTML = "";
-  for (const vari of ETUALVRIT) {
+  for (const vari of varit) {
     const nap = document.createElement("button");
-    nap.className = "vari-nappula" + (vari === omaProfiili.etualavari ? " valittu" : "");
+    nap.className = "vari-nappula" + (vari === omaProfiili[kentta] ? " valittu" : "");
     nap.style.background = vari;
     nap.title = vari;
     nap.addEventListener("click", (e) => {
       e.stopPropagation();
-      omaProfiili.etualavari = vari;
-      tallennaProfiili();
-      paivitaOmaYmpyra();
-      rakennaEtualaVarit();
-      piirraYmpyra(document.getElementById("profiili-esikatselu"), omaProfiili);
-      lahetaTila();
+      omaProfiili[kentta] = vari;
+      profiiliMuuttui();
+      rakennaVarit(divId, varit, kentta);
     });
     div.appendChild(nap);
   }
@@ -252,8 +250,8 @@ function avaaProfiiliMuokkaus() {
   muokkaus.style.left = vasen + "px";
   muokkaus.classList.remove("piilotettu");
   piirraYmpyra(document.getElementById("profiili-esikatselu"), omaProfiili);
-  rakennaTaustaVarit();
-  rakennaEtualaVarit();
+  rakennaVarit("tausta-varit", TAUSTAVRIT, "taustavari");
+  rakennaVarit("etuala-varit", ETUALVRIT, "etualavari");
 }
 
 function suljeProfiiliMuokkaus() {
@@ -292,10 +290,7 @@ function alustaHeaderTapahtumat() {
   document.getElementById("arvo-uusi-symboli").addEventListener("click", (e) => {
     e.stopPropagation();
     omaProfiili.bitmappi = SPRITET[Math.floor(Math.random() * SPRITET.length)].slice();
-    tallennaProfiili();
-    paivitaOmaYmpyra();
-    piirraYmpyra(document.getElementById("profiili-esikatselu"), omaProfiili);
-    lahetaTila();
+    profiiliMuuttui();
   });
 
   document.getElementById("sulje-muokkaus").addEventListener("click", suljeProfiiliMuokkaus);
@@ -339,33 +334,20 @@ function lisaaUutinen(teksti, aika) {
   palkki.scrollLeft = 0;
 }
 
-function lahetaUutinen(teksti) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ tyyppi: "uutinen", teksti }));
-}
-
-window.lahetaUutinen = lahetaUutinen;
+window.lahetaUutinen = (teksti) => lahetaWs({ tyyppi: "uutinen", teksti });
 window.omaNimimerkki = () => omaProfiili?.nimimerkki || "Anonyymi";
 window.piirraYmpyra = piirraYmpyra;
 
-window.lahetaWs = (viesti) => {
+// Viesti WebSocketiin, jos yhteys on auki (muuten hiljaa pois: tila lähetetään uudelleen yhdistäessä).
+function lahetaWs(viesti) {
   if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(viesti));
-};
+}
+window.lahetaWs = lahetaWs;
 
-window.liityRaporttiSessioon = function (tid, avain) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ tyyppi: "raportti-liity", tid, avain }));
-};
-
-window.poistuRaporttiSessiosta = function (tid, avain) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ tyyppi: "raportti-poistu", tid, avain }));
-};
-
-window.lahetaRaporttiTeksti = function (tid, avain, teksti, kursori) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ tyyppi: "raportti-teksti", tid, avain, teksti, kursori }));
-};
+window.liityRaporttiSessioon = (tid, avain) => lahetaWs({ tyyppi: "raportti-liity", tid, avain });
+window.poistuRaporttiSessiosta = (tid, avain) => lahetaWs({ tyyppi: "raportti-poistu", tid, avain });
+window.lahetaRaporttiTeksti = (tid, avain, teksti, kursori) =>
+  lahetaWs({ tyyppi: "raportti-teksti", tid, avain, teksti, kursori });
 
 
 // --- Nav-indikaattorit ---
@@ -421,9 +403,7 @@ function piirraNavPallurat(sailyo, napit, avainKayttajalle, rekisteri) {
     for (const k of kayttajat) {
       let canvas = rekisteri[k.id];
       if (!canvas) {
-        canvas = document.createElement("canvas");
-        canvas.width = NAV_KOKO;
-        canvas.height = NAV_KOKO;
+        canvas = luoPallura(k, NAV_KOKO);
         canvas.style.cssText = `position:absolute;top:${y}px;left:${x}px;border-radius:50%;`;
         sailyo.appendChild(canvas);
         rekisteri[k.id] = canvas;
@@ -504,8 +484,8 @@ function merkitseAktiiviseksi() {
 }
 
 function lahetaTila() {
-  if (!ws || ws.readyState !== WebSocket.OPEN || !omaProfiili) return;
-  ws.send(JSON.stringify({
+  if (!omaProfiili) return;
+  lahetaWs({
     nimimerkki: omaProfiili.nimimerkki,
     profiili: {
       taustavari: omaProfiili.taustavari,
@@ -518,7 +498,7 @@ function lahetaTila() {
     nakyma: window.omaNakyma?.() ?? null,
     sivunumero: window.omaSivunumero?.() ?? null,  // valittujen kurssien sivutussivu
     lomake: window.omaLomake?.() ?? null,  // avoin korjauslomake (lomakesessio.js)
-  }));
+  });
 }
 
 window.lahetaTilaNyt = () => lahetaTila();
@@ -569,13 +549,7 @@ function paivitaMuutYmpyrat() {
   while (div.firstChild) div.removeChild(div.firstChild);
   for (const k of muutKayttajat) {
     if (!k.profiili) continue;
-    const canvas = document.createElement("canvas");
-    canvas.width = 24;
-    canvas.height = 24;
-    canvas.className = "vieras-ympyra-pieni";
-    canvas.title = k.nimimerkki || "?";
-    piirraYmpyra(canvas, k.profiili, k.taso);
-    div.appendChild(canvas);
+    div.appendChild(luoPallura(k, 24, "vieras-ympyra-pieni"));
   }
 }
 
@@ -631,10 +605,7 @@ function paivitaKursorit() {
     if (!el) {
       el = document.createElement("div");
       el.className = "vieras-kursori";
-      const canvas = document.createElement("canvas");
-      canvas.width = 28;
-      canvas.height = 28;
-      el.appendChild(canvas);
+      el.appendChild(luoPallura(k, 28));
       const nuoli = document.createElement("div");
       nuoli.className = "kursori-nuoli";
       el.appendChild(nuoli);

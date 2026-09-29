@@ -108,9 +108,7 @@
     if (!muut.length) return;
     rivi.append("Muut käyttäjät täällä: ");
     for (const m of muut) {
-      const c = document.createElement("canvas");
-      c.width = c.height = 16;
-      window.piirraYmpyra?.(c, m.profiili);
+      const c = window.luoPallura(m, 16);
       const nimi = document.createElement("span");
       nimi.className = "lomake-muokkaaja";
       nimi.append(c, ` ${m.nimimerkki || "?"}`);
@@ -159,10 +157,7 @@
       merkki.title = m.nimimerkki || "?";
       merkki.style.cssText = `left:${r.left - pohja.left + p.x}px;top:${r.top - pohja.top + p.y}px;`
         + `height:${p.korkeus || 16}px;border-color:${m.profiili.taustavari || "#c0392b"}`;
-      const c = document.createElement("canvas");
-      c.width = c.height = 12;
-      window.piirraYmpyra?.(c, m.profiili);
-      merkki.appendChild(c);
+      merkki.appendChild(window.luoPallura(m, 12));
       kerros.appendChild(merkki);
     }
   }
@@ -245,10 +240,8 @@
       }
       rivi.innerHTML = "";
       for (const k of kayttajat) {
-        const c = document.createElement("canvas");
-        c.width = c.height = 10;
+        const c = window.luoPallura(k, 10);
         c.title = `${k.nimimerkki || "?"} muokkaa tätä`;
-        window.piirraYmpyra?.(c, k.profiili, k.taso);
         rivi.appendChild(c);
       }
     });
