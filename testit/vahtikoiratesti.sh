@@ -7,7 +7,9 @@ set -euo pipefail
 JUURI="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 TYOTILA="$(mktemp -d)"
 TILA_TIEDOSTO="$JUURI/.vahtikoira_epakunnossa_alkoi"
-trap 'rm -rf "$TYOTILA"; rm -f "$TILA_TIEDOSTO"' EXIT
+TAUKO="$JUURI/.vahtikoira_tauolla"
+[[ -e "$TAUKO" ]] && { echo "$TAUKO olemassa — vahtikoira tauolla, ei ajeta testiä"; exit 1; }
+trap 'rm -rf "$TYOTILA"; rm -f "$TILA_TIEDOSTO" "$TAUKO"' EXIT
 
 cat > "$TYOTILA/sudo" <<'EOF'
 #!/usr/bin/env bash
@@ -62,6 +64,13 @@ tarkista() {  # tarkista <kuvaus> <odotettu> <saatu>
 echo "vahtikoira: kova restart"
 tarkista "terve mysql jätetään rauhaan" "caddy webui" "$(aja healthy)"
 tarkista "epäterve mysql restartataan"  "caddy webui mysql" "$(aja unhealthy)"
+
+echo "vahtikoira: tauko"
+touch "$TAUKO"
+tarkista "tuore taukotiedosto estää restartin" "" "$(aja unhealthy)"
+touch -t 202001010000 "$TAUKO"
+tarkista "yli 2 h vanha taukotiedosto ohitetaan" "caddy webui mysql" "$(aja unhealthy)"
+tarkista "vanhentunut taukotiedosto poistetaan" "ei" "$([[ -e "$TAUKO" ]] && echo on || echo ei)"
 
 echo "vahtikoira: terveystarkistus"
 tarkista "vastaava Caddy tulkitaan terveeksi" 0 "$(CURL_TILA=ylhaalla "$JUURI/vahtikoira" --hiljaa >/dev/null 2>&1; echo $?)"

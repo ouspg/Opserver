@@ -4,20 +4,6 @@ Session-aikana (2026-09-22, tuotannon `asenna`/Caddy/migraatio-työ) havaittuja
 asioita jotka mainittiin mutta ei korjattu tai vahvistettu käyttäjän kanssa.
 Triagoi: korjaa tai sulje.
 
-## 3. vahtikoira: ei tauko-mekanismia manuaalista debuggausta varten
-
-Havaittu tuotannossa (esr-project): vahtikoiran 10 min -kärsivällisyyskynnys
-(PR #13) EI nollaudu kun operaattori käynnistää kontin käsin — se laskee
-kumulatiivisesta "epäkunnossa"-ajasta ensimmäisestä havainnosta, ei
-viimeisimmästä käsin tehdystä käynnistyksestä. Tämä keskeytti käyttäjän
-Caddy/ACME-debuggauksen kesken kahdesti saman session aikana (operaattori
-joutui poistamaan cron-rivin käsin väliaikaisesti selvitäkseen).
-
-Ehdotettu korjaus (tarjottu, käyttäjä ei ehtinyt vastata "sopiiko?"):
-`vahtikoira` tarkistaa ensimmäisenä `.vahtikoira_pysahdyksissa`-tiedoston
-olemassaolon ja poistuu heti jos se löytyy — operaattori voi `touch`ata sen
-ennen manuaalista debuggausta ja poistaa jälkeenpäin.
-
 ## 4. Tuotannon caddy jäi `Restarting`-tilaan asennusajon lopussa — SELVITETTY
 
 `Restarting` on pelkkä `docker compose restart caddy` -komennon tuloste.
