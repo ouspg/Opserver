@@ -942,7 +942,7 @@ def hae_tutkimuksen_tilanne(tid: int) -> dict:
 
 def _arvioimattomat_ehto(tid: int) -> tuple[str, tuple]:
     """FROM+GROUP BY (ja parametrit) mukaan otetuille kursseille, joilta puuttuu
-    vielä ei-tyhjiä vastauksia. Jaettu rivihaun ja lukumäärän kesken (DRY).
+    vielä ei-tyhjiä vastauksia.
 
     GROUP BY -aggregaatti korreloidun per-rivi-alikyselyn sijaan: aiemmin jokaista
     mukana-kurssia kohti ajettiin oma COUNT-alikysely (O(kurssit) × etälatenssi).
@@ -967,27 +967,9 @@ def _arvioimattomat_ehto(tid: int) -> tuple[str, tuple]:
     return ehto, (tid, tid, *sp)
 
 
-def hae_arvioimattomat(tid: int) -> list[dict]:
-    """Mukaan otetut kurssit, joille ei vielä ole kaikkia ei-tyhjiä vastauksia tässä tutkimuksessa.
-
-    Rajataan tutkimuksen lukuvuoteen ja korkeakouluihin samoin kuin luokittelu
-    ja tilastopaneeli — muuten vanhojen ajojen rajauksen ulkopuoliset hyväksynnät
-    (väärä vuosi / korkeakoulu) menisivät turhaan LLM-arviointiin.
-    """
-    ehto, params = _arvioimattomat_ehto(tid)
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            # Kuvaus liitetään GROUP BY:n ulkopuolella (ONLY_FULL_GROUP_BY).
-            kursori.execute(f"SELECT t.*, ku.OpsKuvaus FROM (SELECT k.* {ehto}) t "
-                            f"LEFT JOIN KurssiKuvaus ku ON ku.KID = t.KID ORDER BY t.KurssiNimi", params)
-            return _rivit_dikteina(kursori)
-
-
-
 def laske_arvioimattomat(tid: int) -> int:
-    """Arvioimattomien kurssien lukumäärä. Erillinen hae_arvioimattomat'sta, jotta
-    tilannesivu ei vedä kaikkien hyväksyttyjen kurssien täysiä rivejä (OpsKuvaus-
-    tekstit) verkon yli pelkkää len()-laskentaa varten — merkitsevää etäpalvelimella."""
+    """Arvioimattomien kurssien (mukana, mutta ei vielä kaikkia ei-tyhjiä vastauksia)
+    lukumäärä tutkimuksen rajauksessa."""
     ehto, params = _arvioimattomat_ehto(tid)
     with yhteys() as yht:
         with yht.cursor() as kursori:
@@ -1080,26 +1062,6 @@ def hae_hitl_vastaukset(tid: int) -> list[dict]:
         if isinstance(r.get("Lista"), str):
             r["Lista"] = json.loads(r["Lista"])
     return rivit
-
-
-# --- Kurssiarviointi ---
-
-def aseta_arviointi(tid: int, kid: int, arviointi: str, perustelu: str) -> None:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                """INSERT INTO Kurssiarviointi (TID, KID, Arviointi, Perustelu)
-                   VALUES (%s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE Arviointi = VALUES(Arviointi), Perustelu = VALUES(Perustelu)""",
-                (tid, kid, arviointi, perustelu),
-            )
-
-
-def hae_arvioinnit(tid: int) -> list[dict]:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute("SELECT * FROM Kurssiarviointi WHERE TID = %s", (tid,))
-            return _rivit_dikteina(kursori)
 
 
 # --- RaporttiOsio ---

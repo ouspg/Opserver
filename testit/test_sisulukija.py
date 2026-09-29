@@ -2,7 +2,7 @@ import json
 import os
 from unittest.mock import patch, MagicMock, call
 import requests
-from tiedonhaku.sisulukija import SisuLukija, _muunna_taso, _fi, _riisu_html
+from tiedonhaku.sisulukija import SisuLukija, _muunna_taso, _fi
 
 DIR = os.path.dirname(__file__)
 
@@ -61,15 +61,6 @@ def test_fi_none_on_tyhja():
     assert _fi(None) == ""
 
 
-# --- _riisu_html ---
-
-def test_riisu_html_poistaa_tagit():
-    assert _riisu_html("<p>Teksti</p>") == "Teksti"
-
-def test_riisu_html_none_on_tyhja():
-    assert _riisu_html(None) == ""
-
-
 # --- hae_saatavilla_kaudet ---
 
 def test_hae_saatavilla_kaudet_palauttaa_laskevassa_jarjestyksessa():
@@ -111,20 +102,11 @@ def test_jasenna_kurssi_perustiedot():
     org_nimet = {"jy-ORG-25": "Informaatioteknologian tiedekunta"}
     kurssi_data = _fixture("sisu_kurssi.json")[0]
     kurssi = lukija._jasenna_kurssi(kurssi_data, org_nimet)
-    assert kurssi["lahde_id"] == "otm-1e84a2f0-5e70-4e01-937c-60337616cff3"
     assert kurssi["koodi"] == "TJTA237"
     assert kurssi["kurssi_nimi"] == "Informaatio- ja tietotekniikkaoikeus"
     assert kurssi["taso"] == "aine"
     assert kurssi["oppiaine"] == "Informaatioteknologian tiedekunta"
     assert kurssi["opintopisteet"] == "5"
-
-def test_jasenna_kurssi_kokoaa_kuvauksen():
-    lukija = _lukija()
-    kurssi_data = _fixture("sisu_kurssi.json")[0]
-    kurssi = lukija._jasenna_kurssi(kurssi_data, {})
-    assert "peruskysymyksiä" in kurssi["ops_kuvaus_teksti"]
-    assert "lainsäädännön" in kurssi["ops_kuvaus_teksti"]
-
 
 # --- hae_kurssit ---
 

@@ -10,55 +10,10 @@ import requests
 from tietokanta import mallit
 from tiedonhaku.opslukija import OpsLukija
 
-# Kurssikuvauksen "Taso"-osion teksti -> Kurssi-taulun Taso-enum.
-TASO_KARTTA = {
-    "yleisopinnot": "yleis",
-    "perusopinnot": "perus",
-    "aineopinnot": "aine",
-    "syventävät opinnot": "syventävä",
-}
-
-# contentList-osiot, jotka kootaan kurssikuvaukseksi LLM:ää varten.
-KUVAUS_OSIOT = [
-    "Osaamistavoitteet",
-    "Sisältö",
-    "Suoritustavat",
-    "Toteutustavat",
-    "Esitietovaatimukset",
-    "Lisätiedot",
-]
-
-
 def _fi(monikielinen: dict | None) -> str:
     if not monikielinen:
         return ""
     return (monikielinen.get("valueFi") or monikielinen.get("valueEn") or "").strip()
-
-
-_VALIDI_TASOT = set(TASO_KARTTA.values())
-
-
-def paattele_taso(taso_teksti: str) -> str | None:
-    taso = TASO_KARTTA.get((taso_teksti or "").strip().lower())
-    return taso if taso in _VALIDI_TASOT else None
-
-
-def _turvallinen_float(arvo) -> float | None:
-    if arvo is None:
-        return None
-    try:
-        return float(arvo)
-    except (ValueError, TypeError):
-        return None
-
-
-def _kokoa_kuvaus(sisalto: dict) -> str:
-    osat = []
-    for otsikko in KUVAUS_OSIOT:
-        teksti = (sisalto.get(otsikko) or "").strip()
-        if teksti:
-            osat.append(f"{otsikko}:\n{teksti}")
-    return "\n\n".join(osat)
 
 
 def _hae_bundle_js(ops_osoite: str) -> str:
@@ -128,11 +83,6 @@ class PeppiLukija(OpsLukija):
                 "uudelleen, jolloin API-osoite selvitetään ja tallennetaan."
             )
         return f"{api.rstrip('/')}/api"
-
-    def hae_kurssi(self, kurssi_id: str, kausi: str = "2025-2026") -> dict:
-        """Hakee ja jäsentää yhden kurssin Peppi-rajapinnasta."""
-        url = f"{self._api()}/course/{kurssi_id}?period={kausi}"
-        return self._jasenna_kurssi(self._hae_json(url))
 
     def hae_saatavilla_kaudet(self) -> list[str]:
         """Lukee saatavilla olevat OPS-kaudet Peppi-etusivun JS-bundlesta.
@@ -243,6 +193,4 @@ class PeppiLukija(OpsLukija):
             "taso": (sisalto.get("Taso") or "").strip()[:30] or None,
             "oppiaine": (sisalto.get("Oppiaine") or "").strip()[:500],
             "opintopisteet": str(credits)[:30] if credits is not None else None,
-            "ops_kuvaus": _kokoa_kuvaus(sisalto),
-            "lahde_id": data.get("id"),
         }

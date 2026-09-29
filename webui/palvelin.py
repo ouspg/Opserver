@@ -730,9 +730,7 @@ def api_arvio_korjaus(slug: str, kid: int, kysid: int, pyynto: ArvioKorjausPyynt
         raise HTTPException(status_code=404, detail="Kysymystä ei löydy tästä tutkimuksesta")
     # Tyyppitarkistus: luokka on oltava kysymyksen määrittelemien joukossa, pisteet
     # asteikon sisällä. Väärä arvo rikkoisi raporttitilastot hiljaa.
-    maarittely = kysymys.get("LuokitteluMaarittely") or {}
-    if isinstance(maarittely, str):
-        maarittely = json.loads(maarittely)
+    maarittely = kysymys.get("LuokitteluMaarittely") or {}  # hae_kysymykset jäsentää JSONin
     tyyppi = kysymys.get("Luokittelu") or "vapaa_teksti"
     if tyyppi == "luokittelu" and pyynto.luokka:
         sallitut = [l.get("nimi") for l in maarittely.get("luokat", [])]

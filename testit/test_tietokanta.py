@@ -188,11 +188,10 @@ class TestHaeArvioimattomat:
 
     def test_soveltaa_tutkimuksen_rajausta(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
+        kursori.fetchone.return_value = (0,)
         with patch("tietokanta.mallit._tutkimus_kurssi_scope",
                    return_value=("k.KKID IN (%s) AND vuosirajaus", [4, 2024, 2025])):
-            mallit.hae_arvioimattomat(1)
+            mallit.laske_arvioimattomat(1)
         sql, params = kursori.execute.call_args[0]
         assert "k.KKID IN" in sql and "vuosirajaus" in sql
         # GROUP BY -aggregaatti, ei per-rivi korreloitua alikyselyä
@@ -202,15 +201,12 @@ class TestHaeArvioimattomat:
 
     def test_ilman_rajausta_ei_lisaa_scope_ehtoa(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
+        kursori.fetchone.return_value = (0,)
         with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
-            mallit.hae_arvioimattomat(1)
+            mallit.laske_arvioimattomat(1)
         sql, params = kursori.execute.call_args[0]
         assert "k.KKID IN" not in sql
         assert list(params) == [1, 1]
-        # LLM-arviointi tarvitsee kuvauksen (omasta taulustaan)
-        assert "LEFT JOIN KurssiKuvaus" in sql and "OpsKuvaus" in sql
 
     def test_laske_arvioimattomat_laskee_ei_hae_riveja(self, mock_yhteys):
         """Tilannesivu tarvitsee vain lukumäärän → COUNT(*), ei SELECT k.* (ei vedä
@@ -290,8 +286,7 @@ class TestHaeLuokittelemattomat:
 
     def test_soveltaa_tutkimuksen_rajausta(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
+        kursori.fetchone.return_value = (0,)
         with patch("tietokanta.mallit._tutkimus_kurssi_scope",
                    return_value=("k.KKID IN (%s,%s) AND vuosirajaus", [2, 3, 2024, 2025])):
             mallit.hae_luokittelemattomat_kevyet(1)
@@ -302,8 +297,7 @@ class TestHaeLuokittelemattomat:
 
     def test_tiivisteella_soveltaa_rajausta_ja_threadaa_parametrit(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
+        kursori.fetchone.return_value = (0,)
         with patch("tietokanta.mallit._tutkimus_kurssi_scope",
                    return_value=("k.KKID IN (%s)", [5])):
             mallit.hae_luokittelemattomat_kevyet(1, "tiiv-abc")
@@ -315,8 +309,7 @@ class TestHaeLuokittelemattomat:
     def test_ilman_rajausta_ei_lisaa_scope_ehtoa(self, mock_yhteys):
         # Jos tutkimukselta puuttuu lukuvuosi/korkeakoulu → ei rajausta (entinen käytös)
         yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
+        kursori.fetchone.return_value = (0,)
         with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
             mallit.hae_luokittelemattomat_kevyet(1)
         sql, params = kursori.execute.call_args[0]
@@ -328,8 +321,7 @@ class TestHaeLuokittelemattomat:
         megatavuja (mitattu 7 696 riviä / 51 MB), ja sen nouto kerralla jumitti
         LLM-näytön. Kuvaukset haetaan erä kerrallaan (hae_kurssit_idlla)."""
         yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
+        kursori.fetchone.return_value = (0,)
         with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
             mallit.hae_luokittelemattomat_kevyet(1)
         sql = kursori.execute.call_args[0][0]
@@ -893,23 +885,6 @@ class TestRaporttiTila:
         assert list(params) == [1, "2026-07-15 10:00:00"]
 
 
-class TestKurssiarviointi:
-    def test_aseta_arviointi_tekee_insert(self, mock_yhteys):
-        yht, kursori = mock_yhteys
-        mallit.aseta_arviointi(tid=1, kid=7, arviointi="Hyvä", perustelu="Kattava")
-        kursori.execute.assert_called_once()
-        sql = kursori.execute.call_args[0][0]
-        assert "INSERT" in sql.upper()
-
-    def test_hae_arvioinnit_suodattaa_tid_perusteella(self, mock_yhteys):
-        yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
-        mallit.hae_arvioinnit(tid=1)
-        sql, params = kursori.execute.call_args[0]
-        assert "TID" in sql
-
-
 class TestHitlVastaukset:
     """Ihmisen korjaus menee samaan Vastaukset-tauluun kuin LLM:n vastaus
     (migraatio_022). Malli IS NULL erottaa rivit toisistaan."""
@@ -959,10 +934,9 @@ class TestHitlRivitEivatSotkeLaskentaa:
 
     def test_arvioimattomat_laskee_erilliset_kysymykset(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
+        kursori.fetchone.return_value = (0,)
         with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
-            mallit.hae_arvioimattomat(1)
+            mallit.laske_arvioimattomat(1)
         sql, _ = kursori.execute.call_args[0]
         assert "COUNT(DISTINCT v.KysID) < COUNT(DISTINCT ky.KysID)" in sql
 

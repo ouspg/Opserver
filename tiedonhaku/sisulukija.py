@@ -34,12 +34,6 @@ def _fi(monikielinen: dict | None) -> str:
     return (monikielinen.get("fi") or monikielinen.get("en") or "").strip()
 
 
-def _riisu_html(teksti: str | None) -> str:
-    if not teksti:
-        return ""
-    return re.sub(r"<[^>]+>", " ", teksti).strip()
-
-
 class SisuLukija(OpsLukija):
 
     def __init__(self, korkeakoulu: dict):
@@ -213,17 +207,10 @@ class SisuLukija(OpsLukija):
         )
         credits = data.get("credits") or {}
         op = credits.get("min")
-        kuvaus_osat = []
-        for kentta in ("tweetText", "outcomes", "content", "prerequisites", "additional"):
-            teksti = _riisu_html(_fi(data.get(kentta)))
-            if teksti:
-                kuvaus_osat.append(teksti)
         return {
-            "lahde_id": data.get("id"),
             "koodi": data.get("code"),
             "kurssi_nimi": _fi(data.get("name"))[:255],
             "taso": _muunna_taso(data.get("studyLevel")),
             "oppiaine": (organisaatiot.get(org_id) or "")[:500],
             "opintopisteet": str(op) if op is not None else None,
-            "ops_kuvaus_teksti": "\n\n".join(kuvaus_osat),
         }
