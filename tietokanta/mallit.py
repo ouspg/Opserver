@@ -589,9 +589,8 @@ def _luokittelemattomat_ehto(tid: int, tiiviste: str | None) -> tuple[str, tuple
     meta-suodatuksessa — muuten rajauksen ulkopuoliset kurssit (väärä vuosi /
     korkeakoulu) joutuisivat LLM-ajoon, koska niillä ei ole meta-riviä.
     """
-    scope_where, scope_params = _tutkimus_kurssi_scope(tid)
-    scope_sql = f" AND {scope_where}" if scope_where else ""
-    sp = scope_params or []
+    scope_where, sp = _tutkimus_kurssi_scope(tid)
+    scope_sql = f" AND {scope_where}"
     if tiiviste is None:
         ehto = f"""
             FROM Kurssi k
@@ -650,15 +649,13 @@ def hae_kurssit_idlla(kidit: list[int]) -> list[dict]:
     )
 
 
-def laske_luokittelemattomat(tid: int, tiiviste: str | None = None) -> int:
-    """LLM-seulontaa odottavien kurssien lukumäärä (COUNT(*), ei rivinoutoa).
-
-    Erillinen hae_luokittelemattomat:sta, jottei OpsKuvaus-kenttää (~satoja MB
-    koko aineistossa) ladata pelkkää laskentaa varten — tämä hidasti aiemmin
-    LLM-näkymän avaamista, koska näkymä laskee sekä uudet että vanhentuneet.
-    """
+def laske_luokittelutyo(tid: int, tiiviste: str) -> tuple[int, int]:
+    """(uudet, vanhentuneet): vielä LLM-luokittelemattomat ja vanhentuneen kehotteen
+    tulokset yhdellä COUNT-kyselyllä (ei rivinoutoa, ei kahta kierrosta)."""
     ehto, params = _luokittelemattomat_ehto(tid, tiiviste)
-    return _hae_arvo(f"SELECT COUNT(*) {ehto}", params)
+    kaikki, uudet = _kysely(f"SELECT COUNT(*), COALESCE(SUM(kl.KID IS NULL OR kl.Mukana IS NULL), 0) {ehto}",
+                            params, lambda k: k.fetchone())
+    return int(uudet), int(kaikki) - int(uudet)
 
 
 # Tila-välilehden ehto Kurssiluokitus.Mukana-arvosta.
@@ -712,27 +709,36 @@ def _rajaus(kursori, tid: int) -> tuple[str | None, list[int]]:
     return (rivit[0][0] if rivit else None), [r[1] for r in rivit if r[1] is not None]
 
 
-def _tutkimus_kurssi_scope(tid: int) -> tuple[str | None, list]:
+def _tutkimus_kurssi_scope(tid: int) -> tuple[str, list]:
     """SQL-WHERE + parametrit jotka rajaavat Kurssi-rivit tutkimuksen korkeakouluihin
-    ja lukuvuoteen (OPS-kausi kattaa lukuvuoden). (None, None) jos rajaus puuttuu."""
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            lukuvuosi, korkeakoulut = _rajaus(kursori, tid)
-    if not korkeakoulut or not lukuvuosi:
-        return None, None
-    paikat = ",".join(["%s"] * len(korkeakoulut))
-    vuosi_sql, vuosi_params = _vuosi_kattaa_sql("k.Opetusvuosi", lukuvuosi)
-    where = f"k.KKID IN ({paikat}) AND {vuosi_sql}"
-    return where, [*korkeakoulut, *vuosi_params]
+    ja lukuvuoteen (OPS-kausi kattaa lukuvuoden).
+
+    Alikyselyinä, ei omaa kierrosta: MySQL laskee skalaarialikyselyt (perusavain-
+    haku) kerran vakioiksi, joten idx_kkid_vuosi kelpaa kuten literaaleilla.
+    Puuttuva lukuvuosi tai korkeakoulut → ei yhtään kurssia (kuten tilannenäkymä).
+    Lukuvuosi jäsennetään kuten Kurssi.VuosiAlku/VuosiLoppu (YYYY-YYYY / YYYY-YY)."""
+    alku = "CAST(SUBSTRING_INDEX(t.Lukuvuosi, '-', 1) AS UNSIGNED)"
+    loppu_osa = "SUBSTRING_INDEX(t.Lukuvuosi, '-', -1)"
+    loppu = (f"CASE WHEN CHAR_LENGTH({loppu_osa}) = 4 THEN CAST({loppu_osa} AS UNSIGNED) "
+             f"ELSE ({alku} DIV 100) * 100 + CAST({loppu_osa} AS UNSIGNED) END")
+    return (
+        "k.KKID IN (SELECT tk.KKID FROM TutkimusKorkeakoulu tk WHERE tk.TID = %s)"
+        f" AND k.VuosiAlku <= (SELECT {alku} FROM Tutkimus t WHERE t.TID = %s)"
+        f" AND k.VuosiLoppu >= (SELECT {loppu} FROM Tutkimus t WHERE t.TID = %s)",
+        [tid, tid, tid],
+    )
 
 
 def hae_meta_ehdokkaat(tid: int) -> list[dict] | None:
     """Tutkimuksen rajauksen (korkeakoulut + lukuvuosi) kurssit meta-suodatusta varten,
     nykyinen luokitus liitettynä (Luokiteltu, Mukana, Luokitteluperuste). Vain
     suodatuksen tarvitsemat sarakkeet. None jos rajaus puuttuu."""
-    where, params = _tutkimus_kurssi_scope(tid)
-    if where is None:
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            lukuvuosi, korkeakoulut = _rajaus(kursori, tid)
+    if not lukuvuosi or not korkeakoulut:
         return None
+    where, params = _tutkimus_kurssi_scope(tid)
     return _hae_kaikki(
         f"""SELECT k.KID, k.Taso, k.Oppiaine, kl.KID IS NOT NULL AS Luokiteltu,
                    kl.Mukana, kl.Luokitteluperuste
@@ -750,8 +756,6 @@ def hae_tutkimuksen_tilamaarat(tid: int, kkid: int | None = None, taso: str | No
     (samat kuin listauksessa, jotta välilehtien luvut vastaavat näkymää)."""
     maarat = {"mukana": 0, "odottaa": 0, "hylätty": 0}
     where, params = _tutkimus_kurssi_scope(tid)
-    if where is None:
-        return maarat
     suod_sql, suod_params = _kurssi_suodatin_sql(kkid, taso, hakusana)
     with yhteys() as yht:
         with yht.cursor() as kursori:
@@ -790,8 +794,6 @@ def hae_kurssit_luokituksilla(tid: int, tila: str | None = None,
     sarakejärjestys (jarjesta = valkolistattu sarake, suunta = nouseva/laskeva).
     """
     where, params = _tutkimus_kurssi_scope(tid)
-    if where is None:
-        return []
     tila_sql = f" AND {_TILA_EHTO[tila]}" if tila in _TILA_EHTO else ""
     suod_sql, suod_params = _kurssi_suodatin_sql(kkid, taso, hakusana)
     sarake_sql = _LUOKITUS_JARJESTYS.get(jarjesta or "", "k.KurssiNimi")
@@ -964,9 +966,8 @@ def _arvioimattomat_ehto(tid: int) -> tuple[str, tuple]:
     Palauttaa fragmentin, joka ryhmittelee k.KID:n mukaan → kutsuja kietoo sen:
     rivihaku `SELECT k.* {ehto}`, lukumäärä `SELECT COUNT(*) FROM (SELECT k.KID {ehto}) t`.
     """
-    scope_where, scope_params = _tutkimus_kurssi_scope(tid)
-    where_sql = f"WHERE {scope_where}" if scope_where else ""
-    sp = scope_params or []
+    scope_where, sp = _tutkimus_kurssi_scope(tid)
+    where_sql = f"WHERE {scope_where}"
     ehto = f"""
         FROM Kurssi k
         JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s AND kl.Mukana = 1
