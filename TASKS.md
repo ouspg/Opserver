@@ -4,16 +4,6 @@ Session-aikana (2026-09-22, tuotannon `asenna`/Caddy/migraatio-työ) havaittuja
 asioita jotka mainittiin mutta ei korjattu tai vahvistettu käyttäjän kanssa.
 Triagoi: korjaa tai sulje.
 
-## 2. DEMO.md vanhentunut: webui ei enää julkaise porttia 12121 suoraan
-
-PR #10 (Caddy 443:een) muutti `webui`-palvelun `ports:` → `expose:` — portti
-12121 ei enää näy hostiin, vain sisäverkkoon. `DEMO.md`:n ohjeet
-(`curl http://localhost:12121/...`, `tailscale funnel --bg 12121`) olettavat
-että 12121 on julkaistu hostiin. Tuotannossa (Caddy edessä, 443 jo HTTPS)
-Funnelia ei enää tarvita — DEMO.md pitäisi päivittää erottamaan
-paikalliskehitys (12121 voi olla auki riippuen compose-asetuksista) ja
-tuotanto (443 Caddyn kautta, ei Funnelia) toisistaan.
-
 ## 3. vahtikoira: ei tauko-mekanismia manuaalista debuggausta varten
 
 Havaittu tuotannossa (esr-project): vahtikoiran 10 min -kärsivällisyyskynnys

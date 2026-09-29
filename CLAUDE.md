@@ -55,7 +55,7 @@ Automaattinen pipeline suomalaisten yliopistojen opinto-oppaiden läpikäymiseen
 
 Käyttöliittymät ovat toisistaan riippumattomia: curses-UI ohjaa pipelinen suoritusta; web-UI on vain tulosten ja annotointien luku/kirjoitusliittymä.
 
-WebUI:n esittely yleisölle (seminaari-lähiverkko ja etäkokous-Tailscale Funnel) sekä suojaus (HTTP Basic Auth, `WEBUI_AUTH_*`): ks. **`DEMO.md`**. Suositus: aja demo aina Funnelin (HTTPS) kautta, jolloin Basic Auth on turvallinen.
+WebUI:n esittely yleisölle = tuotannon `https://<TUOTANTO_DOMAIN>` (Caddy päättää TLS:n), suojattu HTTP Basic Authilla (`WEBUI_AUTH_KAYTTAJA`/`WEBUI_AUTH_SALASANA` `.env`:ssä). Webui ei julkaise porttia 12121 hostiin (vain `expose`) — kaikki liikenne Caddyn kautta.
 
 ## Kehityskäytännöt
 
