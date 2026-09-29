@@ -108,15 +108,12 @@ def aja_testierat(tutkimus: dict, erakoko: int, montako_era: int,
         mittaus, tulokset = _mittaa_era(era, luokittelukehote, jarjestelma)
 
         # Kirjaa kunkin kurssin tulos testitauluun (ajotunnuksella, poistettavissa)
-        lahetetyt = {k["KID"] for k in era}
-        for tulos in tulokset:
-            kid = tulos.get("id")
-            if kid in lahetetyt:
-                testimallit.aseta_testiluokitus(
-                    ajo=ajo_id, erakoko=erakoko, tid=tid, kid=kid,
-                    mukana=bool(tulos.get("mukana")), perustelu=tulos.get("perustelu", ""),
-                    malli=malli, tiiviste=tiiv,
-                )
+        for tulos in kurssimuoto.siivoa_tulokset(tulokset, {k["KID"] for k in era}):
+            testimallit.aseta_testiluokitus(
+                ajo=ajo_id, erakoko=erakoko, tid=tid, kid=tulos["id"],
+                mukana=bool(tulos.get("mukana")), perustelu=tulos.get("perustelu", ""),
+                malli=malli, tiiviste=tiiv,
+            )
 
         tietue = {
             "aikaleima": datetime.now().isoformat(timespec="seconds"),

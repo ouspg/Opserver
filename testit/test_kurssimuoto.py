@@ -148,3 +148,19 @@ class TestKurssiJsonPromptiin:
         assert tulos["taso"] == ""
         assert tulos["oppiaine"] == ""
         assert tulos["kuvaus"] == ""
+
+
+class TestSiivoaTulokset:
+    """Torju hallusinoidut/väärät id:t, säilytä vain erän kurssit."""
+
+    def test_suodattaa_vieraan_idn(self):
+        raaka = [{"id": 1, "vastaukset": []}, {"id": 999, "vastaukset": []}]
+        assert kurssimuoto.siivoa_tulokset(raaka, {1, 2}) == [{"id": 1, "vastaukset": []}]
+
+    def test_normalisoi_merkkijono_idn(self):
+        tulos = kurssimuoto.siivoa_tulokset([{"id": "2", "vastaukset": []}], {1, 2})
+        assert tulos == [{"id": 2, "vastaukset": []}]
+
+    def test_ohittaa_puuttuvan_tai_kelvottoman_idn(self):
+        raaka = [{"vastaukset": []}, {"id": None, "vastaukset": []}, {"id": "abc"}]
+        assert kurssimuoto.siivoa_tulokset(raaka, {1, 2}) == []

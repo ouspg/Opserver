@@ -18,23 +18,6 @@ def _kirjaa(viesti: str) -> None:
         f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} [arviointi] {viesti}\n")
 
 
-def _siivoa_tulokset(raaka: list[dict], odotetut: set) -> list[dict]:
-    """Suodattaa mallin tulokset vain erän kursseihin ja normalisoi id:t kokonaisluvuiksi.
-
-    Torjuu hallusinoidut / väärät id:t ennen tallennusta (opas: 'IDs must exist') —
-    muuten aseta_vastaus INSERTtäisi rivin kurssille jota erässä ei ollut.
-    """
-    siivotut = []
-    for t in raaka:
-        try:
-            kid = int(t.get("id"))
-        except (TypeError, ValueError):
-            continue
-        if kid in odotetut:
-            siivotut.append({**t, "id": kid})
-    return siivotut
-
-
 def _luokittele_virhe(e: Exception) -> str:
     """Eräkohtainen virhe → tilastoluokka (max_tokens / virhe_502 / tyhja / muoto).
 
@@ -313,7 +296,7 @@ def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None,
         odotetut = {k["KID"] for k in erä}
         try:
             raaka = _arvioi_erä(erä, arviointikehote, osa_kysymykset, jarjestelma)
-            tulokset = _siivoa_tulokset(raaka, odotetut)
+            tulokset = kurssimuoto.siivoa_tulokset(raaka, odotetut)
             _tallenna_tulokset(tulokset, osa_kysymykset, malli, kys_tiiviste)
             puuttuvat = odotetut - {t["id"] for t in tulokset}
             if puuttuvat:
