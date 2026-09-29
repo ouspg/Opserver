@@ -1,7 +1,7 @@
 """Testit muokkaa_lomake-komponentin logiikalle (navigointi/tallennus/validointi)."""
 import curses
 from unittest.mock import patch
-from cliui import apurit
+from cliui import lomake
 
 
 class FakeScr:
@@ -23,8 +23,8 @@ class FakeScr:
 
 
 def _aja(nappaimet, kentat):
-    with patch("cliui.apurit.curses.color_pair", lambda n: 0):
-        return apurit.muokkaa_lomake(FakeScr(nappaimet), "Otsikko", kentat)
+    with patch("cliui.lomake.curses.color_pair", lambda n: 0):
+        return lomake.muokkaa_lomake(FakeScr(nappaimet), "Otsikko", kentat)
 
 
 def _kentat():

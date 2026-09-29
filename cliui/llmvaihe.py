@@ -5,7 +5,8 @@ Vaiheen erot kuvataan Vaihe-oliolla (näyttöteksti, testimallit-funktiot)."""
 from dataclasses import dataclass
 from typing import Callable
 
-from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta, lue_teksti
+from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta
+from cliui.tekstikentta import lue_teksti
 
 
 @dataclass

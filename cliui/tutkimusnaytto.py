@@ -5,8 +5,9 @@ import re
 from tietokanta import mallit
 from cliui import kysymysnaytto
 from cliui.valikot import toimintovalikko, valitse_tutkimus, vahvista_kylla
-from cliui.apurit import (piirra_otsikko, nayta_viesti, lue_teksti,
-                          valitse_monivalinta, muokkaa_lomake)
+from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_monivalinta
+from cliui.tekstikentta import lue_teksti
+from cliui.lomake import muokkaa_lomake
 
 _SLUG_KAAVA = re.compile(r'^[a-z0-9][a-z0-9_-]*$')
 _LUKUVUOSI_KAAVA = re.compile(r'^\d{4}-\d{4}$')

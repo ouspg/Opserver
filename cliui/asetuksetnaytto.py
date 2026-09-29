@@ -1,5 +1,6 @@
 """LLM-asetukset: nykyinen malli, saatavuustarkistus, mallien selaus ja vaihto."""
-from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta, lue_teksti
+from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta
+from cliui.tekstikentta import lue_teksti
 from cliui.valikot import toimintovalikko
 from llm import kutsu, mallitiedot, asetukset
 
