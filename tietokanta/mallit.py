@@ -120,22 +120,21 @@ _KURSSI_LISTA_SARAKKEET = (
 
 def hae_kurssit(kkid: int | None = None, lukuvuosi: str | None = None) -> list[dict]:
     """Listanäkymän kurssit. lukuvuosi rajaa kurssit, joiden OPS-kausi kattaa
-    annetun lukuvuoden (esim. "2026-2027"; OPS "2024-2027" kattaa sen)."""
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            if kkid is not None:
-                kursori.execute(
-                    f"SELECT {_KURSSI_LISTA_SARAKKEET} FROM Kurssi WHERE KKID = %s ORDER BY KurssiNimi",
-                    (kkid,),
-                )
-            else:
-                kursori.execute(
-                    f"SELECT {_KURSSI_LISTA_SARAKKEET} FROM Kurssi ORDER BY KurssiNimi"
-                )
-            rivit = _rivit_dikteina(kursori)
+    annetun lukuvuoden (esim. "2026-2027"; OPS "2024-2027" kattaa sen) — SQL:ssä
+    (idx_kkid_vuosi), ei koko luetteloa Pythoniin."""
+    ehdot, params = [], []
+    if kkid is not None:
+        ehdot.append("KKID = %s")
+        params.append(kkid)
     if lukuvuosi:
-        rivit = [r for r in rivit if _kattaa_turvallinen(r.get("Opetusvuosi"), lukuvuosi)]
-    return rivit
+        try:
+            vuosi_sql, vuosi_params = _vuosi_kattaa_sql("Opetusvuosi", lukuvuosi)
+        except ValueError:
+            return []
+        ehdot.append(vuosi_sql)
+        params.extend(vuosi_params)
+    where = f" WHERE {' AND '.join(ehdot)}" if ehdot else ""
+    return _hae_kaikki(f"SELECT {_KURSSI_LISTA_SARAKKEET} FROM Kurssi{where} ORDER BY KurssiNimi", params)
 
 
 def _kattaa_turvallinen(ops_kausi: str | None, lukuvuosi: str) -> bool:
@@ -701,6 +700,23 @@ def _tutkimus_kurssi_scope(tid: int) -> tuple[str | None, list]:
     return where, [*korkeakoulut, *vuosi_params]
 
 
+def hae_meta_ehdokkaat(tid: int) -> list[dict] | None:
+    """Tutkimuksen rajauksen (korkeakoulut + lukuvuosi) kurssit meta-suodatusta varten,
+    nykyinen luokitus liitettynä (Luokiteltu, Mukana, Luokitteluperuste). Vain
+    suodatuksen tarvitsemat sarakkeet. None jos rajaus puuttuu."""
+    where, params = _tutkimus_kurssi_scope(tid)
+    if where is None:
+        return None
+    return _hae_kaikki(
+        f"""SELECT k.KID, k.Taso, k.Oppiaine, kl.KID IS NOT NULL AS Luokiteltu,
+                   kl.Mukana, kl.Luokitteluperuste
+            FROM Kurssi k
+            LEFT JOIN Kurssiluokitus kl ON kl.KID = k.KID AND kl.TID = %s
+            WHERE {where}""",
+        (tid, *params),
+    )
+
+
 def hae_tutkimuksen_tilamaarat(tid: int, kkid: int | None = None, taso: str | None = None,
                                hakusana: str | None = None) -> dict:
     """Tutkimuksen kurssimäärät tiloittain (mukana/odottaa/hylätty), rajattuna
@@ -769,12 +785,16 @@ def hae_kurssit_luokituksilla(tid: int, tila: str | None = None,
     )
 
 
-def hae_hitl_historia(tid: int) -> list[dict]:
-    """Kaikki HITL-korjaukset tälle tutkimukselle vanhimmasta uusimpaan."""
+def hae_hitl_historia(tid: int, kidit: list[int]) -> list[dict]:
+    """Annettujen kurssien (esim. WebUI:n sivu) HITL-korjaukset vanhimmasta uusimpaan.
+    Rajaus KID:eihin: koko tutkimuksen historia kasvaa annotointisessioissa."""
+    if not kidit:
+        return []
     return _hae_kaikki(
-        """SELECT KID, UusiTila, Perustelu, KayttajaNimi, Aikaleima
-           FROM HitlKorjaus WHERE TID = %s ORDER BY HID ASC""",
-        (tid,),
+        f"""SELECT KID, UusiTila, Perustelu, KayttajaNimi, Aikaleima
+            FROM HitlKorjaus WHERE TID = %s AND KID IN ({",".join(["%s"] * len(kidit))})
+            ORDER BY HID ASC""",
+        (tid, *kidit),
     )
 
 

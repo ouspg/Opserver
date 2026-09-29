@@ -1,7 +1,6 @@
 """Meta-suodatus: kirjoittaa Kurssiluokitus-rivit korkeakoulu-, lukuvuosi-,
 taso- ja oppiainerajauksilla."""
 from tietokanta import mallit
-from luokittelu import lukuvuosi as lv
 
 
 def _taso_ok(kurssi: dict, tasorajaus: str | None) -> bool:
@@ -34,23 +33,18 @@ def aja(tutkimus: dict, edistyminen_cb=None, kohde: str = "uudet") -> tuple[int,
     tid = tutkimus["TID"]
     tasorajaus = tutkimus.get("Tasorajaus")
     oppiainerajaus = tutkimus.get("Oppiainerajaus")
-    tutk_lukuvuosi = tutkimus.get("Lukuvuosi")
-    korkeakoulut = set(mallit.hae_tutkimuksen_korkeakoulut(tid))
-    if not tutk_lukuvuosi or not korkeakoulut:
+    # Lukuvuosi ja korkeakoulut ovat kova rajaus (SQL:ssä): väärän vuoden tai
+    # korkeakoulun kurssit eivät ole tutkimuksen ehdokkaita lainkaan (ei luokitella).
+    # Meta-hylkäys tehdään vain tason ja oppiaineen mukaan, koska ne voivat olla
+    # virheellisiä ja vaativat tarkistusta.
+    kurssit = mallit.hae_meta_ehdokkaat(tid) if tutkimus.get("Lukuvuosi") else None
+    if kurssit is None:
         raise ValueError(
             "Tutkimukselle on määriteltävä lukuvuosi ja vähintään yksi korkeakoulu "
             "ennen meta-suodatusta."
         )
-
-    # Lukuvuosi on kova rajaus: väärän vuoden kurssit eivät ole tutkimuksen
-    # ehdokkaita lainkaan (ei luokitella). Meta-hylkäys tehdään vain tason ja
-    # oppiaineen mukaan, koska ne voivat olla virheellisiä ja vaativat tarkistusta.
-    kurssit = [
-        k for k in mallit.hae_kurssit()
-        if k["KKID"] in korkeakoulut and _kausi_kattaa(k.get("Opetusvuosi"), tutk_lukuvuosi)
-    ]
-    luok = {l["KID"]: l for l in mallit.hae_luokitukset(tid)}
-    kasiteltavat = [k for k in kurssit if _kuuluu_kohteeseen(luok.get(k["KID"]), kohde)]
+    kasiteltavat = [k for k in kurssit
+                    if _kuuluu_kohteeseen(k if k["Luokiteltu"] else None, kohde)]
 
     lapaisseet = 0
     for i, kurssi in enumerate(kasiteltavat):
@@ -72,16 +66,6 @@ def aja(tutkimus: dict, edistyminen_cb=None, kohde: str = "uudet") -> tuple[int,
             edistyminen_cb(i + 1, len(kasiteltavat), lapaisseet)
 
     return lapaisseet, len(kasiteltavat)
-
-
-def _kausi_kattaa(ops_kausi: str | None, lukuvuosi: str) -> bool:
-    """lv.kattaa, mutta puuttuva/virheellinen kausi rajataan pois (ei kaadu)."""
-    if not ops_kausi:
-        return False
-    try:
-        return lv.kattaa(ops_kausi, lukuvuosi)
-    except ValueError:
-        return False
 
 
 def _kuuluu_kohteeseen(luokitus: dict | None, kohde: str) -> bool:

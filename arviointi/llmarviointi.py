@@ -128,8 +128,9 @@ def _tallenna_tulokset(tulokset: list[dict], kysymykset: list[dict], malli: str,
 
 
 def _arvioi_erä(erä: list[dict], arviointikehote: str, kysymykset: list[dict], jarjestelma: str) -> list[dict]:
+    # Erä saapuu kevyinä riveinä (ei OpsKuvausta) — kuvaukset haetaan vasta tässä.
     kurssit_json = json.dumps(
-        [kurssimuoto.kurssi_json_promptiin(k) for k in erä],
+        [kurssimuoto.kurssi_json_promptiin(k) for k in mallit.hae_kurssit_idlla([k["KID"] for k in erä])],
         ensure_ascii=False,
         indent=2,
     )
@@ -173,7 +174,8 @@ def _selvita_tyo(tutkimus: dict) -> dict:
 
     jarjestelma = _lue_jarjestelmakehote()
     kys_tiiviste = tiiviste.kysymystiivisteet(arviointikehote, jarjestelma, kysymykset)
-    kurssit = mallit.hae_valitut_kurssit(tid)
+    # Ilman kuvauksia: työmäärä lasketaan KID:istä; kuvaukset haetaan erä kerrallaan.
+    kurssit = mallit.hae_valitut_kurssit(tid, kuvaukset=False)
     olemassa = mallit.hae_vastaus_tiivisteet(tid)
 
     tyo: dict[int, list[dict]] = {}

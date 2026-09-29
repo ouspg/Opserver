@@ -516,7 +516,7 @@ def api_tutkimus_luokitukset(tutkimus: TutkimusSlugista, tila: Optional[str] = N
 
     # Ryhmittele HITL-historia kursseittain (vanhimmasta uusimpaan)
     historia: dict[int, list[dict]] = {}
-    for h in mallit.hae_hitl_historia(tid):
+    for h in mallit.hae_hitl_historia(tid, [r["KID"] for r in rivit]):
         kid = h["KID"]
         if kid not in historia:
             historia[kid] = []

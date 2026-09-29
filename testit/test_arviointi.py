@@ -13,6 +13,15 @@ KYSYMYKSET = [
      "Luokittelu": "vapaa_teksti", "LuokitteluMaarittely": None},
 ]
 
+
+@pytest.fixture(autouse=True)
+def _kuvaukset_eralle():
+    """Arviointi hakee kurssikuvaukset erä kerrallaan (hae_kurssit_idlla)."""
+    with patch("tietokanta.mallit.hae_kurssit_idlla",
+               side_effect=lambda kidit: [{"KID": k, "KurssiNimi": f"Kurssi {k}", "OpsKuvaus": None}
+                                          for k in kidit]) as m:
+        yield m
+
 KURSSIT = [
     {"KID": 1, "KurssiNimi": "Tietoturva", "Koodi": "CS100", "Taso": "aine",
      "Oppiaine": "Tietotekniikka", "Opintopisteet": "5", "Opetusvuosi": "2025-2026", "OpsKuvaus": None},
@@ -511,3 +520,13 @@ class TestHitlEiYliajeta:
         """Jos korjaus on tyhjä, kysymys on yhä vastaamatta."""
         tila = {"vastattu": False, "tiiviste": None, "hitl": True}
         assert llmarviointi._tarvitsee_ajon(tila, "uusi") is True
+
+
+def test_selvita_tyo_ei_lataa_kuvauksia():
+    """Työmäärä lasketaan KID:istä — kaikkien mukana-kurssien OpsKuvauksia ei vedetä."""
+    with patch("arviointi.llmarviointi.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
+         patch("arviointi.llmarviointi.mallit.hae_valitut_kurssit", return_value=KURSSIT) as mock_valitut, \
+         patch("arviointi.llmarviointi.mallit.hae_vastaus_tiivisteet", return_value={}), \
+         patch("arviointi.llmarviointi._lue_jarjestelmakehote", return_value="system"):
+        llmarviointi._selvita_tyo(TUTKIMUS)
+    assert mock_valitut.call_args.kwargs["kuvaukset"] is False

@@ -12,7 +12,7 @@ import random
 import time
 from datetime import datetime
 
-from tietokanta import testimallit
+from tietokanta import mallit, testimallit
 from llm import kutsu, kurssimuoto, asetukset
 from arviointi import llmarviointi
 
@@ -21,9 +21,10 @@ TILASTOPOLKU = "testitulokset/arviointi_testierat.jsonl"
 
 def _mittaa_era(era: list[dict], arviointikehote: str, kysymykset: list[dict],
                 jarjestelma: str) -> tuple[dict, list[dict]]:
-    """Lähettää yhden erän LLM:lle. Palauttaa (mittaustiedot, jäsennetyt tulokset)."""
+    """Lähettää yhden erän LLM:lle. Palauttaa (mittaustiedot, jäsennetyt tulokset).
+    Erä saapuu kevyinä riveinä; kuvaukset haetaan tässä (kuten llmarviointi._arvioi_erä)."""
     kurssit_json = json.dumps(
-        [kurssimuoto.kurssi_json_promptiin(k) for k in era],
+        [kurssimuoto.kurssi_json_promptiin(k) for k in mallit.hae_kurssit_idlla([k["KID"] for k in era])],
         ensure_ascii=False,
         indent=2,
     )

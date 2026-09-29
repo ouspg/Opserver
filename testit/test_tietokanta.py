@@ -442,16 +442,35 @@ class TestLukuvuodet:
         # "2024-2027" kattaa 2024-2025, 2025-2026, 2026-2027; "2026-27" -> 2026-2027; "rikki" ohitetaan
         assert mallit.hae_lukuvuodet() == ["2026-2027", "2025-2026", "2024-2025"]
 
-    def test_hae_kurssit_suodattaa_lukuvuoden_kattavuudella(self, mock_yhteys):
+    def test_hae_kurssit_suodattaa_lukuvuoden_sqlssa(self, mock_yhteys):
+        """Vuosirajaus SQL:ssä (generoidut VuosiAlku/VuosiLoppu, idx_kkid_vuosi),
+        ei koko luetteloa Pythoniin."""
         yht, kursori = mock_yhteys
-        kursori.description = [("KID",), ("Opetusvuosi",)]
-        kursori.fetchall.return_value = [
-            (1, "2024-2027"),   # kattaa 2026-2027
-            (2, "2025-2026"),   # ei kata
-            (3, "2026-2027"),   # kattaa
-        ]
-        tulos = mallit.hae_kurssit(lukuvuosi="2026-2027")
-        assert [r["KID"] for r in tulos] == [1, 3]
+        kursori.description = [("KID",)]
+        kursori.fetchall.return_value = []
+        mallit.hae_kurssit(kkid=2, lukuvuosi="2026-2027")
+        sql, params = kursori.execute.call_args[0]
+        assert "KKID = %s AND VuosiAlku <= %s AND VuosiLoppu >= %s" in sql
+        assert list(params) == [2, 2026, 2027]
+
+    def test_hae_kurssit_virheellinen_lukuvuosi_tyhja(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        assert mallit.hae_kurssit(lukuvuosi="rikki") == []
+        kursori.execute.assert_not_called()
+
+    def test_hae_meta_ehdokkaat_rajaus_ja_luokitus_samassa_kyselyssa(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.description = [("KID",)]
+        kursori.fetchall.return_value = []
+        with patch("tietokanta.mallit._tutkimus_kurssi_scope",
+                   return_value=("k.KKID IN (%s) AND vuosirajaus", [4, 2025, 2026])):
+            assert mallit.hae_meta_ehdokkaat(1) == []
+        sql, params = kursori.execute.call_args[0]
+        assert "LEFT JOIN Kurssiluokitus kl ON kl.KID = k.KID AND kl.TID = %s" in sql
+        assert "k.KKID IN (%s) AND vuosirajaus" in sql and "OpsKuvaus" not in sql
+        assert list(params) == [1, 4, 2025, 2026]
+        with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
+            assert mallit.hae_meta_ehdokkaat(1) is None
 
 
 class TestKurssitLuokituksilla:
@@ -977,3 +996,15 @@ def test_rajaus_lukuvuosi_ja_korkeakoulut_yhdella_kyselylla():
     kursori.fetchall.return_value = []                      # tuntematon tutkimus
     assert mallit._rajaus(kursori, 1) == (None, [])
     assert kursori.execute.call_count == 3
+
+
+def test_hitl_historia_rajataan_sivun_kursseihin(mock_yhteys):
+    yht, kursori = mock_yhteys
+    kursori.description = [("KID",)]
+    kursori.fetchall.return_value = []
+    mallit.hae_hitl_historia(1, [4, 7])
+    sql, params = kursori.execute.call_args[0]
+    assert "TID = %s AND KID IN (%s,%s)" in sql and list(params) == [1, 4, 7]
+    kursori.execute.reset_mock()
+    assert mallit.hae_hitl_historia(1, []) == []
+    kursori.execute.assert_not_called()

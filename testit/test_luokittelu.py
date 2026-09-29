@@ -17,9 +17,14 @@ class TestMetasuodatus:
                 "Tasorajaus": "aine", "Oppiainerajaus": "Tietotekniikka"}
 
     def _aja(self, tutkimus, kurssit, jo_luokitellut, korkeakoulut=(1,), kohde="uudet"):
-        with patch("luokittelu.metasuodatus.mallit.hae_kurssit", return_value=kurssit), \
-             patch("luokittelu.metasuodatus.mallit.hae_luokitukset", return_value=jo_luokitellut), \
-             patch("luokittelu.metasuodatus.mallit.hae_tutkimuksen_korkeakoulut", return_value=list(korkeakoulut)), \
+        """Rajaus (korkeakoulut + lukuvuosi) tehdään SQL:ssä (hae_meta_ehdokkaat);
+        mock palauttaa rajauksen kurssit luokituksineen, kuten LEFT JOIN."""
+        luok = {l["KID"]: l for l in jo_luokitellut}
+        ehdokkaat = [{**k, "Luokiteltu": k["KID"] in luok,
+                      "Mukana": luok.get(k["KID"], {}).get("Mukana"),
+                      "Luokitteluperuste": luok.get(k["KID"], {}).get("Luokitteluperuste")}
+                     for k in kurssit] if korkeakoulut else None
+        with patch("luokittelu.metasuodatus.mallit.hae_meta_ehdokkaat", return_value=ehdokkaat), \
              patch("luokittelu.metasuodatus.mallit.aseta_luokitus") as mock_aseta:
             tulos = metasuodatus.aja(tutkimus, kohde=kohde)
         return tulos, mock_aseta
@@ -86,32 +91,6 @@ class TestMetasuodatus:
         (lapaisseet, yht), mock_aseta = self._aja(self.TUTKIMUS, self.KURSSIT, jo_luokitellut, kohde="hyvaksytyt")
         assert yht == 1  # vain KID=2 (meta-läpäissyt) käsitellään uudelleen
         assert mock_aseta.call_args_list[0].args[1] == 2
-
-    def test_aja_rajaa_valittuihin_korkeakouluihin(self):
-        kurssit = self.KURSSIT + [
-            {"KID": 4, "KKID": 2, "KurssiNimi": "Toinen koulu", "Taso": "aine",
-             "Oppiaine": "Tietotekniikka", "Opetusvuosi": "2025-2026"},
-        ]
-        (lapaisseet, yht), mock_aseta = self._aja(self.TUTKIMUS, kurssit, [], korkeakoulut=(1,))
-        assert yht == 3  # KKID=2 jää kokonaan käsittelyn ulkopuolelle
-        for call in mock_aseta.call_args_list:
-            assert call.args[1] != 4
-
-    def test_aja_ohittaa_lukuvuoden_ulkopuoliset_kokonaan(self):
-        # Lukuvuosi on kova rajaus: väärän vuoden kurssia ei luokitella lainkaan
-        # (ei edes Hylätty), koska vuosi ei voi olla "väärin" kuten taso/oppiaine.
-        kurssit = [
-            {"KID": 1, "KKID": 1, "KurssiNimi": "Vanha", "Taso": "aine",
-             "Oppiaine": "Tietotekniikka", "Opetusvuosi": "2023-2024"},
-            {"KID": 2, "KKID": 1, "KurssiNimi": "Nykyinen", "Taso": "aine",
-             "Oppiaine": "Tietotekniikka", "Opetusvuosi": "2025-2026"},
-        ]
-        (lapaisseet, yht), mock_aseta = self._aja(self.TUTKIMUS, kurssit, [])
-        assert yht == 1  # vain 2025-2026 on ehdokas; 2023-2024 jää kokonaan pois
-        assert lapaisseet == 1
-        mock_aseta.assert_called_once_with(1, 2, None, "meta: odottaa LLM-seulontaa")
-        # KID=1 (väärä vuosi) ei saa luokitusta lainkaan
-        assert all(c.args[1] != 1 for c in mock_aseta.call_args_list)
 
     def test_aja_vaatii_lukuvuoden_ja_korkeakoulut(self):
         with pytest.raises(ValueError):
