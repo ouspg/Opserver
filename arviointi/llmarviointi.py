@@ -2,7 +2,7 @@
 import json
 import time
 from tietokanta import mallit
-from llm import kutsu, tiiviste, kehotteet, kurssimuoto, asetukset
+from llm import kutsu, tiiviste, kehotteet, kurssimuoto, asetukset, erakutsu
 
 _OLETUS_ERAKOKO = 5  # kursseja per LLM-kutsu; .env:n ARVIOINTI_ERAKOKO ohittaa
 
@@ -114,35 +114,35 @@ def pura_vastaus(kysymys: dict, raw) -> tuple:
     return vastaus, pisteet, luokka, lista
 
 
+def pura_tulokset(tulokset: list[dict], kysymykset: list[dict]):
+    """Siivotut erätulokset → (kid, kysymys, vastaus, pisteet, luokka, lista) per pari.
+    Puuttuva vastaus (malli palautti liian lyhyen listan) → tyhjä vastaus."""
+    for tulos in tulokset:
+        vastaukset_lista = tulos.get("vastaukset", [])
+        for i, k in enumerate(kysymykset):
+            raw = vastaukset_lista[i] if i < len(vastaukset_lista) else ""
+            yield (tulos["id"], k, *pura_vastaus(k, raw))
+
+
 def _tallenna_tulokset(tulokset: list[dict], kysymykset: list[dict], malli: str,
                        kys_tiiviste: dict | None = None) -> None:
-    for tulos in tulokset:
-        kid = tulos["id"]
-        for i, k in enumerate(kysymykset):
-            vastaukset_lista = tulos.get("vastaukset", [])
-            raw = vastaukset_lista[i] if i < len(vastaukset_lista) else ""
-            vastaus, pisteet, luokka, lista = pura_vastaus(k, raw)
-            tiiv = (kys_tiiviste or {}).get(k["KysID"])
-            mallit.aseta_vastaus(k["KysID"], kid, vastaus, malli,
-                                 pisteet=pisteet, luokka=luokka, lista=lista, tiiviste=tiiv)
+    for kid, k, vastaus, pisteet, luokka, lista in pura_tulokset(tulokset, kysymykset):
+        mallit.aseta_vastaus(k["KysID"], kid, vastaus, malli, pisteet=pisteet, luokka=luokka,
+                             lista=lista, tiiviste=(kys_tiiviste or {}).get(k["KysID"]))
+
+
+_UUSINTAOHJE = "\n\nPalauta PELKKÄ JSON-objekti muodossa {\"tulokset\": [...]}."
+
+
+def _vakaa_prefix(arviointikehote: str, kysymykset: list[dict]) -> str:
+    return f"{arviointikehote}\n\n{_rakenna_kysymysteksti(kysymykset)}\n\nArvioi seuraavat kurssit:\n"
 
 
 def _arvioi_erä(erä: list[dict], arviointikehote: str, kysymykset: list[dict], jarjestelma: str) -> list[dict]:
-    # Erä saapuu kevyinä riveinä (ei OpsKuvausta) — kuvaukset haetaan vasta tässä.
-    kurssit_json = json.dumps(
-        [kurssimuoto.kurssi_json_promptiin(k) for k in mallit.hae_kurssit_idlla([k["KID"] for k in erä])],
-        ensure_ascii=False,
-        indent=2,
-    )
-    kysymysteksti = _rakenna_kysymysteksti(kysymykset)
-    vakaa_prefix = f"{arviointikehote}\n\n{kysymysteksti}\n\nArvioi seuraavat kurssit:\n"
-    viesti = f"{vakaa_prefix}{kurssit_json}"
-    try:
-        vastaus = kutsu.kysy(viesti, jarjestelma, json_muoto=True, vakaa_prefix=vakaa_prefix)
-        return _erittele_json(vastaus)
-    except (ValueError, json.JSONDecodeError):
-        vastaus2 = kutsu.kysy(viesti + "\n\nPalauta PELKKÄ JSON-objekti muodossa {\"tulokset\": [...]}.", jarjestelma, json_muoto=True, vakaa_prefix=vakaa_prefix)
-        return _erittele_json(vastaus2)
+    vakaa_prefix = _vakaa_prefix(arviointikehote, kysymykset)
+    viesti = erakutsu.rakenna_viesti(erä, vakaa_prefix)
+    return erakutsu.kysy_json(viesti, jarjestelma, vakaa_prefix, _erittele_json, _UUSINTAOHJE,
+                              json_muoto=True)[0]
 
 
 def _tarvitsee_ajon(tila: dict | None, nyky_tiiviste: str) -> bool:

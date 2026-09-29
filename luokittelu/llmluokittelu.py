@@ -2,7 +2,7 @@
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tietokanta import mallit
-from llm import kutsu, tiiviste, kehotteet, kurssimuoto, asetukset
+from llm import kutsu, tiiviste, kehotteet, kurssimuoto, asetukset, erakutsu
 
 _OLETUS_ERAKOKO = 20  # kursseja per LLM-kutsu; .env:n LUOKITTELU_ERAKOKO ohittaa
 _OLETUS_RINNAKKAISUUS = 5  # rinnakkaisia LLM-kutsuja; .env:n LLM_RINNAKKAISUUS ohittaa
@@ -32,28 +32,14 @@ def _erittele_json(teksti: str) -> list[dict]:
     return json.loads(teksti[alku : loppu + 1])
 
 
-def _luokittele_erä(erä: list[dict], luokittelukehote: str, jarjestelma: str) -> list[dict]:
-    """Lähettää yhden erän LLM:lle ja palauttaa jäsennetyn vastauksen.
+_UUSINTAOHJE = "\n\nPalauta PELKKÄ JSON-taulukko."
 
-    Erä saapuu kevyinä riveinä (ei OpsKuvausta) — kehotteeseen tarvittava
-    kuvausteksti haetaan vasta tässä, jottei koko ehdokasjoukon kuvauksia
-    ladata muistiin kerralla (ks. mallit.hae_luokittelemattomat_kevyet).
-    """
-    taydet = mallit.hae_kurssit_idlla([k["KID"] for k in erä])
-    kurssit_json = json.dumps(
-        [kurssimuoto.kurssi_json_promptiin(k) for k in taydet],
-        ensure_ascii=False,
-        indent=2,
-    )
+
+def _luokittele_erä(erä: list[dict], luokittelukehote: str, jarjestelma: str) -> list[dict]:
+    """Lähettää yhden erän LLM:lle ja palauttaa jäsennetyn vastauksen."""
     vakaa_prefix = f"{luokittelukehote}\n\nArvioi seuraavat kurssit:\n"
-    viesti = f"{vakaa_prefix}{kurssit_json}"
-    vastaus = kutsu.kysy(viesti, jarjestelma, vakaa_prefix=vakaa_prefix)
-    try:
-        return _erittele_json(vastaus)
-    except (ValueError, json.JSONDecodeError):
-        # Yksi uusintayritys
-        vastaus2 = kutsu.kysy(viesti + "\n\nPalauta PELKKÄ JSON-taulukko.", jarjestelma, vakaa_prefix=vakaa_prefix)
-        return _erittele_json(vastaus2)
+    viesti = erakutsu.rakenna_viesti(erä, vakaa_prefix)
+    return erakutsu.kysy_json(viesti, jarjestelma, vakaa_prefix, _erittele_json, _UUSINTAOHJE)[0]
 
 
 def laske_tiiviste(tutkimus: dict) -> str:
