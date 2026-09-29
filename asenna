@@ -59,6 +59,10 @@ grep -q '^TUOTANTO_DOMAIN=' .env 2>/dev/null || {
 # LLM_* tarvitaan vain pipelinen seulonta-/arviointivaiheisiin (cliui) — ei WebUI:hin.
 grep -q '^LLM_API_KEY=' .env 2>/dev/null || echo "HUOM: LLM_PROVIDER/LLM_API_KEY/LLM_MODEL puuttuu .env:stä — lisää ennen pipelinen ajoa."
 
+# Versio infomodaaliin (kontissa ei ole .git:iä). safe.directory: paivittaja ajaa rootina
+# toisen käyttäjän omistamassa työkopiossa.
+OPSERVER_VERSIO="$(git -c safe.directory="$PWD" log -1 --format='%h %cs' 2>/dev/null || true)"
+export OPSERVER_VERSIO
 docker compose build webui
 docker compose up -d
 # containerd-kuvavarastossa rebuild antaa uuden kuva-ID:n muuttumattomallekin

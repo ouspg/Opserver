@@ -30,6 +30,8 @@ services:
     build:
       context: .
       dockerfile: webui/Dockerfile
+      args:
+        OPSERVER_VERSIO: ${OPSERVER_VERSIO:-}
     expose:
       - "12121"
     environment:
