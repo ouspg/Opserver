@@ -108,11 +108,11 @@ WebUI:n esittely yleisölle = tuotannon `https://<TUOTANTO_DOMAIN>` (Caddy pää
 
 WebUI:ta käytetään yhteisöllisissä sessioissa usein huonolla, katkeilevalla yhteydellä. Uusi koodi noudattaa samoja rakennuspalikoita:
 
-- **Datan haku:** `haeJson(url)` (`sovellus.js`) — yrittää uudelleen verkkovirheessä/5xx. Isot listat sivutetaan palvelimella (`?sivu&koko` / `?alku&koko`) ja renderöidään osa kerrallaan; näkymä ja otsikko näytetään heti, data täyttyy perässä. Palvelin pakkaa vastaukset (gzip).
+- **Datan haku:** `haeJson(url)` (`yhteiset.js`) — yrittää uudelleen verkkovirheessä/5xx ja katkaisee jumittuneen haun (20 s). Isot listat sivutetaan palvelimella (`?sivu&koko` / `?alku&koko`) ja renderöidään osa kerrallaan; näkymä ja otsikko näytetään heti, data täyttyy perässä. Palvelin pakkaa vastaukset (gzip).
 - **Käyttäjän toimenpide (tallentava nappi):** aina `lahetaNapilla(nappi, url, runko)` (`lahetys.js`) — lähetys-/odotusanimaatio ja automaattinen uudelleenlähetys. Siksi **jokaisen kirjoittavan API-käsittelijän on oltava idempotentti** (upsert, "jo olemassa = onnistui", ei tuplarivejä historiatauluihin). Ei tallennuksia WebSocketin kautta ilman kuittausta.
 - **Korjausmodaali (HITL):** jaettu lomake `avaaLomakesessio(avain, modaali, …)` (`lomakesessio.js`): kentät `data-jaettu="…"`, modaalin avaava nappi `data-lomake="<avain>"`. Muut näkevät avoimen lomakkeen napin kohdalla ja voivat liittyä siihen.
 - **Läsnäolo:** kaikki "missä käyttäjä on" -tieto kulkee `yhteistyo.js`:n `lahetaTila()`-objektissa (sivu, nakyma, tila, lomake) → muiden pallurat oikeaan kohtaan. Uusi sijaintitaso = uusi kenttä siihen.
-- **Klassiset skriptit jakavat globaalin näkyvyysalueen:** kääri modaalitiedostot lohkoon ja vie ulos vain `window.*` (testi estää päällekkäiset globaalit funktiot).
+- **Klassiset skriptit jakavat globaalin näkyvyysalueen:** kääri modaalitiedostot lohkoon ja vie ulos vain `window.*`. Näkymätiedostot (`kurssit.js`, `luokitukset.js`, …) jakavat globaalit tarkoituksella; latauksen aikana kutsuttavan tai luettavan määrittelyn tiedoston on oltava `index.html`:ssä aiemmin (`yhteiset.js` ensin, `sovellus.js` käynnistää näkymien jälkeen). Testi estää päällekkäiset globaalit funktiot ja `let`/`const`-nimet ja vaatii jokaisen `.js`:n `index.html`:ään `?v=N`:llä.
 - **Todenna selaimella ennen PR:ää:** headless-Chromium tuotantokokoista paikallista kantaa vasten, useampi käyttäjä = eri browser context; verkkokatkos/hitaus CDP:n verkkoemulaatiolla.
 
 ## Vaiheiden valmistumiskriteerit
