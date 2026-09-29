@@ -2,6 +2,7 @@
 import textwrap
 from tietokanta import mallit
 from cliui.apurit import piirra_otsikko, nayta_viesti, lue_teksti, valitse_listasta
+from cliui.valikot import vahvista_kylla
 
 _KATKAISU = 50
 _TYYPIT = ["vapaa_teksti", "luokittelu", "asteikko", "lista"]
@@ -113,8 +114,7 @@ def _varoita_ja_vahvista(stdscr, kysid: int, toiminto: str) -> bool:
     piirra_otsikko(stdscr, "VAROITUS")
     stdscr.addstr(3, 0, f"Tällä kysymyksellä on {lkm} olemassa olevaa arviota.")
     stdscr.addstr(4, 0, f"{toiminto} poistaa ne kaikki.")
-    vahvistus = lue_teksti(stdscr, "Jatketaanko? (kyllä/ei)", 6)
-    return vahvistus.strip().lower() in ("kyllä", "k", "kylla")
+    return vahvista_kylla(stdscr, "Jatketaanko?", 6)
 
 
 def _muokkaa_teksti(stdscr, kysymys: dict) -> None:
@@ -266,8 +266,7 @@ def _muokkaa_asteikko(stdscr, nykyinen: dict | None) -> dict | None:
 def _poista(stdscr, kysymys: dict) -> None:
     piirra_otsikko(stdscr, "Poista kysymys")
     stdscr.addstr(3, 0, _lyhenna(kysymys["Kysymys"]))
-    vahvistus = lue_teksti(stdscr, "Poistetaanko? (kyllä/ei)", 5)
-    if vahvistus.lower() in ("kyllä", "k", "kylla"):
+    if vahvista_kylla(stdscr, "Poistetaanko?", 5):
         mallit.poista_kysymys(kysymys["KysID"])
         nayta_viesti(stdscr, "Poistettu.")
     else:

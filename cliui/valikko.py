@@ -2,7 +2,7 @@
 import curses
 import locale
 
-from cliui.apurit import valitse_listasta, piirra_otsikko, nayta_viesti, alusta_varit
+from cliui.apurit import valitse_listasta, alusta_varit
 from cliui import korkeakoulunaytto, hakunaytto, tutkimusnaytto, luokittelunaytto, arviointinaytto, raporttinaytto, asetuksetnaytto
 
 VALIKKO = [

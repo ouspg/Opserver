@@ -3,19 +3,6 @@ from unittest.mock import MagicMock, patch, call
 from tietokanta import mallit
 
 
-@pytest.fixture
-def mock_yhteys():
-    with patch("tietokanta.mallit.yhteys") as mock:
-        yht = MagicMock()
-        kursori = MagicMock()
-        yht.__enter__ = MagicMock(return_value=yht)
-        yht.__exit__ = MagicMock(return_value=False)
-        yht.cursor.return_value.__enter__ = MagicMock(return_value=kursori)
-        yht.cursor.return_value.__exit__ = MagicMock(return_value=False)
-        mock.return_value = yht
-        yield yht, kursori
-
-
 class TestKorkeakoulu:
     def test_lisaa_korkeakoulu_palauttaa_id(self, mock_yhteys):
         yht, kursori = mock_yhteys
@@ -188,11 +175,10 @@ class TestHaeArvioimattomat:
 
     def test_soveltaa_tutkimuksen_rajausta(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
+        kursori.fetchone.return_value = (0,)
         with patch("tietokanta.mallit._tutkimus_kurssi_scope",
                    return_value=("k.KKID IN (%s) AND vuosirajaus", [4, 2024, 2025])):
-            mallit.hae_arvioimattomat(1)
+            mallit.laske_arvioimattomat(1)
         sql, params = kursori.execute.call_args[0]
         assert "k.KKID IN" in sql and "vuosirajaus" in sql
         # GROUP BY -aggregaatti, ei per-rivi korreloitua alikyselyä
@@ -202,15 +188,12 @@ class TestHaeArvioimattomat:
 
     def test_ilman_rajausta_ei_lisaa_scope_ehtoa(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
+        kursori.fetchone.return_value = (0,)
         with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
-            mallit.hae_arvioimattomat(1)
+            mallit.laske_arvioimattomat(1)
         sql, params = kursori.execute.call_args[0]
         assert "k.KKID IN" not in sql
         assert list(params) == [1, 1]
-        # LLM-arviointi tarvitsee kuvauksen (omasta taulustaan)
-        assert "LEFT JOIN KurssiKuvaus" in sql and "OpsKuvaus" in sql
 
     def test_laske_arvioimattomat_laskee_ei_hae_riveja(self, mock_yhteys):
         """Tilannesivu tarvitsee vain lukumäärän → COUNT(*), ei SELECT k.* (ei vedä
@@ -260,12 +243,10 @@ class TestHaeTutkimuksenTilanne:
 
     def test_kokoaa_suppilon_aggregaateista(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        # järjestys: COUNT(*) Kurssi, Lukuvuosi, (KKID via fetchall), kurssi-agg, luokitus-agg
-        kursori.fetchone.side_effect = [
-            (100,), ("2025-2026",), (80, 65), (10, 5, 30, 15, 60),
-        ]
-        kursori.fetchall.return_value = [(1,), (2,)]
-        t = mallit.hae_tutkimuksen_tilanne(1)
+        # järjestys: COUNT(*) Kurssi, (rajaus), kurssi-agg, luokitus-agg
+        kursori.fetchone.side_effect = [(100,), (80, 65), (10, 5, 30, 15, 60)]
+        with patch.object(mallit, "_rajaus", return_value=("2025-2026", [1, 2])):
+            t = mallit.hae_tutkimuksen_tilanne(1)
         assert t == {
             "kursseja_yht": 100,
             "vuosi_lapi": 80, "vuosi_hyl": 20,
@@ -276,8 +257,8 @@ class TestHaeTutkimuksenTilanne:
 
     def test_ilman_lukuvuotta_kaikki_vuosihylattyja(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.fetchone.side_effect = [(100,), (None,)]   # kursseja_yht, lukuvuosi=NULL
-        kursori.fetchall.return_value = []
+        kursori.fetchone.side_effect = [(100,)]   # kursseja_yht
+        kursori.fetchall.return_value = [(None, None)]   # lukuvuosi=NULL, ei korkeakouluja
         t = mallit.hae_tutkimuksen_tilanne(1)
         assert t["kursseja_yht"] == 100 and t["vuosi_hyl"] == 100
         assert t["vuosi_lapi"] == 0 and t["hyvaksytty"] == 0
@@ -290,8 +271,7 @@ class TestHaeLuokittelemattomat:
 
     def test_soveltaa_tutkimuksen_rajausta(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
+        kursori.fetchone.return_value = (0,)
         with patch("tietokanta.mallit._tutkimus_kurssi_scope",
                    return_value=("k.KKID IN (%s,%s) AND vuosirajaus", [2, 3, 2024, 2025])):
             mallit.hae_luokittelemattomat_kevyet(1)
@@ -302,8 +282,7 @@ class TestHaeLuokittelemattomat:
 
     def test_tiivisteella_soveltaa_rajausta_ja_threadaa_parametrit(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
+        kursori.fetchone.return_value = (0,)
         with patch("tietokanta.mallit._tutkimus_kurssi_scope",
                    return_value=("k.KKID IN (%s)", [5])):
             mallit.hae_luokittelemattomat_kevyet(1, "tiiv-abc")
@@ -315,8 +294,7 @@ class TestHaeLuokittelemattomat:
     def test_ilman_rajausta_ei_lisaa_scope_ehtoa(self, mock_yhteys):
         # Jos tutkimukselta puuttuu lukuvuosi/korkeakoulu → ei rajausta (entinen käytös)
         yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
+        kursori.fetchone.return_value = (0,)
         with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
             mallit.hae_luokittelemattomat_kevyet(1)
         sql, params = kursori.execute.call_args[0]
@@ -328,8 +306,7 @@ class TestHaeLuokittelemattomat:
         megatavuja (mitattu 7 696 riviä / 51 MB), ja sen nouto kerralla jumitti
         LLM-näytön. Kuvaukset haetaan erä kerrallaan (hae_kurssit_idlla)."""
         yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
+        kursori.fetchone.return_value = (0,)
         with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
             mallit.hae_luokittelemattomat_kevyet(1)
         sql = kursori.execute.call_args[0][0]
@@ -452,16 +429,35 @@ class TestLukuvuodet:
         # "2024-2027" kattaa 2024-2025, 2025-2026, 2026-2027; "2026-27" -> 2026-2027; "rikki" ohitetaan
         assert mallit.hae_lukuvuodet() == ["2026-2027", "2025-2026", "2024-2025"]
 
-    def test_hae_kurssit_suodattaa_lukuvuoden_kattavuudella(self, mock_yhteys):
+    def test_hae_kurssit_suodattaa_lukuvuoden_sqlssa(self, mock_yhteys):
+        """Vuosirajaus SQL:ssä (generoidut VuosiAlku/VuosiLoppu, idx_kkid_vuosi),
+        ei koko luetteloa Pythoniin."""
         yht, kursori = mock_yhteys
-        kursori.description = [("KID",), ("Opetusvuosi",)]
-        kursori.fetchall.return_value = [
-            (1, "2024-2027"),   # kattaa 2026-2027
-            (2, "2025-2026"),   # ei kata
-            (3, "2026-2027"),   # kattaa
-        ]
-        tulos = mallit.hae_kurssit(lukuvuosi="2026-2027")
-        assert [r["KID"] for r in tulos] == [1, 3]
+        kursori.description = [("KID",)]
+        kursori.fetchall.return_value = []
+        mallit.hae_kurssit(kkid=2, lukuvuosi="2026-2027")
+        sql, params = kursori.execute.call_args[0]
+        assert "KKID = %s AND VuosiAlku <= %s AND VuosiLoppu >= %s" in sql
+        assert list(params) == [2, 2026, 2027]
+
+    def test_hae_kurssit_virheellinen_lukuvuosi_tyhja(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        assert mallit.hae_kurssit(lukuvuosi="rikki") == []
+        kursori.execute.assert_not_called()
+
+    def test_hae_meta_ehdokkaat_rajaus_ja_luokitus_samassa_kyselyssa(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.description = [("KID",)]
+        kursori.fetchall.return_value = []
+        with patch("tietokanta.mallit._tutkimus_kurssi_scope",
+                   return_value=("k.KKID IN (%s) AND vuosirajaus", [4, 2025, 2026])):
+            assert mallit.hae_meta_ehdokkaat(1) == []
+        sql, params = kursori.execute.call_args[0]
+        assert "LEFT JOIN Kurssiluokitus kl ON kl.KID = k.KID AND kl.TID = %s" in sql
+        assert "k.KKID IN (%s) AND vuosirajaus" in sql and "OpsKuvaus" not in sql
+        assert list(params) == [1, 4, 2025, 2026]
+        with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
+            assert mallit.hae_meta_ehdokkaat(1) is None
 
 
 class TestKurssitLuokituksilla:
@@ -469,8 +465,7 @@ class TestKurssitLuokituksilla:
         yht, kursori = mock_yhteys
         kursori.description = [("KID",)]
         kursori.fetchall.return_value = [(1,)]
-        with patch.object(mallit, "hae_tutkimus", return_value={"TID": 1, "Lukuvuosi": "2026-2027"}), \
-             patch.object(mallit, "hae_tutkimuksen_korkeakoulut", return_value=[1, 3]):
+        with patch.object(mallit, "_rajaus", return_value=("2026-2027", [1, 3])):
             mallit.hae_kurssit_luokituksilla(1)
         sql, params = kursori.execute.call_args[0]
         assert "KKID IN (%s,%s)" in sql          # korkeakoulurajaus
@@ -481,8 +476,7 @@ class TestKurssitLuokituksilla:
         yht, kursori = mock_yhteys
         kursori.description = [("KID",)]
         kursori.fetchall.return_value = []
-        with patch.object(mallit, "hae_tutkimus", return_value={"TID": 1, "Lukuvuosi": "2026-2027"}), \
-             patch.object(mallit, "hae_tutkimuksen_korkeakoulut", return_value=[1]):
+        with patch.object(mallit, "_rajaus", return_value=("2026-2027", [1])):
             mallit.hae_kurssit_luokituksilla(1, tila="hylätty", sivu=2, koko=100)
         sql, params = kursori.execute.call_args[0]
         assert "kl.Mukana = 0" in sql and "LIMIT %s OFFSET %s" in sql
@@ -490,8 +484,7 @@ class TestKurssitLuokituksilla:
 
     def test_ei_korkeakouluja_palauttaa_tyhjan(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        with patch.object(mallit, "hae_tutkimus", return_value={"TID": 1, "Lukuvuosi": "2026-2027"}), \
-             patch.object(mallit, "hae_tutkimuksen_korkeakoulut", return_value=[]):
+        with patch.object(mallit, "_rajaus", return_value=("2026-2027", [])):
             assert mallit.hae_kurssit_luokituksilla(1) == []
 
 
@@ -517,15 +510,13 @@ class TestTilamaarat:
     def test_ryhmittelee_tiloittain(self, mock_yhteys):
         yht, kursori = mock_yhteys
         kursori.fetchall.return_value = [(1, 74), (None, 2526), (0, 31112)]
-        with patch.object(mallit, "hae_tutkimus", return_value={"TID": 1, "Lukuvuosi": "2025-2026"}), \
-             patch.object(mallit, "hae_tutkimuksen_korkeakoulut", return_value=[1]):
+        with patch.object(mallit, "_rajaus", return_value=("2025-2026", [1])):
             m = mallit.hae_tutkimuksen_tilamaarat(1)
         assert m == {"mukana": 74, "odottaa": 2526, "hylätty": 31112}
 
     def test_tyhja_kun_ei_rajausta(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        with patch.object(mallit, "hae_tutkimus", return_value={"TID": 1, "Lukuvuosi": None}), \
-             patch.object(mallit, "hae_tutkimuksen_korkeakoulut", return_value=[1]):
+        with patch.object(mallit, "_rajaus", return_value=(None, [1])):
             assert mallit.hae_tutkimuksen_tilamaarat(1) == {"mukana": 0, "odottaa": 0, "hylätty": 0}
 
 
@@ -536,11 +527,9 @@ class TestTutkimuksenTilanne:
         SQL:n TUOTTAMAT luvut on syötetty kursorille; testaa Python-kokoonpanon.
         (SQL:n semantiikka varmennettu erikseen MySQL:ää vasten.)"""
         yht, kursori = mock_yhteys
-        # järjestys: COUNT(*) Kurssi, Lukuvuosi, (KKID fetchall), kurssi-agg, luokitus-agg
-        kursori.fetchone.side_effect = [
-            (7,), ("2025-2026",), (6, 5), (1, 1, 1, 1, 4),
-        ]
-        kursori.fetchall.return_value = [(1,)]
+        # järjestys: COUNT(*) Kurssi, rajaus (fetchall), kurssi-agg, luokitus-agg
+        kursori.fetchone.side_effect = [(7,), (6, 5), (1, 1, 1, 1, 4)]
+        kursori.fetchall.return_value = [("2025-2026", 1)]
         t = mallit.hae_tutkimuksen_tilanne(1)
         assert t["kursseja_yht"] == 7
         assert (t["vuosi_lapi"], t["vuosi_hyl"]) == (6, 1)
@@ -893,23 +882,6 @@ class TestRaporttiTila:
         assert list(params) == [1, "2026-07-15 10:00:00"]
 
 
-class TestKurssiarviointi:
-    def test_aseta_arviointi_tekee_insert(self, mock_yhteys):
-        yht, kursori = mock_yhteys
-        mallit.aseta_arviointi(tid=1, kid=7, arviointi="Hyvä", perustelu="Kattava")
-        kursori.execute.assert_called_once()
-        sql = kursori.execute.call_args[0][0]
-        assert "INSERT" in sql.upper()
-
-    def test_hae_arvioinnit_suodattaa_tid_perusteella(self, mock_yhteys):
-        yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
-        mallit.hae_arvioinnit(tid=1)
-        sql, params = kursori.execute.call_args[0]
-        assert "TID" in sql
-
-
 class TestHitlVastaukset:
     """Ihmisen korjaus menee samaan Vastaukset-tauluun kuin LLM:n vastaus
     (migraatio_022). Malli IS NULL erottaa rivit toisistaan."""
@@ -959,10 +931,9 @@ class TestHitlRivitEivatSotkeLaskentaa:
 
     def test_arvioimattomat_laskee_erilliset_kysymykset(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.fetchall.return_value = []
-        kursori.description = []
+        kursori.fetchone.return_value = (0,)
         with patch("tietokanta.mallit._tutkimus_kurssi_scope", return_value=(None, None)):
-            mallit.hae_arvioimattomat(1)
+            mallit.laske_arvioimattomat(1)
         sql, _ = kursori.execute.call_args[0]
         assert "COUNT(DISTINCT v.KysID) < COUNT(DISTINCT ky.KysID)" in sql
 
@@ -978,8 +949,7 @@ class TestHitlRivitEivatSotkeLaskentaa:
         from tietokanta import testimallit
         yht, kursori = mock_yhteys
         kursori.fetchone.return_value = (3,)
-        with patch("tietokanta.testimallit.yhteys", mallit.yhteys):
-            testimallit.siirra_testiajo_arviointi("ajo1")
+        testimallit.siirra_testiajo_arviointi("ajo1")
         sql, _ = kursori.execute.call_args[0]
         assert "INSERT INTO Vastaukset\n                       (TID, KysID" in sql or "(TID, KysID" in sql
         assert "SELECT TID, KysID" in sql
@@ -989,11 +959,10 @@ class TestHitlRivitEivatSotkeLaskentaa:
         from tietokanta import testimallit
         yht, kursori = mock_yhteys
         kursori.fetchone.return_value = (3,)
-        with patch("tietokanta.testimallit.yhteys", mallit.yhteys):
-            testimallit.siirra_testiajo_arviointi("ajo1")
-            assert "HyvaksyjaNimi = NULL" in kursori.execute.call_args[0][0]
-            testimallit.siirra_testiajo_luokittelu("ajo1")
-            assert "KayttajaNimi = NULL" in kursori.execute.call_args[0][0]
+        testimallit.siirra_testiajo_arviointi("ajo1")
+        assert "HyvaksyjaNimi = NULL" in kursori.execute.call_args[0][0]
+        testimallit.siirra_testiajo_luokittelu("ajo1")
+        assert "KayttajaNimi = NULL" in kursori.execute.call_args[0][0]
 
 
 def test_kattavat_kaudet_ohittaa_virheellisen_kauden():
@@ -1001,3 +970,26 @@ def test_kattavat_kaudet_ohittaa_virheellisen_kauden():
     kursori = MagicMock()
     kursori.fetchall.return_value = [("2025-2026",), ("rikki",), (None,)]
     assert mallit._kattavat_kaudet(kursori, "2025-2026") == ["2025-2026"]
+
+
+def test_rajaus_lukuvuosi_ja_korkeakoulut_yhdella_kyselylla():
+    kursori = MagicMock()
+    kursori.fetchall.return_value = [("2025-2026", 1), ("2025-2026", 3)]
+    assert mallit._rajaus(kursori, 1) == ("2025-2026", [1, 3])
+    kursori.fetchall.return_value = [("2025-2026", None)]   # ei valittuja korkeakouluja
+    assert mallit._rajaus(kursori, 1) == ("2025-2026", [])
+    kursori.fetchall.return_value = []                      # tuntematon tutkimus
+    assert mallit._rajaus(kursori, 1) == (None, [])
+    assert kursori.execute.call_count == 3
+
+
+def test_hitl_historia_rajataan_sivun_kursseihin(mock_yhteys):
+    yht, kursori = mock_yhteys
+    kursori.description = [("KID",)]
+    kursori.fetchall.return_value = []
+    mallit.hae_hitl_historia(1, [4, 7])
+    sql, params = kursori.execute.call_args[0]
+    assert "TID = %s AND KID IN (%s,%s)" in sql and list(params) == [1, 4, 7]
+    kursori.execute.reset_mock()
+    assert mallit.hae_hitl_historia(1, []) == []
+    kursori.execute.assert_not_called()

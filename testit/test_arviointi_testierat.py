@@ -5,6 +5,15 @@ import pytest
 from arviointi import testierat
 
 
+
+@pytest.fixture(autouse=True)
+def _kuvaukset_eralle():
+    """Arviointi hakee kurssikuvaukset erä kerrallaan (hae_kurssit_idlla)."""
+    with patch("tietokanta.mallit.hae_kurssit_idlla",
+               side_effect=lambda kidit: [{"KID": k, "KurssiNimi": f"Kurssi {k}", "OpsKuvaus": None}
+                                          for k in kidit]) as m:
+        yield m
+
 _TUTKIMUS = {"TID": 1, "Slug": "kyber", "LuokittelunNimi": "Kyber"}
 
 _KYSYMYKSET = [{"KysID": 10, "Kysymys": "Onko relevantti?", "Luokittelu": "vapaa_teksti"}]

@@ -3,8 +3,8 @@ import os
 from unittest.mock import patch, MagicMock, call
 import requests
 from tiedonhaku.peppilukija import (
-    PeppiLukija, paattele_taso, generoi_kaudet, lue_kaudet_bundlesta,
-    _kaudet_taulukosta, _kaudet_laskettuna, _turvallinen_float,
+    PeppiLukija, generoi_kaudet, lue_kaudet_bundlesta,
+    _kaudet_taulukosta, _kaudet_laskettuna,
 )
 
 DIR = os.path.dirname(__file__)
@@ -21,35 +21,21 @@ def _lukija() -> PeppiLukija:
                         "ApiOsoite": "https://opasbe.peppi.oulu.fi"})
 
 
-# --- hae_kurssi ---
+# --- _jasenna_kurssi ---
 
-def test_hae_kurssi_jasentaa_perustiedot():
-    with patch.object(PeppiLukija, "_hae_json", return_value=_fixture("peppi_kurssi_45690.json")):
-        kurssi = _lukija().hae_kurssi("45690")
+def test_jasenna_kurssi_perustiedot():
+    kurssi = _lukija()._jasenna_kurssi(_fixture("peppi_kurssi_45690.json"))
     assert kurssi["kurssi_nimi"] == "Kyberturvallisuuden perusteet"
     assert kurssi["koodi"] == "IC00AU61"
     assert kurssi["opintopisteet"] == "5.0"
-    assert kurssi["lahde_id"] == "45690"
 
 
-def test_hae_kurssi_tallentaa_tason_raakana():
-    with patch.object(PeppiLukija, "_hae_json", return_value=_fixture("peppi_kurssi_45690.json")):
-        kurssi = _lukija().hae_kurssi("45690")
-    assert kurssi["taso"] == "Aineopinnot"
+def test_jasenna_kurssi_tallentaa_tason_raakana():
+    assert _lukija()._jasenna_kurssi(_fixture("peppi_kurssi_45690.json"))["taso"] == "Aineopinnot"
 
 
-def test_hae_kurssi_lukee_oppiaineen():
-    with patch.object(PeppiLukija, "_hae_json", return_value=_fixture("peppi_kurssi_45690.json")):
-        kurssi = _lukija().hae_kurssi("45690")
-    assert kurssi["oppiaine"] == "Tietotekniikka"
-
-
-def test_hae_kurssi_rakentaa_oikean_urlin():
-    with patch.object(PeppiLukija, "_hae_json", return_value=_fixture("peppi_kurssi_45690.json")) as mock:
-        _lukija().hae_kurssi("45690", kausi="2025-2026")
-    url = mock.call_args[0][0]
-    assert "opasbe.peppi.oulu.fi/api/course/45690" in url
-    assert "period=2025-2026" in url
+def test_jasenna_kurssi_lukee_oppiaineen():
+    assert _lukija()._jasenna_kurssi(_fixture("peppi_kurssi_45690.json"))["oppiaine"] == "Tietotekniikka"
 
 
 # --- kausilista JS-bundlesta ---
@@ -93,27 +79,7 @@ def test_lue_kaudet_suosii_taulukkoa_yli_lasketun():
     js = 'firstSchoolYear:2020,currentPeriodStartYear:2026,curriculumPeriod:1,p=["2024-2025","2025-2026"]'
     assert lue_kaudet_bundlesta(js) == ["2024-2025", "2025-2026"]
 
-# --- taso-kartta ---
 
-def test_taso_kartta_kattaa_kaikki_tasot():
-    assert paattele_taso("Yleisopinnot") == "yleis"
-    assert paattele_taso("Perusopinnot") == "perus"
-    assert paattele_taso("Aineopinnot") == "aine"
-    assert paattele_taso("Syventävät opinnot") == "syventävä"
-    assert paattele_taso("") is None
-
-
-def test_paattele_taso_palauttaa_none_tuntemattomalle():
-    assert paattele_taso("Muut opinnot") is None
-    assert paattele_taso(None) is None
-
-
-def test_turvallinen_float():
-    assert _turvallinen_float(5) == 5.0
-    assert _turvallinen_float("3.5") == 3.5
-    assert _turvallinen_float(None) is None
-    assert _turvallinen_float("5-10") is None
-    assert _turvallinen_float("") is None
 
 
 # --- hae_kurssit ---

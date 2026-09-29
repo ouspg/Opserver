@@ -1,4 +1,5 @@
 """Opserver web-käyttöliittymän FastAPI-palvelin."""
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -8,8 +9,8 @@ import secrets
 import threading
 import uuid
 from datetime import datetime
-from typing import Optional
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from typing import Annotated, Optional
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -116,6 +117,29 @@ sovellus.add_middleware(PerusAutentikointi)
 # Pakkaus: JSON/JS pienenee ~5–10× — ratkaisevaa huonolla yhteydellä (tuotanto ei pakkaa muualla).
 sovellus.add_middleware(GZipMiddleware, minimum_size=1000)
 
+
+def _tutkimus_slugista(slug: str) -> dict:
+    """Polun {slug} → tutkimusrivi, tai 404."""
+    tutkimus = mallit.hae_tutkimus_slugilla(slug)
+    if tutkimus is None:
+        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+    return tutkimus
+
+
+TutkimusSlugista = Annotated[dict, Depends(_tutkimus_slugista)]
+
+
+def _vaadi_nimi(nimi: str) -> str:
+    """Korjauksen/hyväksynnän tekijä on pakollinen (400, ei pydanticin 422)."""
+    if not nimi.strip():
+        raise HTTPException(status_code=400, detail="Nimi puuttuu")
+    return nimi.strip()
+
+
+def _tarkista_juurisyy(juurisyy: str | None) -> None:
+    if juurisyy is not None and juurisyy not in mallit.JUURISYYT:
+        raise HTTPException(status_code=400, detail="Tuntematon juurisyy")
+
 # --- Reaaliaikainen läsnäolo ja muokkaussessiot (WebSocket) ---
 
 _yhteydet: dict[str, tuple[WebSocket, dict]] = {}
@@ -168,25 +192,36 @@ def _kelpo_lomakearvot(arvot) -> bool:
         isinstance(k, str) and len(k) <= 50 and _kelpo_lomakearvo(v) for k, v in arvot.items())
 
 
+async def _laheta(viesti: str, uidit=None) -> None:
+    """Viesti annetuille (oletus: kaikille) yhteyksille. Katkennut yhteys poistetaan;
+    sen oma ws-käsittelijä siivoaa lomake- ja raporttisessiot."""
+    for uid in list(_yhteydet if uidit is None else uidit):
+        yht = _yhteydet.get(uid)
+        if yht is None:
+            continue
+        try:
+            await yht[0].send_text(viesti)
+        except Exception:
+            _yhteydet.pop(uid, None)
+
+
+def _kayttajatiedot(uid: str) -> dict:
+    tiedot = _yhteydet.get(uid, (None, {}))[1]
+    return {"nimimerkki": tiedot.get("nimimerkki", "?"), "profiili": tiedot.get("profiili", {})}
+
+
 async def _laheta_lomake(avain: str, lahettaja: str | None = None, tyyppi: str = "lomake-sessio") -> None:
     """Lomakkeen koko tila jäsenille. lahettaja = kenen muutos tämän laukaisi
     (selain ei sovella omia muutoksiaan takaisin, ettei kirjoitus nyi)."""
     lomake = _lomakkeet.get(avain)
     if not lomake:
         return
-    muokkaajat = []
-    for uid, tila in lomake["jasenet"].items():
-        tiedot = _yhteydet.get(uid, (None, {}))[1]
-        muokkaajat.append({"id": uid, "nimimerkki": tiedot.get("nimimerkki", "?"),
-                           "profiili": tiedot.get("profiili", {}), **tila})
+    muokkaajat = [{"id": uid, **_kayttajatiedot(uid), **tila}
+                  for uid, tila in lomake["jasenet"].items()]
     viesti = json.dumps({"tyyppi": tyyppi, "avain": avain, "lahettaja": lahettaja,
                          "arvot": lomake["arvot"], "muokkaajat": muokkaajat})
-    for uid in list(lomake["jasenet"]):
-        if uid in _yhteydet and (tyyppi == "lomake-sessio" or uid != lahettaja):
-            try:
-                await _yhteydet[uid][0].send_text(viesti)
-            except Exception:
-                pass
+    await _laheta(viesti, [uid for uid in lomake["jasenet"]
+                           if tyyppi == "lomake-sessio" or uid != lahettaja])
 
 
 async def _poistu_lomakkeesta(avain: str, uid: str) -> None:
@@ -209,25 +244,22 @@ async def _laheta_raportti_sessio(avain: tuple) -> None:
         "teksti": _raportti_teksti.get(avain, ""),
         "muokkaajat": muokkaajat,
     })
-    for uid in list(_raportti_sessiot[avain].keys()):
-        if uid in _yhteydet:
-            try:
-                await _yhteydet[uid][0].send_text(viesti)
-            except Exception:
-                pass
+    await _laheta(viesti, _raportti_sessiot[avain])
+
+
+async def _poistu_raportista(avain: tuple, uid: str) -> None:
+    sessio = _raportti_sessiot.get(avain)
+    if sessio and sessio.pop(uid, None) is not None:
+        if sessio:
+            await _laheta_raportti_sessio(avain)
+        else:
+            del _raportti_sessiot[avain]
+            _raportti_teksti.pop(avain, None)
 
 
 async def _laheta_kaikille() -> None:
     kayttajat = [{"id": uid, **data} for uid, (_, data) in _yhteydet.items() if data]
-    viesti = json.dumps({"tyyppi": "kayttajat", "data": kayttajat})
-    katkaistut = []
-    for uid, (ws, _) in list(_yhteydet.items()):
-        try:
-            await ws.send_text(viesti)
-        except Exception:
-            katkaistut.append(uid)
-    for uid in katkaistut:
-        _yhteydet.pop(uid, None)
+    await _laheta(json.dumps({"tyyppi": "kayttajat", "data": kayttajat}))
 
 
 @sovellus.post("/api/nakymat")
@@ -235,12 +267,7 @@ async def api_nakyma_luo(data: dict) -> dict:
     """Uusi jaettu suodatinnäkymä (HTTP, jotta WebUI voi lähettää uudelleen ja näyttää tilan)."""
     if not _lisaa_nakyma(data):
         raise HTTPException(status_code=400, detail="Virheellinen näkymä")
-    viesti = json.dumps({"tyyppi": "nakymat", "data": _nakymat})
-    for ws2, _ in list(_yhteydet.values()):
-        try:
-            await ws2.send_text(viesti)
-        except Exception:
-            pass
+    await _laheta(json.dumps({"tyyppi": "nakymat", "data": _nakymat}))
     return {"ok": True}
 
 
@@ -249,11 +276,8 @@ class RaporttiOsioPyynto(BaseModel):
 
 
 @sovellus.post("/api/tutkimukset/{slug}/raportti/{avain}")
-def api_raportti_osio_tallenna(slug: str, avain: str, pyynto: RaporttiOsioPyynto) -> dict:
+def api_raportti_osio_tallenna(tutkimus: TutkimusSlugista, avain: str, pyynto: RaporttiOsioPyynto) -> dict:
     """Raporttiosion tallennus (idempotentti: sama teksti uudelleen = sama tila)."""
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     mallit.aseta_raportti_osio(tutkimus["TID"], avain, pyynto.teksti)
     if (tutkimus["TID"], avain) in _raportti_teksti:
         _raportti_teksti[(tutkimus["TID"], avain)] = pyynto.teksti
@@ -273,15 +297,7 @@ async def ws_kayttajat(ws: WebSocket) -> None:
             tyyppi = data.get("tyyppi")
             if tyyppi == "uutinen":
                 aika = datetime.now().strftime("%H:%M")
-                viesti = json.dumps({"tyyppi": "uutinen", "teksti": data.get("teksti", ""), "aika": aika})
-                katkaistut = []
-                for u, (ws2, _) in list(_yhteydet.items()):
-                    try:
-                        await ws2.send_text(viesti)
-                    except Exception:
-                        katkaistut.append(u)
-                for u in katkaistut:
-                    _yhteydet.pop(u, None)
+                await _laheta(json.dumps({"tyyppi": "uutinen", "teksti": data.get("teksti", ""), "aika": aika}))
             elif tyyppi and tyyppi.startswith("lomake-"):
                 avain = data.get("avain")
                 if not (isinstance(avain, str) and 0 < len(avain) <= 100):
@@ -315,13 +331,10 @@ async def ws_kayttajat(ws: WebSocket) -> None:
                 avain = (data.get("tid"), data.get("avain"))
                 if avain not in _raportti_sessiot:
                     _raportti_sessiot[avain] = {}
-                    _raportti_teksti[avain] = mallit.hae_raportti_osio(*avain)
-                kayttaja = _yhteydet.get(uid, (None, {}))[1]
-                _raportti_sessiot[avain][uid] = {
-                    "nimimerkki": kayttaja.get("nimimerkki", "?"),
-                    "profiili": kayttaja.get("profiili", {}),
-                    "kursori": 0,
-                }
+                    # Säikeessä: synkroninen etäkantakutsu pysäyttäisi event loopin
+                    # eli kaikki WebSocket-yhteydet ja async-reitit kyselyn ajaksi.
+                    _raportti_teksti[avain] = await asyncio.to_thread(mallit.hae_raportti_osio, *avain)
+                _raportti_sessiot[avain][uid] = {**_kayttajatiedot(uid), "kursori": 0}
                 await _laheta_raportti_sessio(avain)
             elif tyyppi == "raportti-teksti":
                 avain = (data.get("tid"), data.get("avain"))
@@ -331,14 +344,7 @@ async def ws_kayttajat(ws: WebSocket) -> None:
                         _raportti_sessiot[avain][uid]["kursori"] = data.get("kursori", 0)
                     await _laheta_raportti_sessio(avain)
             elif tyyppi == "raportti-poistu":
-                avain = (data.get("tid"), data.get("avain"))
-                if avain in _raportti_sessiot:
-                    _raportti_sessiot[avain].pop(uid, None)
-                    if not _raportti_sessiot[avain]:
-                        del _raportti_sessiot[avain]
-                        _raportti_teksti.pop(avain, None)
-                    else:
-                        await _laheta_raportti_sessio(avain)
+                await _poistu_raportista((data.get("tid"), data.get("avain")), uid)
             else:
                 _yhteydet[uid] = (ws, data)
                 await _laheta_kaikille()
@@ -346,20 +352,14 @@ async def ws_kayttajat(ws: WebSocket) -> None:
         _yhteydet.pop(uid, None)
         for avain in list(_lomakkeet):
             await _poistu_lomakkeesta(avain, uid)
-        for avain in list(_raportti_sessiot.keys()):
-            if uid in _raportti_sessiot[avain]:
-                del _raportti_sessiot[avain][uid]
-                if not _raportti_sessiot[avain]:
-                    del _raportti_sessiot[avain]
-                    _raportti_teksti.pop(avain, None)
+        for avain in list(_raportti_sessiot):
+            await _poistu_raportista(avain, uid)
         await _laheta_kaikille()
 
 STAATTINEN = os.path.join(os.path.dirname(__file__), "staattinen")
 _INDEX = os.path.join(STAATTINEN, "index.html")
 _NO_STORE = {"Cache-Control": "no-store"}
 
-# Kentät jotka jätetään pois kurssilistasta (suuri JSON-kenttä)
-_KURSSI_LISTA_KENTAT = {"OpsKuvaus"}
 
 
 # --- Staattisten referenssikyselyjen TTL-välimuisti ---
@@ -390,8 +390,7 @@ def _tasot_valimuistissa(kkid, lukuvuosi) -> list[str]:
 
 @ttl_valimuisti(_VALIMUISTI_TTL)
 def _kurssit_valimuistissa(kkid, lukuvuosi) -> list[dict]:
-    rivit = mallit.hae_kurssit(kkid=kkid, lukuvuosi=lukuvuosi)
-    return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
+    return mallit.hae_kurssit(kkid=kkid, lukuvuosi=lukuvuosi)
 
 
 # Raskas tuoreuslaskenta (raporttitiiviste) ajetaan taustalla — ei estä pollausta.
@@ -492,34 +491,24 @@ def api_tutkimukset() -> list[dict]:
 
 
 @sovellus.get("/api/tutkimukset/{slug}/kurssit")
-def api_tutkimus_kurssit(slug: str) -> list[dict]:
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
-    rivit = mallit.hae_valitut_kurssit(tutkimus["TID"], kuvaukset=False)
-    return [{k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT} for r in rivit]
+def api_tutkimus_kurssit(tutkimus: TutkimusSlugista) -> list[dict]:
+    return mallit.hae_valitut_kurssit(tutkimus["TID"], kuvaukset=False)
 
 
 @sovellus.get("/api/tutkimukset/{slug}/luokitukset/maarat")
-def api_tutkimus_luokitukset_maarat(slug: str, kkid: Optional[int] = None,
+def api_tutkimus_luokitukset_maarat(tutkimus: TutkimusSlugista, kkid: Optional[int] = None,
                                     taso: Optional[str] = None,
                                     hakusana: Optional[str] = None) -> dict:
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     return mallit.hae_tutkimuksen_tilamaarat(tutkimus["TID"], kkid=kkid, taso=taso, hakusana=hakusana)
 
 
 @sovellus.get("/api/tutkimukset/{slug}/luokitukset")
-def api_tutkimus_luokitukset(slug: str, tila: Optional[str] = None,
+def api_tutkimus_luokitukset(tutkimus: TutkimusSlugista, tila: Optional[str] = None,
                              sivu: int = 0, koko: int = 200,
                              kkid: Optional[int] = None, taso: Optional[str] = None,
                              hakusana: Optional[str] = None,
                              jarjesta: Optional[str] = None,
                              suunta: Optional[str] = None) -> list[dict]:
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     tid = tutkimus["TID"]
     rivit = mallit.hae_kurssit_luokituksilla(tid, tila=tila, sivu=sivu, koko=koko,
                                              kkid=kkid, taso=taso, hakusana=hakusana,
@@ -527,7 +516,7 @@ def api_tutkimus_luokitukset(slug: str, tila: Optional[str] = None,
 
     # Ryhmittele HITL-historia kursseittain (vanhimmasta uusimpaan)
     historia: dict[int, list[dict]] = {}
-    for h in mallit.hae_hitl_historia(tid):
+    for h in mallit.hae_hitl_historia(tid, [r["KID"] for r in rivit]):
         kid = h["KID"]
         if kid not in historia:
             historia[kid] = []
@@ -537,24 +526,18 @@ def api_tutkimus_luokitukset(slug: str, tila: Optional[str] = None,
             "KayttajaNimi": h["KayttajaNimi"],
         })
 
-    tulos = []
-    for r in rivit:
-        d = {k: v for k, v in r.items() if k not in _KURSSI_LISTA_KENTAT}
+    for d in rivit:
         kid = d["KID"]
         korjaukset = historia.get(kid, [])
         d["HitlKorjaukset"] = korjaukset
         # Tekoälyn alkuperäinen tila: ensimmäisen korjauksen käänteinen
         d["AiMukana"] = (not korjaukset[0]["UusiTila"]) if korjaukset else d.get("Mukana")
-        tulos.append(d)
-    return tulos
+    return rivit
 
 
 @sovellus.get("/api/tutkimukset/{slug}/arvioinnit")
-def api_tutkimus_arvioinnit(slug: str, sivu: int = 0, koko: Optional[int] = None) -> dict:
+def api_tutkimus_arvioinnit(tutkimus: TutkimusSlugista, sivu: int = 0, koko: Optional[int] = None) -> dict:
     """koko annettu → vain sivun kurssit (WebUI lataa osissa) + yhteensa kaikista."""
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     tid = tutkimus["TID"]
     kysymykset = mallit.hae_kysymykset(tid)
     if koko is None:
@@ -654,12 +637,8 @@ class HitlPyynto(BaseModel):
 
 
 @sovellus.post("/api/tutkimukset/{slug}/kurssit/{kid}/hitl")
-def api_hitl_korjaus(slug: str, kid: int, pyynto: HitlPyynto) -> dict:
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
-    if pyynto.juurisyy is not None and pyynto.juurisyy not in mallit.JUURISYYT:
-        raise HTTPException(status_code=400, detail="Tuntematon juurisyy")
+def api_hitl_korjaus(tutkimus: TutkimusSlugista, kid: int, pyynto: HitlPyynto) -> dict:
+    _tarkista_juurisyy(pyynto.juurisyy)
     mallit.tallenna_hitl_korjaus(
         tutkimus["TID"], kid, pyynto.uusi_tila,
         pyynto.perustelu, pyynto.nimi, pyynto.sahkoposti, pyynto.juurisyy,
@@ -673,28 +652,17 @@ class HyvaksyntaPyynto(BaseModel):
 
 
 @sovellus.post("/api/tutkimukset/{slug}/kurssit/{kid}/hyvaksy")
-def api_hyvaksy_luokitus(slug: str, kid: int, pyynto: HyvaksyntaPyynto) -> dict:
+def api_hyvaksy_luokitus(tutkimus: TutkimusSlugista, kid: int, pyynto: HyvaksyntaPyynto) -> dict:
     """Peukutus: LLM:n mukaan ottama kurssi merkitään ihmisen hyväksymäksi."""
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
-    nimi = pyynto.nimi.strip()
-    if not nimi:
-        raise HTTPException(status_code=400, detail="Nimi puuttuu")
-    mallit.hyvaksy_luokitus(tutkimus["TID"], kid, nimi, pyynto.sahkoposti.strip())
+    mallit.hyvaksy_luokitus(tutkimus["TID"], kid, _vaadi_nimi(pyynto.nimi), pyynto.sahkoposti.strip())
     return {"ok": True}
 
 
 @sovellus.post("/api/tutkimukset/{slug}/kurssit/{kid}/kysymykset/{kysid}/hyvaksy")
-def api_hyvaksy_vastaus(slug: str, kid: int, kysid: int, pyynto: HyvaksyntaPyynto) -> dict:
+def api_hyvaksy_vastaus(tutkimus: TutkimusSlugista, kid: int, kysid: int, pyynto: HyvaksyntaPyynto) -> dict:
     """Peukutus: LLM:n arviointivastaus merkitään ihmisen hyväksymäksi."""
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
-    nimi = pyynto.nimi.strip()
-    if not nimi:
-        raise HTTPException(status_code=400, detail="Nimi puuttuu")
-    mallit.hyvaksy_vastaus(tutkimus["TID"], kid, kysid, nimi, pyynto.sahkoposti.strip())
+    mallit.hyvaksy_vastaus(tutkimus["TID"], kid, kysid, _vaadi_nimi(pyynto.nimi),
+                           pyynto.sahkoposti.strip())
     return {"ok": True}
 
 
@@ -715,14 +683,9 @@ class ArvioKorjausPyynto(BaseModel):
 
 
 @sovellus.post("/api/tutkimukset/{slug}/kurssit/{kid}/kysymykset/{kysid}/korjaus")
-def api_arvio_korjaus(slug: str, kid: int, kysid: int, pyynto: ArvioKorjausPyynto) -> dict:
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
-    if pyynto.juurisyy is not None and pyynto.juurisyy not in mallit.JUURISYYT:
-        raise HTTPException(status_code=400, detail="Tuntematon juurisyy")
-    if not pyynto.nimi.strip():
-        raise HTTPException(status_code=400, detail="Nimi puuttuu")
+def api_arvio_korjaus(tutkimus: TutkimusSlugista, kid: int, kysid: int, pyynto: ArvioKorjausPyynto) -> dict:
+    _tarkista_juurisyy(pyynto.juurisyy)
+    nimi = _vaadi_nimi(pyynto.nimi)
     tid = tutkimus["TID"]
     kysymykset = {k["KysID"]: k for k in mallit.hae_kysymykset(tid)}
     kysymys = kysymykset.get(kysid)
@@ -730,9 +693,7 @@ def api_arvio_korjaus(slug: str, kid: int, kysid: int, pyynto: ArvioKorjausPyynt
         raise HTTPException(status_code=404, detail="Kysymystä ei löydy tästä tutkimuksesta")
     # Tyyppitarkistus: luokka on oltava kysymyksen määrittelemien joukossa, pisteet
     # asteikon sisällä. Väärä arvo rikkoisi raporttitilastot hiljaa.
-    maarittely = kysymys.get("LuokitteluMaarittely") or {}
-    if isinstance(maarittely, str):
-        maarittely = json.loads(maarittely)
+    maarittely = kysymys.get("LuokitteluMaarittely") or {}  # hae_kysymykset jäsentää JSONin
     tyyppi = kysymys.get("Luokittelu") or "vapaa_teksti"
     if tyyppi == "luokittelu" and pyynto.luokka:
         sallitut = [l.get("nimi") for l in maarittely.get("luokat", [])]
@@ -743,7 +704,7 @@ def api_arvio_korjaus(slug: str, kid: int, kysid: int, pyynto: ArvioKorjausPyynt
         if not (minimi <= pyynto.pisteet <= maksimi):
             raise HTTPException(status_code=400, detail=f"Pisteet {minimi}–{maksimi} ulkopuolella")
     mallit.tallenna_hitl_vastaus(
-        tid, kid, kysid, pyynto.vastaus, pyynto.nimi.strip(), pyynto.sahkoposti.strip(),
+        tid, kid, kysid, pyynto.vastaus, nimi, pyynto.sahkoposti.strip(),
         pisteet=pyynto.pisteet, luokka=pyynto.luokka, lista=pyynto.lista,
         juurisyy=pyynto.juurisyy,
     )
@@ -751,20 +712,14 @@ def api_arvio_korjaus(slug: str, kid: int, kysid: int, pyynto: ArvioKorjausPyynt
 
 
 @sovellus.get("/api/tutkimukset/{slug}/raportti")
-def api_raportti(slug: str) -> dict:
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+def api_raportti(tutkimus: TutkimusSlugista) -> dict:
     osiot = mallit.hae_raportti_osiot(tutkimus["TID"])
     return {"tid": tutkimus["TID"], "osiot": osiot}
 
 
 @sovellus.get("/api/tutkimukset/{slug}/raportti/tilastot")
-def api_raportti_tilastot(slug: str) -> dict:
+def api_raportti_tilastot(tutkimus: TutkimusSlugista) -> dict:
     """Palauttaa per-kysymys-tilastot rakenteellisille arvioinneille ilman LLM-kutsua."""
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
     tid = tutkimus["TID"]
     kysymykset = mallit.hae_kysymykset(tid)
     vastaukset_lista = mallit.hae_vastaukset(tid)
@@ -849,10 +804,7 @@ def api_raportti_tilanne(slug: str) -> dict:
 
 
 @sovellus.get("/api/tutkimukset/{slug}")
-def api_tutkimus(slug: str) -> dict:
-    tutkimus = mallit.hae_tutkimus_slugilla(slug)
-    if tutkimus is None:
-        raise HTTPException(status_code=404, detail="Tutkimusta ei löydy")
+def api_tutkimus(tutkimus: TutkimusSlugista) -> dict:
     tutkimus["Kysymykset"] = mallit.hae_kysymykset(tutkimus["TID"])
     return tutkimus
 

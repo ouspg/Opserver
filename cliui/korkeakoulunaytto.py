@@ -2,6 +2,7 @@
 from tietokanta import mallit
 from tiedonhaku import konfiguraatio
 from cliui.apurit import piirra_otsikko, nayta_viesti, lue_teksti, valitse_listasta
+from cliui.valikot import toimintovalikko, valitse_korkeakoulu, vahvista_kylla
 
 OPS_TYYPIT = ["Peppi", "Sisu"]
 
@@ -22,40 +23,16 @@ def _selvita_ja_vahvista(stdscr, osoite: str, tyyppi: str) -> str | None:
         return None
     piirra_otsikko(stdscr, "Vahvista API-osoite")
     stdscr.addstr(3, 0, f"Löydetty API-osoite: {api}")
-    vahvistus = lue_teksti(stdscr, "Tallennetaanko tämä? (kyllä/ei)", 5, "kyllä")
-    if vahvistus.lower() in ("kyllä", "k", "kylla"):
-        return api
-    return None
+    return api if vahvista_kylla(stdscr, "Tallennetaanko tämä?", 5, "kyllä") else None
 
 
 def nayta(stdscr) -> None:
-    while True:
-        valinta = valitse_listasta(
-            stdscr,
-            "Korkeakoulujen hallinta",
-            ["Lisää korkeakoulu", "Muokkaa korkeakoulua", "Poista korkeakoulu", "Listaa korkeakoulut"],
-        )
-        if valinta is None:
-            return
-        if valinta == 0:
-            _lisaa(stdscr)
-        elif valinta == 1:
-            _muokkaa(stdscr)
-        elif valinta == 2:
-            _poista(stdscr)
-        elif valinta == 3:
-            _listaa(stdscr)
-
-
-def _valitse_korkeakoulu(stdscr, otsikko: str) -> dict | None:
-    koulut = mallit.hae_korkeakoulut()
-    if not koulut:
-        piirra_otsikko(stdscr, otsikko)
-        nayta_viesti(stdscr, "Ei korkeakouluja tietokannassa.")
-        return None
-    rivit = [f"{k['KouluNimi']} ({k['OpsTyyppi']})" for k in koulut]
-    indeksi = valitse_listasta(stdscr, otsikko, rivit)
-    return koulut[indeksi] if indeksi is not None else None
+    toimintovalikko(stdscr, "Korkeakoulujen hallinta", [
+        ("Lisää korkeakoulu", _lisaa),
+        ("Muokkaa korkeakoulua", _muokkaa),
+        ("Poista korkeakoulu", _poista),
+        ("Listaa korkeakoulut", _listaa),
+    ])
 
 
 def _valitse_ops_tyyppi(stdscr, oletus: str = "") -> str | None:
@@ -87,7 +64,7 @@ def _lisaa(stdscr) -> None:
 
 
 def _muokkaa(stdscr) -> None:
-    koulu = _valitse_korkeakoulu(stdscr, "Muokkaa korkeakoulua")
+    koulu = valitse_korkeakoulu(stdscr, "Muokkaa korkeakoulua")
     if koulu is None:
         return
     piirra_otsikko(stdscr, f"Muokkaa: {koulu['KouluNimi']}")
@@ -102,12 +79,11 @@ def _muokkaa(stdscr) -> None:
 
 
 def _poista(stdscr) -> None:
-    koulu = _valitse_korkeakoulu(stdscr, "Poista korkeakoulu")
+    koulu = valitse_korkeakoulu(stdscr, "Poista korkeakoulu")
     if koulu is None:
         return
     piirra_otsikko(stdscr, "Poista korkeakoulu")
-    vahvistus = lue_teksti(stdscr, f"Poistetaanko '{koulu['KouluNimi']}'? (kyllä/ei)", 3)
-    if vahvistus.lower() in ("kyllä", "k", "kylla"):
+    if vahvista_kylla(stdscr, f"Poistetaanko '{koulu['KouluNimi']}'?", 3):
         mallit.poista_korkeakoulu(koulu["KKID"])
         nayta_viesti(stdscr, "Poistettu.")
     else:

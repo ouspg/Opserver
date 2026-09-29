@@ -77,7 +77,8 @@ def test_lisaa_korkeakoulu_selvittaa_ja_tallentaa_api_osoitteen():
 
     with patch.object(kn, "piirra_otsikko"), \
          patch.object(kn, "nayta_viesti"), \
-         patch.object(kn, "lue_teksti", side_effect=["Testiyliopisto", "https://opas.peppi.x.fi", "kyllä"]), \
+         patch.object(kn, "lue_teksti", side_effect=["Testiyliopisto", "https://opas.peppi.x.fi"]), \
+         patch.object(kn, "vahvista_kylla", return_value=True), \
          patch.object(kn, "_valitse_ops_tyyppi", return_value="Peppi"), \
          patch.object(kn.konfiguraatio, "selvita_konfiguraatio",
                       return_value={"api_osoite": "https://opasbe.x.fi"}) as selvita, \
@@ -166,3 +167,56 @@ def test_aja_llm_tyhjentaa_ruudun_vahvistusvalikon_jalkeen():
     viim_valikko = max(i for i, t in enumerate(tapahtumat) if t == "valikko")
     ajo = tapahtumat.index("ajo")
     assert any(t == "otsikko" for t in tapahtumat[viim_valikko + 1:ajo]), tapahtumat
+
+
+def _testivaihe():
+    from unittest.mock import MagicMock
+    from cliui import llmvaihe
+    return llmvaihe.Vaihe(
+        nimi="luokittelun", yksikko="luokitusta", tulokset="luokitukset", oletus_erakoko="30",
+        aja_testierat=MagicMock(), testiera_raportti=MagicMock(return_value=[]),
+        hae_ajot=MagicMock(return_value=[{"Ajo": "A1", "Rivit": 3}]),
+        ajon_rivi=lambda a: a["Ajo"], ajon_koko=lambda a: f"{a['Rivit']} kurssia",
+        siirra=MagicMock(return_value=3), poista=MagicMock(return_value=3),
+        asetukset=[], ei_eria="-",
+    )
+
+
+def test_llmvaihe_testiajon_poisto_ja_siirto_vaativat_vahvistuksen():
+    from unittest.mock import patch
+    from cliui import llmvaihe
+    vaihe = _testivaihe()
+    with patch.object(llmvaihe, "valitse_listasta", side_effect=[0, 1, 0, 0]), \
+         patch.object(llmvaihe, "nayta_viesti") as viesti:
+        llmvaihe.poista_testiajo(None, {"TID": 1}, vaihe)   # valitse A1 → Peruuta
+        llmvaihe.siirra_testiajo(None, {"TID": 1}, vaihe)   # valitse A1 → Siirrä
+    vaihe.poista.assert_not_called()
+    vaihe.siirra.assert_called_once_with("A1")
+    assert "Siirretty 3 luokitusta" in viesti.call_args.args[1]
+
+
+def test_llmvaihe_siirrettavat_peruutus_ja_siirto():
+    from unittest.mock import patch
+    from cliui import llmvaihe
+    vaihe = _testivaihe()
+    assert llmvaihe.kasittele_siirrettavat(None, vaihe, []) is True
+    with patch.object(llmvaihe, "valitse_listasta", side_effect=[2, 0]), \
+         patch.object(llmvaihe, "nayta_viesti"):
+        assert llmvaihe.kasittele_siirrettavat(None, vaihe, ["A1", "A2"]) is False
+        assert llmvaihe.kasittele_siirrettavat(None, vaihe, ["A1", "A2"]) is True
+    assert vaihe.siirra.call_count == 2
+
+
+def test_valikot_toimintovalikko_ja_vahvistus():
+    from unittest.mock import patch
+    from cliui import valikot
+    kutsutut, otsikot = [], []
+    with patch.object(valikot, "valitse_listasta",
+                      side_effect=lambda s, o, v: otsikot.append(o) or (None if len(otsikot) > 2 else 1)):
+        valikot.toimintovalikko("scr", lambda: f"otsikko {len(otsikot)}",
+                                [("a", None), ("b", lambda s, x: kutsutut.append((s, x)))], "arg")
+    assert kutsutut == [("scr", "arg"), ("scr", "arg")]
+    assert otsikot == ["otsikko 0", "otsikko 1", "otsikko 2"]   # laskettu joka kierroksella
+    for syote, odotus in (("Kyllä ", True), ("k", True), ("ei", False), ("", False)):
+        with patch.object(valikot, "lue_teksti", return_value=syote):
+            assert valikot.vahvista_kylla("scr", "Poistetaanko?", 3) is odotus

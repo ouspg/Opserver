@@ -16,42 +16,77 @@ def _rivi_diktina(kursori) -> dict | None:
     return dict(zip(sarakkeet, rivi)) if rivi else None
 
 
+def _json(arvo) -> str | None:
+    """Python-arvo JSON-sarakkeeseen (None → NULL)."""
+    return json.dumps(arvo, ensure_ascii=False) if arvo is not None else None
+
+
+def _pura_json(rivit: list[dict], kentta: str) -> list[dict]:
+    """JSON-sarake takaisin Python-arvoksi (connector palauttaa sen merkkijonona)."""
+    for r in rivit:
+        if r.get(kentta) and isinstance(r[kentta], str):
+            r[kentta] = json.loads(r[kentta])
+    return rivit
+
+
+# Yhden lauseen kyselyt: oma yhteys poolista (commit/rollback yhteys():ssä).
+# Useamman lauseen transaktiot kirjoitetaan auki with yhteys() -lohkoon.
+
+def _kysely(sql: str, params, tulos):
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(sql, params)
+            return tulos(kursori)
+
+
+def _hae_kaikki(sql: str, params=()) -> list[dict]:
+    return _kysely(sql, params, _rivit_dikteina)
+
+
+def _hae_yksi(sql: str, params=()) -> dict | None:
+    return _kysely(sql, params, _rivi_diktina)
+
+
+def _hae_arvo(sql: str, params=()):
+    """Ensimmäisen rivin ensimmäinen sarake (COUNT(*) ym.)."""
+    return _kysely(sql, params, lambda k: k.fetchone()[0])
+
+
+def _hae_sarake(sql: str, params=()) -> list:
+    return _kysely(sql, params, lambda k: [r[0] for r in k.fetchall()])
+
+
+def _suorita(sql: str, params=(), *, rivimaara: bool = False) -> int:
+    """Kirjoittava lause. Palauttaa lastrowid:n (rivimaara=True: rowcount)."""
+    return _kysely(sql, params, lambda k: k.rowcount if rivimaara else k.lastrowid)
+
+
 # --- Korkeakoulu ---
 
 def lisaa_korkeakoulu(koulu_nimi: str, ops_osoite: str, ops_tyyppi: str,
                       api_osoite: str | None = None) -> int:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                "INSERT INTO Korkeakoulu (KouluNimi, OpsOsoite, ApiOsoite, OpsTyyppi) "
-                "VALUES (%s, %s, %s, %s)",
-                (koulu_nimi, ops_osoite, api_osoite, ops_tyyppi),
-            )
-            return kursori.lastrowid
+    return _suorita(
+        "INSERT INTO Korkeakoulu (KouluNimi, OpsOsoite, ApiOsoite, OpsTyyppi) "
+        "VALUES (%s, %s, %s, %s)",
+        (koulu_nimi, ops_osoite, api_osoite, ops_tyyppi),
+    )
 
 
 def hae_korkeakoulut() -> list[dict]:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute("SELECT * FROM Korkeakoulu ORDER BY KouluNimi")
-            return _rivit_dikteina(kursori)
+    return _hae_kaikki("SELECT * FROM Korkeakoulu ORDER BY KouluNimi")
 
 
 def paivita_korkeakoulu(kkid: int, koulu_nimi: str, ops_osoite: str, ops_tyyppi: str,
                         api_osoite: str | None = None) -> None:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                "UPDATE Korkeakoulu SET KouluNimi = %s, OpsOsoite = %s, ApiOsoite = %s, "
-                "OpsTyyppi = %s WHERE KKID = %s",
-                (koulu_nimi, ops_osoite, api_osoite, ops_tyyppi, kkid),
-            )
+    _suorita(
+        "UPDATE Korkeakoulu SET KouluNimi = %s, OpsOsoite = %s, ApiOsoite = %s, "
+        "OpsTyyppi = %s WHERE KKID = %s",
+        (koulu_nimi, ops_osoite, api_osoite, ops_tyyppi, kkid),
+    )
 
 
 def poista_korkeakoulu(kkid: int) -> None:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute("DELETE FROM Korkeakoulu WHERE KKID = %s", (kkid,))
+    _suorita("DELETE FROM Korkeakoulu WHERE KKID = %s", (kkid,))
 
 
 # --- Kurssi ---
@@ -98,22 +133,21 @@ _KURSSI_LISTA_SARAKKEET = (
 
 def hae_kurssit(kkid: int | None = None, lukuvuosi: str | None = None) -> list[dict]:
     """Listanäkymän kurssit. lukuvuosi rajaa kurssit, joiden OPS-kausi kattaa
-    annetun lukuvuoden (esim. "2026-2027"; OPS "2024-2027" kattaa sen)."""
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            if kkid is not None:
-                kursori.execute(
-                    f"SELECT {_KURSSI_LISTA_SARAKKEET} FROM Kurssi WHERE KKID = %s ORDER BY KurssiNimi",
-                    (kkid,),
-                )
-            else:
-                kursori.execute(
-                    f"SELECT {_KURSSI_LISTA_SARAKKEET} FROM Kurssi ORDER BY KurssiNimi"
-                )
-            rivit = _rivit_dikteina(kursori)
+    annetun lukuvuoden (esim. "2026-2027"; OPS "2024-2027" kattaa sen) — SQL:ssä
+    (idx_kkid_vuosi), ei koko luetteloa Pythoniin."""
+    ehdot, params = [], []
+    if kkid is not None:
+        ehdot.append("KKID = %s")
+        params.append(kkid)
     if lukuvuosi:
-        rivit = [r for r in rivit if _kattaa_turvallinen(r.get("Opetusvuosi"), lukuvuosi)]
-    return rivit
+        try:
+            vuosi_sql, vuosi_params = _vuosi_kattaa_sql("Opetusvuosi", lukuvuosi)
+        except ValueError:
+            return []
+        ehdot.append(vuosi_sql)
+        params.extend(vuosi_params)
+    where = f" WHERE {' AND '.join(ehdot)}" if ehdot else ""
+    return _hae_kaikki(f"SELECT {_KURSSI_LISTA_SARAKKEET} FROM Kurssi{where} ORDER BY KurssiNimi", params)
 
 
 def _kattaa_turvallinen(ops_kausi: str | None, lukuvuosi: str) -> bool:
@@ -181,14 +215,11 @@ def hae_tasot(kkid: int | None = None, lukuvuosi: str | None = None) -> list[str
         vuosi_sql, vuosi_params = _vuosi_kattaa_sql("Opetusvuosi", lukuvuosi)
         ehdot.append(vuosi_sql)
         params.extend(vuosi_params)
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                f"SELECT Taso FROM Kurssi WHERE {' AND '.join(ehdot)} "
-                f"GROUP BY Taso ORDER BY COUNT(*) DESC",
-                tuple(params),
-            )
-            return [r[0] for r in kursori.fetchall()]
+    return _hae_sarake(
+        f"SELECT Taso FROM Kurssi WHERE {' AND '.join(ehdot)} "
+        f"GROUP BY Taso ORDER BY COUNT(*) DESC",
+        tuple(params),
+    )
 
 
 @uudelleenyrita
@@ -203,10 +234,9 @@ def hae_tallennetut_lahde_idt(kkid: int, opetusvuosi: str) -> set[str]:
 
 
 def hae_kurssi(kid: int) -> dict | None:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(f"SELECT k.*, ku.OpsKuvaus FROM Kurssi k {_KUVAUS_JOIN} WHERE k.KID = %s", (kid,))
-            return _rivi_diktina(kursori)
+    return _hae_yksi(
+        f"SELECT k.*, ku.OpsKuvaus FROM Kurssi k {_KUVAUS_JOIN} WHERE k.KID = %s", (kid,),
+    )
 
 
 # --- Tutkimus ---
@@ -214,47 +244,34 @@ def hae_kurssi(kid: int) -> dict | None:
 def lisaa_tutkimus(luokittelun_nimi: str, slug: str, lukuvuosi: str, luokittelukehote: str,
                    tasorajaus: str, oppiainerajaus: str, arviointikehote: str,
                    raportointikehote: str = "", verkkosivu: str = "") -> int:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                "INSERT INTO Tutkimus (LuokittelunNimi, Slug, Lukuvuosi, Verkkosivu, Luokittelukehote, Tasorajaus, Oppiainerajaus, Arviointikehote, Raportointikehote) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (luokittelun_nimi, slug, lukuvuosi, verkkosivu, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote),
-            )
-            return kursori.lastrowid
+    return _suorita(
+        "INSERT INTO Tutkimus (LuokittelunNimi, Slug, Lukuvuosi, Verkkosivu, Luokittelukehote, Tasorajaus, Oppiainerajaus, Arviointikehote, Raportointikehote) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+        (luokittelun_nimi, slug, lukuvuosi, verkkosivu, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote),
+    )
 
 
 def hae_tutkimukset() -> list[dict]:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute("SELECT * FROM Tutkimus ORDER BY LuokittelunNimi")
-            return _rivit_dikteina(kursori)
+    return _hae_kaikki("SELECT * FROM Tutkimus ORDER BY LuokittelunNimi")
 
 
 def hae_tutkimukset_yhteenvedolla() -> list[dict]:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute("""
-                SELECT t.*, COUNT(CASE WHEN kl.Mukana = 1 THEN 1 END) AS MukanaLkm
-                FROM Tutkimus t
-                LEFT JOIN Kurssiluokitus kl ON t.TID = kl.TID
-                GROUP BY t.TID
-                ORDER BY t.LuokittelunNimi
-            """)
-            return _rivit_dikteina(kursori)
+    return _hae_kaikki(
+        """
+        SELECT t.*, COUNT(CASE WHEN kl.Mukana = 1 THEN 1 END) AS MukanaLkm
+        FROM Tutkimus t
+        LEFT JOIN Kurssiluokitus kl ON t.TID = kl.TID
+        GROUP BY t.TID
+        ORDER BY t.LuokittelunNimi
+    """,
+    )
 
 
 def hae_tutkimus(tid: int) -> dict | None:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute("SELECT * FROM Tutkimus WHERE TID = %s", (tid,))
-            return _rivi_diktina(kursori)
+    return _hae_yksi("SELECT * FROM Tutkimus WHERE TID = %s", (tid,))
 
 
 def hae_tutkimus_slugilla(slug: str) -> dict | None:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute("SELECT * FROM Tutkimus WHERE Slug = %s", (slug,))
-            return _rivi_diktina(kursori)
+    return _hae_yksi("SELECT * FROM Tutkimus WHERE Slug = %s", (slug,))
 
 
 def hae_valitut_kurssit(tid: int, raja: int | None = None, siirto: int = 0,
@@ -264,40 +281,32 @@ def hae_valitut_kurssit(tid: int, raja: int | None = None, siirto: int = 0,
     kuvaukset=False: ilman OpsKuvausta (WebUI:n listat; LLM-arviointi tarvitsee sen)."""
     sivutus = " LIMIT %s OFFSET %s" if raja is not None else ""
     kuvaus_sql = (", ku.OpsKuvaus", _KUVAUS_JOIN) if kuvaukset else ("", "")
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(f"""
-                SELECT k.*{kuvaus_sql[0]}
-                FROM Kurssi k {kuvaus_sql[1]}
-                JOIN Kurssiluokitus kl ON k.KID = kl.KID
-                WHERE kl.TID = %s AND kl.Mukana = 1
-                ORDER BY k.KurssiNimi, k.KID""" + sivutus,
-                (tid, raja, siirto) if sivutus else (tid,))
-            return _rivit_dikteina(kursori)
+    return _hae_kaikki(
+        f"""
+        SELECT k.*{kuvaus_sql[0]}
+        FROM Kurssi k {kuvaus_sql[1]}
+        JOIN Kurssiluokitus kl ON k.KID = kl.KID
+        WHERE kl.TID = %s AND kl.Mukana = 1
+        ORDER BY k.KurssiNimi, k.KID""" + sivutus,
+        (tid, raja, siirto) if sivutus else (tid,),
+    )
 
 
 def laske_valitut_kurssit(tid: int) -> int:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute("SELECT COUNT(*) FROM Kurssiluokitus WHERE TID = %s AND Mukana = 1", (tid,))
-            return kursori.fetchone()[0]
+    return _hae_arvo("SELECT COUNT(*) FROM Kurssiluokitus WHERE TID = %s AND Mukana = 1", (tid,))
 
 
 def paivita_tutkimus(tid: int, luokittelun_nimi: str, slug: str, lukuvuosi: str, luokittelukehote: str,
                      tasorajaus: str, oppiainerajaus: str, arviointikehote: str,
                      raportointikehote: str = "", verkkosivu: str = "") -> None:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                "UPDATE Tutkimus SET LuokittelunNimi=%s, Slug=%s, Lukuvuosi=%s, Verkkosivu=%s, Luokittelukehote=%s, Tasorajaus=%s, Oppiainerajaus=%s, Arviointikehote=%s, Raportointikehote=%s WHERE TID=%s",
-                (luokittelun_nimi, slug, lukuvuosi, verkkosivu, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote, tid),
-            )
+    _suorita(
+        "UPDATE Tutkimus SET LuokittelunNimi=%s, Slug=%s, Lukuvuosi=%s, Verkkosivu=%s, Luokittelukehote=%s, Tasorajaus=%s, Oppiainerajaus=%s, Arviointikehote=%s, Raportointikehote=%s WHERE TID=%s",
+        (luokittelun_nimi, slug, lukuvuosi, verkkosivu, luokittelukehote, tasorajaus, oppiainerajaus, arviointikehote, raportointikehote, tid),
+    )
 
 
 def poista_tutkimus(tid: int) -> None:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute("DELETE FROM Tutkimus WHERE TID = %s", (tid,))
+    _suorita("DELETE FROM Tutkimus WHERE TID = %s", (tid,))
 
 
 def monista_tutkimus(lahde_tid: int, uusi_nimi: str, uusi_slug: str) -> int:
@@ -350,12 +359,7 @@ def aseta_tutkimuksen_korkeakoulut(tid: int, kkid_lista: list[int]) -> None:
 
 def hae_tutkimuksen_korkeakoulut(tid: int) -> list[int]:
     """Tutkimukseen valittujen korkeakoulujen KKID:t."""
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                "SELECT KKID FROM TutkimusKorkeakoulu WHERE TID = %s ORDER BY KKID", (tid,)
-            )
-            return [r[0] for r in kursori.fetchall()]
+    return _hae_sarake("SELECT KKID FROM TutkimusKorkeakoulu WHERE TID = %s ORDER BY KKID", (tid,))
 
 
 def hae_oppiaineet(kkid_lista: list[int]) -> list[str]:
@@ -394,14 +398,11 @@ def hae_oppiaineet(kkid_lista: list[int]) -> list[str]:
 
 def lisaa_kysymys(tid: int, kysymys: str, luokittelu: str = "vapaa_teksti",
                   luokittelu_maarittely: dict | None = None) -> int:
-    maarittely_json = json.dumps(luokittelu_maarittely, ensure_ascii=False) if luokittelu_maarittely else None
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                "INSERT INTO Kysymykset (TID, Kysymys, Luokittelu, LuokitteluMaarittely) VALUES (%s, %s, %s, %s)",
-                (tid, kysymys, luokittelu, maarittely_json),
-            )
-            return kursori.lastrowid
+    maarittely_json = _json(luokittelu_maarittely or None)
+    return _suorita(
+        "INSERT INTO Kysymykset (TID, Kysymys, Luokittelu, LuokitteluMaarittely) VALUES (%s, %s, %s, %s)",
+        (tid, kysymys, luokittelu, maarittely_json),
+    )
 
 
 def hae_kysymykset(tid: int) -> list[dict]:
@@ -412,27 +413,20 @@ def hae_kysymykset(tid: int) -> list[dict]:
                 (tid,),
             )
             rivit = _rivit_dikteina(kursori)
-    for r in rivit:
-        if r.get("LuokitteluMaarittely") and isinstance(r["LuokitteluMaarittely"], str):
-            r["LuokitteluMaarittely"] = json.loads(r["LuokitteluMaarittely"])
-    return rivit
+    return _pura_json(rivit, "LuokitteluMaarittely")
 
 
 def paivita_kysymys(kysid: int, kysymys: str, luokittelu: str = "vapaa_teksti",
                     luokittelu_maarittely: dict | None = None) -> None:
-    maarittely_json = json.dumps(luokittelu_maarittely, ensure_ascii=False) if luokittelu_maarittely else None
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                "UPDATE Kysymykset SET Kysymys = %s, Luokittelu = %s, LuokitteluMaarittely = %s WHERE KysID = %s",
-                (kysymys, luokittelu, maarittely_json, kysid),
-            )
+    maarittely_json = _json(luokittelu_maarittely or None)
+    _suorita(
+        "UPDATE Kysymykset SET Kysymys = %s, Luokittelu = %s, LuokitteluMaarittely = %s WHERE KysID = %s",
+        (kysymys, luokittelu, maarittely_json, kysid),
+    )
 
 
 def poista_kysymys(kysid: int) -> None:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute("DELETE FROM Kysymykset WHERE KysID = %s", (kysid,))
+    _suorita("DELETE FROM Kysymykset WHERE KysID = %s", (kysid,))
 
 
 # --- Vastaukset ---
@@ -458,17 +452,15 @@ def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "",
     per (kysymys, kurssi) kuten ennen, eli uudelleenajo päivittää saman rivin.
     Malli ei koskaan NULL: se erottaa LLM-rivin ihmisen korjauksesta.
     """
-    lista_json = json.dumps(lista, ensure_ascii=False) if lista is not None else None
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                """INSERT INTO Vastaukset
-                       (TID, KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)
-                   SELECT k.TID, %s, %s, %s, %s, %s, %s, %s, %s
-                   FROM Kysymykset k WHERE k.KysID = %s
-                   """ + VASTAUS_PAIVITYS,
-                (kysid, kid, vastaus, malli or "", pisteet, luokka, lista_json, tiiviste, kysid),
-            )
+    lista_json = _json(lista)
+    _suorita(
+        """INSERT INTO Vastaukset
+               (TID, KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)
+           SELECT k.TID, %s, %s, %s, %s, %s, %s, %s, %s
+           FROM Kysymykset k WHERE k.KysID = %s
+           """ + VASTAUS_PAIVITYS,
+        (kysid, kid, vastaus, malli or "", pisteet, luokka, lista_json, tiiviste, kysid),
+    )
 
 
 def hyvaksy_vastaus(tid: int, kid: int, kysid: int, nimi: str, sahkoposti: str | None) -> None:
@@ -478,13 +470,11 @@ def hyvaksy_vastaus(tid: int, kid: int, kysid: int, nimi: str, sahkoposti: str |
     Oma sarake eikä KayttajaNimi, koska se kuuluu uniikkiavaimeen ja erottaa
     LLM-rivin ('') ihmisten korjauksista.
     """
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                """UPDATE Vastaukset SET HyvaksyjaNimi = %s, HyvaksyjaSahkoposti = %s
-                   WHERE TID = %s AND KID = %s AND KysID = %s AND Malli IS NOT NULL""",
-                (nimi, sahkoposti or None, tid, kid, kysid),
-            )
+    _suorita(
+        """UPDATE Vastaukset SET HyvaksyjaNimi = %s, HyvaksyjaSahkoposti = %s
+           WHERE TID = %s AND KID = %s AND KysID = %s AND Malli IS NOT NULL""",
+        (nimi, sahkoposti or None, tid, kid, kysid),
+    )
 
 
 def hae_raakana_tallennetut_vastaukset(tid: int) -> list[dict]:
@@ -495,16 +485,13 @@ def hae_raakana_tallennetut_vastaukset(tid: int) -> list[dict]:
     tyhjiksi. Data on tallessa, joten rivit voi korjata jäsentämällä uudelleen
     (arviointi.korjaus) — uutta LLM-ajoa ei tarvita.
     """
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                """SELECT v.VasID, v.KysID, v.KID, v.Vastaus, v.Malli, v.Kehotetiiviste
-                   FROM Vastaukset v
-                   JOIN Kysymykset ky ON ky.KysID = v.KysID
-                   WHERE ky.TID = %s AND v.Malli IS NOT NULL AND v.Vastaus LIKE '{%%'""",
-                (tid,),
-            )
-            return _rivit_dikteina(kursori)
+    return _hae_kaikki(
+        """SELECT v.VasID, v.KysID, v.KID, v.Vastaus, v.Malli, v.Kehotetiiviste
+           FROM Vastaukset v
+           JOIN Kysymykset ky ON ky.KysID = v.KysID
+           WHERE ky.TID = %s AND v.Malli IS NOT NULL AND v.Vastaus LIKE '{%%'""",
+        (tid,),
+    )
 
 
 def hae_vastaus_tiivisteet(tid: int) -> dict[tuple[int, int], dict]:
@@ -543,16 +530,11 @@ def hae_vastaus_tiivisteet(tid: int) -> dict[tuple[int, int], dict]:
 
 
 def hae_vastausten_lkm(kysid: int) -> int:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute("SELECT COUNT(*) FROM Vastaukset WHERE KysID = %s", (kysid,))
-            return kursori.fetchone()[0]
+    return _hae_arvo("SELECT COUNT(*) FROM Vastaukset WHERE KysID = %s", (kysid,))
 
 
 def poista_vastaukset_kysymykselta(kysid: int) -> None:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute("DELETE FROM Vastaukset WHERE KysID = %s", (kysid,))
+    _suorita("DELETE FROM Vastaukset WHERE KysID = %s", (kysid,))
 
 
 def hae_vastaukset(tid: int) -> list[dict]:
@@ -571,10 +553,7 @@ def hae_vastaukset(tid: int) -> list[dict]:
                 ORDER BY v.KID, v.KysID, (v.Malli IS NULL) DESC, v.Aikaleima DESC
             """, (tid,))
             rivit = _rivit_dikteina(kursori)
-    for r in rivit:
-        if isinstance(r.get("Lista"), str):
-            r["Lista"] = json.loads(r["Lista"])
-    return rivit
+    return _pura_json(rivit, "Lista")
 
 
 # --- Luokittelun apufunktiot ---
@@ -634,10 +613,7 @@ def hae_luokittelemattomat_kevyet(tid: int, tiiviste: str | None = None) -> list
     """
     ehto, params = _luokittelemattomat_ehto(tid, tiiviste)
     sarakkeet = ", ".join(f"k.{s}" for s in _KEVYET_SARAKKEET)
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(f"SELECT {sarakkeet} {ehto} ORDER BY k.KID", params)
-            return _rivit_dikteina(kursori)
+    return _hae_kaikki(f"SELECT {sarakkeet} {ehto} ORDER BY k.KID", params)
 
 
 def hae_kurssit_idlla(kidit: list[int]) -> list[dict]:
@@ -649,11 +625,10 @@ def hae_kurssit_idlla(kidit: list[int]) -> list[dict]:
     if not kidit:
         return []
     paikat = ",".join(["%s"] * len(kidit))
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(f"SELECT k.*, ku.OpsKuvaus FROM Kurssi k {_KUVAUS_JOIN} "
-                            f"WHERE k.KID IN ({paikat})", tuple(kidit))
-            return _rivit_dikteina(kursori)
+    return _hae_kaikki(
+        f"SELECT k.*, ku.OpsKuvaus FROM Kurssi k {_KUVAUS_JOIN} "
+                    f"WHERE k.KID IN ({paikat})", tuple(kidit),
+    )
 
 
 def laske_luokittelemattomat(tid: int, tiiviste: str | None = None) -> int:
@@ -664,10 +639,7 @@ def laske_luokittelemattomat(tid: int, tiiviste: str | None = None) -> int:
     LLM-näkymän avaamista, koska näkymä laskee sekä uudet että vanhentuneet.
     """
     ehto, params = _luokittelemattomat_ehto(tid, tiiviste)
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(f"SELECT COUNT(*) {ehto}", params)
-            return kursori.fetchone()[0]
+    return _hae_arvo(f"SELECT COUNT(*) {ehto}", params)
 
 
 # Tila-välilehden ehto Kurssiluokitus.Mukana-arvosta.
@@ -709,18 +681,47 @@ def _vuosi_kattaa_sql(sarake: str, lukuvuosi: str) -> tuple[str, list]:
     return f"{etuliite}VuosiAlku <= %s AND {etuliite}VuosiLoppu >= %s", [alku, loppu]
 
 
+def _rajaus(kursori, tid: int) -> tuple[str | None, list[int]]:
+    """Tutkimuksen (lukuvuosi, korkeakoulujen KKID:t) yhdellä kyselyllä."""
+    kursori.execute(
+        """SELECT t.Lukuvuosi, tk.KKID FROM Tutkimus t
+           LEFT JOIN TutkimusKorkeakoulu tk ON tk.TID = t.TID
+           WHERE t.TID = %s ORDER BY tk.KKID""",
+        (tid,),
+    )
+    rivit = kursori.fetchall()
+    return (rivit[0][0] if rivit else None), [r[1] for r in rivit if r[1] is not None]
+
+
 def _tutkimus_kurssi_scope(tid: int) -> tuple[str | None, list]:
     """SQL-WHERE + parametrit jotka rajaavat Kurssi-rivit tutkimuksen korkeakouluihin
     ja lukuvuoteen (OPS-kausi kattaa lukuvuoden). (None, None) jos rajaus puuttuu."""
-    tutkimus = hae_tutkimus(tid)
-    korkeakoulut = hae_tutkimuksen_korkeakoulut(tid)
-    lukuvuosi = (tutkimus or {}).get("Lukuvuosi")
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            lukuvuosi, korkeakoulut = _rajaus(kursori, tid)
     if not korkeakoulut or not lukuvuosi:
         return None, None
     paikat = ",".join(["%s"] * len(korkeakoulut))
     vuosi_sql, vuosi_params = _vuosi_kattaa_sql("k.Opetusvuosi", lukuvuosi)
     where = f"k.KKID IN ({paikat}) AND {vuosi_sql}"
     return where, [*korkeakoulut, *vuosi_params]
+
+
+def hae_meta_ehdokkaat(tid: int) -> list[dict] | None:
+    """Tutkimuksen rajauksen (korkeakoulut + lukuvuosi) kurssit meta-suodatusta varten,
+    nykyinen luokitus liitettynä (Luokiteltu, Mukana, Luokitteluperuste). Vain
+    suodatuksen tarvitsemat sarakkeet. None jos rajaus puuttuu."""
+    where, params = _tutkimus_kurssi_scope(tid)
+    if where is None:
+        return None
+    return _hae_kaikki(
+        f"""SELECT k.KID, k.Taso, k.Oppiaine, kl.KID IS NOT NULL AS Luokiteltu,
+                   kl.Mukana, kl.Luokitteluperuste
+            FROM Kurssi k
+            LEFT JOIN Kurssiluokitus kl ON kl.KID = k.KID AND kl.TID = %s
+            WHERE {where}""",
+        (tid, *params),
+    )
 
 
 def hae_tutkimuksen_tilamaarat(tid: int, kkid: int | None = None, taso: str | None = None,
@@ -781,43 +782,39 @@ def hae_kurssit_luokituksilla(tid: int, tila: str | None = None,
     if koko:
         raja_sql = " LIMIT %s OFFSET %s"
         raja_params = [koko, max(0, sivu) * koko]
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                f"SELECT k.KID, k.KKID, k.LahdeId, k.KurssiNimi, k.Koodi, k.Taso, k.Oppiaine, "
-                f"k.Opintopisteet, k.Opetusvuosi, kl.Mukana, kl.Luokitteluperuste, "
-                f"kl.KayttajaNimi AS Hyvaksyja "
-                f"FROM Kurssi k LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s "
-                f"WHERE {where}{tila_sql}{suod_sql}{jarj_sql}{raja_sql}",
-                (tid, *params, *suod_params, *raja_params),
-            )
-            return _rivit_dikteina(kursori)
+    return _hae_kaikki(
+        f"SELECT k.KID, k.KKID, k.LahdeId, k.KurssiNimi, k.Koodi, k.Taso, k.Oppiaine, "
+        f"k.Opintopisteet, k.Opetusvuosi, kl.Mukana, kl.Luokitteluperuste, "
+        f"kl.KayttajaNimi AS Hyvaksyja "
+        f"FROM Kurssi k LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s "
+        f"WHERE {where}{tila_sql}{suod_sql}{jarj_sql}{raja_sql}",
+        (tid, *params, *suod_params, *raja_params),
+    )
 
 
-def hae_hitl_historia(tid: int) -> list[dict]:
-    """Kaikki HITL-korjaukset tälle tutkimukselle vanhimmasta uusimpaan."""
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                """SELECT KID, UusiTila, Perustelu, KayttajaNimi, Aikaleima
-                   FROM HitlKorjaus WHERE TID = %s ORDER BY HID ASC""",
-                (tid,),
-            )
-            return _rivit_dikteina(kursori)
+def hae_hitl_historia(tid: int, kidit: list[int]) -> list[dict]:
+    """Annettujen kurssien (esim. WebUI:n sivu) HITL-korjaukset vanhimmasta uusimpaan.
+    Rajaus KID:eihin: koko tutkimuksen historia kasvaa annotointisessioissa."""
+    if not kidit:
+        return []
+    return _hae_kaikki(
+        f"""SELECT KID, UusiTila, Perustelu, KayttajaNimi, Aikaleima
+            FROM HitlKorjaus WHERE TID = %s AND KID IN ({",".join(["%s"] * len(kidit))})
+            ORDER BY HID ASC""",
+        (tid, *kidit),
+    )
 
 
 # --- Kurssiluokitus ---
 
 def aseta_luokitus(tid: int, kid: int, mukana: bool | None, perustelu: str,
                    malli: str = "", tiiviste: str | None = None) -> None:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                """INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste, Malli, Kehotetiiviste)
-                   VALUES (%s, %s, %s, %s, %s, %s)
-                   """ + LUOKITUS_PAIVITYS,
-                (tid, kid, mukana, perustelu, malli, tiiviste),
-            )
+    _suorita(
+        """INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste, Malli, Kehotetiiviste)
+           VALUES (%s, %s, %s, %s, %s, %s)
+           """ + LUOKITUS_PAIVITYS,
+        (tid, kid, mukana, perustelu, malli, tiiviste),
+    )
 
 
 def hyvaksy_luokitus(tid: int, kid: int, nimi: str, sahkoposti: str | None) -> None:
@@ -828,13 +825,11 @@ def hyvaksy_luokitus(tid: int, kid: int, nimi: str, sahkoposti: str | None) -> N
     Ei rowcount-tarkistusta: mysql-connector laskee vain muuttuneet rivit, joten
     saman nimen uusi hyväksyntä näyttäisi epäonnistuneelta.
     """
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                """UPDATE Kurssiluokitus SET KayttajaNimi = %s, Sahkoposti = %s
-                   WHERE TID = %s AND KID = %s AND Mukana = 1""",
-                (nimi, sahkoposti or None, tid, kid),
-            )
+    _suorita(
+        """UPDATE Kurssiluokitus SET KayttajaNimi = %s, Sahkoposti = %s
+           WHERE TID = %s AND KID = %s AND Mukana = 1""",
+        (nimi, sahkoposti or None, tid, kid),
+    )
 
 
 def hae_luokitukset(tid: int, mukana: bool | None = None) -> list[dict]:
@@ -876,12 +871,7 @@ def hae_tutkimuksen_tilanne(tid: int) -> dict:
             kursori.execute("SELECT COUNT(*) FROM Kurssi")
             kursseja_yht = int(kursori.fetchone()[0])
 
-            kursori.execute("SELECT Lukuvuosi FROM Tutkimus WHERE TID = %s", (tid,))
-            rivi = kursori.fetchone()
-            lukuvuosi = rivi[0] if rivi else None
-
-            kursori.execute("SELECT KKID FROM TutkimusKorkeakoulu WHERE TID = %s", (tid,))
-            korkeakoulut = [r[0] for r in kursori.fetchall()]
+            lukuvuosi, korkeakoulut = _rajaus(kursori, tid)
 
             # Ilman lukuvuotta koko in-scope-joukko on tyhjä (kuten Python-versiossa).
             if not lukuvuosi:
@@ -942,7 +932,7 @@ def hae_tutkimuksen_tilanne(tid: int) -> dict:
 
 def _arvioimattomat_ehto(tid: int) -> tuple[str, tuple]:
     """FROM+GROUP BY (ja parametrit) mukaan otetuille kursseille, joilta puuttuu
-    vielä ei-tyhjiä vastauksia. Jaettu rivihaun ja lukumäärän kesken (DRY).
+    vielä ei-tyhjiä vastauksia.
 
     GROUP BY -aggregaatti korreloidun per-rivi-alikyselyn sijaan: aiemmin jokaista
     mukana-kurssia kohti ajettiin oma COUNT-alikysely (O(kurssit) × etälatenssi).
@@ -967,32 +957,11 @@ def _arvioimattomat_ehto(tid: int) -> tuple[str, tuple]:
     return ehto, (tid, tid, *sp)
 
 
-def hae_arvioimattomat(tid: int) -> list[dict]:
-    """Mukaan otetut kurssit, joille ei vielä ole kaikkia ei-tyhjiä vastauksia tässä tutkimuksessa.
-
-    Rajataan tutkimuksen lukuvuoteen ja korkeakouluihin samoin kuin luokittelu
-    ja tilastopaneeli — muuten vanhojen ajojen rajauksen ulkopuoliset hyväksynnät
-    (väärä vuosi / korkeakoulu) menisivät turhaan LLM-arviointiin.
-    """
-    ehto, params = _arvioimattomat_ehto(tid)
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            # Kuvaus liitetään GROUP BY:n ulkopuolella (ONLY_FULL_GROUP_BY).
-            kursori.execute(f"SELECT t.*, ku.OpsKuvaus FROM (SELECT k.* {ehto}) t "
-                            f"LEFT JOIN KurssiKuvaus ku ON ku.KID = t.KID ORDER BY t.KurssiNimi", params)
-            return _rivit_dikteina(kursori)
-
-
-
 def laske_arvioimattomat(tid: int) -> int:
-    """Arvioimattomien kurssien lukumäärä. Erillinen hae_arvioimattomat'sta, jotta
-    tilannesivu ei vedä kaikkien hyväksyttyjen kurssien täysiä rivejä (OpsKuvaus-
-    tekstit) verkon yli pelkkää len()-laskentaa varten — merkitsevää etäpalvelimella."""
+    """Arvioimattomien kurssien (mukana, mutta ei vielä kaikkia ei-tyhjiä vastauksia)
+    lukumäärä tutkimuksen rajauksessa."""
     ehto, params = _arvioimattomat_ehto(tid)
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(f"SELECT COUNT(*) FROM (SELECT k.KID {ehto}) t", params)
-            return int(kursori.fetchone()[0])
+    return int(_hae_arvo(f"SELECT COUNT(*) FROM (SELECT k.KID {ehto}) t", params))
 
 
 # --- HITL-korjaukset ---
@@ -1045,22 +1014,20 @@ def tallenna_hitl_vastaus(tid: int, kid: int, kysid: int, vastaus: str,
     Sama korjaaja päivittää oman aiemman korjauksensa (uniikki_kys_kid_kayttaja),
     eri korjaajien rivit säilyvät erillisinä. Aikaleima päivittyy korjatessa.
     """
-    lista_json = json.dumps(lista, ensure_ascii=False) if lista is not None else None
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                """INSERT INTO Vastaukset
-                       (TID, KysID, KID, Vastaus, Pisteet, Luokka, Lista,
-                        KayttajaNimi, Sahkoposti, Juurisyy, Malli, Kehotetiiviste)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL, NULL)
-                   ON DUPLICATE KEY UPDATE
-                       Vastaus = VALUES(Vastaus), Pisteet = VALUES(Pisteet),
-                       Luokka = VALUES(Luokka), Lista = VALUES(Lista),
-                       Sahkoposti = VALUES(Sahkoposti), Juurisyy = VALUES(Juurisyy),
-                       Aikaleima = CURRENT_TIMESTAMP""",
-                (tid, kysid, kid, vastaus, pisteet, luokka, lista_json,
-                 nimi, sahkoposti, juurisyy),
-            )
+    lista_json = _json(lista)
+    _suorita(
+        """INSERT INTO Vastaukset
+               (TID, KysID, KID, Vastaus, Pisteet, Luokka, Lista,
+                KayttajaNimi, Sahkoposti, Juurisyy, Malli, Kehotetiiviste)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL, NULL)
+           ON DUPLICATE KEY UPDATE
+               Vastaus = VALUES(Vastaus), Pisteet = VALUES(Pisteet),
+               Luokka = VALUES(Luokka), Lista = VALUES(Lista),
+               Sahkoposti = VALUES(Sahkoposti), Juurisyy = VALUES(Juurisyy),
+               Aikaleima = CURRENT_TIMESTAMP""",
+        (tid, kysid, kid, vastaus, pisteet, luokka, lista_json,
+         nimi, sahkoposti, juurisyy),
+    )
 
 
 def hae_hitl_vastaukset(tid: int) -> list[dict]:
@@ -1076,30 +1043,7 @@ def hae_hitl_vastaukset(tid: int) -> list[dict]:
                 (tid,),
             )
             rivit = _rivit_dikteina(kursori)
-    for r in rivit:
-        if isinstance(r.get("Lista"), str):
-            r["Lista"] = json.loads(r["Lista"])
-    return rivit
-
-
-# --- Kurssiarviointi ---
-
-def aseta_arviointi(tid: int, kid: int, arviointi: str, perustelu: str) -> None:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                """INSERT INTO Kurssiarviointi (TID, KID, Arviointi, Perustelu)
-                   VALUES (%s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE Arviointi = VALUES(Arviointi), Perustelu = VALUES(Perustelu)""",
-                (tid, kid, arviointi, perustelu),
-            )
-
-
-def hae_arvioinnit(tid: int) -> list[dict]:
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute("SELECT * FROM Kurssiarviointi WHERE TID = %s", (tid,))
-            return _rivit_dikteina(kursori)
+    return _pura_json(rivit, "Lista")
 
 
 # --- RaporttiOsio ---
@@ -1119,15 +1063,13 @@ def aseta_raportti_osio(tid: int, avain: str, teksti: str,
                         laskentatiiviste: str | None = None) -> None:
     """Upsert raporttiosio. laskentatiiviste: annettuna (generointi) tallennetaan;
     None:na (WebUI-tekstimuokkaus) säilytetään aiempi arvo koskematta."""
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                """INSERT INTO RaporttiOsio (TID, OsioAvain, Teksti, Laskentatiiviste)
-                   VALUES (%s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE Teksti = VALUES(Teksti),
-                       Laskentatiiviste = COALESCE(VALUES(Laskentatiiviste), Laskentatiiviste)""",
-                (tid, avain, teksti, laskentatiiviste),
-            )
+    _suorita(
+        """INSERT INTO RaporttiOsio (TID, OsioAvain, Teksti, Laskentatiiviste)
+           VALUES (%s, %s, %s, %s)
+           ON DUPLICATE KEY UPDATE Teksti = VALUES(Teksti),
+               Laskentatiiviste = COALESCE(VALUES(Laskentatiiviste), Laskentatiiviste)""",
+        (tid, avain, teksti, laskentatiiviste),
+    )
 
 
 def hae_raportti_osio(tid: int, avain: str) -> str:
@@ -1145,63 +1087,49 @@ def hae_raportti_tila(tid: int) -> list[dict]:
     """Per-osio metatieto raportin tilannesivulle: milloin kirjoitettu ja millä
     laskentatiivisteellä (lähdeaineiston hash generoinnin hetkellä). Ei hae
     Teksti-kenttää (voi olla iso) — vain kevyet metasarakkeet."""
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                "SELECT OsioAvain, Aikaleima, Laskentatiiviste FROM RaporttiOsio WHERE TID = %s",
-                (tid,),
-            )
-            return _rivit_dikteina(kursori)
+    return _hae_kaikki(
+        "SELECT OsioAvain, Aikaleima, Laskentatiiviste FROM RaporttiOsio WHERE TID = %s",
+        (tid,),
+    )
 
 
 def hae_raportti_tuoreus(tid: int) -> dict | None:
     """Viimeksi laskettu raportin tuoreussignatuuri + laskenta-aika, tai None jos
     tuoreutta ei ole vielä laskettu. Kevyt luku — raskas tiivistelaskenta tehdään
     erikseen taustalla (tallenna_raportti_tuoreus)."""
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                "SELECT Signatuuri, Tarkistettu FROM RaporttiTuoreus WHERE TID = %s",
-                (tid,),
-            )
-            return _rivi_diktina(kursori)
+    return _hae_yksi(
+        "SELECT Signatuuri, Tarkistettu FROM RaporttiTuoreus WHERE TID = %s",
+        (tid,),
+    )
 
 
 def tallenna_raportti_tuoreus(tid: int, signatuuri: str | None) -> None:
     """Upsert viimeksi laskettu tuoreussignatuuri; Tarkistettu = NOW() (taulun
     ON UPDATE / DEFAULT hoitaa aikaleiman). Kutsutaan taustalaskennasta ja
     generoinnista (jolloin signatuuri = generoinnin lähdeaineiston tiiviste)."""
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                """INSERT INTO RaporttiTuoreus (TID, Signatuuri) VALUES (%s, %s)
-                   ON DUPLICATE KEY UPDATE Signatuuri = VALUES(Signatuuri),
-                       Tarkistettu = CURRENT_TIMESTAMP""",
-                (tid, signatuuri),
-            )
+    _suorita(
+        """INSERT INTO RaporttiTuoreus (TID, Signatuuri) VALUES (%s, %s)
+           ON DUPLICATE KEY UPDATE Signatuuri = VALUES(Signatuuri),
+               Tarkistettu = CURRENT_TIMESTAMP""",
+        (tid, signatuuri),
+    )
 
 
 def laske_hitl_korjaukset_jalkeen(tid: int, aika) -> int:
     """HITL-korjausten määrä, jotka on tehty annetun ajan jälkeen (COUNT, ei rivinoutoa)."""
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                "SELECT COUNT(*) FROM HitlKorjaus WHERE TID = %s AND Aikaleima > %s",
-                (tid, aika),
-            )
-            return int(kursori.fetchone()[0])
+    return int(_hae_arvo(
+        "SELECT COUNT(*) FROM HitlKorjaus WHERE TID = %s AND Aikaleima > %s",
+        (tid, aika),
+    ))
 
 
 def laske_hitl_vastaukset_jalkeen(tid: int, aika) -> int:
     """Ihmisen korjaamien vastausten määrä, jotka on tehty/muokattu ajan jälkeen."""
-    with yhteys() as yht:
-        with yht.cursor() as kursori:
-            kursori.execute(
-                "SELECT COUNT(*) FROM Vastaukset "
-                "WHERE TID = %s AND Malli IS NULL AND Aikaleima > %s",
-                (tid, aika),
-            )
-            return int(kursori.fetchone()[0])
+    return int(_hae_arvo(
+        "SELECT COUNT(*) FROM Vastaukset "
+        "WHERE TID = %s AND Malli IS NULL AND Aikaleima > %s",
+        (tid, aika),
+    ))
 
 
 # --- Raporttitilastot ---
@@ -1227,10 +1155,7 @@ def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
     """
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute("SELECT Lukuvuosi FROM Tutkimus WHERE TID = %s", (tid,))
-            rivi = kursori.fetchone()
-            lukuvuosi = rivi[0] if rivi else None
-            kkid_lista = hae_tutkimuksen_korkeakoulut(tid)
+            lukuvuosi, kkid_lista = _rajaus(kursori, tid)
             kaudet = _kattavat_kaudet(kursori, lukuvuosi)
 
             kk_ehto = f"WHERE ko.KKID IN ({','.join(['%s'] * len(kkid_lista))})" if kkid_lista else ""

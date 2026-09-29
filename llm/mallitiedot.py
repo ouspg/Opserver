@@ -7,6 +7,7 @@ import os
 import time
 import requests
 from dotenv import load_dotenv
+from llm import kutsu
 
 load_dotenv()
 
@@ -89,7 +90,7 @@ def muototuki_varoitus(malli: str | None = None) -> str | None:
     Perustuu jo haetun /models-listan supported_parameters-kenttään — ei uutta
     pyyntöä. Palauttaa None jos mallia ei löydy tai kenttää ei ole (ei voida
     päätellä; saatavuus tarkistetaan erikseen)."""
-    malli = malli or os.environ.get("LLM_MODEL", "")
+    malli = malli or kutsu.hae_malli()
     tiedot = hae_malli_tiedot(malli)
     tuetut = tiedot.get("supported_parameters") if tiedot else None
     if not tuetut:
@@ -155,7 +156,7 @@ def tarkista_saatavuus(malli: str | None = None) -> None:
     EnvironmentError jos mallia ei ole asetettu, RuntimeError jos sitä ei
     löydy palveluntarjoajan listalta.
     """
-    malli = malli or os.environ.get("LLM_MODEL", "")
+    malli = malli or kutsu.hae_malli()
     if not malli:
         raise EnvironmentError("LLM_MODEL puuttuu .env-tiedostosta")
     if not on_saatavilla(malli):
