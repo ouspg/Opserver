@@ -1,6 +1,7 @@
 """Arviointinäkymä: LLM-arviointi mukaan otetuille kursseille."""
 from tietokanta import mallit
 from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta
+from cliui.valikot import toimintovalikko, valitse_tutkimus
 from cliui import llmvaihe
 
 
@@ -62,16 +63,9 @@ def _nayta_yhteenveto(stdscr, otsikko: str, keskeytetty: bool, tilasto: dict, yh
 
 
 def nayta(stdscr) -> None:
-    tutkimukset = mallit.hae_tutkimukset()
-    if not tutkimukset:
-        piirra_otsikko(stdscr, "Arvioi")
-        nayta_viesti(stdscr, "Ei tutkimuksia — lisää ensin tutkimus (valikko 3).")
-        return
-    rivit = [f"{t['LuokittelunNimi']} ({t['Slug']})" for t in tutkimukset]
-    indeksi = valitse_listasta(stdscr, "Arvioi — valitse tutkimus", rivit)
-    if indeksi is None:
-        return
-    _arvioi(stdscr, tutkimukset[indeksi])
+    tutkimus = valitse_tutkimus(stdscr, "Arvioi — valitse tutkimus")
+    if tutkimus is not None:
+        _arvioi(stdscr, tutkimus)
 
 
 def _arvioi(stdscr, tutkimus: dict) -> None:
@@ -85,15 +79,7 @@ def _arvioi(stdscr, tutkimus: dict) -> None:
         ("Korjaa raakana tallennetut JSON-vastaukset", _korjaa_raaka_json),
         ("Näytä tilanne", _nayta_tilanne),
     ]
-    while True:
-        valinta = valitse_listasta(
-            stdscr,
-            f"Arvioi — {tutkimus['LuokittelunNimi']}",
-            [nimi for nimi, _ in toiminnot],
-        )
-        if valinta is None:
-            return
-        toiminnot[valinta][1](stdscr, tutkimus)
+    toimintovalikko(stdscr, f"Arvioi — {tutkimus['LuokittelunNimi']}", toiminnot, tutkimus)
 
 
 def _korjaa_raaka_json(stdscr, tutkimus: dict) -> None:

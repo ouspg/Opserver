@@ -1,6 +1,6 @@
 """Kurssien hakeminen opinto-oppaista — CLIUI-näkymä."""
-from tietokanta import mallit
 from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta, kirjoita_rivi
+from cliui.valikot import valitse_korkeakoulu
 
 
 def _tee_lukija(koulu: dict):
@@ -14,17 +14,9 @@ def _tee_lukija(koulu: dict):
 
 
 def nayta(stdscr) -> None:
-    koulut = mallit.hae_korkeakoulut()
-    if not koulut:
-        piirra_otsikko(stdscr, "Hae kurssit")
-        nayta_viesti(stdscr, "Ei korkeakouluja. Lisää ensin korkeakoulu valikkokohdasta 1.")
+    koulu = valitse_korkeakoulu(stdscr, "Hae kurssit — valitse korkeakoulu")
+    if koulu is None:
         return
-
-    rivit = [f"{k['KouluNimi']} ({k['OpsTyyppi']})" for k in koulut]
-    indeksi = valitse_listasta(stdscr, "Hae kurssit — valitse korkeakoulu", rivit)
-    if indeksi is None:
-        return
-    koulu = koulut[indeksi]
 
     lukija = _tee_lukija(koulu)
     if lukija is None:

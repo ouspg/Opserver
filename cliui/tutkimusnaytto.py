@@ -4,7 +4,8 @@ import re
 
 from tietokanta import mallit
 from cliui import kysymysnaytto
-from cliui.apurit import (piirra_otsikko, nayta_viesti, lue_teksti, valitse_listasta,
+from cliui.valikot import toimintovalikko, valitse_tutkimus, vahvista_kylla
+from cliui.apurit import (piirra_otsikko, nayta_viesti, lue_teksti,
                           valitse_monivalinta, muokkaa_lomake)
 
 _SLUG_KAAVA = re.compile(r'^[a-z0-9][a-z0-9_-]*$')
@@ -68,38 +69,14 @@ def _validoi_slug(slug: str) -> bool:
 
 
 def nayta(stdscr) -> None:
-    while True:
-        valinta = valitse_listasta(
-            stdscr,
-            "Tutkimusten hallinta",
-            ["Lisää tutkimus", "Monista tutkimus", "Muokkaa tutkimusta", "Poista tutkimus",
-             "Listaa tutkimukset", "Hallinnoi kysymyksiä"],
-        )
-        if valinta is None:
-            return
-        if valinta == 0:
-            _lisaa(stdscr)
-        elif valinta == 1:
-            _monista(stdscr)
-        elif valinta == 2:
-            _muokkaa(stdscr)
-        elif valinta == 3:
-            _poista(stdscr)
-        elif valinta == 4:
-            _listaa(stdscr)
-        elif valinta == 5:
-            _hallinnoi_kysymyksia(stdscr)
-
-
-def _valitse_tutkimus(stdscr, otsikko: str) -> dict | None:
-    tutkimukset = mallit.hae_tutkimukset()
-    if not tutkimukset:
-        piirra_otsikko(stdscr, otsikko)
-        nayta_viesti(stdscr, "Ei tutkimuksia tietokannassa.")
-        return None
-    rivit = [f"{t['LuokittelunNimi']} ({t['Slug']})" for t in tutkimukset]
-    indeksi = valitse_listasta(stdscr, otsikko, rivit)
-    return tutkimukset[indeksi] if indeksi is not None else None
+    toimintovalikko(stdscr, "Tutkimusten hallinta", [
+        ("Lisää tutkimus", _lisaa),
+        ("Monista tutkimus", _monista),
+        ("Muokkaa tutkimusta", _muokkaa),
+        ("Poista tutkimus", _poista),
+        ("Listaa tutkimukset", _listaa),
+        ("Hallinnoi kysymyksiä", _hallinnoi_kysymyksia),
+    ])
 
 
 def _tutkimus_lomake(stdscr, otsikko: str, tutkimus: dict | None = None) -> dict | None:
@@ -151,7 +128,7 @@ def _lisaa(stdscr) -> None:
 
 
 def _monista(stdscr) -> None:
-    tutkimus = _valitse_tutkimus(stdscr, "Monista tutkimus — valitse lähde")
+    tutkimus = valitse_tutkimus(stdscr, "Monista tutkimus — valitse lähde")
     if tutkimus is None:
         return
     piirra_otsikko(stdscr, f"Monista: {tutkimus['LuokittelunNimi']}")
@@ -172,7 +149,7 @@ def _monista(stdscr) -> None:
 
 
 def _muokkaa(stdscr) -> None:
-    tutkimus = _valitse_tutkimus(stdscr, "Muokkaa tutkimusta")
+    tutkimus = valitse_tutkimus(stdscr, "Muokkaa tutkimusta")
     if tutkimus is None:
         return
     arvot = _tutkimus_lomake(stdscr, f"Muokkaa: {tutkimus['LuokittelunNimi']}", tutkimus)
@@ -188,12 +165,11 @@ def _muokkaa(stdscr) -> None:
 
 
 def _poista(stdscr) -> None:
-    tutkimus = _valitse_tutkimus(stdscr, "Poista tutkimus")
+    tutkimus = valitse_tutkimus(stdscr, "Poista tutkimus")
     if tutkimus is None:
         return
     piirra_otsikko(stdscr, "Poista tutkimus")
-    vahvistus = lue_teksti(stdscr, f"Poistetaanko '{tutkimus['LuokittelunNimi']}'? (kyllä/ei)", 3)
-    if vahvistus.lower() in ("kyllä", "k", "kylla"):
+    if vahvista_kylla(stdscr, f"Poistetaanko '{tutkimus['LuokittelunNimi']}'?", 3):
         mallit.poista_tutkimus(tutkimus["TID"])
         nayta_viesti(stdscr, "Poistettu.")
     else:
@@ -201,7 +177,7 @@ def _poista(stdscr) -> None:
 
 
 def _hallinnoi_kysymyksia(stdscr) -> None:
-    tutkimus = _valitse_tutkimus(stdscr, "Hallinnoi kysymyksiä — valitse tutkimus")
+    tutkimus = valitse_tutkimus(stdscr, "Hallinnoi kysymyksiä — valitse tutkimus")
     if tutkimus is None:
         return
     kysymysnaytto.nayta(stdscr, tutkimus)

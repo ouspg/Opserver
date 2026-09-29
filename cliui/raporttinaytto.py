@@ -1,7 +1,7 @@
 """Raporttinäkymä: LLM-raportin generointi tutkimukselle."""
 import threading
-from tietokanta import mallit
-from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta
+from cliui.apurit import piirra_otsikko, nayta_viesti
+from cliui.valikot import toimintovalikko, valitse_tutkimus
 
 # Tuoreuslaskenta on raskas (per-yliopisto-tilastot + kaikki vastaukset etäkannasta),
 # joten se ajetaan taustasäikeessä eikä status-katselun kriittisellä polulla.
@@ -35,16 +35,9 @@ def _kaynnista_taustatuoreus(tutkimus: dict) -> None:
 
 
 def nayta(stdscr) -> None:
-    tutkimukset = mallit.hae_tutkimukset()
-    if not tutkimukset:
-        piirra_otsikko(stdscr, "Tee raportti")
-        nayta_viesti(stdscr, "Ei tutkimuksia — lisää ensin tutkimus (valikko 3).")
-        return
-    rivit = [f"{t['LuokittelunNimi']} ({t['Slug']})" for t in tutkimukset]
-    indeksi = valitse_listasta(stdscr, "Tee raportti — valitse tutkimus", rivit)
-    if indeksi is None:
-        return
-    _raportti(stdscr, tutkimukset[indeksi])
+    tutkimus = valitse_tutkimus(stdscr, "Tee raportti — valitse tutkimus")
+    if tutkimus is not None:
+        _raportti(stdscr, tutkimus)
 
 
 def _raportti(stdscr, tutkimus: dict) -> None:
@@ -53,15 +46,7 @@ def _raportti(stdscr, tutkimus: dict) -> None:
         ("Näytä tilanne", _nayta_tilanne),
         ("Tarkista tuoreus nyt", _tarkista_tuoreus),
     ]
-    while True:
-        valinta = valitse_listasta(
-            stdscr,
-            f"Raportti — {tutkimus['LuokittelunNimi']}",
-            [nimi for nimi, _ in toiminnot],
-        )
-        if valinta is None:
-            return
-        toiminnot[valinta][1](stdscr, tutkimus)
+    toimintovalikko(stdscr, f"Raportti — {tutkimus['LuokittelunNimi']}", toiminnot, tutkimus)
 
 
 def _generoi(stdscr, tutkimus: dict) -> None:

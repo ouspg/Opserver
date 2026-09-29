@@ -77,7 +77,8 @@ def test_lisaa_korkeakoulu_selvittaa_ja_tallentaa_api_osoitteen():
 
     with patch.object(kn, "piirra_otsikko"), \
          patch.object(kn, "nayta_viesti"), \
-         patch.object(kn, "lue_teksti", side_effect=["Testiyliopisto", "https://opas.peppi.x.fi", "kyllä"]), \
+         patch.object(kn, "lue_teksti", side_effect=["Testiyliopisto", "https://opas.peppi.x.fi"]), \
+         patch.object(kn, "vahvista_kylla", return_value=True), \
          patch.object(kn, "_valitse_ops_tyyppi", return_value="Peppi"), \
          patch.object(kn.konfiguraatio, "selvita_konfiguraatio",
                       return_value={"api_osoite": "https://opasbe.x.fi"}) as selvita, \
@@ -204,3 +205,18 @@ def test_llmvaihe_siirrettavat_peruutus_ja_siirto():
         assert llmvaihe.kasittele_siirrettavat(None, vaihe, ["A1", "A2"]) is False
         assert llmvaihe.kasittele_siirrettavat(None, vaihe, ["A1", "A2"]) is True
     assert vaihe.siirra.call_count == 2
+
+
+def test_valikot_toimintovalikko_ja_vahvistus():
+    from unittest.mock import patch
+    from cliui import valikot
+    kutsutut, otsikot = [], []
+    with patch.object(valikot, "valitse_listasta",
+                      side_effect=lambda s, o, v: otsikot.append(o) or (None if len(otsikot) > 2 else 1)):
+        valikot.toimintovalikko("scr", lambda: f"otsikko {len(otsikot)}",
+                                [("a", None), ("b", lambda s, x: kutsutut.append((s, x)))], "arg")
+    assert kutsutut == [("scr", "arg"), ("scr", "arg")]
+    assert otsikot == ["otsikko 0", "otsikko 1", "otsikko 2"]   # laskettu joka kierroksella
+    for syote, odotus in (("Kyllä ", True), ("k", True), ("ei", False), ("", False)):
+        with patch.object(valikot, "lue_teksti", return_value=syote):
+            assert valikot.vahvista_kylla("scr", "Poistetaanko?", 3) is odotus

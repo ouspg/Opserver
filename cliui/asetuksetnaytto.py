@@ -1,31 +1,21 @@
 """LLM-asetukset: nykyinen malli, saatavuustarkistus, mallien selaus ja vaihto."""
 from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta, lue_teksti
+from cliui.valikot import toimintovalikko
 from llm import kutsu, mallitiedot, asetukset
 
 
 def nayta(stdscr) -> None:
-    while True:
+    def otsikko() -> str:
         malli = kutsu.hae_malli() or "(ei asetettu)"
         tuoreus = mallitiedot.tuoreus_teksti()
-        otsikko = f"LLM-asetukset — nykyinen malli: {malli}"
-        otsikko += f"  ·  mallilista {tuoreus}" if tuoreus else "  ·  mallilistaa ei vielä haettu"
-        valinta = valitse_listasta(
-            stdscr,
-            otsikko,
-            [
-                "Tarkista nykyisen mallin saatavuus",
-                "Selaa ja vaihda mallia",
-                "Päivitä mallilista palvelimelta",
-            ],
-        )
-        if valinta is None:
-            return
-        if valinta == 0:
-            _tarkista(stdscr)
-        elif valinta == 1:
-            _selaa_ja_vaihda(stdscr)
-        elif valinta == 2:
-            _paivita_lista(stdscr)
+        teksti = f"LLM-asetukset — nykyinen malli: {malli}"
+        return teksti + (f"  ·  mallilista {tuoreus}" if tuoreus else "  ·  mallilistaa ei vielä haettu")
+
+    toimintovalikko(stdscr, otsikko, [
+        ("Tarkista nykyisen mallin saatavuus", _tarkista),
+        ("Selaa ja vaihda mallia", _selaa_ja_vaihda),
+        ("Päivitä mallilista palvelimelta", _paivita_lista),
+    ])
 
 
 def _tarkista(stdscr) -> None:

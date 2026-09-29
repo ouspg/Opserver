@@ -1,6 +1,7 @@
 """Luokittelunäkymä: meta-suodatus ja LLM-luokittelu."""
 from tietokanta import mallit
 from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta
+from cliui.valikot import toimintovalikko, valitse_tutkimus
 from cliui import llmvaihe
 
 
@@ -22,16 +23,9 @@ def _vaihe() -> llmvaihe.Vaihe:
 
 
 def nayta(stdscr) -> None:
-    tutkimukset = mallit.hae_tutkimukset()
-    if not tutkimukset:
-        piirra_otsikko(stdscr, "Luokittele")
-        nayta_viesti(stdscr, "Ei tutkimuksia — lisää ensin tutkimus (valikko 3).")
-        return
-    rivit = [f"{t['LuokittelunNimi']} ({t['Slug']})" for t in tutkimukset]
-    indeksi = valitse_listasta(stdscr, "Luokittele — valitse tutkimus", rivit)
-    if indeksi is None:
-        return
-    _luokittele(stdscr, tutkimukset[indeksi])
+    tutkimus = valitse_tutkimus(stdscr, "Luokittele — valitse tutkimus")
+    if tutkimus is not None:
+        _luokittele(stdscr, tutkimus)
 
 
 def _luokittele(stdscr, tutkimus: dict) -> None:
@@ -44,15 +38,7 @@ def _luokittele(stdscr, tutkimus: dict) -> None:
         ("Poista testiajo", lambda s, t: llmvaihe.poista_testiajo(s, t, _vaihe())),
         ("Näytä tilanne", _nayta_tilanne),
     ]
-    while True:
-        valinta = valitse_listasta(
-            stdscr,
-            f"Luokittele — {tutkimus['LuokittelunNimi']}",
-            [nimi for nimi, _ in toiminnot],
-        )
-        if valinta is None:
-            return
-        toiminnot[valinta][1](stdscr, tutkimus)
+    toimintovalikko(stdscr, f"Luokittele — {tutkimus['LuokittelunNimi']}", toiminnot, tutkimus)
 
 
 def _aja_meta(stdscr, tutkimus: dict) -> None:
