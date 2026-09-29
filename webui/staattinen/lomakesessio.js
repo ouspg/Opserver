@@ -14,6 +14,9 @@
   let _avain = null, _modaali = null, _erikois = {}, _tallennettu = null;
   let _alustettu = false, _aloittaja = false, _sovelletaan = false;
   let _muokkaajat = [], _odottava = null, _ajastin = null;
+  // _pohja = kenttien arvot, joista oma muokkaus lähti liittyessä (ensimmäisellä kerralla omat
+  // alkuarvot, uudelleenliittyessä viimeksi palvelimelta saadut); _palvelimen = palvelimen tila.
+  let _pohja = {}, _palvelimen = {};
   const _kuunnellut = new WeakSet();
 
   const laheta = (viesti) => window.lahetaWs?.(viesti);
@@ -32,7 +35,8 @@
     return els[0]?.value ?? null;
   }
 
-  function aseta(k, v) {
+  // siirto: oman kursorin siirto (merkkiä), kun tekstiä lisättiin sen eteen.
+  function aseta(k, v, siirto = 0) {
     _sovelletaan = true;  // erikoiskentän uudelleenrakennus ei saa lähettää muutosta takaisin
     try {
       if (_erikois[k]) {
@@ -46,7 +50,7 @@
       const oma = document.activeElement === el;
       const [alku, loppu] = [el.selectionStart, el.selectionEnd];
       el.value = v ?? "";
-      if (oma) try { el.setSelectionRange(alku, loppu); } catch (_) { /* select/number */ }
+      if (oma) try { el.setSelectionRange(alku + siirto, loppu + siirto); } catch (_) { /* select/number */ }
     } finally {
       _sovelletaan = false;
     }
@@ -57,7 +61,10 @@
   }
 
   // Lähetys harvennettuna; arvon muutos ei huku perään tulevan pelkän kursorisiirron alle.
+  // Ennen ensimmäistä vastausta ei lähetetä: palvelimen tila ei ole vielä tiedossa, ja
+  // oma muutos yhdistetään siihen vastauksen tullessa (yhdista) ja lähetetään vasta sitten.
   function jonoon(kentta, arvollinen, el) {
+    if (!_alustettu) return;
     if (_odottava && _odottava.kentta !== kentta) laheta(_odottava);
     const arvo = arvollinen ? { arvo: lue(kentta) }
                : (_odottava?.kentta === kentta && "arvo" in _odottava ? { arvo: _odottava.arvo } : {});
@@ -164,16 +171,31 @@
 
   // --- Julkinen rajapinta ---
 
-  function liity() {
+  function liity(pohja = {}) {
     const arvot = {};
     for (const k of kentat()) arvot[k] = lue(k);
+    _pohja = { ...arvot, ...pohja };
     laheta({ tyyppi: "lomake-liity", avain: _avain, arvot });
+  }
+
+  const sama = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+  // Kentän arvo liittymisvastauksen tullessa (#10): palvelimen arvo, ellei käyttäjä
+  // muuttanut kenttää liittymisen jälkeen (hidas vastaus, WebSocket-katko). Tekstin perään
+  // kirjoitettu liitetään palvelimen tekstin perään; muuten oma muutos säilyy.
+  function yhdista(pohja, oma, palvelin) {
+    if (sama(oma, pohja) || sama(oma, palvelin)) return palvelin;
+    if (sama(palvelin, pohja)) return oma;
+    if ([pohja, oma, palvelin].every((x) => typeof x === "string") && oma.startsWith(pohja)) {
+      return palvelin + oma.slice(pohja.length);
+    }
+    return oma;
   }
 
   window.avaaLomakesessio = function (avain, modaali, { erikois = {}, tallennettu = null } = {}) {
     if (_avain) window.suljeLomakesessio();
     _avain = avain; _modaali = modaali; _erikois = erikois; _tallennettu = tallennettu;
-    _alustettu = false; _aloittaja = false; _muokkaajat = []; _odottava = null;
+    _alustettu = false; _aloittaja = false; _muokkaajat = []; _odottava = null; _palvelimen = {};
     kuuntele(modaali);
     liity();
     piirraMuokkaajat();
@@ -200,17 +222,26 @@
   window.lomakeOlenAloittaja = () => !_avain || _aloittaja;
   window.omaLomake = () => _avain;
   // WebSocket yhdisti uudelleen → palvelin ei muista jäsenyyttä.
-  window.lomakeUudelleenliity = () => { if (_avain) { _alustettu = false; liity(); } };
+  // Katkon aikana kirjoitettu ei päässyt palvelimelle: pohjana viimeksi tunnettu palvelimen tila.
+  window.lomakeUudelleenliity = () => { if (_avain) { _alustettu = false; liity(_palvelimen); } };
 
   window.lomakeKuuntelija = function (viesti) {
     if (!_avain || viesti.avain !== _avain) return;
     if (viesti.tyyppi === "lomake-tallennettu") { _tallennettu?.(viesti); return; }
     _muokkaajat = viesti.muokkaajat || [];
+    _palvelimen = viesti.arvot || {};
     if (!_alustettu) {
-      // Ensimmäinen vastaus: palvelimen arvot (ensimmäisen avaajan) kaikkiin kenttiin.
+      // Ensimmäinen vastaus: palvelimen arvot (ensimmäisen avaajan) kenttiin, paitsi
+      // liittymisen jälkeen itse muutettuihin (yhdista) — ne lähetetään palvelimelle.
       _aloittaja = _muokkaajat.length === 1;
-      for (const [k, v] of Object.entries(viesti.arvot || {})) aseta(k, v);
       _alustettu = true;
+      for (const [k, v] of Object.entries(_palvelimen)) {
+        const oma = lue(k);
+        const arvo = yhdista(_pohja[k], oma, v);
+        const siirto = typeof arvo === "string" && typeof oma === "string" && arvo !== v ? arvo.length - oma.length : 0;
+        aseta(k, arvo, siirto);
+        if (!sama(arvo, v)) jonoon(k, true, _modaali.querySelector(`[data-jaettu="${CSS.escape(k)}"]`));
+      }
     } else if (viesti.lahettaja && viesti.lahettaja !== omaId()) {
       // Toisen muutos: vain hänen muuttamansa kenttä (ei ylikirjoiteta omaa kesken olevaa kirjoitusta).
       const kentta = _muokkaajat.find((m) => m.id === viesti.lahettaja)?.kentta;
