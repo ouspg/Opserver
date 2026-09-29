@@ -1,11 +1,11 @@
 """Testierä-taulujen pysyvyys (Kurssiluokitus_testi, Vastaukset_testi).
 
-Erillään oikeiden tulosten funktioista (mallit.py): testiajot kirjataan
+Erillään oikeiden tulosten funktioista (tietokanta.mallit): testiajot kirjataan
 ajotunnuksella (Ajo) ja voidaan poistaa kohdennetusti oikeita tuloksia
 koskematta. Ks. migraatio_015.sql.
 """
 from tietokanta.yhteys import yhteys
-from tietokanta.mallit import (
+from tietokanta._yhteiset import (
     _hae_kaikki, _hae_sarake, _suorita, _json, LUOKITUS_PAIVITYS, VASTAUS_PAIVITYS,
 )
 
