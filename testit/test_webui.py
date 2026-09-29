@@ -764,3 +764,30 @@ def test_lomakesessio_jaetaan_ja_ensimmaisen_arvot_sailyvat(monkeypatch):
         b.send_json({"tyyppi": "lomake-liity", "avain": "hitl:1:7", "arvot": {"nimi": "Bertta"}})
         # viimeisen poistuttua sessio häviää → seuraava avaaja on taas ensimmäinen (3.a)
         assert _lomakeviesti(b)["arvot"] == {"nimi": "Bertta"}
+
+
+def _raporttiviesti(ws):
+    while True:
+        viesti = ws.receive_json()
+        if viesti["tyyppi"] == "raportti-sessio":
+            return viesti
+
+
+def test_raporttisessio_liity_poistu_ja_katkeaminen(monkeypatch):
+    monkeypatch.setattr(palvelin, "_raportti_sessiot", {})
+    monkeypatch.setattr(palvelin, "_raportti_teksti", {})
+    with patch("webui.palvelin.mallit.hae_raportti_osio", return_value="alku"), \
+         asiakas.websocket_connect("/ws") as a:
+        with asiakas.websocket_connect("/ws") as b:
+            a.send_json({"tyyppi": "raportti-liity", "tid": 1, "avain": "yhteenveto"})
+            assert _raporttiviesti(a)["teksti"] == "alku"
+            b.send_json({"tyyppi": "raportti-liity", "tid": 1, "avain": "yhteenveto"})
+            assert len(_raporttiviesti(b)["muokkaajat"]) == 2
+            assert len(_raporttiviesti(a)["muokkaajat"]) == 2
+        # B:n yhteys katkesi → A näkee jäljelle jääneet
+        assert len(_raporttiviesti(a)["muokkaajat"]) == 1
+        a.send_json({"tyyppi": "raportti-poistu", "tid": 1, "avain": "yhteenveto"})
+        a.send_json({"tyyppi": "uutinen", "teksti": "synkronointi"})
+        while a.receive_json()["tyyppi"] != "uutinen":
+            pass
+    assert palvelin._raportti_sessiot == {} and palvelin._raportti_teksti == {}
