@@ -3,19 +3,6 @@ from unittest.mock import MagicMock, patch, call
 from tietokanta import mallit
 
 
-@pytest.fixture
-def mock_yhteys():
-    with patch("tietokanta.mallit.yhteys") as mock:
-        yht = MagicMock()
-        kursori = MagicMock()
-        yht.__enter__ = MagicMock(return_value=yht)
-        yht.__exit__ = MagicMock(return_value=False)
-        yht.cursor.return_value.__enter__ = MagicMock(return_value=kursori)
-        yht.cursor.return_value.__exit__ = MagicMock(return_value=False)
-        mock.return_value = yht
-        yield yht, kursori
-
-
 class TestKorkeakoulu:
     def test_lisaa_korkeakoulu_palauttaa_id(self, mock_yhteys):
         yht, kursori = mock_yhteys
@@ -962,8 +949,7 @@ class TestHitlRivitEivatSotkeLaskentaa:
         from tietokanta import testimallit
         yht, kursori = mock_yhteys
         kursori.fetchone.return_value = (3,)
-        with patch("tietokanta.testimallit.yhteys", mallit.yhteys):
-            testimallit.siirra_testiajo_arviointi("ajo1")
+        testimallit.siirra_testiajo_arviointi("ajo1")
         sql, _ = kursori.execute.call_args[0]
         assert "INSERT INTO Vastaukset\n                       (TID, KysID" in sql or "(TID, KysID" in sql
         assert "SELECT TID, KysID" in sql
@@ -973,11 +959,10 @@ class TestHitlRivitEivatSotkeLaskentaa:
         from tietokanta import testimallit
         yht, kursori = mock_yhteys
         kursori.fetchone.return_value = (3,)
-        with patch("tietokanta.testimallit.yhteys", mallit.yhteys):
-            testimallit.siirra_testiajo_arviointi("ajo1")
-            assert "HyvaksyjaNimi = NULL" in kursori.execute.call_args[0][0]
-            testimallit.siirra_testiajo_luokittelu("ajo1")
-            assert "KayttajaNimi = NULL" in kursori.execute.call_args[0][0]
+        testimallit.siirra_testiajo_arviointi("ajo1")
+        assert "HyvaksyjaNimi = NULL" in kursori.execute.call_args[0][0]
+        testimallit.siirra_testiajo_luokittelu("ajo1")
+        assert "KayttajaNimi = NULL" in kursori.execute.call_args[0][0]
 
 
 def test_kattavat_kaudet_ohittaa_virheellisen_kauden():
