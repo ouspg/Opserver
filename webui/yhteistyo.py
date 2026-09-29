@@ -1,0 +1,231 @@
+"""Reaaliaikainen yhteistyö (WebSocket): läsnäolo, jaetut korjauslomakkeet, raporttiosion
+yhteismuokkaus ja jaetut suodatinnäkymät. Tila on vain muistissa."""
+import asyncio
+import json
+import uuid
+from datetime import datetime
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
+
+from tietokanta import mallit
+from webui.riippuvuudet import TutkimusSlugista
+
+
+reititin = APIRouter()
+
+
+# --- Reaaliaikainen läsnäolo ja muokkaussessiot (WebSocket) ---
+
+_yhteydet: dict[str, tuple[WebSocket, dict]] = {}
+
+# Jaetut korjauslomakkeet (HITL-modaalit): avain (esim. "hitl:1:7", "arvio:1:7:3") →
+# {"arvot": {kentta: arvo}, "jasenet": {uid: {"kentta": str|None, "kursori": int}}}.
+# Ensimmäisen avaajan arvot alustavat lomakkeen; myöhemmät liittyjät saavat ne.
+_lomakkeet: dict[str, dict] = {}
+
+# avain = (tid, avain_str) → {uid: {nimimerkki, profiili, kursori}}
+_raportti_sessiot: dict[tuple, dict[str, dict]] = {}
+# avain = (tid, avain_str) → nykyinen tekstisisältö sessiossa
+_raportti_teksti: dict[tuple, str] = {}
+
+# Jaetut suodatinnäkymät (välilehdet): sivupolku → [{id, nimi, suodatin}].
+# ponytail: vain muistissa — katoavat palvelimen uudelleenkäynnistyksessä; kantaan jos pitää säilyä.
+_nakymat: dict[str, list[dict]] = {}
+_NAKYMIA_MAX = 30
+
+
+def _lisaa_nakyma(data: dict) -> bool:
+    """Validoi ja lisää asiakkaan luoma näkymä (luottamusraja: selain).
+    Jo olemassa oleva id = onnistunut uudelleenlähetys → True, ei tuplaa."""
+    sivu, nid, nimi, suodatin = (data.get(k) for k in ("sivu", "id", "nimi", "suodatin"))
+    if not all(isinstance(x, str) and 0 < len(x) <= 200 for x in (sivu, nid, nimi)):
+        return False
+    if not isinstance(suodatin, dict) or len(suodatin) > 10 or not all(
+            isinstance(k, str) and (v is None or (isinstance(v, str) and len(v) <= 200))
+            for k, v in suodatin.items()):
+        return False
+    lista = _nakymat.setdefault(sivu, [])
+    if any(n["id"] == nid for n in lista):
+        return True
+    if len(lista) >= _NAKYMIA_MAX:
+        return False
+    lista.append({"id": nid, "nimi": nimi[:40], "suodatin": suodatin})
+    return True
+
+
+def _kelpo_lomakearvo(arvo) -> bool:
+    """Lomakekentän arvo selaimelta (luottamusraja): teksti, None tai tekstilista."""
+    if arvo is None or (isinstance(arvo, str) and len(arvo) <= 20000):
+        return True
+    return isinstance(arvo, list) and len(arvo) <= 100 and all(
+        isinstance(x, str) and len(x) <= 1000 for x in arvo)
+
+
+def _kelpo_lomakearvot(arvot) -> bool:
+    return isinstance(arvot, dict) and len(arvot) <= 30 and all(
+        isinstance(k, str) and len(k) <= 50 and _kelpo_lomakearvo(v) for k, v in arvot.items())
+
+
+async def _laheta(viesti: str, uidit=None) -> None:
+    """Viesti annetuille (oletus: kaikille) yhteyksille. Katkennut yhteys poistetaan;
+    sen oma ws-käsittelijä siivoaa lomake- ja raporttisessiot."""
+    for uid in list(_yhteydet if uidit is None else uidit):
+        yht = _yhteydet.get(uid)
+        if yht is None:
+            continue
+        try:
+            await yht[0].send_text(viesti)
+        except Exception:
+            _yhteydet.pop(uid, None)
+
+
+def _kayttajatiedot(uid: str) -> dict:
+    tiedot = _yhteydet.get(uid, (None, {}))[1]
+    return {"nimimerkki": tiedot.get("nimimerkki", "?"), "profiili": tiedot.get("profiili", {})}
+
+
+async def _laheta_lomake(avain: str, lahettaja: str | None = None, tyyppi: str = "lomake-sessio") -> None:
+    """Lomakkeen koko tila jäsenille. lahettaja = kenen muutos tämän laukaisi
+    (selain ei sovella omia muutoksiaan takaisin, ettei kirjoitus nyi)."""
+    lomake = _lomakkeet.get(avain)
+    if not lomake:
+        return
+    muokkaajat = [{"id": uid, **_kayttajatiedot(uid), **tila}
+                  for uid, tila in lomake["jasenet"].items()]
+    viesti = json.dumps({"tyyppi": tyyppi, "avain": avain, "lahettaja": lahettaja,
+                         "arvot": lomake["arvot"], "muokkaajat": muokkaajat})
+    await _laheta(viesti, [uid for uid in lomake["jasenet"]
+                           if tyyppi == "lomake-sessio" or uid != lahettaja])
+
+
+async def _poistu_lomakkeesta(avain: str, uid: str) -> None:
+    lomake = _lomakkeet.get(avain)
+    if lomake and lomake["jasenet"].pop(uid, None) is not None:
+        if lomake["jasenet"]:
+            await _laheta_lomake(avain)
+        else:
+            del _lomakkeet[avain]  # viimeinen poistui → seuraava avaaja alustaa uudelleen
+
+
+async def _laheta_raportti_sessio(avain: tuple) -> None:
+    if avain not in _raportti_sessiot:
+        return
+    tid, osio_avain = avain
+    muokkaajat = [{"id": uid, **tiedot} for uid, tiedot in _raportti_sessiot[avain].items()]
+    viesti = json.dumps({
+        "tyyppi": "raportti-sessio",
+        "tid": tid, "avain": osio_avain,
+        "teksti": _raportti_teksti.get(avain, ""),
+        "muokkaajat": muokkaajat,
+    })
+    await _laheta(viesti, _raportti_sessiot[avain])
+
+
+async def _poistu_raportista(avain: tuple, uid: str) -> None:
+    sessio = _raportti_sessiot.get(avain)
+    if sessio and sessio.pop(uid, None) is not None:
+        if sessio:
+            await _laheta_raportti_sessio(avain)
+        else:
+            del _raportti_sessiot[avain]
+            _raportti_teksti.pop(avain, None)
+
+
+async def _laheta_kaikille() -> None:
+    kayttajat = [{"id": uid, **data} for uid, (_, data) in _yhteydet.items() if data]
+    await _laheta(json.dumps({"tyyppi": "kayttajat", "data": kayttajat}))
+
+
+@reititin.post("/api/nakymat")
+async def api_nakyma_luo(data: dict) -> dict:
+    """Uusi jaettu suodatinnäkymä (HTTP, jotta WebUI voi lähettää uudelleen ja näyttää tilan)."""
+    if not _lisaa_nakyma(data):
+        raise HTTPException(status_code=400, detail="Virheellinen näkymä")
+    await _laheta(json.dumps({"tyyppi": "nakymat", "data": _nakymat}))
+    return {"ok": True}
+
+
+class RaporttiOsioPyynto(BaseModel):
+    teksti: str
+
+
+@reititin.post("/api/tutkimukset/{slug}/raportti/{avain}")
+def api_raportti_osio_tallenna(tutkimus: TutkimusSlugista, avain: str, pyynto: RaporttiOsioPyynto) -> dict:
+    """Raporttiosion tallennus (idempotentti: sama teksti uudelleen = sama tila)."""
+    mallit.aseta_raportti_osio(tutkimus["TID"], avain, pyynto.teksti)
+    if (tutkimus["TID"], avain) in _raportti_teksti:
+        _raportti_teksti[(tutkimus["TID"], avain)] = pyynto.teksti
+    return {"ok": True}
+
+
+@reititin.websocket("/ws")
+async def ws_kayttajat(ws: WebSocket) -> None:
+    await ws.accept()
+    uid = str(uuid.uuid4())[:8]
+    _yhteydet[uid] = (ws, {})
+    try:
+        await ws.send_text(json.dumps({"tyyppi": "oma-id", "id": uid}))
+        await ws.send_text(json.dumps({"tyyppi": "nakymat", "data": _nakymat}))
+        while True:
+            data = await ws.receive_json()
+            tyyppi = data.get("tyyppi")
+            if tyyppi == "uutinen":
+                aika = datetime.now().strftime("%H:%M")
+                await _laheta(json.dumps({"tyyppi": "uutinen", "teksti": data.get("teksti", ""), "aika": aika}))
+            elif tyyppi and tyyppi.startswith("lomake-"):
+                avain = data.get("avain")
+                if not (isinstance(avain, str) and 0 < len(avain) <= 100):
+                    continue
+                lomake = _lomakkeet.get(avain)
+                if tyyppi == "lomake-liity" and _kelpo_lomakearvot(data.get("arvot")):
+                    if lomake is None:
+                        lomake = _lomakkeet[avain] = {"arvot": data["arvot"], "jasenet": {}}
+                    lomake["jasenet"][uid] = {"kentta": None, "kursori": 0}
+                    await _laheta_lomake(avain)
+                elif lomake is None or uid not in lomake["jasenet"]:
+                    continue
+                elif tyyppi == "lomake-arvo":
+                    kentta = data.get("kentta")
+                    if not (isinstance(kentta, str) and len(kentta) <= 50):
+                        continue
+                    if "arvo" in data:
+                        if not _kelpo_lomakearvo(data["arvo"]) or (
+                                kentta not in lomake["arvot"] and len(lomake["arvot"]) >= 30):
+                            continue
+                        lomake["arvot"][kentta] = data["arvo"]
+                    kursori = data.get("kursori")
+                    lomake["jasenet"][uid] = {"kentta": kentta,
+                                              "kursori": kursori if isinstance(kursori, int) else 0}
+                    await _laheta_lomake(avain, lahettaja=uid)
+                elif tyyppi == "lomake-tallennettu":
+                    await _laheta_lomake(avain, lahettaja=uid, tyyppi="lomake-tallennettu")
+                elif tyyppi == "lomake-poistu":
+                    await _poistu_lomakkeesta(avain, uid)
+            elif tyyppi == "raportti-liity":
+                avain = (data.get("tid"), data.get("avain"))
+                if avain not in _raportti_sessiot:
+                    _raportti_sessiot[avain] = {}
+                    # Säikeessä: synkroninen etäkantakutsu pysäyttäisi event loopin
+                    # eli kaikki WebSocket-yhteydet ja async-reitit kyselyn ajaksi.
+                    _raportti_teksti[avain] = await asyncio.to_thread(mallit.hae_raportti_osio, *avain)
+                _raportti_sessiot[avain][uid] = {**_kayttajatiedot(uid), "kursori": 0}
+                await _laheta_raportti_sessio(avain)
+            elif tyyppi == "raportti-teksti":
+                avain = (data.get("tid"), data.get("avain"))
+                if avain in _raportti_sessiot:
+                    _raportti_teksti[avain] = data.get("teksti", "")
+                    if uid in _raportti_sessiot[avain]:
+                        _raportti_sessiot[avain][uid]["kursori"] = data.get("kursori", 0)
+                    await _laheta_raportti_sessio(avain)
+            elif tyyppi == "raportti-poistu":
+                await _poistu_raportista((data.get("tid"), data.get("avain")), uid)
+            else:
+                _yhteydet[uid] = (ws, data)
+                await _laheta_kaikille()
+    except WebSocketDisconnect:
+        _yhteydet.pop(uid, None)
+        for avain in list(_lomakkeet):
+            await _poistu_lomakkeesta(avain, uid)
+        for avain in list(_raportti_sessiot):
+            await _poistu_raportista(avain, uid)
+        await _laheta_kaikille()
