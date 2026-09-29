@@ -4,24 +4,6 @@ Session-aikana (2026-09-22, tuotannon `asenna`/Caddy/migraatio-työ) havaittuja
 asioita jotka mainittiin mutta ei korjattu tai vahvistettu käyttäjän kanssa.
 Triagoi: korjaa tai sulje.
 
-## 8. Tiedostokokoraja ylittyy: sovellus.js 1648 ja yhteistyo.js 683 riviä (raja ~500)
-
-CLAUDE.md: "jokaisen tiedoston täytyy olla niin pieni, että Claude pystyy
-lukemaan sen kerralla (~500 riviä)".
-
-**Python-osa tehty 2026-09-29:** katselmointi (bugit #64, DRY #66, optimoinnit #75)
-ja jaot: `tietokanta/mallit.py` → aihepiirimoduulit + julkisivu (#76),
-`webui/palvelin.py` → APIRouterit (#77), `cliui/apurit.py` → tekstikenttä + lomake
-(#78); testit jaettu samoin. #76–#78 yhdistämisen jälkeen suurin Python-tiedosto
-449 riviä. Kaava: ast-skripti siirtää funktiot sellaisinaan, julkisivu/kokoaja
-pitää kutsujat ennallaan, patchit määrittelevään moduuliin, vanha vs. uusi
-rinnakkain perf-kantaa vasten.
-
-**Jäljellä JS:** `webui/staattinen/sovellus.js` 1648 ja `yhteistyo.js` 683 riviä.
-Ehdotus: jaa `sovellus.js` näkymittäin (korkeakoulut/kurssit, tutkimuksen kurssit
-+ HITL, arvioinnit, raportti) omiin tiedostoihinsa (lohkoon käärittyinä, ks.
-globaalien törmäystesti); muista `?v=N` index.html:ssä ja selaintodennus.
-
 ## 9. Kapea ikkuna (~520 px): yläpalkin muiden käyttäjien ympyrät menevät logon päälle
 
 Havaittu 2026-09-27 PR #44:n selaintestissä (leveys 520 px): `#muut-ympyrat`
@@ -31,10 +13,10 @@ flex-wrap/rivitys headerin oikeaan reunaan tai ympyröiden piilotus kapealla.
 
 ## 10. Modaalin avaamisen jälkeen heti kirjoitettu teksti voi korvautua (WS-liittymisen kilpailutilanne)
 
-Havaittu 2026-09-27 selaintestissä: raporttimodaalissa (`raporttimuokkaus.js`)
-heti avaamisen jälkeen kirjoitettu teksti ylikirjoittui, kun WebSocket-session
-liittymisvastaus (osion teksti palvelimelta) saapui perässä. Sama rakenne on
-jaetussa korjauslomakkeessa (`lomakesessio.js`): ensimmäinen `lomake-sessio`-vastaus
+Havaittu 2026-09-27 selaintestissä: raporttimodaalissa heti avaamisen jälkeen
+kirjoitettu teksti ylikirjoittui, kun WebSocket-session liittymisvastaus saapui
+perässä. Raporttimuokkain on #83:sta lähtien jaettu lomake, joten korjaus tarvitaan
+vain `lomakesessio.js`:ään: ensimmäinen `lomake-sessio`-vastaus
 asettaa kaikki kentät palvelimen arvoihin, joten ennen vastausta (hitaalla
 yhteydellä sekunteja) kirjoitetut merkit katoavat. Ihminen ehtii harvoin
 kirjoittaa ennen vastausta hyvällä yhteydellä, mutta huonolla kyllä. Korjaus: älä
@@ -73,7 +55,7 @@ mitään, joten myöhemmin liittyvä/uudelleenlataava/yhteyskatkoksessa ollut
 käyttäjä ei näe aiempia tapahtumia. Lisäksi asiakas lähettää uutisen itse
 tallennuksen jälkeen (pudotetaan hiljaa jos WS ei auki) ja teksti on
 vapaamuotoinen → kuka tahansa voi väärentää "uutisen". Uutisia lähtee vain
-HITL-korjauksesta ja peukutuksesta (`sovellus.js` ~792, ~809) — ei
+HITL-korjauksesta ja peukutuksesta (`luokitukset.js` HITL-lomake, `yhteiset.js` `lahetaHyvaksynta`) — ei
 arviointi-/raporttimuokkauksista.
 
 Tavoite:
