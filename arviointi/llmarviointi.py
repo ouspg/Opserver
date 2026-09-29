@@ -124,11 +124,12 @@ def pura_tulokset(tulokset: list[dict], kysymykset: list[dict]):
             yield (tulos["id"], k, *pura_vastaus(k, raw))
 
 
-def _tallenna_tulokset(tulokset: list[dict], kysymykset: list[dict], malli: str,
+def _tallenna_tulokset(tid: int, tulokset: list[dict], kysymykset: list[dict], malli: str,
                        kys_tiiviste: dict | None = None) -> None:
-    for kid, k, vastaus, pisteet, luokka, lista in pura_tulokset(tulokset, kysymykset):
-        mallit.aseta_vastaus(k["KysID"], kid, vastaus, malli, pisteet=pisteet, luokka=luokka,
-                             lista=lista, tiiviste=(kys_tiiviste or {}).get(k["KysID"]))
+    rivit = [(k["KysID"], kid, vastaus, malli, pisteet, luokka, lista, (kys_tiiviste or {}).get(k["KysID"]))
+             for kid, k, vastaus, pisteet, luokka, lista in pura_tulokset(tulokset, kysymykset)]
+    if rivit:
+        mallit.aseta_vastaukset(tid, rivit)  # yksi kierros per erä
 
 
 _UUSINTAOHJE = "\n\nPalauta PELKKÄ JSON-objekti muodossa {\"tulokset\": [...]}."
@@ -299,7 +300,7 @@ def aja(tutkimus: dict, edistyminen_cb=None, max_erat: int | None = None,
         try:
             raaka = _arvioi_erä(erä, arviointikehote, osa_kysymykset, jarjestelma)
             tulokset = kurssimuoto.siivoa_tulokset(raaka, odotetut)
-            _tallenna_tulokset(tulokset, osa_kysymykset, malli, kys_tiiviste)
+            _tallenna_tulokset(tutkimus["TID"], tulokset, osa_kysymykset, malli, kys_tiiviste)
             puuttuvat = odotetut - {t["id"] for t in tulokset}
             if puuttuvat:
                 _kirjaa(f"erä {erä_nro}/{len(erat)}: malli palautti {len(tulokset)}/{len(odotetut)} "

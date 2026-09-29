@@ -10,6 +10,11 @@ from tiedonhaku.peppilukija import (
 DIR = os.path.dirname(__file__)
 
 
+
+def _tallennetut(mock) -> list[dict]:
+    """tallenna_kurssit(kkid, kausi, kurssit) -kutsujen kurssit yhteen listaan."""
+    return [k for c in mock.call_args_list for k in c.args[2]]
+
 def _fixture(nimi: str):
     with open(os.path.join(DIR, "fixtures", nimi), encoding="utf-8") as f:
         return json.load(f)
@@ -105,16 +110,15 @@ def test_hae_kurssit_kayttaa_oikeita_endpointteja():
         return []
 
     with patch.object(PeppiLukija, "_hae_json", side_effect=fake_hae_json), \
-         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1) as mock_tallenna, \
+         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssit") as mock_tallenna, \
          patch("tiedonhaku.peppilukija.mallit.hae_tallennetut_lahde_idt", return_value=set()):
         tallennettu, ohitettu = _lukija().hae_kurssit("2025-2026")
 
     assert tallennettu >= 1
     assert ohitettu == 0
-    mock_tallenna.assert_called()
-    kutsu = mock_tallenna.call_args
-    assert kutsu.kwargs["opetusvuosi"] == "2025-2026"
-    assert kutsu.kwargs["kkid"] == 1
+    assert _tallennetut(mock_tallenna)
+    kkid, kausi, _ = mock_tallenna.call_args.args
+    assert (kkid, kausi) == (1, "2025-2026")
 
 
 def test_hae_kurssit_hyvaksyy_ja_kutsuu_tila_cb():
@@ -137,7 +141,7 @@ def test_hae_kurssit_hyvaksyy_ja_kutsuu_tila_cb():
 
     tilat = []
     with patch.object(PeppiLukija, "_hae_json", side_effect=fake_hae_json), \
-         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1), \
+         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssit"), \
          patch("tiedonhaku.peppilukija.mallit.hae_tallennetut_lahde_idt", return_value=set()):
         _lukija().hae_kurssit("2025-2026", tila_cb=lambda v: tilat.append(v))
 
@@ -165,7 +169,7 @@ def test_hae_kurssit_raportoi_vaihe1_edistymisen():
 
     tilat = []
     with patch.object(PeppiLukija, "_hae_json", side_effect=fake_hae_json), \
-         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1), \
+         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssit"), \
          patch("tiedonhaku.peppilukija.mallit.hae_tallennetut_lahde_idt", return_value=set()):
         _lukija().hae_kurssit("2025-2026", tila_cb=lambda v: tilat.append(v))
 
@@ -196,11 +200,11 @@ def test_hae_kurssit_lahde_id_pyydetysta_idsta_vaikka_vastaus_ilman_idta():
         return []
 
     with patch.object(PeppiLukija, "_hae_json", side_effect=fake_hae_json), \
-         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1) as mock_t, \
+         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssit") as mock_t, \
          patch("tiedonhaku.peppilukija.mallit.hae_tallennetut_lahde_idt", return_value=set()):
         _lukija().hae_kurssit("2025-2026")
 
-    assert mock_t.call_args.kwargs["lahde_id"] == "77777"
+    assert _tallennetut(mock_t)[0]["lahde_id"] == "77777"
 
 
 def test_hae_kurssit_deduplikoi_kurssit():
@@ -222,12 +226,12 @@ def test_hae_kurssit_deduplikoi_kurssit():
         return []
 
     with patch.object(PeppiLukija, "_hae_json", side_effect=fake_hae_json), \
-         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1) as mock_tallenna, \
+         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssit") as mock_tallenna, \
          patch("tiedonhaku.peppilukija.mallit.hae_tallennetut_lahde_idt", return_value=set()):
         _lukija().hae_kurssit("2025-2026")
 
     # Kurssi 45690 esiintyy molemmissa ohjelmissa mutta tallennetaan vain kerran
-    kurssi_idt = [k.kwargs["lahde_id"] for k in mock_tallenna.call_args_list]
+    kurssi_idt = [k["lahde_id"] for k in _tallennetut(mock_tallenna)]
     assert kurssi_idt.count("45690") == 1
 
 
@@ -250,13 +254,13 @@ def test_hae_kurssit_ohittaa_verkkovirheet():
         return []
 
     with patch.object(PeppiLukija, "_hae_json", side_effect=fake_hae_json), \
-         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1) as mock_tallenna, \
+         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssit") as mock_tallenna, \
          patch("tiedonhaku.peppilukija.mallit.hae_tallennetut_lahde_idt", return_value=set()):
         tallennettu, ohitettu = _lukija().hae_kurssit("2025-2026")
 
     assert tallennettu == 0
     assert ohitettu >= 1
-    mock_tallenna.assert_not_called()
+    assert _tallennetut(mock_tallenna) == []
 
 
 def test_hae_kurssit_ohittaa_jo_kannassa_olevat():
@@ -278,10 +282,10 @@ def test_hae_kurssit_ohittaa_jo_kannassa_olevat():
         return []
 
     with patch.object(PeppiLukija, "_hae_json", side_effect=fake_hae_json), \
-         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssi", return_value=1) as mock_tallenna, \
+         patch("tiedonhaku.peppilukija.mallit.tallenna_kurssit") as mock_tallenna, \
          patch("tiedonhaku.peppilukija.mallit.hae_tallennetut_lahde_idt", return_value={"45690"}):
         tallennettu, ohitettu = _lukija().hae_kurssit("2025-2026")
 
     assert tallennettu == 0
     assert ohitettu == 0
-    mock_tallenna.assert_not_called()
+    assert _tallennetut(mock_tallenna) == []

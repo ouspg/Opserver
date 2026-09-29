@@ -10,6 +10,10 @@ import requests
 from tietokanta import mallit
 from tiedonhaku.opslukija import OpsLukija
 
+# Kursseja per tietokantakierros. Keskeytys menettää enintään tämän verran jo
+# haettuja kursseja; uudelleenajo jatkaa (tallennetut ohitetaan).
+_TALLENNUSERA = 20
+
 def _fi(monikielinen: dict | None) -> str:
     if not monikielinen:
         return ""
@@ -110,6 +114,7 @@ class PeppiLukija(OpsLukija):
         yhteensa = len(kurssi_idt)
         tallennettu = 0
         ohitettu = 0
+        puskuri: list[dict] = []  # kirjoitetaan _TALLENNUSERA kurssin erissä (HTTP-haku on kurssikohtainen)
         for kasitelty, kurssi_id in enumerate(kurssi_idt, 1):
             try:
                 kurssi_json = self._hae_json(f"{self._api()}/course/{kurssi_id}?period={kausi}")
@@ -122,20 +127,15 @@ class PeppiLukija(OpsLukija):
             # LahdeId = pyydetty kurssi_id: Peppin kurssivastauksesta puuttuu joskus
             # top-level "id", jolloin data.get("id") jäisi NULLiksi ja rikkoisi sekä
             # dedup-uudelleenajon (uniikkiavain) että WebUI:n kurssi-URL:n.
-            mallit.tallenna_kurssi(
-                kkid=self.korkeakoulu["KKID"],
-                lahde_id=str(kurssi_id),
-                koodi=kurssi["koodi"],
-                kurssi_nimi=kurssi["kurssi_nimi"],
-                taso=kurssi["taso"],
-                oppiaine=kurssi["oppiaine"],
-                opintopisteet=kurssi["opintopisteet"],
-                opetusvuosi=kausi,
-                ops_kuvaus=json.dumps(kurssi_json, ensure_ascii=False),
-            )
+            puskuri.append({**kurssi, "lahde_id": str(kurssi_id),
+                            "ops_kuvaus": json.dumps(kurssi_json, ensure_ascii=False)})
+            if len(puskuri) >= _TALLENNUSERA:
+                mallit.tallenna_kurssit(self.korkeakoulu["KKID"], kausi, puskuri)
+                puskuri = []
             tallennettu += 1
             if edistyminen_cb:
                 edistyminen_cb(kasitelty, yhteensa, kurssi["kurssi_nimi"])
+        mallit.tallenna_kurssit(self.korkeakoulu["KKID"], kausi, puskuri)
         return tallennettu, ohitettu
 
     # --- Yksityiset apumetodit ---

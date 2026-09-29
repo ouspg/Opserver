@@ -47,47 +47,30 @@ class TestKorkeakoulu:
 
 
 class TestKurssi:
-    def test_tallenna_kurssi_palauttaa_id(self, mock_yhteys):
+    def test_tallenna_kurssit_erana_kolmella_kierroksella(self, mock_yhteys):
+        """Kurssit monirivisenä upsertina, KID:t yhdellä haulla, kuvaukset monirivisenä.
+        OpsKuvaus omassa taulussaan (KurssiKuvaus), jotta Kurssi-rivit pysyvät kapeina."""
         yht, kursori = mock_yhteys
-        kursori.lastrowid = 7
-        tulos = mallit.tallenna_kurssi(
-            kkid=1, lahde_id="45690", koodi="IC00AU61",
-            kurssi_nimi="Kyberturvallisuuden perusteet", taso="aine",
-            oppiaine="Tietotekniikka", opintopisteet=5.0,
-            opetusvuosi="2025-2026", ops_kuvaus='{"id":"45690"}',
-        )
-        assert tulos == 7
+        kursori.fetchall.return_value = [("45690", 7), ("45691", 8)]
+        kurssi = {"lahde_id": "45690", "koodi": "IC00AU61", "kurssi_nimi": "Kyberturvallisuuden perusteet",
+                   "taso": "aine", "oppiaine": "Tietotekniikka", "opintopisteet": 5.0}
+        mallit.tallenna_kurssit(1, "2025-2026", [
+            {**kurssi, "ops_kuvaus": '{"id":"45690"}'},
+            {**kurssi, "lahde_id": "45691", "ops_kuvaus": '{"id":"45691"}'},
+        ])
+        (kurssi_sql, kurssi_p), (hae_sql, hae_p), (kuvaus_sql, kuvaus_p) = \
+            [c[0] for c in kursori.execute.call_args_list]
+        assert "INSERT INTO Kurssi " in kurssi_sql and "DUPLICATE" in kurssi_sql
+        assert kurssi_sql.count("(%s,%s,%s,%s,%s,%s,%s,%s)") == 2 and "OpsKuvaus" not in kurssi_sql
+        assert kurssi_p[:2] == [1, "45690"] and kurssi_p[7] == "2025-2026"
+        assert "LahdeId IN (%s,%s)" in hae_sql and hae_p[:2] == (1, "2025-2026")
+        assert "INTO KurssiKuvaus" in kuvaus_sql and "DUPLICATE" in kuvaus_sql
+        assert kuvaus_p == [7, '{"id":"45690"}', 8, '{"id":"45691"}']
 
-    def test_tallenna_kurssi_tekee_upsert(self, mock_yhteys):
+    def test_tallenna_kurssit_tyhja_ei_kysele(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        kursori.lastrowid = 7
-        mallit.tallenna_kurssi(
-            kkid=1, lahde_id="45690", koodi="IC00AU61",
-            kurssi_nimi="Kyberturvallisuuden perusteet", taso="aine",
-            oppiaine="Tietotekniikka", opintopisteet=5.0,
-            opetusvuosi="2025-2026", ops_kuvaus='{}',
-        )
-        sql = kursori.execute.call_args[0][0]
-        assert "INSERT" in sql.upper()
-        assert "DUPLICATE" in sql.upper()
-
-    def test_tallenna_kurssi_kuvaus_omaan_tauluun(self, mock_yhteys):
-        """OpsKuvaus on omassa taulussaan (KurssiKuvaus): Kurssi-taulun rivit pysyvät
-        kapeina, ettei jokainen listaus-/määräkysely lue satoja megatavuja kuvauksia.
-        KID myös päivityshaarassa (LAST_INSERT_ID(KID)) — muuten kuvaus ei päivity."""
-        yht, kursori = mock_yhteys
-        kursori.lastrowid = 7
-        mallit.tallenna_kurssi(
-            kkid=1, lahde_id="45690", koodi="IC00AU61",
-            kurssi_nimi="Kyberturvallisuuden perusteet", taso="aine",
-            oppiaine="Tietotekniikka", opintopisteet=5.0,
-            opetusvuosi="2025-2026", ops_kuvaus='{"id":"45690"}',
-        )
-        (kurssi_sql, _), (kuvaus_sql, kuvaus_params) = [c[0] for c in kursori.execute.call_args_list]
-        assert "INTO Kurssi\n" in kurssi_sql and "OpsKuvaus" not in kurssi_sql
-        assert "KID = LAST_INSERT_ID(KID)" in kurssi_sql
-        assert "INTO KurssiKuvaus" in kuvaus_sql and "DUPLICATE" in kuvaus_sql.upper()
-        assert list(kuvaus_params) == [7, '{"id":"45690"}']
+        mallit.tallenna_kurssit(1, "2025-2026", [])
+        kursori.execute.assert_not_called()
 
     def test_hae_kurssi_liittaa_kuvauksen(self, mock_yhteys):
         yht, kursori = mock_yhteys
@@ -667,31 +650,16 @@ class TestKysymykset:
         sql = kursori.execute.call_args[0][0]
         assert "DELETE" in sql.upper()
 
-    def test_aseta_vastaus_tekee_insert(self, mock_yhteys):
+    def test_aseta_vastaukset_monirivinen_upsert(self, mock_yhteys):
+        """Yksi INSERT koko erälle; TID annetaan (ei alikyselyä per rivi); lista JSONiksi."""
         yht, kursori = mock_yhteys
-        mallit.aseta_vastaus(kysid=1, kid=7, vastaus="Kyllä")
-        sql = kursori.execute.call_args[0][0]
-        assert "INSERT" in sql.upper()
-
-    def test_aseta_vastaus_pisteet_ja_luokka(self, mock_yhteys):
-        yht, kursori = mock_yhteys
-        mallit.aseta_vastaus(kysid=1, kid=7, vastaus="Perustelu", pisteet=4.0, luokka="korkea")
-        _, params = kursori.execute.call_args[0]
-        assert 4.0 in params
-        assert "korkea" in params
-
-    def test_aseta_vastaus_lista_serialisoidaan_jsoniksi(self, mock_yhteys):
-        yht, kursori = mock_yhteys
-        mallit.aseta_vastaus(kysid=1, kid=7, vastaus="Perustelu", lista=["a", "b"])
+        mallit.aseta_vastaukset(2, [(1, 7, "Perustelu", "m", 4.0, "korkea", ["a", "b"], "t1"),
+                                    (1, 8, "x", "", None, None, None, None)])
+        kursori.execute.assert_called_once()
         sql, params = kursori.execute.call_args[0]
-        assert "Lista" in sql
-        assert '["a", "b"]' in params  # JSON-serialisoituna
-
-    def test_aseta_vastaus_lista_none_tallentaa_nullin(self, mock_yhteys):
-        yht, kursori = mock_yhteys
-        mallit.aseta_vastaus(kysid=1, kid=7, vastaus="x")
-        _, params = kursori.execute.call_args[0]
-        assert None in params
+        assert "INSERT INTO Vastaukset" in sql and sql.count("(%s,%s,%s,%s,%s,%s,%s,%s,%s)") == 2
+        assert params[:9] == [2, 1, 7, "Perustelu", "m", 4.0, "korkea", '["a", "b"]', "t1"]
+        assert params[9:] == [2, 1, 8, "x", "", None, None, None, None]   # lista None → NULL
 
     def test_hae_vastaukset_parsii_lista_jsonin(self, mock_yhteys):
         yht, kursori = mock_yhteys
@@ -719,12 +687,19 @@ class TestKysymykset:
 
 
 class TestKurssiluokitus:
-    def test_aseta_luokitus_tekee_insert(self, mock_yhteys):
+    def test_aseta_luokitukset_monirivinen_upsert(self, mock_yhteys):
         yht, kursori = mock_yhteys
-        mallit.aseta_luokitus(tid=1, kid=7, mukana=True, perustelu="Relevantti kurssi")
+        mallit.aseta_luokitukset(1, [(7, True, "Relevantti"), (8, None, "meta: odottaa")], "m", tiiviste="t")
         kursori.execute.assert_called_once()
-        sql = kursori.execute.call_args[0][0]
-        assert "INSERT" in sql.upper()
+        sql, params = kursori.execute.call_args[0]
+        assert "INSERT INTO Kurssiluokitus" in sql and sql.count("(%s,%s,%s,%s,%s,%s)") == 2
+        assert params == [1, 7, True, "Relevantti", "m", "t", 1, 8, None, "meta: odottaa", "m", "t"]
+
+    def test_aseta_luokitukset_paloittain(self, mock_yhteys):
+        """Iso erä pilkotaan (paketin koko), mutta yksi kierros per 500 riviä."""
+        yht, kursori = mock_yhteys
+        mallit.aseta_luokitukset(1, [(k, False, "x") for k in range(1201)])
+        assert kursori.execute.call_count == 3
 
     def test_hae_luokitukset_suodattaa_tid_ja_mukana(self, mock_yhteys):
         yht, kursori = mock_yhteys
@@ -754,7 +729,7 @@ class TestKurssiluokitus:
     def test_aseta_luokitus_nollaa_hyvaksynnan(self, mock_yhteys):
         """LLM:n uusi päätös ei peri vanhan päätöksen peukutusta."""
         yht, kursori = mock_yhteys
-        mallit.aseta_luokitus(tid=1, kid=7, mukana=True, perustelu="x")
+        mallit.aseta_luokitukset(1, [(7, True, "x")])
         sql = kursori.execute.call_args[0][0]
         assert "KayttajaNimi = NULL" in sql and "Sahkoposti = NULL" in sql
 
@@ -768,7 +743,7 @@ class TestKurssiluokitus:
     def test_aseta_vastaus_nollaa_hyvaksynnan(self, mock_yhteys):
         """LLM:n uusi vastaus ei peri vanhan vastauksen peukutusta."""
         yht, kursori = mock_yhteys
-        mallit.aseta_vastaus(kysid=3, kid=7, vastaus="x", malli="m")
+        mallit.aseta_vastaukset(1, [(3, 7, "x", "m", None, None, None, None)])
         sql = kursori.execute.call_args[0][0]
         assert "HyvaksyjaNimi = NULL" in sql and "HyvaksyjaSahkoposti = NULL" in sql
 
@@ -904,14 +879,6 @@ class TestHitlVastaukset:
         mallit.hae_hitl_vastaukset(1)
         sql = kursori.execute.call_args[0][0]
         assert "Malli IS NULL" in sql
-
-    def test_aseta_vastaus_johtaa_tid_kysymyksesta(self, mock_yhteys):
-        """Kutsujan ei tarvitse tietää TID:tä — se haetaan kysymykseltä."""
-        yht, kursori = mock_yhteys
-        mallit.aseta_vastaus(30, 7, "LLM sanoi", "gemini")
-        sql, params = kursori.execute.call_args[0]
-        assert "FROM Kysymykset k WHERE k.KysID = %s" in sql
-        assert params[-1] == 30
 
     def test_vastaus_tiivisteet_hitl_voittaa_llm_rivin(self, mock_yhteys):
         """Samalla (KID, KysID) -parilla HITL-tila jää voimaan."""

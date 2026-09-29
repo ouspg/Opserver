@@ -13,7 +13,7 @@ KYSYMYKSET = [
 def _aja(rivit):
     with patch("arviointi.korjaus.mallit.hae_raakana_tallennetut_vastaukset", return_value=rivit), \
          patch("arviointi.korjaus.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
-         patch("arviointi.korjaus.mallit.aseta_vastaus") as aseta:
+         patch("arviointi.korjaus.mallit.aseta_vastaukset") as aseta:
         tulos = korjaus.korjaa_raaka_json(1)
     return tulos, aseta
 
@@ -23,10 +23,10 @@ def test_korjaa_luokittelun_ja_sailyttaa_mallin_ja_tiivisteen():
               "Vastaus": '{"luokka": "Täysin", "perustelu": "Itsenäisesti suoritettavissa."}'}]
     (korjatut, ohitetut), aseta = _aja(rivit)
     assert (korjatut, ohitetut) == (1, 0)
-    args, kwargs = aseta.call_args
-    assert args[:3] == (1, 5, "Itsenäisesti suoritettavissa.")
-    assert kwargs["luokka"] == "Täysin"
-    assert args[3] == "gemini" and kwargs["tiiviste"] == "abc"  # alkuperäinen ajo säilyy
+    tid, (rivi,) = aseta.call_args.args   # (kysid, kid, vastaus, malli, pisteet, luokka, lista, tiiviste)
+    assert tid == 1 and rivi[:3] == (1, 5, "Itsenäisesti suoritettavissa.")
+    assert rivi[5] == "Täysin"
+    assert rivi[3] == "gemini" and rivi[7] == "abc"  # alkuperäinen ajo säilyy
 
 
 def test_korjaa_asteikon_ja_listan():
@@ -38,8 +38,9 @@ def test_korjaa_asteikon_ja_listan():
     ]
     (korjatut, ohitetut), aseta = _aja(rivit)
     assert (korjatut, ohitetut) == (2, 0)
-    assert aseta.call_args_list[0].kwargs["pisteet"] == 4.0
-    assert aseta.call_args_list[1].kwargs["lista"] == ["Luennot", "Harjoitukset"]
+    rivit = aseta.call_args.args[1]   # molemmat yhdessä kirjoituksessa
+    assert rivit[0][4] == 4.0
+    assert rivit[1][6] == ["Luennot", "Harjoitukset"]
 
 
 def test_katkennut_json_ohitetaan_eika_teksti_katoa():
@@ -57,12 +58,12 @@ def test_ei_korjattavaa_ei_kirjoita_mitaan():
     aseta.assert_not_called()
 
 
-def test_edistyminen_kutsutaan_jokaisesta_rivista():
+def test_edistyminen_kutsutaan_eran_jalkeen():
     rivit = [{"VasID": i, "KysID": 1, "KID": i, "Malli": "", "Kehotetiiviste": None,
               "Vastaus": '{"luokka": "A", "perustelu": "p"}'} for i in range(1, 4)]
     havainnot = []
     with patch("arviointi.korjaus.mallit.hae_raakana_tallennetut_vastaukset", return_value=rivit), \
          patch("arviointi.korjaus.mallit.hae_kysymykset", return_value=KYSYMYKSET), \
-         patch("arviointi.korjaus.mallit.aseta_vastaus"):
+         patch("arviointi.korjaus.mallit.aseta_vastaukset"):
         korjaus.korjaa_raaka_json(1, lambda n, yht, k, o: havainnot.append((n, yht, k, o)))
-    assert havainnot == [(1, 3, 1, 0), (2, 3, 2, 0), (3, 3, 3, 0)]
+    assert havainnot == [(3, 3, 3, 0)]   # kaikki 3 yhdessä erässä

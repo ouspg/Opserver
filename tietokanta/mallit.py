@@ -61,6 +61,20 @@ def _suorita(sql: str, params=(), *, rivimaara: bool = False) -> int:
     return _kysely(sql, params, lambda k: k.rowcount if rivimaara else k.lastrowid)
 
 
+def _lisaa_rivit(kursori, alku: str, rivit: list[tuple], loppu: str = "", koko: int = 500) -> None:
+    """Monirivinen INSERT paloittain: yksi kierros per `koko` riviä rivikohtaisen
+    kutsun sijaan (etäkanta: kierros = satoja ms). Rakennetaan itse, koska
+    connectorin executemany-uudelleenkirjoitus ei luotettavasti tunnista
+    ON DUPLICATE KEY UPDATE ... VALUES(x) -lauseita."""
+    if not rivit:
+        return
+    paikat = "(" + ",".join(["%s"] * len(rivit[0])) + ")"
+    for i in range(0, len(rivit), koko):
+        osa = rivit[i:i + koko]
+        kursori.execute(f"{alku} VALUES {','.join([paikat] * len(osa))} {loppu}",
+                        [arvo for rivi in osa for arvo in rivi])
+
+
 # --- Korkeakoulu ---
 
 def lisaa_korkeakoulu(koulu_nimi: str, ops_osoite: str, ops_tyyppi: str,
@@ -100,29 +114,35 @@ _KUVAUS_JOIN = "LEFT JOIN KurssiKuvaus ku ON ku.KID = k.KID"
 # ponytail: uudelleenyritys vain kurssihaun pitkän ajon kutsuissa — muut kutsut
 # ovat kertaluontoisia ja kaatuvat siististi. Lisää dekoraattori jos ne kaatuilevat.
 @uudelleenyrita
-def tallenna_kurssi(kkid: int, lahde_id: str, koodi: str, kurssi_nimi: str,
-                    taso: str | None, oppiaine: str, opintopisteet: str | None,
-                    opetusvuosi: str, ops_kuvaus: str) -> int:
+def tallenna_kurssit(kkid: int, opetusvuosi: str, kurssit: list[dict]) -> None:
+    """Tallentaa erän kursseja (upsert) kuvauksineen kolmella kierroksella.
+    kurssit: {lahde_id, koodi, kurssi_nimi, taso, oppiaine, opintopisteet, ops_kuvaus}."""
+    if not kurssit:
+        return
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            # LAST_INSERT_ID(KID): lastrowid = KID myös päivityshaarassa (kuvausta varten).
-            kursori.execute(
-                """INSERT INTO Kurssi
-                       (KKID, LahdeId, Koodi, KurssiNimi, Taso, Oppiaine, Opintopisteet, Opetusvuosi)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE KID = LAST_INSERT_ID(KID),
-                       Koodi = VALUES(Koodi), KurssiNimi = VALUES(KurssiNimi),
+            _lisaa_rivit(
+                kursori,
+                "INSERT INTO Kurssi (KKID, LahdeId, Koodi, KurssiNimi, Taso, Oppiaine, Opintopisteet, Opetusvuosi)",
+                [(kkid, k["lahde_id"], k["koodi"], k["kurssi_nimi"], k["taso"], k["oppiaine"],
+                  k["opintopisteet"], opetusvuosi) for k in kurssit],
+                """ON DUPLICATE KEY UPDATE Koodi = VALUES(Koodi), KurssiNimi = VALUES(KurssiNimi),
                        Taso = VALUES(Taso), Oppiaine = VALUES(Oppiaine),
                        Opintopisteet = VALUES(Opintopisteet)""",
-                (kkid, lahde_id, koodi, kurssi_nimi, taso, oppiaine, opintopisteet, opetusvuosi),
             )
-            kid = kursori.lastrowid
+            lahde_idt = list({k["lahde_id"] for k in kurssit})
             kursori.execute(
-                """INSERT INTO KurssiKuvaus (KID, OpsKuvaus) VALUES (%s, %s)
-                   ON DUPLICATE KEY UPDATE OpsKuvaus = VALUES(OpsKuvaus)""",
-                (kid, ops_kuvaus),
+                f"""SELECT LahdeId, KID FROM Kurssi WHERE KKID = %s AND Opetusvuosi = %s
+                    AND LahdeId IN ({",".join(["%s"] * len(lahde_idt))})""",
+                (kkid, opetusvuosi, *lahde_idt),
             )
-            return kid
+            kidit = dict(kursori.fetchall())
+            # Kuvaukset ovat isoja (JSON, kymmeniä kt) → pienemmät palat.
+            _lisaa_rivit(
+                kursori, "INSERT INTO KurssiKuvaus (KID, OpsKuvaus)",
+                [(kidit[k["lahde_id"]], k["ops_kuvaus"]) for k in kurssit],
+                "ON DUPLICATE KEY UPDATE OpsKuvaus = VALUES(OpsKuvaus)", koko=50,
+            )
 
 
 # Listanäkymän kentät (OpsKuvaus on omassa taulussaan, ks. _KUVAUS_JOIN).
@@ -443,24 +463,23 @@ LUOKITUS_PAIVITYS = """ON DUPLICATE KEY UPDATE Mukana = VALUES(Mukana),
     KayttajaNimi = NULL, Sahkoposti = NULL"""
 
 
-def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "",
-                  pisteet: float | None = None, luokka: str | None = None,
-                  lista: list | None = None, tiiviste: str | None = None) -> None:
-    """LLM:n vastaus. TID johdetaan kysymyksestä, joten kutsujan ei tarvitse tietää sitä.
+def aseta_vastaukset(tid: int, rivit: list[tuple]) -> None:
+    """LLM:n vastaukset yhdellä monirivisellä upsertilla.
+    rivit: (kysid, kid, vastaus, malli, pisteet, luokka, lista, tiiviste).
 
     KayttajaNimi jää tyhjäksi → uniikki_kys_kid_kayttaja antaa yhden LLM-rivin
-    per (kysymys, kurssi) kuten ennen, eli uudelleenajo päivittää saman rivin.
+    per (kysymys, kurssi), eli uudelleenajo päivittää saman rivin.
     Malli ei koskaan NULL: se erottaa LLM-rivin ihmisen korjauksesta.
     """
-    lista_json = _json(lista)
-    _suorita(
-        """INSERT INTO Vastaukset
-               (TID, KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)
-           SELECT k.TID, %s, %s, %s, %s, %s, %s, %s, %s
-           FROM Kysymykset k WHERE k.KysID = %s
-           """ + VASTAUS_PAIVITYS,
-        (kysid, kid, vastaus, malli or "", pisteet, luokka, lista_json, tiiviste, kysid),
-    )
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            _lisaa_rivit(
+                kursori,
+                "INSERT INTO Vastaukset (TID, KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)",
+                [(tid, kysid, kid, vastaus, malli or "", pisteet, luokka, _json(lista), tiiviste)
+                 for kysid, kid, vastaus, malli, pisteet, luokka, lista, tiiviste in rivit],
+                VASTAUS_PAIVITYS,
+            )
 
 
 def hyvaksy_vastaus(tid: int, kid: int, kysid: int, nimi: str, sahkoposti: str | None) -> None:
@@ -807,14 +826,17 @@ def hae_hitl_historia(tid: int, kidit: list[int]) -> list[dict]:
 
 # --- Kurssiluokitus ---
 
-def aseta_luokitus(tid: int, kid: int, mukana: bool | None, perustelu: str,
-                   malli: str = "", tiiviste: str | None = None) -> None:
-    _suorita(
-        """INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste, Malli, Kehotetiiviste)
-           VALUES (%s, %s, %s, %s, %s, %s)
-           """ + LUOKITUS_PAIVITYS,
-        (tid, kid, mukana, perustelu, malli, tiiviste),
-    )
+def aseta_luokitukset(tid: int, rivit: list[tuple], malli: str = "",
+                      tiiviste: str | None = None) -> None:
+    """Luokitukset yhdellä monirivisellä upsertilla. rivit: (kid, mukana, perustelu)."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            _lisaa_rivit(
+                kursori,
+                "INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste, Malli, Kehotetiiviste)",
+                [(tid, kid, mukana, perustelu, malli, tiiviste) for kid, mukana, perustelu in rivit],
+                LUOKITUS_PAIVITYS,
+            )
 
 
 def hyvaksy_luokitus(tid: int, kid: int, nimi: str, sahkoposti: str | None) -> None:
