@@ -1215,7 +1215,7 @@ def _kattavat_kaudet(kursori, lukuvuosi: str | None) -> list[str]:
     kaikki = [r[0] for r in kursori.fetchall()]
     if not lukuvuosi:
         return kaikki
-    return [k for k in kaikki if lv.kattaa(k, lukuvuosi)]
+    return [k for k in kaikki if _kattaa_turvallinen(k, lukuvuosi)]
 
 
 def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:

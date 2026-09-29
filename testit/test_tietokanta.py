@@ -994,3 +994,10 @@ class TestHitlRivitEivatSotkeLaskentaa:
             assert "HyvaksyjaNimi = NULL" in kursori.execute.call_args[0][0]
             testimallit.siirra_testiajo_luokittelu("ajo1")
             assert "KayttajaNimi = NULL" in kursori.execute.call_args[0][0]
+
+
+def test_kattavat_kaudet_ohittaa_virheellisen_kauden():
+    """Virheellinen/puuttuva Opetusvuosi aineistossa ei saa kaataa raportin tilastoja."""
+    kursori = MagicMock()
+    kursori.fetchall.return_value = [("2025-2026",), ("rikki",), (None,)]
+    assert mallit._kattavat_kaudet(kursori, "2025-2026") == ["2025-2026"]
