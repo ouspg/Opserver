@@ -6,7 +6,7 @@ koskematta. Ks. migraatio_015.sql.
 """
 import json
 from tietokanta.yhteys import yhteys
-from tietokanta.mallit import _rivit_dikteina
+from tietokanta.mallit import _rivit_dikteina, LUOKITUS_PAIVITYS, VASTAUS_PAIVITYS
 
 
 # --- Luokittelun testierät ---
@@ -78,9 +78,7 @@ def siirra_testiajo_luokittelu(ajo: str) -> int:
                 """INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste, Malli, Kehotetiiviste)
                    SELECT TID, KID, Mukana, Luokitteluperuste, Malli, Kehotetiiviste
                    FROM Kurssiluokitus_testi WHERE Ajo = %s
-                   ON DUPLICATE KEY UPDATE Mukana = VALUES(Mukana),
-                       Luokitteluperuste = VALUES(Luokitteluperuste), Malli = VALUES(Malli),
-                       Kehotetiiviste = VALUES(Kehotetiiviste)""",
+                   """ + LUOKITUS_PAIVITYS,
                 (ajo,),
             )
             return maara
@@ -161,9 +159,7 @@ def siirra_testiajo_arviointi(ajo: str) -> int:
                        (TID, KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)
                    SELECT TID, KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste
                    FROM Vastaukset_testi WHERE Ajo = %s
-                   ON DUPLICATE KEY UPDATE Vastaus = VALUES(Vastaus), Malli = VALUES(Malli),
-                       Pisteet = VALUES(Pisteet), Luokka = VALUES(Luokka),
-                       Lista = VALUES(Lista), Kehotetiiviste = VALUES(Kehotetiiviste)""",
+                   """ + VASTAUS_PAIVITYS,
                 (ajo,),
             )
             return maara

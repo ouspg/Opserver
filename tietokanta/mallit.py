@@ -423,6 +423,18 @@ def poista_kysymys(kysid: int) -> None:
 
 # --- Vastaukset ---
 
+# Uusi LLM-tulos korvaa vanhan ja nollaa sen hyväksynnän; jaettu testiajon siirron kanssa.
+VASTAUS_PAIVITYS = """ON DUPLICATE KEY UPDATE
+    Vastaus = VALUES(Vastaus), Malli = VALUES(Malli),
+    Pisteet = VALUES(Pisteet), Luokka = VALUES(Luokka),
+    Lista = VALUES(Lista), Kehotetiiviste = VALUES(Kehotetiiviste),
+    HyvaksyjaNimi = NULL, HyvaksyjaSahkoposti = NULL"""
+LUOKITUS_PAIVITYS = """ON DUPLICATE KEY UPDATE Mukana = VALUES(Mukana),
+    Luokitteluperuste = VALUES(Luokitteluperuste), Malli = VALUES(Malli),
+    Kehotetiiviste = VALUES(Kehotetiiviste),
+    KayttajaNimi = NULL, Sahkoposti = NULL"""
+
+
 def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "",
                   pisteet: float | None = None, luokka: str | None = None,
                   lista: list | None = None, tiiviste: str | None = None) -> None:
@@ -440,11 +452,7 @@ def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "",
                        (TID, KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)
                    SELECT k.TID, %s, %s, %s, %s, %s, %s, %s, %s
                    FROM Kysymykset k WHERE k.KysID = %s
-                   ON DUPLICATE KEY UPDATE
-                       Vastaus = VALUES(Vastaus), Malli = VALUES(Malli),
-                       Pisteet = VALUES(Pisteet), Luokka = VALUES(Luokka),
-                       Lista = VALUES(Lista), Kehotetiiviste = VALUES(Kehotetiiviste),
-                       HyvaksyjaNimi = NULL, HyvaksyjaSahkoposti = NULL""",
+                   """ + VASTAUS_PAIVITYS,
                 (kysid, kid, vastaus, malli or "", pisteet, luokka, lista_json, tiiviste, kysid),
             )
 
@@ -793,10 +801,7 @@ def aseta_luokitus(tid: int, kid: int, mukana: bool | None, perustelu: str,
             kursori.execute(
                 """INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste, Malli, Kehotetiiviste)
                    VALUES (%s, %s, %s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE Mukana = VALUES(Mukana),
-                       Luokitteluperuste = VALUES(Luokitteluperuste), Malli = VALUES(Malli),
-                       Kehotetiiviste = VALUES(Kehotetiiviste),
-                       KayttajaNimi = NULL, Sahkoposti = NULL""",
+                   """ + LUOKITUS_PAIVITYS,
                 (tid, kid, mukana, perustelu, malli, tiiviste),
             )
 

@@ -985,3 +985,14 @@ class TestHitlRivitEivatSotkeLaskentaa:
         sql, _ = kursori.execute.call_args[0]
         assert "INSERT INTO Vastaukset\n                       (TID, KysID" in sql or "(TID, KysID" in sql
         assert "SELECT TID, KysID" in sql
+
+    def test_testiajon_siirto_nollaa_hyvaksynnan(self, mock_yhteys):
+        """Siirretty LLM-tulos ei saa periä vanhan tuloksen hyväksyntää (kuten aseta_*)."""
+        from tietokanta import testimallit
+        yht, kursori = mock_yhteys
+        kursori.fetchone.return_value = (3,)
+        with patch("tietokanta.testimallit.yhteys", mallit.yhteys):
+            testimallit.siirra_testiajo_arviointi("ajo1")
+            assert "HyvaksyjaNimi = NULL" in kursori.execute.call_args[0][0]
+            testimallit.siirra_testiajo_luokittelu("ajo1")
+            assert "KayttajaNimi = NULL" in kursori.execute.call_args[0][0]
