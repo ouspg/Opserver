@@ -4,15 +4,6 @@ Session-aikana (2026-09-22, tuotannon `asenna`/Caddy/migraatio-työ) havaittuja
 asioita jotka mainittiin mutta ei korjattu tai vahvistettu käyttäjän kanssa.
 Triagoi: korjaa tai sulje.
 
-## 6. Tarkista tuotannon vahtikoira.log: restartoiko cron caddy+webui 10 min välein?
-
-Ennen PR #34:ää vahtikoiran terveystarkistus (`https://localhost/`) ei voinut
-koskaan onnistua, joten cronin pitäisi olla tehnyt kova restart caddylle ja
-webuille ~10 min välein asennuksesta lähtien (katkoksia käyttäjille, turhia
-Caddy-restartteja). Ei vahvistettu. Tarkistus tuotannossa:
-`grep -c restart ~/Opserver/vahtikoira.log`. #34:n jälkeen rivejä ei pitäisi
-enää tulla.
-
 ## 7. pura_vastaus: jäljellä olevat jäsennysaukot (hypoteesi, ei havaittu)
 
 Tuotannon raaka-JSON-rivit (esr_kyber) korjattiin 2026-09-27 (PR #31 + #35,
