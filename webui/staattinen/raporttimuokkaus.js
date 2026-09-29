@@ -76,9 +76,7 @@ async function tallenna() {
   const osioDiv = document.querySelector(`.raportti-osio[data-avain="${avain}"]`);
   if (osioDiv) {
     const tekstiDiv = osioDiv.querySelector(".raportti-osio-teksti");
-    if (tekstiDiv) {
-      tekstiDiv.innerHTML = teksti ? teksti.replace(/\n/g, "<br>") : '<em class="tulossa">Tämä osio puuttuu raportista.</em>';
-    }
+    if (tekstiDiv) tekstiDiv.innerHTML = raporttiOsioHtml(teksti);
   }
   suljeRaporttiMuokkaus();
 }
@@ -159,13 +157,17 @@ function paivitaMuokkaajat(muokkaajat) {
     div.textContent = "";
     return;
   }
-  div.innerHTML = "Muut käyttäjät täällä: " + muut.map((m) => {
+  // DOM-solmuina: nimimerkki on muiden käyttäjien vapaata tekstiä (ei innerHTML:ää).
+  div.replaceChildren("Muut käyttäjät täällä: ", ...muut.flatMap((m, i) => {
     const offsc = document.createElement("canvas");
     offsc.width = 14; offsc.height = 14;
     offsc.className = "vieras-ympyra-pieni";
-    window.piirraYmpyra?.(offsc, m.profiili);
-    return `<span class="muokkaaja-rivi">${offsc.outerHTML} ${m.nimimerkki || "?"}</span>`;
-  }).join(", ");
+    if (m.profiili) window.piirraYmpyra?.(offsc, m.profiili);
+    const rivi = document.createElement("span");
+    rivi.className = "muokkaaja-rivi";
+    rivi.append(offsc, ` ${m.nimimerkki || "?"}`);
+    return i ? [", ", rivi] : [rivi];
+  }));
 }
 
 // Kuuntelija raportti-sessio-viesteille (kutsutaan yhteistyo.js:stä)

@@ -96,10 +96,10 @@ function piirraKentat(nykyinen) {
     const minimi = m.minimi ?? 1, maksimi = m.maksimi ?? 5;
     const pisteselitteet = m.pisteet || [];
     sailio.innerHTML = `
-      <label class="arviointimuokkaus-label" for="arvio-pisteet">Pisteet (${minimi}–${maksimi}):</label>
-      <input type="number" id="arvio-pisteet" min="${minimi}" max="${maksimi}" step="1" data-jaettu="pisteet">
+      <label class="arviointimuokkaus-label" for="arvio-pisteet">Pisteet (${escapeHtml(minimi)}–${escapeHtml(maksimi)}):</label>
+      <input type="number" id="arvio-pisteet" min="${escapeHtml(minimi)}" max="${escapeHtml(maksimi)}" step="1" data-jaettu="pisteet">
       ${pisteselitteet.length ? `<ul class="arvio-luokkaselitteet">${pisteselitteet.map((p) =>
-        `<li><strong>${p.arvo}</strong>: ${escapeHtml(p.kuvaus || "")}</li>`).join("")}</ul>` : ""}`;
+        `<li><strong>${escapeHtml(p.arvo)}</strong>: ${escapeHtml(p.kuvaus || "")}</li>`).join("")}</ul>` : ""}`;
     if (nykyinen?.pisteet !== null && nykyinen?.pisteet !== undefined) {
       document.getElementById("arvio-pisteet").value = nykyinen.pisteet;
     }
@@ -243,7 +243,7 @@ function aiYhteenveto(v) {
   if (!v) return "<em>Ei vastausta</em>";
   const osat = [];
   if (v.luokka) osat.push(`<strong>Luokka:</strong> ${escapeHtml(v.luokka)}`);
-  if (v.pisteet !== null && v.pisteet !== undefined) osat.push(`<strong>Pisteet:</strong> ${v.pisteet}`);
+  if (v.pisteet !== null && v.pisteet !== undefined) osat.push(`<strong>Pisteet:</strong> ${escapeHtml(v.pisteet)}`);
   if (v.lista?.length) {
     osat.push(`<strong>Kohdat:</strong><ul>${v.lista.map((k) => `<li>${escapeHtml(k)}</li>`).join("")}</ul>`);
   }

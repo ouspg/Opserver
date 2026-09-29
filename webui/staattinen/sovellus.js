@@ -8,13 +8,34 @@ function escapeHtml(arvo) {
 }
 window.escapeHtml = escapeHtml;
 
+// Opinto-oppaan rikas teksti (Sisu: HTML, Peppi: teksti): vain sallitut tagit ilman
+// attribuutteja; muut tagit puretaan tekstiksi. DOMParser ei aja skriptejä.
+const SALLITUT_TAGIT = new Set(["P", "BR", "B", "STRONG", "I", "EM", "U", "UL", "OL", "LI",
+  "H1", "H2", "H3", "H4", "H5", "H6", "DIV", "SPAN", "SUB", "SUP", "HR"]);
+function puhdistaHtml(html) {
+  const runko = new DOMParser().parseFromString(`<body>${html}`, "text/html").body;
+  for (const el of [...runko.querySelectorAll("*")]) {
+    if (!SALLITUT_TAGIT.has(el.tagName)) el.replaceWith(...el.childNodes);
+    else for (const a of [...el.attributes]) el.removeAttribute(a.name);
+  }
+  return runko.innerHTML;
+}
+
+// Rivinvaihdot <br>:ksi escapoidusta tekstistä (raporttiosiot, myös raporttimuokkaus.js).
+function tekstiHtml(teksti) {
+  return escapeHtml(teksti).replace(/\n/g, "<br>");
+}
+
 // --- Vikasietoinen haku (huono/katkeileva yhteys) ---
 
-// fetch + JSON; verkkovirhe tai 5xx → uusi yritys kasvavalla viiveellä.
+// Ilman aikarajaa jumiin jäänyt yhteys pysäyttäisi automaattipäivityksen (paivitys_kaynnissa).
+const HAKU_AIKARAJA_MS = 20000;
+
+// fetch + JSON; verkkovirhe, aikakatkaisu tai 5xx → uusi yritys kasvavalla viiveellä.
 async function haeJson(url, yrityksia = 4) {
   for (let yritys = 1; ; yritys++) {
     try {
-      const r = await fetch(url);
+      const r = await fetch(url, { signal: AbortSignal.timeout(HAKU_AIKARAJA_MS) });
       if (r.ok) return await r.json();
       if (r.status < 500) throw Object.assign(new Error(`HTTP ${r.status}`), { lopullinen: true });
       throw new Error(`HTTP ${r.status}`);
@@ -221,7 +242,7 @@ function vuosiSolut(kaudet, minV, maxV) {
 async function lataaKorkeakoulut() {
   const otsikko = document.getElementById("korkeakoulut-otsikko");
   const runko = document.getElementById("korkeakoulut-rungot");
-  const koulut = await fetch("/api/korkeakoulut").then((r) => r.json());
+  const koulut = await haeJson("/api/korkeakoulut");
   kaikki_koulut = koulut;
 
   // Parsi kunkin koulun kaudet ja koko aineiston vuosiväli
@@ -283,6 +304,9 @@ const TASO_SUOMI = {
 
 let kaikki_kurssit = [];
 let kaikki_koulut = [];
+// Käynnistyksen korkeakoululataus: kurssirivit odottavat sitä, muuten
+// opinto-opaslinkit puuttuisivat hitaalla yhteydellä seuraavaan pollaukseen asti.
+let koulut_ladattu = Promise.resolve();
 let kurssit_jarjestys = { sarake: null, suunta: null };
 
 function kurssiUrl(kurssi) {
@@ -308,19 +332,33 @@ function kurssiOpasLinkki(kurssi) {
   if (!url) return "";
   const koulu = kaikki_koulut.find((k) => k.KKID === kurssi.KKID);
   if (!koulu) return "";
-  return `<a href="${url}" target="_blank" rel="noopener" class="ops-linkki">🌐 ${koulunLyhenne(koulu)} · ${koulu.OpsTyyppi}</a>`;
+  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="ops-linkki">`
+    + `🌐 ${escapeHtml(koulunLyhenne(koulu))} · ${escapeHtml(koulu.OpsTyyppi)}</a>`;
 }
 
 // Koodi-solun sisältö: kurssikoodi + opinto-opaslinkki seuraavalla rivillä.
 function koodiJaOpasLinkki(kurssi) {
   const linkki = kurssiOpasLinkki(kurssi);
-  return `${kurssi.Koodi || ""}${linkki ? `<br>${linkki}` : ""}`;
+  return `${escapeHtml(kurssi.Koodi)}${linkki ? `<br>${linkki}` : ""}`;
 }
 
 // Nimi + opas-linkki samassa solussa (näkymät joissa ei ole Koodi-saraketta).
 function kurssiLinkki(kurssi) {
   const linkki = kurssiOpasLinkki(kurssi);
-  return linkki ? `${kurssi.KurssiNimi} ${linkki}` : kurssi.KurssiNimi;
+  const nimi = escapeHtml(kurssi.KurssiNimi);
+  return linkki ? `${nimi} ${linkki}` : nimi;
+}
+
+// Taso suomeksi (tai raakana) solun tekstiksi; "—" jos puuttuu.
+function tasoTeksti(taso) {
+  return taso ? escapeHtml(TASO_SUOMI[taso] || taso) : "—";
+}
+
+// Kurssirivin taso-, oppiaine- ja op-solut (kurssilista ja tutkimuksen kurssit).
+function kurssiMetaSolut(k) {
+  return `<td>${tasoTeksti(k.Taso)}</td>
+      <td>${escapeHtml(k.Oppiaine || "—")}</td>
+      <td class="op">${escapeHtml(k.Opintopisteet ?? "—")}</td>`;
 }
 
 function ryhmitaKurssit(kurssit) {
@@ -339,8 +377,8 @@ function ryhmitaKurssit(kurssit) {
 // Täytä OPS-lukuvuosi-suodatin (uusin ensin), oletukseksi uusin
 async function taytaLukuvuodet() {
   const sel = document.getElementById("suodatin-lukuvuosi");
-  const vuodet = await fetch("/api/lukuvuodet").then((r) => r.json());
-  sel.innerHTML = vuodet.map((v) => `<option value="${v}">${v}</option>`).join("");
+  const vuodet = await haeJson("/api/lukuvuodet");
+  sel.innerHTML = vuodet.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
   // Lista on uusin-ensin, joten ensimmäinen optio (oletusvalinta) on viimeisin vuosi
 }
 
@@ -351,7 +389,7 @@ async function taytaTasot(lukuvuosi, kkid) {
   const params = new URLSearchParams();
   if (lukuvuosi) params.set("lukuvuosi", lukuvuosi);
   if (kkid) params.set("kkid", kkid);
-  const tasot = await fetch(`/api/tasot?${params}`).then((r) => r.json());
+  const tasot = await haeJson(`/api/tasot?${params}`);
   // Näytä raa'at arvot sellaisinaan: kannassa on rinnakkaisia muotoja
   // ("aine" ja "Aineopinnot"), eikä TASO_SUOMI-mappaus saa piilottaa niitä.
   sel.innerHTML = '<option value="">Kaikki tasot</option>'
@@ -388,6 +426,7 @@ async function lataaKurssit() {
       params.set("alku", kaikki_kurssit.length);
       params.set("koko", koko);
       const osa = await haeJson(`/api/kurssit?${params}`);
+      await koulut_ladattu;
       if (lataus !== kurssit_lataus || location.pathname !== "/kurssit") return;  // suodatin vaihtui / poistuttiin
       kaikki_kurssit.push(...osa);
       kurssit_kesken = osa.length === koko;
@@ -429,17 +468,15 @@ function renderKurssit() {
     rivi.className = "kurssi-rivi";
     let vuosiSolmu;
     if (versiot.length > 1) {
-      const valinnat = versiot.map((v) => `<option value="${v.KID}">${v.Opetusvuosi}</option>`).join("");
+      const valinnat = versiot.map((v) => `<option value="${v.KID}">${escapeHtml(v.Opetusvuosi)}</option>`).join("");
       vuosiSolmu = `<select class="vuosivalinta" onclick="event.stopPropagation()">${valinnat}</select>`;
     } else {
-      vuosiSolmu = uusin.Opetusvuosi;
+      vuosiSolmu = escapeHtml(uusin.Opetusvuosi);
     }
     rivi.innerHTML = `
-      <td>${uusin.KurssiNimi}</td>
+      <td>${escapeHtml(uusin.KurssiNimi)}</td>
       <td class="koodi">${koodiJaOpasLinkki(uusin)}</td>
-      <td>${uusin.Taso ? TASO_SUOMI[uusin.Taso] || uusin.Taso : "—"}</td>
-      <td>${uusin.Oppiaine || "—"}</td>
-      <td class="op">${uusin.Opintopisteet ?? "—"}</td>
+      ${kurssiMetaSolut(uusin)}
       <td>${vuosiSolmu}</td>`;
     rivi.querySelector("a")?.addEventListener("click", (e) => e.stopPropagation());
     rivi.addEventListener("click", () => {
@@ -516,7 +553,7 @@ function peppiKuvausOsat(data) {
     .filter((o) => (o.content?.valueFi || "").trim())
     .map((o) => ({
       otsikko: o.title?.valueFi || "",
-      sisalto: (o.content?.valueFi || "").replace(/\n/g, "<br>"),
+      sisalto: puhdistaHtml((o.content?.valueFi || "").replace(/\n/g, "<br>")),
     }));
 }
 
@@ -524,7 +561,7 @@ function peppiKuvausOsat(data) {
 function sisuKuvausOsat(data) {
   const osat = [];
   const lisaa = (otsikko, sisalto) => {
-    if (sisalto && sisalto.trim()) osat.push({ otsikko, sisalto });
+    if (sisalto && sisalto.trim()) osat.push({ otsikko, sisalto: puhdistaHtml(sisalto) });
   };
   lisaa("Lyhyt kuvaus", _monikielinen(data.tweetText));
   lisaa("Osaamistavoitteet", _monikielinen(data.outcomes));
@@ -537,22 +574,23 @@ function sisuKuvausOsat(data) {
   lisaa("Oppimateriaalit", _monikielinen(data.learningMaterial));
   lisaa(
     "Kurssikirjallisuus",
-    (data.literature || []).map((l) => l.name).filter(Boolean).map((n) => `• ${n}`).join("<br>"),
+    (data.literature || []).map((l) => l.name).filter(Boolean).map((n) => `• ${escapeHtml(n)}`).join("<br>"),
   );
   const kielet = (data.possibleAttainmentLanguages || []).map((k) => KIELI_SUOMI[k] || k).join(", ");
-  lisaa("Opetuskieli", kielet);
+  lisaa("Opetuskieli", escapeHtml(kielet));
   lisaa("Lisätiedot", _monikielinen(data.additional));
   return osat;
 }
 
 async function avaaModaali(kid) {
-  const kurssi = await fetch(`/api/kurssit/${kid}`).then((r) => r.json());
+  const kurssi = await haeJson(`/api/kurssit/${kid}`);
   const opsUrl = kurssiUrl(kurssi);
+  const nimi = escapeHtml(kurssi.KurssiNimi);
   const nimiHtml = opsUrl
-    ? `<a href="${opsUrl}" target="_blank" rel="noopener">${kurssi.KurssiNimi}</a>`
-    : kurssi.KurssiNimi;
+    ? `<a href="${escapeHtml(opsUrl)}" target="_blank" rel="noopener">${nimi}</a>`
+    : nimi;
   document.getElementById("modaali-otsikko").innerHTML =
-    `${nimiHtml} (${kurssi.Koodi || "—"})`;
+    `${nimiHtml} (${escapeHtml(kurssi.Koodi || "—")})`;
 
   const koulu = kaikki_koulut.find((k) => k.KKID === kurssi.KKID);
   let kuvaus = "—";
@@ -561,19 +599,19 @@ async function avaaModaali(kid) {
       const data = JSON.parse(kurssi.OpsKuvaus);
       const osat = koulu?.OpsTyyppi === "Sisu" ? sisuKuvausOsat(data) : peppiKuvausOsat(data);
       kuvaus = osat.length
-        ? osat.map((o) => `<strong>${o.otsikko}</strong><br>${o.sisalto}`).join("<hr>")
+        ? osat.map((o) => `<strong>${escapeHtml(o.otsikko)}</strong><br>${o.sisalto}`).join("<hr>")
         : "—";
     } catch {
-      kuvaus = kurssi.OpsKuvaus;
+      kuvaus = tekstiHtml(kurssi.OpsKuvaus);
     }
   }
 
   document.getElementById("modaali-teksti").innerHTML = `
     <table class="modaali-meta">
-      <tr><th>Taso</th><td>${kurssi.Taso ? TASO_SUOMI[kurssi.Taso] || kurssi.Taso : "—"}</td></tr>
-      <tr><th>Oppiaine</th><td>${kurssi.Oppiaine || "—"}</td></tr>
-      <tr><th>Opintopisteet</th><td>${kurssi.Opintopisteet ?? "—"}</td></tr>
-      <tr><th>Opetusvuosi</th><td>${kurssi.Opetusvuosi}</td></tr>
+      <tr><th>Taso</th><td>${tasoTeksti(kurssi.Taso)}</td></tr>
+      <tr><th>Oppiaine</th><td>${escapeHtml(kurssi.Oppiaine || "—")}</td></tr>
+      <tr><th>Opintopisteet</th><td>${escapeHtml(kurssi.Opintopisteet ?? "—")}</td></tr>
+      <tr><th>Opetusvuosi</th><td>${escapeHtml(kurssi.Opetusvuosi)}</td></tr>
     </table>
     <div class="ops-kuvaus">${kuvaus}</div>`;
   document.getElementById("modaali").classList.remove("piilotettu");
@@ -593,7 +631,7 @@ let tutkimukset_lista = [];
 
 async function laataaTutkimukset() {
   const runko = document.getElementById("tutkimukset-rungot");
-  tutkimukset_lista = await fetch("/api/tutkimukset").then((r) => r.json());
+  tutkimukset_lista = await haeJson("/api/tutkimukset");
   runko.innerHTML = "";
   if (tutkimukset_lista.length === 0) {
     runko.innerHTML = '<tr><td colspan="5">Ei tutkimuksia.</td></tr>';
@@ -602,16 +640,17 @@ async function laataaTutkimukset() {
   for (const t of tutkimukset_lista) {
     const rivi = document.createElement("tr");
     const lkm = t.MukanaLkm ?? 0;
+    const slug = escapeHtml(t.Slug);
     rivi.innerHTML = `
-      <td class="kurssi-rivi tutkimus-nimi-solu">${t.LuokittelunNimi}</td>
-      <td>${t.Lukuvuosi || "—"}</td>
-      <td>${t.Tasorajaus || "—"}</td>
-      <td class="tutkimus-oppiaine-solu" title="${t.Oppiainerajaus || ""}">${t.Oppiainerajaus || "—"}</td>
+      <td class="kurssi-rivi tutkimus-nimi-solu">${escapeHtml(t.LuokittelunNimi)}</td>
+      <td>${escapeHtml(t.Lukuvuosi || "—")}</td>
+      <td>${escapeHtml(t.Tasorajaus || "—")}</td>
+      <td class="tutkimus-oppiaine-solu" title="${escapeHtml(t.Oppiainerajaus)}">${escapeHtml(t.Oppiainerajaus || "—")}</td>
       <td class="tutkimus-toiminnot">
         ${verkkosivuIkoni(t.Verkkosivu)}
-        <button class="nappi-pieni" data-slug="${t.Slug}" data-alasivu="kurssit">Valitut kurssit (${lkm})</button>
-        <button class="nappi-pieni" data-slug="${t.Slug}" data-alasivu="arvioinnit">Arvioinnit</button>
-        <button class="nappi-pieni" data-slug="${t.Slug}" data-alasivu="raportti">Raportti</button>
+        <button class="nappi-pieni" data-slug="${slug}" data-alasivu="kurssit">Valitut kurssit (${escapeHtml(lkm)})</button>
+        <button class="nappi-pieni" data-slug="${slug}" data-alasivu="arvioinnit">Arvioinnit</button>
+        <button class="nappi-pieni" data-slug="${slug}" data-alasivu="raportti">Raportti</button>
       </td>`;
     rivi.querySelector(".tutkimus-nimi-solu").addEventListener("click", () =>
       navigoi(`/tutkimukset/${t.Slug}`)
@@ -629,10 +668,7 @@ let aktiivinen_tutkimus = null;
 
 async function renderTutkimusKonteksti(slug, alasivu) {
   if (!aktiivinen_tutkimus || aktiivinen_tutkimus.Slug !== slug) {
-    aktiivinen_tutkimus = await fetch(`/api/tutkimukset/${slug}`).then((r) => {
-      if (!r.ok) return null;
-      return r.json();
-    });
+    aktiivinen_tutkimus = await haeJson(`/api/tutkimukset/${slug}`).catch(() => null);
   }
   if (!aktiivinen_tutkimus) {
     document.getElementById("tutkimus-nav").classList.add("piilotettu");
@@ -670,15 +706,17 @@ async function renderTutkimusKonteksti(slug, alasivu) {
 
 function verkkosivuLinkki(url) {
   if (!url) return "—";
+  const e = escapeHtml(url);
   return /^https?:\/\//i.test(url)
-    ? `<a href="${url}" target="_blank" rel="noopener" class="ops-linkki">🌐 ${url}</a>`
-    : url;
+    ? `<a href="${e}" target="_blank" rel="noopener" class="ops-linkki">🌐 ${e}</a>`
+    : e;
 }
 
 // Pelkkä maapallo-ikonilinkki (esim. tutkimuslistan toimintosarakkeeseen).
 function verkkosivuIkoni(url) {
   if (!url || !/^https?:\/\//i.test(url)) return "";
-  return `<a href="${url}" target="_blank" rel="noopener" class="ops-linkki" title="${url}">🌐</a>`;
+  const e = escapeHtml(url);
+  return `<a href="${e}" target="_blank" rel="noopener" class="ops-linkki" title="${e}">🌐</a>`;
 }
 
 const KYS_TYYPPI_NIMI = { vapaa_teksti: "Vapaa teksti", luokittelu: "Luokittelu", asteikko: "Asteikko", lista: "Lista" };
@@ -691,13 +729,13 @@ function _kysymysMaarittelyHtml(k) {
     maar = `<ul class="kys-maar">${m.luokat.map((l) => `<li><strong>${escapeHtml(l.nimi || "")}</strong>: ${escapeHtml(l.kuvaus || "")}</li>`).join("")}</ul>`;
   } else if (tyyppi === "asteikko") {
     const pisteet = Array.isArray(m.pisteet) ? m.pisteet : [];
-    maar = `<div class="kys-maar">Asteikko ${m.minimi ?? "?"}–${m.maksimi ?? "?"}`
+    maar = `<div class="kys-maar">Asteikko ${escapeHtml(m.minimi ?? "?")}–${escapeHtml(m.maksimi ?? "?")}`
       + (pisteet.length ? `<ul>${pisteet.map((p) => `<li>${escapeHtml(String(p.arvo))}: ${escapeHtml(p.kuvaus || "")}</li>`).join("")}</ul>` : "")
       + `</div>`;
   } else if (tyyppi === "lista") {
     maar = `<div class="kys-maar">Kohtien yläraja: ${m.max_kohdat ? escapeHtml(String(m.max_kohdat)) : "ei rajaa"}</div>`;
   }
-  return `<span class="kys-tyyppi">${KYS_TYYPPI_NIMI[tyyppi] || tyyppi}</span>${maar}`;
+  return `<span class="kys-tyyppi">${escapeHtml(KYS_TYYPPI_NIMI[tyyppi] || tyyppi)}</span>${maar}`;
 }
 
 function renderTutkimusTiedot(t) {
@@ -705,19 +743,19 @@ function renderTutkimusTiedot(t) {
     ? `<ol class="kys-lista">${t.Kysymykset.map((k) => `<li><div class="kys-teksti">${escapeHtml(k.Kysymys)}</div>${_kysymysMaarittelyHtml(k)}</li>`).join("")}</ol>`
     : `<p class="tulossa">Ei arviointikysymyksiä.</p>`;
   document.getElementById("tutkimus-tiedot-sisalto").innerHTML = `
-    <h2>${t.LuokittelunNimi}</h2>
+    <h2>${escapeHtml(t.LuokittelunNimi)}</h2>
     <table class="modaali-meta">
-      <tr><th>Slug</th><td>${t.Slug}</td></tr>
+      <tr><th>Slug</th><td>${escapeHtml(t.Slug)}</td></tr>
       <tr><th>Verkkosivu</th><td>${verkkosivuLinkki(t.Verkkosivu)}</td></tr>
-      <tr><th>Tasorajaus</th><td>${t.Tasorajaus || "—"}</td></tr>
-      <tr><th>Oppiainerajaus</th><td>${t.Oppiainerajaus || "—"}</td></tr>
+      <tr><th>Tasorajaus</th><td>${escapeHtml(t.Tasorajaus || "—")}</td></tr>
+      <tr><th>Oppiainerajaus</th><td>${escapeHtml(t.Oppiainerajaus || "—")}</td></tr>
     </table>
     <h3>Valintakehote</h3>
-    <pre class="kehote-teksti">${t.Luokittelukehote}</pre>
+    <pre class="kehote-teksti">${escapeHtml(t.Luokittelukehote)}</pre>
     <h3>Arviointikehote</h3>
-    <pre class="kehote-teksti">${t.Arviointikehote}</pre>
+    <pre class="kehote-teksti">${escapeHtml(t.Arviointikehote)}</pre>
     <h3>Raportointikehote</h3>
-    <pre class="kehote-teksti">${t.Raportointikehote || "—"}</pre>
+    <pre class="kehote-teksti">${escapeHtml(t.Raportointikehote || "—")}</pre>
     <h3>Arviointikysymykset</h3>
     ${kysymysLista}`;
 }
@@ -741,7 +779,7 @@ function avaaHitlModaali(kid, kurssiniimi, ai_perustelu, uusi_tila) {
   document.getElementById("hitl-otsikko").textContent = `${toiminto}: ${kurssiniimi}`;
   const aiOsio = document.getElementById("hitl-ai-perustelu-osio");
   if (ai_perustelu) {
-    aiOsio.innerHTML = `<strong>Tekoälyn perustelu:</strong> ${ai_perustelu}`;
+    aiOsio.innerHTML = `<strong>Tekoälyn perustelu:</strong> ${escapeHtml(ai_perustelu)}`;
   } else {
     aiOsio.textContent = "";
   }
@@ -837,8 +875,8 @@ let luokitus_jarjestys = { sarake: null, suunta: null };
 let _suodKoulut = null, _suodTasot = null;
 
 async function _suodatinData() {
-  if (!_suodKoulut) _suodKoulut = await fetch("/api/korkeakoulut").then((r) => r.json());
-  if (!_suodTasot) _suodTasot = await fetch("/api/tasot").then((r) => r.json());
+  if (!_suodKoulut) _suodKoulut = await haeJson("/api/korkeakoulut");
+  if (!_suodTasot) _suodTasot = await haeJson("/api/tasot");
   return { koulut: _suodKoulut, tasot: _suodTasot };
 }
 
@@ -946,6 +984,7 @@ async function lataaTilaSivu(maaratKanssa = false) {
   const [rivit, maarat] = await Promise.all([
     haeJson(url),
     maaratKanssa ? haeJson(`/api/tutkimukset/${slug}/luokitukset/maarat?${p}`) : null,
+    koulut_ladattu,
   ]);
   if (lataus !== _luokitusLataus) return;
   if (maarat) {
@@ -1099,11 +1138,9 @@ function renderTutkimusKurssitRivit(rivit) {
     const rivi = document.createElement("tr");
     rivi.className = hyvaksytty ? "kurssi-rivi hyvaksytty" : "kurssi-rivi";
     rivi.innerHTML = `
-      <td>${k.KurssiNimi}</td>
+      <td>${escapeHtml(k.KurssiNimi)}</td>
       <td class="koodi">${koodiJaOpasLinkki(k)}</td>
-      <td>${k.Taso ? TASO_SUOMI[k.Taso] || k.Taso : "—"}</td>
-      <td>${k.Oppiaine || "—"}</td>
-      <td class="op">${k.Opintopisteet ?? "—"}</td>
+      ${kurssiMetaSolut(k)}
       <td class="perustelu">${perusteluHtml}${toimintoHtml ? `<div class="perustelu-toiminto">${toimintoHtml}</div>` : ""}</td>`;
     rivi.querySelector("a.ops-linkki")?.addEventListener("click", (e) => e.stopPropagation());
     rivi.addEventListener("click", () => avaaModaali(k.KID));
@@ -1145,7 +1182,7 @@ document.querySelectorAll(".tila-nappi, .tila-nappi-nav").forEach((b) => {
 // --- Tutkimus-arvioinnit ---
 
 function _renderArviointiSolu(kys, v) {
-  if (typeof v === "string") return v || "—";
+  if (typeof v === "string") return escapeHtml(v || "—");
   const luokittelu = kys.Luokittelu || "vapaa_teksti";
   const perustelu = v?.vastaus ? `<em class="arvio-perustelu">${escapeHtml(v.vastaus)}</em>` : "";
   // Vanhentunut = tekoälyn vastaus on generoitu vanhaan kysymykseen/kehotteeseen
@@ -1154,17 +1191,17 @@ function _renderArviointiSolu(kys, v) {
     : "";
   let body;
   if (luokittelu === "luokittelu" && v?.luokka) {
-    body = `<span class="luokka-badge">${v.luokka}</span>${perustelu}`;
+    body = `<span class="luokka-badge">${escapeHtml(v.luokka)}</span>${perustelu}`;
   } else if (luokittelu === "asteikko" && v?.pisteet != null) {
     const max = kys.LuokitteluMaarittely?.maksimi;
-    body = `<span class="pisteet-arvo">${v.pisteet}${max ? "/" + max : ""}</span>${perustelu}`;
+    body = `<span class="pisteet-arvo">${escapeHtml(v.pisteet)}${max ? "/" + escapeHtml(max) : ""}</span>${perustelu}`;
   } else if (luokittelu === "lista" && Array.isArray(v?.lista)) {
     const kohdat = v.lista.length
-      ? `<ul class="arvio-lista">${v.lista.map((x) => `<li>${x}</li>`).join("")}</ul>`
+      ? `<ul class="arvio-lista">${v.lista.map((x) => `<li>${escapeHtml(x)}</li>`).join("")}</ul>`
       : '<span class="arvio-tyhja">—</span>';
     body = kohdat + perustelu;
   } else {
-    body = v?.vastaus || "—";
+    body = escapeHtml(v?.vastaus || "—");
   }
   return vanha + body;
 }
@@ -1225,6 +1262,7 @@ async function renderTutkimusArvioinnit(slug, nimi, sailyta = false) {
   try {
     for (let sivu = 0; ; sivu++) {
       const osa = await haeJson(`/api/tutkimukset/${slug}/arvioinnit?sivu=${sivu}&koko=${ARVIOINNIT_OSA}`);
+      await koulut_ladattu;
       // Uudempi lataus ohitti, tai käyttäjä siirtyi muualle (älä kuluta kaistaa piilonäkymään).
       if (lataus !== arvioinnit_lataus || jaaPolku().alasivu !== "arvioinnit") return;
       if (!osa.kysymykset.length) {
@@ -1312,11 +1350,10 @@ function renderArvioinnitTaulu() {
   for (const k of kurssit) {
     const rivi = tbody.insertRow();
     rivi.className = "kurssi-rivi";
-    const taso = k.Taso ? (TASO_SUOMI[k.Taso] || k.Taso) : "—";
     rivi.innerHTML = `
       <td>${kurssiLinkki(k)}</td>
-      <td>${taso}</td>
-      <td class="op">${k.Opintopisteet ?? "—"}</td>`;
+      <td>${tasoTeksti(k.Taso)}</td>
+      <td class="op">${escapeHtml(k.Opintopisteet ?? "—")}</td>`;
     rivi.querySelector("a.ops-linkki")?.addEventListener("click", (e) => e.stopPropagation());
     rivi.addEventListener("click", () => avaaModaali(k.KID));
     kysymykset.forEach((kys, i) => {
@@ -1382,33 +1419,33 @@ function _renderTilastotTaulukko(tilastot) {
 
   let html = '<div class="tilastot-osio"><h3>Tilastot</h3>';
   for (const k of rakenteiset) {
-    html += `<div class="tilasto-kysymys"><strong>${k.kysymys}</strong> (${k.yhteensa} arviointia)`;
+    html += `<div class="tilasto-kysymys"><strong>${escapeHtml(k.kysymys)}</strong> (${escapeHtml(k.yhteensa)} arviointia)`;
     if (k.luokittelu === "luokittelu") {
       const jakauma = k.jakauma || {};
       const yht = k.yhteensa || 1;
       html += '<table class="tilasto-taulu"><tr>';
-      for (const [luokka, lkm] of Object.entries(jakauma)) {
-        const pct = Math.round((lkm / yht) * 100);
-        html += `<th>${luokka}</th>`;
+      for (const luokka of Object.keys(jakauma)) {
+        html += `<th>${escapeHtml(luokka)}</th>`;
       }
       html += "</tr><tr>";
-      for (const [luokka, lkm] of Object.entries(jakauma)) {
+      for (const lkm of Object.values(jakauma)) {
         const pct = Math.round((lkm / yht) * 100);
-        html += `<td><div class="tilasto-pylvas" style="width:${pct}%"></div>${lkm} (${pct}%)</td>`;
+        html += `<td><div class="tilasto-pylvas" style="width:${pct}%"></div>${escapeHtml(lkm)} (${pct}%)</td>`;
       }
       html += "</tr></table>";
     } else if (k.luokittelu === "asteikko") {
       html += `<table class="tilasto-taulu"><tr><th>ka</th><th>min</th><th>max</th></tr>` +
-        `<tr><td>${k.keskiarvo ?? "—"}</td><td>${k.minimi ?? "—"}</td><td>${k.maksimi ?? "—"}</td></tr></table>`;
+        `<tr><td>${escapeHtml(k.keskiarvo ?? "—")}</td><td>${escapeHtml(k.minimi ?? "—")}</td>` +
+        `<td>${escapeHtml(k.maksimi ?? "—")}</td></tr></table>`;
       const jakauma = k.jakauma || {};
       if (Object.keys(jakauma).length) {
         const yht = k.yhteensa || 1;
         const avaimet = Object.keys(jakauma).sort((a, b) => +a - +b);
-        html += '<table class="tilasto-taulu"><tr>' + avaimet.map((a) => `<th>${a}</th>`).join("") + "</tr><tr>";
+        html += '<table class="tilasto-taulu"><tr>' + avaimet.map((a) => `<th>${escapeHtml(a)}</th>`).join("") + "</tr><tr>";
         html += avaimet.map((a) => {
           const lkm = jakauma[a] || 0;
           const pct = Math.round((lkm / yht) * 100);
-          return `<td>${lkm} (${pct}%)</td>`;
+          return `<td>${escapeHtml(lkm)} (${pct}%)</td>`;
         }).join("") + "</tr></table>";
       }
     } else if (k.luokittelu === "lista") {
@@ -1416,7 +1453,7 @@ function _renderTilastotTaulukko(tilastot) {
       const parit = Object.entries(jakauma).sort((a, b) => b[1] - a[1]).slice(0, 10);
       if (parit.length) {
         html += '<table class="tilasto-taulu"><tr><th>Kohta</th><th>Mainintoja</th></tr>';
-        html += parit.map(([kohde, lkm]) => `<tr><td>${kohde}</td><td>${lkm}</td></tr>`).join("");
+        html += parit.map(([kohde, lkm]) => `<tr><td>${escapeHtml(kohde)}</td><td>${escapeHtml(lkm)}</td></tr>`).join("");
         html += "</table>";
       }
     }
@@ -1483,22 +1520,29 @@ function _renderTuoreusPalkki(tilanne) {
     </div>`;
 }
 
-async function renderTutkimusRaportti(slug, tutkimus) {
+// Raporttiosion teksti näkymään (myös raporttimuokkaus.js tallennuksen jälkeen).
+function raporttiOsioHtml(teksti) {
+  return teksti ? tekstiHtml(teksti) : '<em class="tulossa">Tämä osio puuttuu raportista.</em>';
+}
+
+// sailyta=true (pollaus): vanha raportti pysyy näkyvissä haun ajan ja virheessä.
+async function renderTutkimusRaportti(slug, tutkimus, sailyta = false) {
   const sisalto = document.getElementById("raportti-sisalto");
   const pdfNappi = document.getElementById("raportti-pdf-nappi");
-  sisalto.innerHTML = "";
+  if (!sailyta) sisalto.innerHTML = '<p class="tulossa">Ladataan raporttia…</p>';
 
   let data, tilastot, tilanne;
   try {
     [data, tilastot, tilanne] = await Promise.all([
-      fetch(`/api/tutkimukset/${slug}/raportti`).then((r) => r.json()),
-      fetch(`/api/tutkimukset/${slug}/raportti/tilastot`).then((r) => r.json()).catch(() => null),
-      fetch(`/api/tutkimukset/${slug}/raportti/tilanne`).then((r) => r.json()).catch(() => null),
+      haeJson(`/api/tutkimukset/${slug}/raportti`),
+      haeJson(`/api/tutkimukset/${slug}/raportti/tilastot`).catch(() => null),
+      haeJson(`/api/tutkimukset/${slug}/raportti/tilanne`).catch(() => null),
     ]);
   } catch (_) {
-    sisalto.innerHTML = '<p class="tulossa">Raportin lataaminen epäonnistui.</p>';
+    if (!sailyta) sisalto.innerHTML = '<p class="tulossa">Raportin lataaminen epäonnistui.</p>';
     return;
   }
+  sisalto.innerHTML = "";
 
   const { tid, osiot } = data;
   const onRaportti = Object.keys(osiot).length > 0;
@@ -1526,7 +1570,7 @@ async function renderTutkimusRaportti(slug, tutkimus) {
         <button class="arvio-korjaa-nappi raportti-muokkaa-nappi" data-avain="${avain}">Muokkaa</button>
       </div>
       ${tilastotHtml}
-      <div class="raportti-osio-teksti">${teksti ? teksti.replace(/\n/g, "<br>") : '<em class="tulossa">Tämä osio puuttuu raportista.</em>'}</div>
+      <div class="raportti-osio-teksti">${raporttiOsioHtml(teksti)}</div>
       <div class="raportti-muokkaajat" id="raportti-muokkaajat-${avain}"></div>`;
     div.querySelector(".raportti-muokkaa-nappi").addEventListener("click", () => {
       window.avaaRaporttiMuokkaus?.(tid, avain, otsikko, teksti);
@@ -1554,7 +1598,7 @@ function _hitlMittaritTulostus(hitl) {
 }
 
 function avaaRaporttiTulostus(slug, tutkimus, osiot, tilastot) {
-  const nimi = tutkimus?.LuokittelunNimi || slug;
+  const nimi = escapeHtml(tutkimus?.LuokittelunNimi || slug);
   let html = `<!DOCTYPE html><html lang="fi"><head><meta charset="utf-8">
     <title>${nimi} — raportti</title>
     <style>
@@ -1567,7 +1611,7 @@ function avaaRaporttiTulostus(slug, tutkimus, osiot, tilastot) {
     <h1>${nimi}</h1>`;
   for (const { avain, otsikko } of RAPORTTI_OSIOT) {
     const teksti = osiot[avain] || "";
-    html += `<h2>${otsikko}</h2><p>${teksti.replace(/\n/g, "</p><p>")}</p>`;
+    html += `<h2>${otsikko}</h2><p>${escapeHtml(teksti).replace(/\n/g, "</p><p>")}</p>`;
     if (avain === "kurssit") html += _hitlMittaritTulostus(tilastot?.hitl);
   }
   html += `<script>window.print();<\/script></body></html>`;
@@ -1607,7 +1651,7 @@ async function _paivitaNakyma() {
       } else if (r.alasivu === "arvioinnit") {
         await renderTutkimusArvioinnit(r.slug, aktiivinen_tutkimus.LuokittelunNimi, true);
       } else if (r.alasivu === "raportti") {
-        await renderTutkimusRaportti(r.slug, aktiivinen_tutkimus);
+        await renderTutkimusRaportti(r.slug, aktiivinen_tutkimus, true);
       } else if (r.alasivu === "tiedot") {
         // tiedot-näkymä on staattinen, ei tarvitse päivittää
       }
@@ -1644,5 +1688,5 @@ if (_ylapalkki && window.ResizeObserver) {
 
 // --- Käynnistys ---
 
-lataaKorkeakoulut();
+koulut_ladattu = lataaKorkeakoulut().catch(() => {});
 renderoi();
