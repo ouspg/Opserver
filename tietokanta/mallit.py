@@ -675,12 +675,24 @@ def _vuosi_kattaa_sql(sarake: str, lukuvuosi: str) -> tuple[str, list]:
     return f"{etuliite}VuosiAlku <= %s AND {etuliite}VuosiLoppu >= %s", [alku, loppu]
 
 
+def _rajaus(kursori, tid: int) -> tuple[str | None, list[int]]:
+    """Tutkimuksen (lukuvuosi, korkeakoulujen KKID:t) yhdellä kyselyllä."""
+    kursori.execute(
+        """SELECT t.Lukuvuosi, tk.KKID FROM Tutkimus t
+           LEFT JOIN TutkimusKorkeakoulu tk ON tk.TID = t.TID
+           WHERE t.TID = %s ORDER BY tk.KKID""",
+        (tid,),
+    )
+    rivit = kursori.fetchall()
+    return (rivit[0][0] if rivit else None), [r[1] for r in rivit if r[1] is not None]
+
+
 def _tutkimus_kurssi_scope(tid: int) -> tuple[str | None, list]:
     """SQL-WHERE + parametrit jotka rajaavat Kurssi-rivit tutkimuksen korkeakouluihin
     ja lukuvuoteen (OPS-kausi kattaa lukuvuoden). (None, None) jos rajaus puuttuu."""
-    tutkimus = hae_tutkimus(tid)
-    korkeakoulut = hae_tutkimuksen_korkeakoulut(tid)
-    lukuvuosi = (tutkimus or {}).get("Lukuvuosi")
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            lukuvuosi, korkeakoulut = _rajaus(kursori, tid)
     if not korkeakoulut or not lukuvuosi:
         return None, None
     paikat = ",".join(["%s"] * len(korkeakoulut))
@@ -832,12 +844,7 @@ def hae_tutkimuksen_tilanne(tid: int) -> dict:
             kursori.execute("SELECT COUNT(*) FROM Kurssi")
             kursseja_yht = int(kursori.fetchone()[0])
 
-            kursori.execute("SELECT Lukuvuosi FROM Tutkimus WHERE TID = %s", (tid,))
-            rivi = kursori.fetchone()
-            lukuvuosi = rivi[0] if rivi else None
-
-            kursori.execute("SELECT KKID FROM TutkimusKorkeakoulu WHERE TID = %s", (tid,))
-            korkeakoulut = [r[0] for r in kursori.fetchall()]
+            lukuvuosi, korkeakoulut = _rajaus(kursori, tid)
 
             # Ilman lukuvuotta koko in-scope-joukko on tyhjä (kuten Python-versiossa).
             if not lukuvuosi:
@@ -1124,10 +1131,7 @@ def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
     """
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute("SELECT Lukuvuosi FROM Tutkimus WHERE TID = %s", (tid,))
-            rivi = kursori.fetchone()
-            lukuvuosi = rivi[0] if rivi else None
-            kkid_lista = hae_tutkimuksen_korkeakoulut(tid)
+            lukuvuosi, kkid_lista = _rajaus(kursori, tid)
             kaudet = _kattavat_kaudet(kursori, lukuvuosi)
 
             kk_ehto = f"WHERE ko.KKID IN ({','.join(['%s'] * len(kkid_lista))})" if kkid_lista else ""
