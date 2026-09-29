@@ -1,7 +1,8 @@
 """Tutkimuksen tarkentavien kysymysten hallinta."""
 import textwrap
 from tietokanta import mallit
-from cliui.apurit import piirra_otsikko, nayta_viesti, lue_teksti, valitse_listasta
+from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta
+from cliui.tekstikentta import lue_teksti
 from cliui.valikot import vahvista_kylla
 
 _KATKAISU = 50

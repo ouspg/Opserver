@@ -1,7 +1,8 @@
 """Korkeakoulujen hallintanäkymä: listaa, lisää, muokkaa ja poista."""
 from tietokanta import mallit
 from tiedonhaku import konfiguraatio
-from cliui.apurit import piirra_otsikko, nayta_viesti, lue_teksti, valitse_listasta
+from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta
+from cliui.tekstikentta import lue_teksti
 from cliui.valikot import toimintovalikko, valitse_korkeakoulu, vahvista_kylla
 
 OPS_TYYPIT = ["Peppi", "Sisu"]

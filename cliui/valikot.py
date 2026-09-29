@@ -1,6 +1,7 @@
 """Näkymien yhteiset valikot: toimintovalikko, tutkimuksen/korkeakoulun valinta, vahvistus."""
 from tietokanta import mallit
-from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta, lue_teksti
+from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta
+from cliui.tekstikentta import lue_teksti
 
 
 def toimintovalikko(stdscr, otsikko, toiminnot: list[tuple], *argumentit) -> None:
