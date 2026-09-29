@@ -4,17 +4,6 @@ Session-aikana (2026-09-22, tuotannon `asenna`/Caddy/migraatio-työ) havaittuja
 asioita jotka mainittiin mutta ei korjattu tai vahvistettu käyttäjän kanssa.
 Triagoi: korjaa tai sulje.
 
-## 7. pura_vastaus: jäljellä olevat jäsennysaukot (hypoteesi, ei havaittu)
-
-Tuotannon raaka-JSON-rivit (esr_kyber) korjattiin 2026-09-27 (PR #31 + #35,
-viimeiset 6 päättyivät `},`). Kaksi mahdollista aukkoa jäi, dataa ei nähty:
-- `vapaa_teksti`-kysymys, jolle malli palauttaa objektin → `str(raw)` tallentaa
-  Python-reprin (`{'perustelu': ...}`), joka ei ole JSONia eikä korjaannu.
-- `hae_raakana_tallennetut_vastaukset` hakee `LIKE '{%'`, joten tyhjällä tai
-  ```` ```json ````-aidalla alkava rivi ei löydy korjaustoiminnolle.
-Tarkistus: `./db "... WHERE v.Vastaus LIKE '%perustelu%'"` (ks. #35:n keskustelu).
-Jos rivejä löytyy, korjaa `pura_vastaus` + testi.
-
 ## 8. Tiedostokokoraja ylittyy: sovellus.js 1577 riviä (raja ~500)
 
 CLAUDE.md: "jokaisen tiedoston täytyy olla niin pieni, että Claude pystyy
