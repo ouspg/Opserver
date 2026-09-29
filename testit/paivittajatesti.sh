@@ -37,6 +37,8 @@ mkdir testit
 cat > asenna <<'EOF'
 #!/usr/bin/env bash
 echo "asenna $(git rev-parse --short HEAD)" >> "$LOKI"
+echo "asenna-tuloste: yhteys salasanalla salainen123"   # stdout → päivittäjän loki/issue
+[[ ! -f RIKKI ]] || echo "asenna-virhe: migraatio kaatui"
 EOF
 cat > varmuuskopio <<'EOF'
 #!/usr/bin/env bash
@@ -50,7 +52,8 @@ EOF
 chmod +x asenna varmuuskopio testit/savutesti.sh
 git add -A && git commit -qm v1
 git clone -q "$T/origin" "$T/tuotanto"
-echo "GITHUB_ISSUE_TOKEN=x" > "$T/tuotanto/.env"
+printf 'GITHUB_ISSUE_TOKEN=x\nDB_PASSWORD="salainen123"\n' > "$T/tuotanto/.env"
+echo "2026-09-29 vahtikoira: caddy epäterve" > "$T/tuotanto/vahtikoira.log"
 
 uusi_commit() { (cd "$T/origin" && "$@" && git add -A && git commit -qm "$RANDOM" && git rev-parse HEAD); }
 aja() { : > "$LOKI"; (cd "$T/tuotanto" && ./paivittaja >"$T/ajo.log" 2>&1) || true; }
@@ -71,6 +74,7 @@ odota "onnistuneesta ei issueta" '! grep -q issue "$LOKI"'
 
 aja
 odota "ei muutosta → ei asennusta" '! grep -q "^asenna" "$LOKI"'
+odota "ei muutosta → ei tulostetta cron-lokiin" '[[ ! -s "$T/ajo.log" ]]'
 
 rikki=$(uusi_commit touch RIKKI)
 aja
@@ -78,6 +82,9 @@ odota "rikkinäinen versio palautetaan" '[[ $(head_) == "$hyva" ]]'
 odota "kanta palautetaan dumpista" 'grep -q "varmuuskopio --palauta /tmp/dumppi.sql.gz" "$LOKI"'
 odota "vanha versio asennetaan uudelleen" 'grep -q "asenna ${hyva:0:7}" "$LOKI"'
 odota "issue luodaan" 'grep -q "issue:.*${rikki:0:7}" "$LOKI"'
+odota "issuessa asennuksen loki" 'grep "^issue:" "$LOKI" | grep -q "asenna-virhe: migraatio kaatui"'
+odota "issuessa salaisuudet peitetty" 'grep "^issue:" "$LOKI" | grep -q "salasanalla \*\*\*" && ! grep "^issue:" "$LOKI" | grep -q salainen123'
+odota "asennuksen tuloste myös cron-lokissa" 'grep -q "asenna-virhe: migraatio kaatui" "$T/ajo.log"'
 
 aja
 odota "samaa versiota ei yritetä uudelleen" '[[ ! -s "$LOKI" ]]'
@@ -87,6 +94,7 @@ SIVU_RIKKI=1 aja
 odota "ei päivitetä jos sivu on jo rikki" '[[ $(head_) == "$hyva" ]] && ! grep -q "^asenna" "$LOKI"'
 odota "lokiin kaatunut tarkistus" 'grep -q "ei toimi.*API /kurssit ei vastaa" "$T/ajo.log" && ! grep -q "WebUI etusivu" "$T/ajo.log"'
 odota "rikkinäisestä sivusta issue" 'grep -q "issue:.*${korjattu:0:7}" "$LOKI"'
+odota "issuessa savutestin tuloste ja vahtikoiran loki" 'grep "^issue:" "$LOKI" | grep -q "API /kurssit ei vastaa" && grep "^issue:" "$LOKI" | grep -q "vahtikoira: caddy ep"'
 SIVU_RIKKI=1 aja
 odota "issue vain kerran per versio" '! grep -q issue "$LOKI"'
 
