@@ -1146,12 +1146,12 @@ def laske_hitl_korjaukset_jalkeen(tid: int, aika) -> int:
     ))
 
 
-def laske_hitl_vastaukset_jalkeen(tid: int, aika) -> int:
-    """Ihmisen korjaamien vastausten määrä, jotka on tehty/muokattu ajan jälkeen."""
+def laske_hitl_vastaukset(tid: int, jalkeen=None) -> int:
+    """Ihmisen korjaamien vastausten määrä (COUNT, ei rivinoutoa); jalkeen annettuna
+    vain sen jälkeen tehdyt/muokatut."""
+    aika_sql, params = (" AND Aikaleima > %s", (tid, jalkeen)) if jalkeen is not None else ("", (tid,))
     return int(_hae_arvo(
-        "SELECT COUNT(*) FROM Vastaukset "
-        "WHERE TID = %s AND Malli IS NULL AND Aikaleima > %s",
-        (tid, aika),
+        f"SELECT COUNT(*) FROM Vastaukset WHERE TID = %s AND Malli IS NULL{aika_sql}", params,
     ))
 
 

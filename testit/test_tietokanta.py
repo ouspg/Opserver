@@ -809,14 +809,17 @@ class TestRaporttiTila:
         assert n == 3
         assert list(params) == [1, "2026-07-15 10:00:00"]
 
-    def test_laske_hitl_vastaukset_jalkeen_kayttaa_countia(self, mock_yhteys):
+    def test_laske_hitl_vastaukset_kayttaa_countia(self, mock_yhteys):
         yht, kursori = mock_yhteys
         kursori.fetchone.return_value = (2,)
-        n = mallit.laske_hitl_vastaukset_jalkeen(1, "2026-07-15 10:00:00")
+        n = mallit.laske_hitl_vastaukset(1, jalkeen="2026-07-15 10:00:00")
         sql, params = kursori.execute.call_args[0]
         assert "COUNT(*)" in sql and "Malli IS NULL" in sql and "Aikaleima >" in sql
         assert n == 2
         assert list(params) == [1, "2026-07-15 10:00:00"]
+        mallit.laske_hitl_vastaukset(1)
+        sql, params = kursori.execute.call_args[0]
+        assert "Aikaleima" not in sql and list(params) == [1]
 
 
 class TestHitlVastaukset:
