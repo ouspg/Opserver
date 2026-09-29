@@ -4,17 +4,6 @@ Session-aikana (2026-09-22, tuotannon `asenna`/Caddy/migraatio-työ) havaittuja
 asioita jotka mainittiin mutta ei korjattu tai vahvistettu käyttäjän kanssa.
 Triagoi: korjaa tai sulje.
 
-## 5. Monilauseinen migraatio katkeaa ensimmäiseen duplikaattiin — loput lauseet jäävät hiljaa ajamatta
-
-`asenna`:n migraatioajuri tulkitsee duplikaattiluokan virheen "jo
-sovellettu" -tilanteeksi ja merkitsee tiedoston tehdyksi. `mysql` kuitenkin
-pysähtyy ensimmäiseen virheeseen, joten saman tiedoston myöhemmät lauseet
-jäävät ajamatta vaikka ne olisivat oikeasti tarpeen. Tämä nähtiin
-2026-09-22 tuotannossa (esim. migraatio_004, 008-010, 016-017 ohitettiin).
-Seuraukset havaitaan nyt `./testit/skeematarkistus.sh`:lla, mutta itse ansaa
-ei ole poistettu. Vaihtoehto: aja migraatiot `mysql --force`:lla ja päätä
-vasta kaikkien lauseiden virheistä, onko tiedosto oikeasti sovellettu.
-
 ## 6. Tarkista tuotannon vahtikoira.log: restartoiko cron caddy+webui 10 min välein?
 
 Ennen PR #34:ää vahtikoiran terveystarkistus (`https://localhost/`) ei voinut

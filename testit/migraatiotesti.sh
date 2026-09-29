@@ -98,6 +98,29 @@ diff -u "$TMP/tuore.sql" "$TMP/vanha.sql" \
 diff -u "$TMP/tuore.sql" "$TMP/edellinen.sql" \
     || { echo "Migratoitu edellinen skeema eroaa tuoreesta (- = puuttuu migratoidusta)"; virheita=1; }
 
+# Monilauseinen migraatio, jonka ensimmäinen lause on jo sovellettu: loput lauseet
+# on silti ajettava (mysql pysähtyi ennen ensimmäiseen duplikaattiin ja tiedosto
+# merkittiin tehdyksi). Oikean asennan lohko valekansiota vasten, aliprosessissa,
+# koska epäonnistuva migraatio tekee `exit 1`.
+LOHKO=$(sed -n '/^aja_sql -e "CREATE TABLE IF NOT EXISTS _migraatiot/,/^done$/p' asenna)
+aja_valemigraatio() {  # aja_valemigraatio <migraation sisältö>
+    rm -rf "$TMP/vale"; mkdir -p "$TMP/vale/tietokanta"
+    echo "SELECT 1;" > "$TMP/vale/tietokanta/alustus.sql"
+    echo "$1" > "$TMP/vale/tietokanta/migraatio_001.sql"
+    (cd "$TMP/vale" && eval "$LOHKO") >/dev/null 2>&1
+}
+echo "== skenaario: osin sovellettu monilauseinen migraatio"
+kaynnista
+aja_sql -e "CREATE TABLE a (x INT)"
+aja_valemigraatio "CREATE TABLE a (x INT); CREATE TABLE b (y INT);" \
+    || { echo "[osin] duplikaatti pysäytti asennuksen"; virheita=1; }
+[[ -n "$(aja_sql -N -e "SHOW TABLES LIKE 'b'")" ]] \
+    || { echo "[osin] duplikaatin jälkeinen lause jäi ajamatta"; virheita=1; }
+aja_sql -e "DROP TABLE IF EXISTS b; DELETE FROM _migraatiot"
+if aja_valemigraatio "CREATE TABLE a (x INT); SELECT * FROM ei_ole;"; then
+    echo "[osin] muu virhe duplikaatin jälkeen ei pysäyttänyt asennusta"; virheita=1
+fi
+
 # Tavoiteskeema on ./testit/skeematarkistus.sh:n vertailukohta ajossa oleville
 # kannoille — pidetään se ajan tasalla tässä, ettei se pääse vanhenemaan.
 diff -u testit/fixtures/tavoiteskeema.sql "$TMP/tuore.sql" \
