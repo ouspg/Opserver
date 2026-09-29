@@ -116,7 +116,13 @@ PR #39:n mittauksessa (400 kbit/s) logo latautui ~10 s ja jakoi kaistan
 datan kanssa. Pienennä (esim. oikean kokoinen PNG/WebP, tai SVG) — muutaman
 rivin muutos, mutta ei tehty #39:ssä rajauksen vuoksi.
 
-## 12. Tuotannon /api/tasot 27–75 s ja /api/lukuvuodet 64 s — verkko vai kone?
+## 12. Tuotannon /api/tasot 27–75 s ja /api/lukuvuodet 64 s — verkko vai kone? — SELVITETTY
+
+**2026-09-29:** kone, ei verkko. OpsKuvaus (ka. 6,3 kt) mahtui InnoDB-riville →
+Kurssi ~250 Mt > 128 Mt buffer pool → jokainen Kurssin läpikäynti luki levyltä
+(odottaa/hylätty-listat 9–22 s). Korjattu PR #61 (KurssiKuvaus-taulu, migraatio
+025); tuotannossa mitattuna jälkeenpäin kaikki listat/määrät 0,1–0,6 s. Sulje.
+
 
 2026-09-27 mitattuna klaudekin katkeilevan yhteyden yli tuotannosta: `/api/tasot`
 27–75 s (yksi aikakatkaisu), `/api/lukuvuodet` 6–64 s, vaikka vastaukset ovat
@@ -176,3 +182,35 @@ oikein (ei lokispämmiä 5 min välein), mutta käsin testaava ei näe miksi.
 Syy jäi todentamatta (todennäköisesti HEAD == origin/main; ohjeeksi annettu
 `sudo bash -x ./paivittaja 2>&1 | tail -15`). Ehdotus: jos `[[ -t 1 ]]`
 (pääte), tulosta poistumisen syy; cronissa pysyy hiljaisena.
+
+## 19. MySQL:n innodb_buffer_pool_size on tuotannossa oletus 128 Mt
+
+2026-09-29 (PR #61:n juurisyy): `docker-compose.yml`:n mysql-palvelu ei aseta
+`--innodb-buffer-pool-size`a. Nyt kuuma data mahtuu (Kurssi ~6 Mt, Kurssiluokitus
+~10 Mt; KurssiKuvaus ~250 Mt luetaan vain rivi kerrallaan), mutta kun
+korkeakouluja/lukuvuosia/tutkimuksia lisätään, sama levyltä-luku-ilmiö palaa
+huomaamatta. Tarkista tuotantokoneen RAM (`free -h`) ja harkitse esim. 512 Mt–1 Gt
+asetusta compose-komentoriville. Mittari: `Innodb_buffer_pool_reads` kasvaa
+tasaisen kuorman alla.
+
+## 20. Syvä sivutus hidas: hylätty sivu 301/318 = 1,6 s
+
+2026-09-29 tuotannossa: `/luokitukset?tila=hylätty&sivu=300&koko=100` 1,6 s
+(sivu 0: 0,4 s). `ORDER BY k.KurssiNimi LIMIT 100 OFFSET 30000` järjestää ja
+ohittaa ~30 k riviä. Uusi sivunumerovalitsin (PR #56) tekee viimeisille sivuille
+hyppäämisestä helppoa. Jos haittaa: keyset-sivutus (WHERE KurssiNimi > viimeinen)
+tai kattava indeksi `(KKID, VuosiAlku, VuosiLoppu, KurssiNimi)`.
+
+## 21. /luokitukset hakee koko tutkimuksen HITL-historian joka pyynnöllä
+
+`webui/palvelin.py` `api_tutkimus_luokitukset`: `mallit.hae_hitl_historia(tid)`
+vetää kaikki HitlKorjaus-rivit jokaiseen sivuhakuun (myös 15 s pollaukseen),
+vaikka sivulla on 100 kurssia. Nyt rivejä vähän, mutta kasvaa annotointisessioissa
+lineaarisesti. Korjaus: rajaa `WHERE TID = %s AND KID IN (<sivun KID:t>)`.
+
+## 22. Nukkuvan/kummituksen zzZ ei erotu 8–10 px pallurissa
+
+PR #57: zzZ piirretään canvasin sisään; 24–28 px pallurissa luettava, mutta
+alavalikon (8 px), välilehti- ja sivutuspallurissa (10 px) se on valkoinen
+läiskä. Harmaa väri ja kummituksen läpinäkyvyys erottuvat silti. Jos haittaa:
+pieniin pallurihin pelkkä "z" tai CSS-merkki canvasin viereen.
