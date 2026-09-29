@@ -306,18 +306,32 @@ def monista_tutkimus(lahde_tid: int, uusi_nimi: str, uusi_slug: str) -> int:
 
     Tuloksia (luokitukset, vastaukset, arvioinnit, raportti) ei kopioida — kopio on
     tuore tutkimus ajettavaksi. Nimi ja slug annetaan uusina.
+    Yksi yhteys = yksi transaktio: kaatunut kopiointi ei jätä puolikasta tutkimusta.
     """
-    lahde = hae_tutkimus(lahde_tid)
-    uusi_tid = lisaa_tutkimus(
-        uusi_nimi, uusi_slug, lahde["Lukuvuosi"], lahde["Luokittelukehote"],
-        lahde["Tasorajaus"], lahde["Oppiainerajaus"], lahde["Arviointikehote"],
-        lahde.get("Raportointikehote") or "", lahde.get("Verkkosivu") or "",
-    )
-    aseta_tutkimuksen_korkeakoulut(uusi_tid, hae_tutkimuksen_korkeakoulut(lahde_tid))
-    for kysymys in hae_kysymykset(lahde_tid):
-        lisaa_kysymys(uusi_tid, kysymys["Kysymys"], kysymys["Luokittelu"],
-                      kysymys.get("LuokitteluMaarittely"))
-    return uusi_tid
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                """INSERT INTO Tutkimus (LuokittelunNimi, Slug, Lukuvuosi, Verkkosivu, Luokittelukehote,
+                       Tasorajaus, Oppiainerajaus, Arviointikehote, Raportointikehote)
+                   SELECT %s, %s, Lukuvuosi, COALESCE(Verkkosivu, ''), Luokittelukehote,
+                       Tasorajaus, Oppiainerajaus, Arviointikehote, COALESCE(Raportointikehote, '')
+                   FROM Tutkimus WHERE TID = %s""",
+                (uusi_nimi, uusi_slug, lahde_tid),
+            )
+            if kursori.rowcount == 0:
+                raise ValueError(f"Tutkimusta {lahde_tid} ei ole")
+            uusi_tid = kursori.lastrowid
+            kursori.execute(
+                "INSERT INTO TutkimusKorkeakoulu (TID, KKID) SELECT %s, KKID FROM TutkimusKorkeakoulu WHERE TID = %s",
+                (uusi_tid, lahde_tid),
+            )
+            kursori.execute(
+                """INSERT INTO Kysymykset (TID, Kysymys, Luokittelu, LuokitteluMaarittely)
+                   SELECT %s, Kysymys, Luokittelu, LuokitteluMaarittely
+                   FROM Kysymykset WHERE TID = %s ORDER BY KysID""",
+                (uusi_tid, lahde_tid),
+            )
+            return uusi_tid
 
 
 # --- Tutkimuksen korkeakoulut ---
