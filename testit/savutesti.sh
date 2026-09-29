@@ -143,6 +143,7 @@ echo ""
 # 1. Kontit
 tarkista_kontti "MySQL-kontti käynnissä"  "mysql"
 tarkista_kontti "WebUI-kontti käynnissä"  "webui"
+tarkista_kontti "Caddy-kontti käynnissä"  "caddy"
 
 echo ""
 

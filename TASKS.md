@@ -4,20 +4,6 @@ Session-aikana (2026-09-22, tuotannon `asenna`/Caddy/migraatio-työ) havaittuja
 asioita jotka mainittiin mutta ei korjattu tai vahvistettu käyttäjän kanssa.
 Triagoi: korjaa tai sulje.
 
-## 1. savutesti.sh ei tarkista caddy-konttia
-
-`testit/savutesti.sh:133-134` tarkistaa vain `mysql`- ja `webui`-palvelut:
-
-```
-tarkista_kontti "MySQL-kontti käynnissä"  "mysql"
-tarkista_kontti "WebUI-kontti käynnissä"  "webui"
-```
-
-`caddy` (lisätty PR #10:ssä, tuotannon HTTPS-käänteisproxy) puuttuu kokonaan.
-Jos caddy kaatuu mutta mysql+webui ovat pystyssä, HTTP-tarkistukset
-epäonnistuvat mutta mikään ei suoraan kerro caddyn olevan syypää. Lisää:
-`tarkista_kontti "Caddy-kontti käynnissä" "caddy"`.
-
 ## 2. DEMO.md vanhentunut: webui ei enää julkaise porttia 12121 suoraan
 
 PR #10 (Caddy 443:een) muutti `webui`-palvelun `ports:` → `expose:` — portti
