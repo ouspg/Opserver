@@ -61,6 +61,13 @@ grep -q '^LLM_API_KEY=' .env 2>/dev/null || echo "HUOM: LLM_PROVIDER/LLM_API_KEY
 
 docker compose build webui
 docker compose up -d
+# containerd-kuvavarastossa rebuild antaa uuden kuva-ID:n muuttumattomallekin
+# sisällölle, eikä compose aina luo webuita uudelleen: kontti jäi ajamaan vanhaa
+# (jo poistettua) kuvaa ja savutesti hylkäsi päivitykset (issuet #63/#68/#71).
+if [[ "$(docker inspect -f '{{.Image}}' "$(docker compose ps -q webui)")" != \
+      "$(docker image inspect -f '{{.Id}}' opserver-webui)" ]]; then
+    docker compose up -d --force-recreate webui
+fi
 
 # Migraatiot: tuo kannan MIKÄ TAHANSA aiempi versio ajan tasalle.
 #   a) Tuore kanta: alustus.sql on jo nykyinen squashattu skeema ja esitäyttää
