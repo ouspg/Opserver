@@ -484,6 +484,7 @@ let lahetysAjastin = null;
 let viimeisinAktiivisuus = Date.now();
 let hiiri = { x: 0.5, y: 0.5 };
 let muutKayttajat = [];
+let ympyraAvain = "", navAvain = "";
 
 // Läsnäolotaso ajasta viimeisestä hiiren/näppäimistön käytöstä; yli 30 min = kummitus.
 const AKTIIVISUUS_TASOT = [[60_000, "aktiivinen"], [10 * 60_000, "passiivinen"], [30 * 60_000, "nukkuva"]];
@@ -537,9 +538,13 @@ function yhdista() {
       lisaaUutinen(viesti.teksti, viesti.aika);
     } else if (viesti.tyyppi === "kayttajat") {
       muutKayttajat = viesti.data.filter((k) => k.id !== omaId);
-      paivitaMuutYmpyrat();
+      // Viesti tulee jokaisesta hiiren liikkeestä: ympyrät ja nav-pallurat (asettelun
+      // luku) vain kun niihin vaikuttava tieto muuttuu. Sydänlyönti piirtää navin aina.
+      const ymp = JSON.stringify(muutKayttajat.map((k) => [k.id, k.taso, k.nimimerkki, k.profiili]));
+      if (ymp !== ympyraAvain) { ympyraAvain = ymp; paivitaMuutYmpyrat(); }
+      const nav = JSON.stringify([ymp, muutKayttajat.map((k) => k.sivu)]);
+      if (nav !== navAvain) { navAvain = nav; paivitaNavIndikaattorit(); }
       paivitaKursorit();
-      paivitaNavIndikaattorit();
       window.paivitaNakymaPallurat?.(muutKayttajat);
       window.paivitaSivutusPallurat?.(muutKayttajat);
       window.paivitaLomakePallurat?.(muutKayttajat);
