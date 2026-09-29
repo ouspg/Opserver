@@ -145,11 +145,10 @@ def aja(tutkimus: dict, edistyminen_cb=None) -> tuple[int, int, int]:
                     tulokset = []  # viallinen erä; kurssit jäävät seuraavalle passille
                     menetetyt_erat += 1
                     menetetyt_kurssit += len(erä)
+                tulokset = kurssimuoto.siivoa_tulokset(tulokset, {k["KID"] for k in erä})
                 saadut = set()
                 for tulos in tulokset:
-                    kid = tulos.get("id")
-                    if kid is None:
-                        continue
+                    kid = tulos["id"]
                     saadut.add(kid)
                     on_mukana = bool(tulos.get("mukana"))
                     perustelu = tulos.get("perustelu", "")

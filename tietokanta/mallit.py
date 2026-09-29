@@ -306,18 +306,32 @@ def monista_tutkimus(lahde_tid: int, uusi_nimi: str, uusi_slug: str) -> int:
 
     Tuloksia (luokitukset, vastaukset, arvioinnit, raportti) ei kopioida — kopio on
     tuore tutkimus ajettavaksi. Nimi ja slug annetaan uusina.
+    Yksi yhteys = yksi transaktio: kaatunut kopiointi ei jätä puolikasta tutkimusta.
     """
-    lahde = hae_tutkimus(lahde_tid)
-    uusi_tid = lisaa_tutkimus(
-        uusi_nimi, uusi_slug, lahde["Lukuvuosi"], lahde["Luokittelukehote"],
-        lahde["Tasorajaus"], lahde["Oppiainerajaus"], lahde["Arviointikehote"],
-        lahde.get("Raportointikehote") or "", lahde.get("Verkkosivu") or "",
-    )
-    aseta_tutkimuksen_korkeakoulut(uusi_tid, hae_tutkimuksen_korkeakoulut(lahde_tid))
-    for kysymys in hae_kysymykset(lahde_tid):
-        lisaa_kysymys(uusi_tid, kysymys["Kysymys"], kysymys["Luokittelu"],
-                      kysymys.get("LuokitteluMaarittely"))
-    return uusi_tid
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.execute(
+                """INSERT INTO Tutkimus (LuokittelunNimi, Slug, Lukuvuosi, Verkkosivu, Luokittelukehote,
+                       Tasorajaus, Oppiainerajaus, Arviointikehote, Raportointikehote)
+                   SELECT %s, %s, Lukuvuosi, COALESCE(Verkkosivu, ''), Luokittelukehote,
+                       Tasorajaus, Oppiainerajaus, Arviointikehote, COALESCE(Raportointikehote, '')
+                   FROM Tutkimus WHERE TID = %s""",
+                (uusi_nimi, uusi_slug, lahde_tid),
+            )
+            if kursori.rowcount == 0:
+                raise ValueError(f"Tutkimusta {lahde_tid} ei ole")
+            uusi_tid = kursori.lastrowid
+            kursori.execute(
+                "INSERT INTO TutkimusKorkeakoulu (TID, KKID) SELECT %s, KKID FROM TutkimusKorkeakoulu WHERE TID = %s",
+                (uusi_tid, lahde_tid),
+            )
+            kursori.execute(
+                """INSERT INTO Kysymykset (TID, Kysymys, Luokittelu, LuokitteluMaarittely)
+                   SELECT %s, Kysymys, Luokittelu, LuokitteluMaarittely
+                   FROM Kysymykset WHERE TID = %s ORDER BY KysID""",
+                (uusi_tid, lahde_tid),
+            )
+            return uusi_tid
 
 
 # --- Tutkimuksen korkeakoulut ---
@@ -423,6 +437,18 @@ def poista_kysymys(kysid: int) -> None:
 
 # --- Vastaukset ---
 
+# Uusi LLM-tulos korvaa vanhan ja nollaa sen hyväksynnän; jaettu testiajon siirron kanssa.
+VASTAUS_PAIVITYS = """ON DUPLICATE KEY UPDATE
+    Vastaus = VALUES(Vastaus), Malli = VALUES(Malli),
+    Pisteet = VALUES(Pisteet), Luokka = VALUES(Luokka),
+    Lista = VALUES(Lista), Kehotetiiviste = VALUES(Kehotetiiviste),
+    HyvaksyjaNimi = NULL, HyvaksyjaSahkoposti = NULL"""
+LUOKITUS_PAIVITYS = """ON DUPLICATE KEY UPDATE Mukana = VALUES(Mukana),
+    Luokitteluperuste = VALUES(Luokitteluperuste), Malli = VALUES(Malli),
+    Kehotetiiviste = VALUES(Kehotetiiviste),
+    KayttajaNimi = NULL, Sahkoposti = NULL"""
+
+
 def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "",
                   pisteet: float | None = None, luokka: str | None = None,
                   lista: list | None = None, tiiviste: str | None = None) -> None:
@@ -440,11 +466,7 @@ def aseta_vastaus(kysid: int, kid: int, vastaus: str, malli: str = "",
                        (TID, KysID, KID, Vastaus, Malli, Pisteet, Luokka, Lista, Kehotetiiviste)
                    SELECT k.TID, %s, %s, %s, %s, %s, %s, %s, %s
                    FROM Kysymykset k WHERE k.KysID = %s
-                   ON DUPLICATE KEY UPDATE
-                       Vastaus = VALUES(Vastaus), Malli = VALUES(Malli),
-                       Pisteet = VALUES(Pisteet), Luokka = VALUES(Luokka),
-                       Lista = VALUES(Lista), Kehotetiiviste = VALUES(Kehotetiiviste),
-                       HyvaksyjaNimi = NULL, HyvaksyjaSahkoposti = NULL""",
+                   """ + VASTAUS_PAIVITYS,
                 (kysid, kid, vastaus, malli or "", pisteet, luokka, lista_json, tiiviste, kysid),
             )
 
@@ -793,10 +815,7 @@ def aseta_luokitus(tid: int, kid: int, mukana: bool | None, perustelu: str,
             kursori.execute(
                 """INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste, Malli, Kehotetiiviste)
                    VALUES (%s, %s, %s, %s, %s, %s)
-                   ON DUPLICATE KEY UPDATE Mukana = VALUES(Mukana),
-                       Luokitteluperuste = VALUES(Luokitteluperuste), Malli = VALUES(Malli),
-                       Kehotetiiviste = VALUES(Kehotetiiviste),
-                       KayttajaNimi = NULL, Sahkoposti = NULL""",
+                   """ + LUOKITUS_PAIVITYS,
                 (tid, kid, mukana, perustelu, malli, tiiviste),
             )
 
@@ -1196,7 +1215,7 @@ def _kattavat_kaudet(kursori, lukuvuosi: str | None) -> list[str]:
     kaikki = [r[0] for r in kursori.fetchall()]
     if not lukuvuosi:
         return kaikki
-    return [k for k in kaikki if lv.kattaa(k, lukuvuosi)]
+    return [k for k in kaikki if _kattaa_turvallinen(k, lukuvuosi)]
 
 
 def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:

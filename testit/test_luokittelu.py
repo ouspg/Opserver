@@ -340,6 +340,26 @@ class TestLlmluokittelu:
         tilasto = kutsut[-1][7]
         assert tilasto == {"menetetyt_erat": 0, "menetetyt_kurssit": 0, "ilman_vastausta": 1}
 
+    def test_aja_siivoaa_mallin_idt(self):
+        """Merkkijono-id normalisoidaan, hallusinoitu id (ei erässä) hylätään."""
+        kandidaatit = [
+            {"KID": 1, "KurssiNimi": "A", "Koodi": "X1", "Taso": "aine",
+             "Oppiaine": "IT", "Opetusvuosi": "2025-2026", "OpsKuvaus": None},
+        ]
+        tutkimus = {"TID": 1, "Luokittelukehote": "Arvioi."}
+        vastaus = '[{"id": "1", "mukana": true, "perustelu": "ok"}, {"id": 999, "mukana": true}]'
+        kutsut = []
+        with patch("luokittelu.llmluokittelu.mallit.hae_kurssit_idlla",
+                   side_effect=lambda kidit: [k for k in kandidaatit if k["KID"] in kidit]), \
+             patch("luokittelu.llmluokittelu.mallit.hae_luokittelemattomat_kevyet", side_effect=[kandidaatit, []]), \
+             patch("luokittelu.llmluokittelu.kutsu.kysy", return_value=vastaus), \
+             patch("luokittelu.llmluokittelu.mallit.aseta_luokitus") as mock_aseta, \
+             patch("luokittelu.llmluokittelu._lue_jarjestelmakehote", return_value="system"):
+            mukana, _, _ = llmluokittelu.aja(tutkimus, edistyminen_cb=lambda *a: kutsut.append(a))
+        assert mukana == 1
+        assert [c.args[1] for c in mock_aseta.call_args_list] == [1]
+        assert kutsut[-1][7]["ilman_vastausta"] == 0
+
     def test_aja_keskeytys_lopettaa_ja_sailyttaa_tehdyt(self, monkeypatch):
         """Callbackin truthy-paluu keskeyttää ajon: loppuja eriä ei enää
         käsitellä, mutta ensimmäisen erän luokitukset on jo tallennettu."""

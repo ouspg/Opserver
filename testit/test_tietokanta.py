@@ -408,29 +408,27 @@ class TestTutkimus:
         sql = kursori.execute.call_args[0][0]
         assert "DELETE" in sql.upper()
 
-    def test_monista_tutkimus_kopioi_maarittelyn(self):
-        lahde = {"TID": 1, "LuokittelunNimi": "Alkup", "Slug": "alkup", "Lukuvuosi": "2024-2025",
-                 "Verkkosivu": "https://x", "Luokittelukehote": "lk", "Tasorajaus": "aine",
-                 "Oppiainerajaus": "Tieto", "Arviointikehote": "ak", "Raportointikehote": "rk"}
-        kysymykset = [
-            {"Kysymys": "K1", "Luokittelu": "vapaa_teksti", "LuokitteluMaarittely": None},
-            {"Kysymys": "K2", "Luokittelu": "asteikko", "LuokitteluMaarittely": {"min": 1}},
-        ]
-        with patch("tietokanta.mallit.hae_tutkimus", return_value=lahde), \
-             patch("tietokanta.mallit.hae_tutkimuksen_korkeakoulut", return_value=[2, 3]), \
-             patch("tietokanta.mallit.hae_kysymykset", return_value=kysymykset), \
-             patch("tietokanta.mallit.lisaa_tutkimus", return_value=9) as lisaa, \
-             patch("tietokanta.mallit.aseta_tutkimuksen_korkeakoulut") as aseta_kk, \
-             patch("tietokanta.mallit.lisaa_kysymys") as lisaa_kys:
-            uusi = mallit.monista_tutkimus(1, "Kopio", "kopio")
-        assert uusi == 9
-        # määrittely kopioidaan, nimi+slug uudet
-        lisaa.assert_called_once_with("Kopio", "kopio", "2024-2025", "lk", "aine", "Tieto", "ak", "rk", "https://x")
-        aseta_kk.assert_called_once_with(9, [2, 3])
-        # kysymykset kopioidaan uudelle tutkimukselle
-        assert lisaa_kys.call_count == 2
-        lisaa_kys.assert_any_call(9, "K1", "vapaa_teksti", None)
-        lisaa_kys.assert_any_call(9, "K2", "asteikko", {"min": 1})
+    def test_monista_tutkimus_yhdessa_transaktiossa(self, mock_yhteys):
+        """Kopio tehdään yhdellä yhteydellä (commit/rollback yhdessä) INSERT…SELECTeillä:
+        kaatunut kopiointi ei jätä puolikasta tutkimusta."""
+        yht, kursori = mock_yhteys
+        kursori.lastrowid = 9
+        assert mallit.monista_tutkimus(1, "Kopio", "kopio") == 9
+        assert mallit.yhteys.call_count == 1
+        sqlt = [c.args for c in kursori.execute.call_args_list]
+        assert len(sqlt) == 3
+        tutkimus_sql, tutkimus_p = sqlt[0]
+        assert "INSERT INTO Tutkimus" in tutkimus_sql and "FROM Tutkimus WHERE TID" in tutkimus_sql
+        assert tutkimus_p == ("Kopio", "kopio", 1)
+        assert "INSERT INTO TutkimusKorkeakoulu" in sqlt[1][0] and sqlt[1][1] == (9, 1)
+        assert "INSERT INTO Kysymykset" in sqlt[2][0] and "ORDER BY KysID" in sqlt[2][0]
+        assert sqlt[2][1] == (9, 1)
+
+    def test_monista_tutkimus_tuntematon_lahde(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.rowcount = 0
+        with pytest.raises(ValueError):
+            mallit.monista_tutkimus(404, "Kopio", "kopio")
 
 
 class TestTutkimuksenKorkeakoulut:
@@ -985,3 +983,21 @@ class TestHitlRivitEivatSotkeLaskentaa:
         sql, _ = kursori.execute.call_args[0]
         assert "INSERT INTO Vastaukset\n                       (TID, KysID" in sql or "(TID, KysID" in sql
         assert "SELECT TID, KysID" in sql
+
+    def test_testiajon_siirto_nollaa_hyvaksynnan(self, mock_yhteys):
+        """Siirretty LLM-tulos ei saa periä vanhan tuloksen hyväksyntää (kuten aseta_*)."""
+        from tietokanta import testimallit
+        yht, kursori = mock_yhteys
+        kursori.fetchone.return_value = (3,)
+        with patch("tietokanta.testimallit.yhteys", mallit.yhteys):
+            testimallit.siirra_testiajo_arviointi("ajo1")
+            assert "HyvaksyjaNimi = NULL" in kursori.execute.call_args[0][0]
+            testimallit.siirra_testiajo_luokittelu("ajo1")
+            assert "KayttajaNimi = NULL" in kursori.execute.call_args[0][0]
+
+
+def test_kattavat_kaudet_ohittaa_virheellisen_kauden():
+    """Virheellinen/puuttuva Opetusvuosi aineistossa ei saa kaataa raportin tilastoja."""
+    kursori = MagicMock()
+    kursori.fetchall.return_value = [("2025-2026",), ("rikki",), (None,)]
+    assert mallit._kattavat_kaudet(kursori, "2025-2026") == ["2025-2026"]

@@ -83,10 +83,8 @@ def _kirjaa(polku: str, tietue: dict) -> None:
 def _tallenna_testitulokset(tulokset, kysymykset, ajo_id, erakoko, tid, malli,
                             kys_tiiviste, lahetetyt) -> None:
     """Kirjaa (kurssi, kysymys) -vastaukset testitauluun ajotunnuksella."""
-    for tulos in tulokset:
-        kid = tulos.get("id")
-        if kid not in lahetetyt:
-            continue
+    for tulos in kurssimuoto.siivoa_tulokset(tulokset, lahetetyt):
+        kid = tulos["id"]
         for i, k in enumerate(kysymykset):
             vastaukset_lista = tulos.get("vastaukset", [])
             raw = vastaukset_lista[i] if i < len(vastaukset_lista) else ""

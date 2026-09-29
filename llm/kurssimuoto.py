@@ -118,3 +118,20 @@ def kurssi_json_promptiin(kurssi: dict) -> dict:
         "oppiaine": kurssi.get("Oppiaine") or "",
         "kuvaus": kuvaus_tekstina(kurssi.get("OpsKuvaus")),
     }
+
+
+def siivoa_tulokset(raaka: list[dict], odotetut: set) -> list[dict]:
+    """Suodattaa mallin tulokset vain erän kursseihin ja normalisoi id:t kokonaisluvuiksi.
+
+    Torjuu hallusinoidut / väärät id:t ennen tallennusta (opas: 'IDs must exist') —
+    muuten tallennus INSERTtäisi rivin kurssille jota erässä ei ollut.
+    """
+    siivotut = []
+    for t in raaka:
+        try:
+            kid = int(t.get("id"))
+        except (TypeError, ValueError):
+            continue
+        if kid in odotetut:
+            siivotut.append({**t, "id": kid})
+    return siivotut
