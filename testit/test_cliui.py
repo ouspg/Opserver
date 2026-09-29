@@ -166,3 +166,41 @@ def test_aja_llm_tyhjentaa_ruudun_vahvistusvalikon_jalkeen():
     viim_valikko = max(i for i, t in enumerate(tapahtumat) if t == "valikko")
     ajo = tapahtumat.index("ajo")
     assert any(t == "otsikko" for t in tapahtumat[viim_valikko + 1:ajo]), tapahtumat
+
+
+def _testivaihe():
+    from unittest.mock import MagicMock
+    from cliui import llmvaihe
+    return llmvaihe.Vaihe(
+        nimi="luokittelun", yksikko="luokitusta", tulokset="luokitukset", oletus_erakoko="30",
+        aja_testierat=MagicMock(), testiera_raportti=MagicMock(return_value=[]),
+        hae_ajot=MagicMock(return_value=[{"Ajo": "A1", "Rivit": 3}]),
+        ajon_rivi=lambda a: a["Ajo"], ajon_koko=lambda a: f"{a['Rivit']} kurssia",
+        siirra=MagicMock(return_value=3), poista=MagicMock(return_value=3),
+        asetukset=[], ei_eria="-",
+    )
+
+
+def test_llmvaihe_testiajon_poisto_ja_siirto_vaativat_vahvistuksen():
+    from unittest.mock import patch
+    from cliui import llmvaihe
+    vaihe = _testivaihe()
+    with patch.object(llmvaihe, "valitse_listasta", side_effect=[0, 1, 0, 0]), \
+         patch.object(llmvaihe, "nayta_viesti") as viesti:
+        llmvaihe.poista_testiajo(None, {"TID": 1}, vaihe)   # valitse A1 → Peruuta
+        llmvaihe.siirra_testiajo(None, {"TID": 1}, vaihe)   # valitse A1 → Siirrä
+    vaihe.poista.assert_not_called()
+    vaihe.siirra.assert_called_once_with("A1")
+    assert "Siirretty 3 luokitusta" in viesti.call_args.args[1]
+
+
+def test_llmvaihe_siirrettavat_peruutus_ja_siirto():
+    from unittest.mock import patch
+    from cliui import llmvaihe
+    vaihe = _testivaihe()
+    assert llmvaihe.kasittele_siirrettavat(None, vaihe, []) is True
+    with patch.object(llmvaihe, "valitse_listasta", side_effect=[2, 0]), \
+         patch.object(llmvaihe, "nayta_viesti"):
+        assert llmvaihe.kasittele_siirrettavat(None, vaihe, ["A1", "A2"]) is False
+        assert llmvaihe.kasittele_siirrettavat(None, vaihe, ["A1", "A2"]) is True
+    assert vaihe.siirra.call_count == 2

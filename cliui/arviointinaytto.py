@@ -1,6 +1,25 @@
 """Arviointinäkymä: LLM-arviointi mukaan otetuille kursseille."""
 from tietokanta import mallit
-from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta, lue_teksti
+from cliui.apurit import piirra_otsikko, nayta_viesti, valitse_listasta
+from cliui import llmvaihe
+
+
+def _vaihe() -> llmvaihe.Vaihe:
+    from arviointi import testierat
+    from tietokanta import testimallit
+    from cliui import asetuseditori
+    return llmvaihe.Vaihe(
+        nimi="arvioinnin", yksikko="vastausta", tulokset="vastaukset", oletus_erakoko="5",
+        aja_testierat=testierat.aja_testierat, testiera_raportti=_testiera_raportti,
+        hae_ajot=testimallit.hae_testiajot_arviointi,
+        ajon_rivi=lambda a: (f"{a['Ajo']}  —  {a['Vastauksia']} vastausta / {a['Kursseja']} kurssia, "
+                             f"eräkoko {a['Erakoko']}, {a['Malli'] or '?'}"),
+        ajon_koko=lambda a: f"{a['Vastauksia']} vastausta",
+        siirra=testimallit.siirra_testiajo_arviointi, poista=testimallit.poista_testiajo_arviointi,
+        asetukset=asetuseditori.ARVIOINTI_ASETUKSET,
+        ei_eria="Ei eriä ajettu (ei arvioimattomia kursseja?).",
+    )
+
 
 # Tilaston rivit: (avain aja()n tilastodictissä, näyttöteksti). Sama järjestys
 # elävässä edistymisnäytössä ja loppuyhteenvedossa.
@@ -57,12 +76,12 @@ def nayta(stdscr) -> None:
 
 def _arvioi(stdscr, tutkimus: dict) -> None:
     toiminnot = [
-        ("Aja LLM-arviointi (kaikki arvioimattomat)", lambda s, t: _aja_llm(s, t)),
+        ("Aja LLM-arviointi (kaikki arvioimattomat)", _aja_llm),
         ("Aja LLM-arviointi (vain yksi eräpyyntö)", lambda s, t: _aja_llm(s, t, vain_yksi_era=True)),
-        ("Aja LLM-testierä kirjaten tilastot", _aja_testiera),
-        ("Muokkaa LLM-arvioinnin asetuksia", _muokkaa_asetukset),
-        ("Siirrä testiajo varsinaiseen aineistoon", _siirra_testiajo),
-        ("Poista testiajo", _poista_testiajo),
+        ("Aja LLM-testierä kirjaten tilastot", lambda s, t: llmvaihe.aja_testiera(s, t, _vaihe())),
+        ("Muokkaa LLM-arvioinnin asetuksia", lambda s, t: llmvaihe.muokkaa_asetukset(s, t, _vaihe())),
+        ("Siirrä testiajo varsinaiseen aineistoon", lambda s, t: llmvaihe.siirra_testiajo(s, t, _vaihe())),
+        ("Poista testiajo", lambda s, t: llmvaihe.poista_testiajo(s, t, _vaihe())),
         ("Korjaa raakana tallennetut JSON-vastaukset", _korjaa_raaka_json),
         ("Näytä tilanne", _nayta_tilanne),
     ]
@@ -111,7 +130,6 @@ def _korjaa_raaka_json(stdscr, tutkimus: dict) -> None:
 
 def _aja_llm(stdscr, tutkimus: dict, vain_yksi_era: bool = False) -> None:
     from arviointi import llmarviointi
-    from llm import mallitiedot
     from tietokanta import testimallit
     otsikko = "LLM-arviointi (yksi erä)" if vain_yksi_era else "LLM-arviointi"
     piirra_otsikko(stdscr, f"{otsikko} — {tutkimus['LuokittelunNimi']}")
@@ -121,22 +139,9 @@ def _aja_llm(stdscr, tutkimus: dict, vain_yksi_era: bool = False) -> None:
     # (ei vedä kursseja/vastauksia — täysi _selvita_tyo lasketaan vasta alempana).
     tiivisteet = list(llmarviointi._kysymystiivisteet(tutkimus).values())
     siirrettavat = testimallit.hae_siirrettavat_ajot_arviointi(tutkimus["TID"], tiivisteet)
-    if siirrettavat:
-        valinta = valitse_listasta(
-            stdscr,
-            f"Siirtämättömiä testiajoja: {len(siirrettavat)} — niiden vastaukset käsiteltäisiin uudelleen",
-            [
-                "Siirrä testiajot ensin (säästää tokeneita)",
-                "Aja silti (testiajot käsitellään uudelleen)",
-                "Peruuta",
-            ],
-        )
-        if valinta is None or valinta == 2:
-            return
-        if valinta == 0:
-            siirretty = sum(testimallit.siirra_testiajo_arviointi(a) for a in siirrettavat)
-            nayta_viesti(stdscr, f"Siirretty {siirretty} vastausta {len(siirrettavat)} testiajosta.")
-            piirra_otsikko(stdscr, f"{otsikko} — {tutkimus['LuokittelunNimi']}")
+    if not llmvaihe.kasittele_siirrettavat(stdscr, _vaihe(), siirrettavat):
+        return
+    piirra_otsikko(stdscr, f"{otsikko} — {tutkimus['LuokittelunNimi']}")
 
     # Selvitä työ KERRAN (mahdollisen testajosiirron jälkeen) ja jaa se
     # työmäärälaskennalle ja ajolle — muuten _selvita_tyo (kaikki kurssit +
@@ -162,11 +167,7 @@ def _aja_llm(stdscr, tutkimus: dict, vain_yksi_era: bool = False) -> None:
         if valinta != 0:
             return
 
-    # Esitarkistus: malli on saatavilla ennen kuin aloitetaan LLM-kutsut
-    try:
-        mallitiedot.tarkista_saatavuus()
-    except Exception as e:
-        nayta_viesti(stdscr, f"Mallia ei voi käyttää: {e}")
+    if not llmvaihe.malli_kaytettavissa(stdscr):
         return
 
     otsikko_ajo = f"{otsikko} — {tutkimus['LuokittelunNimi']}"
@@ -202,59 +203,6 @@ def _aja_llm(stdscr, tutkimus: dict, vain_yksi_era: bool = False) -> None:
     _nayta_yhteenveto(stdscr, otsikko, keskeytetty[0], saatu[0], yhteensa)
 
 
-def _aja_testiera(stdscr, tutkimus: dict) -> None:
-    from arviointi import testierat
-    from llm import mallitiedot
-
-    piirra_otsikko(stdscr, f"LLM-testierä — {tutkimus['LuokittelunNimi']}")
-    erakoko_s = lue_teksti(stdscr, "Eräkoko (kursseja per LLM-kutsu)", 3, "5")
-    montako_s = lue_teksti(stdscr, "Montako erää ajetaan", 4, "3")
-    try:
-        erakoko, montako = int(erakoko_s), int(montako_s)
-        if erakoko < 1 or montako < 1:
-            raise ValueError
-    except ValueError:
-        nayta_viesti(stdscr, "Kelvottomat luvut — anna positiiviset kokonaisluvut.")
-        return
-
-    try:
-        mallitiedot.tarkista_saatavuus()
-    except Exception as e:
-        nayta_viesti(stdscr, f"Mallia ei voi käyttää: {e}")
-        return
-
-    piirra_otsikko(stdscr, f"LLM-testierä — {tutkimus['LuokittelunNimi']}")
-    stdscr.addstr(3, 0, f"Ajetaan {montako} × {erakoko} kurssia...")
-    stdscr.refresh()
-
-    def edistyminen(era_nro, erat):
-        stdscr.addstr(4, 0, f"  Erä {era_nro}/{erat} käsitelty")
-        stdscr.refresh()
-
-    try:
-        tulos = testierat.aja_testierat(tutkimus, erakoko, montako, edistyminen)
-    except Exception as e:
-        nayta_viesti(stdscr, f"Virhe testierässä: {e}")
-        return
-
-    if not tulos["tietueet"]:
-        nayta_viesti(stdscr, "Ei eriä ajettu (ei arvioimattomia kursseja?).")
-        return
-
-    from tietokanta import testimallit
-    valinta = valitse_listasta(
-        stdscr,
-        "LLM-testierä valmis — siirretäänkö tulokset varsinaiseen aineistoon?",
-        ["Siirrä varsinaiseen aineistoon", "Älä siirrä (säilyy testiajona)"],
-        kiintea_otsikko=_testiera_raportti(tulos, erakoko),
-    )
-    if valinta == 0:
-        siirretty = testimallit.siirra_testiajo_arviointi(tulos["ajo_id"])
-        nayta_viesti(stdscr, f"Siirretty {siirretty} vastausta varsinaiseen aineistoon (ajo {tulos['ajo_id']}).")
-    else:
-        nayta_viesti(stdscr, f"Ei siirretty. Testiajo {tulos['ajo_id']} säilyy (siirrä/poista myöhemmin valikosta).")
-
-
 def _testiera_raportti(tulos: dict, erakoko: int) -> list[str]:
     """Per-erä raportti eräkoon viritystä ja siirtopäätöstä varten."""
     tietueet = tulos["tietueet"]
@@ -282,63 +230,6 @@ def _testiera_raportti(tulos: dict, erakoko: int) -> list[str]:
         f"Tilastot: {tulos['tilastopolku']}",
     ]
     return rivit
-
-
-def _muokkaa_asetukset(stdscr, tutkimus: dict) -> None:
-    from cliui import asetuseditori
-    asetuseditori.muokkaa_asetuksia(
-        stdscr, f"LLM-arvioinnin asetukset — {tutkimus['LuokittelunNimi']}",
-        asetuseditori.ARVIOINTI_ASETUKSET,
-    )
-
-
-def _valitse_testiajo(stdscr, tutkimus: dict, otsikko: str):
-    """Listaa arvioinnin testiajot ja palauttaa valitun (tai None)."""
-    from tietokanta import testimallit
-
-    ajot = testimallit.hae_testiajot_arviointi(tutkimus["TID"])
-    if not ajot:
-        nayta_viesti(stdscr, "Ei arvioinnin testiajoja tälle tutkimukselle.")
-        return None
-    rivit = [
-        f"{a['Ajo']}  —  {a['Vastauksia']} vastausta / {a['Kursseja']} kurssia, "
-        f"eräkoko {a['Erakoko']}, {a['Malli'] or '?'}"
-        for a in ajot
-    ]
-    valinta = valitse_listasta(stdscr, otsikko, rivit)
-    return ajot[valinta] if valinta is not None else None
-
-
-def _siirra_testiajo(stdscr, tutkimus: dict) -> None:
-    from tietokanta import testimallit
-
-    ajo = _valitse_testiajo(stdscr, tutkimus, "Siirrä testiajo varsinaiseen aineistoon — valitse")
-    if ajo is None:
-        return
-    varmistus = valitse_listasta(
-        stdscr, f"Siirrä ajo {ajo['Ajo']} ({ajo['Vastauksia']} vastausta) varsinaiseen aineistoon?",
-        ["Siirrä — korvaa näiden kurssien aiemmat vastaukset", "Peruuta"],
-    )
-    if varmistus != 0:
-        return
-    siirretty = testimallit.siirra_testiajo_arviointi(ajo["Ajo"])
-    nayta_viesti(stdscr, f"Siirretty {siirretty} vastausta varsinaiseen aineistoon (ajo {ajo['Ajo']}).")
-
-
-def _poista_testiajo(stdscr, tutkimus: dict) -> None:
-    from tietokanta import testimallit
-
-    ajo = _valitse_testiajo(stdscr, tutkimus, "Poista testiajo — valitse")
-    if ajo is None:
-        return
-    varmistus = valitse_listasta(
-        stdscr, f"Poista testiajo {ajo['Ajo']}?",
-        [f"Poista {ajo['Vastauksia']} vastausta lopullisesti", "Peruuta"],
-    )
-    if varmistus != 0:
-        return
-    poistettu = testimallit.poista_testiajo_arviointi(ajo["Ajo"])
-    nayta_viesti(stdscr, f"Poistettu {poistettu} riviä (ajo {ajo['Ajo']}).")
 
 
 def _nayta_tilanne(stdscr, tutkimus: dict) -> None:
