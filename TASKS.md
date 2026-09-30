@@ -11,18 +11,6 @@ Havaittu 2026-09-27 PR #44:n selaintestissä (leveys 520 px): `#muut-ympyrat`
 Ei #44:n aiheuttama (vanha layout). Puhelimella/zoomilla sama. Korjaus esim.
 flex-wrap/rivitys headerin oikeaan reunaan tai ympyröiden piilotus kapealla.
 
-## 10. Modaalin avaamisen jälkeen heti kirjoitettu teksti voi korvautua (WS-liittymisen kilpailutilanne)
-
-Havaittu 2026-09-27 selaintestissä: raporttimodaalissa heti avaamisen jälkeen
-kirjoitettu teksti ylikirjoittui, kun WebSocket-session liittymisvastaus saapui
-perässä. Raporttimuokkain on #83:sta lähtien jaettu lomake, joten korjaus tarvitaan
-vain `lomakesessio.js`:ään: ensimmäinen `lomake-sessio`-vastaus
-asettaa kaikki kentät palvelimen arvoihin, joten ennen vastausta (hitaalla
-yhteydellä sekunteja) kirjoitetut merkit katoavat. Ihminen ehtii harvoin
-kirjoittaa ennen vastausta hyvällä yhteydellä, mutta huonolla kyllä. Korjaus: älä
-ylikirjoita kenttää, jota käyttäjä on jo muuttanut ennen ensimmäistä vastausta
-(lähetä muutos sen sijaan), tai lukitse kentät kunnes sessio on alustettu.
-
 ## 11. Logo Opserver.png 212 kt kilpailee kaistasta hitaalla yhteydellä
 
 PR #39:n mittauksessa (400 kbit/s) logo latautui ~10 s ja jakoi kaistan
