@@ -161,7 +161,6 @@
       if (p.y < 0 || p.y > r.height - 4 || p.x < 0 || p.x > r.width) continue;  // vieritetty näkyvistä
       const merkki = document.createElement("div");
       merkki.className = "lomake-kursori";
-      merkki.title = m.nimimerkki || "?";
       merkki.style.cssText = `left:${r.left - pohja.left + p.x}px;top:${r.top - pohja.top + p.y}px;`
         + `height:${p.korkeus || 16}px;border-color:${m.profiili.taustavari || "#c0392b"}`;
       merkki.appendChild(window.luoPallura(m, 12));
@@ -277,9 +276,7 @@
       }
       rivi.innerHTML = "";
       for (const k of kayttajat) {
-        const c = window.luoPallura(k, 10);
-        c.title = `${k.nimimerkki || "?"} ${k.lomake ? "muokkaa" : "katsoo"} tätä`;
-        rivi.appendChild(c);
+        rivi.appendChild(window.luoPallura(k, 10));
       }
     });
   };

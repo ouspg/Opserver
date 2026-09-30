@@ -92,7 +92,7 @@ function piirraNavPallurat(sailyo, napit, avainKayttajalle, rekisteri) {
         canvas.style.top = `${y}px`;
       }
       piirraYmpyra(canvas, k.profiili, k.taso);
-      canvas.title = k.nimimerkki || "?";
+      canvas.dataset.tooltip = k.nimimerkki || "?";
       x += NAV_KOKO + NAV_VALI;
     }
   }
@@ -249,7 +249,8 @@ function paivitaMuutYmpyrat() {
   for (const k of muutKayttajat) {
     if (!k.profiili) continue;
     const c = luoPallura(k, 24, "vieras-ympyra-pieni");
-    if (k.tekeminen) c.title = `${c.title}: ${k.tekeminen}`;  // tooltip (profiili.js)
+    if (k.tekeminen) c.dataset.tooltip += `: ${k.tekeminen}`;  // yläpalkissa myös tekeminen
+    c.setAttribute("aria-label", c.dataset.tooltip);
     c.tabIndex = 0;  // klikkaus/Enter → siirry käyttäjän luo (kytkeMuidenYmpyrat)
     c.setAttribute("role", "button");
     c.dataset.id = k.id;
@@ -316,7 +317,7 @@ function paivitaKursorit() {
     }
 
     piirraYmpyra(el.querySelector("canvas"), k.profiili, k.taso);
-    el.title = k.nimimerkki || "?";
+    el.querySelector("canvas").dataset.tooltip = k.nimimerkki || "?";
     el.classList.toggle("ulkona", ulkona);
     if (ulkona) el.style.setProperty("--kulma", `${kulma}rad`);
     el.style.left = `${x}px`;

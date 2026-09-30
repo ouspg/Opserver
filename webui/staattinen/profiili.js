@@ -141,7 +141,11 @@ function luoPallura(k, koko, luokka = "") {
   const c = document.createElement("canvas");
   c.width = c.height = koko;
   c.className = luokka;
-  c.title = k.nimimerkki || "?";
+  // Tooltip (nimimerkki) data-tooltipista, ei titlestä: pallura-kerrokset ovat
+  // pointer-events: none (kytkeTooltipit).
+  c.dataset.tooltip = k.nimimerkki || "?";
+  c.setAttribute("role", "img");
+  c.setAttribute("aria-label", c.dataset.tooltip);
   piirraYmpyra(c, k.profiili, k.taso);
   return c;
 }
@@ -293,17 +297,26 @@ function alustaHeaderTapahtumat() {
     }
   });
 
-  const muutDiv = document.getElementById("muut-ympyrat");
+  kytkeTooltipit();
+}
+
+// Kaikkien pallurojen tooltip (canvas[data-tooltip]: yläpalkki, leijuvat kursorit, nav,
+// välilehdet, sivutus, lomakkeet). Osuma lasketaan geometriasta, koska kursori- ja
+// nav-kerrokset ovat pointer-events: none — pallurat eivät saa estää alla olevan napin
+// klikkausta. Modaalin ollessa auki vain modaalin omat pallurat ja leijuvat kursorit.
+function kytkeTooltipit() {
   const tt = document.getElementById("nimis-tooltip");
-  muutDiv.addEventListener("mouseover", (e) => {
-    const el = e.target.closest("canvas");
-    if (el && el.title) { tt.textContent = el.title; tt.classList.remove("piilotettu"); }
-  });
-  muutDiv.addEventListener("mousemove", (e) => {
+  document.addEventListener("mousemove", (e) => {
+    const modaali = document.querySelector(".modaali:not(.piilotettu)");
+    const osuma = [...document.querySelectorAll("canvas[data-tooltip]")].find((c) => {
+      if (modaali && !modaali.contains(c) && !c.closest("#kursori-kerros")) return false;
+      const r = c.getBoundingClientRect();
+      return r.width > 0 && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+    });
+    tt.classList.toggle("piilotettu", !osuma);
+    if (!osuma) return;
+    tt.textContent = osuma.dataset.tooltip;
     tt.style.left = (e.clientX + 10) + "px";
     tt.style.top = (e.clientY - 30) + "px";
-  });
-  muutDiv.addEventListener("mouseout", (e) => {
-    if (!e.relatedTarget || !muutDiv.contains(e.relatedTarget)) tt.classList.add("piilotettu");
-  });
+  }, { passive: true });
 }
