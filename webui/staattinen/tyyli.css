@@ -720,6 +720,8 @@ td.arviointi-vastaus {
 
 .vieras-kursori.ulkona .kursori-nuoli { display: block; }
 .vieras-kursori.ulkona canvas { opacity: 0.85; }
+/* "Tuollapäin"-reunapallura: klikkaus siirtää käyttäjän luo (muut kursorit päästävät klikit läpi). */
+.vieras-kursori.ulkona { pointer-events: auto; cursor: pointer; }
 
 /* Uutispalkki */
 
