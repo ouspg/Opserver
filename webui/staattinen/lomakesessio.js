@@ -16,7 +16,7 @@
   let _muokkaajat = [], _odottava = null, _ajastin = null;
   // _pohja = kenttien arvot, joista oma muokkaus lähti liittyessä (ensimmäisellä kerralla omat
   // alkuarvot, uudelleenliittyessä viimeksi palvelimelta saadut); _palvelimen = palvelimen tila.
-  let _pohja = {}, _palvelimen = {};
+  let _pohja = {}, _palvelimen = {}, _kuvaus = null;
   const _kuunnellut = new WeakSet();
 
   const laheta = (viesti) => window.lahetaWs?.(viesti);
@@ -192,9 +192,10 @@
     return oma;
   }
 
-  window.avaaLomakesessio = function (avain, modaali, { erikois = {}, tallennettu = null } = {}) {
+  // kuvaus = mitä avaaja tekee (yläpalkin pallura muilla, esim. 'Muokkaa luokittelua kurssille "X"').
+  window.avaaLomakesessio = function (avain, modaali, { erikois = {}, tallennettu = null, kuvaus = null } = {}) {
     if (_avain) window.suljeLomakesessio();
-    _avain = avain; _modaali = modaali; _erikois = erikois; _tallennettu = tallennettu;
+    _avain = avain; _modaali = modaali; _erikois = erikois; _tallennettu = tallennettu; _kuvaus = kuvaus;
     _alustettu = false; _aloittaja = false; _muokkaajat = []; _odottava = null; _palvelimen = {};
     kuuntele(modaali);
     liity();
@@ -221,6 +222,7 @@
   // Oliko lomake tämän käyttäjän alustama (nimi/sähköposti ovat hänen omansa)?
   window.lomakeOlenAloittaja = () => !_avain || _aloittaja;
   window.omaLomake = () => _avain;
+  window.omaLomakeKuvaus = () => (_avain ? _kuvaus : null);
   // WebSocket yhdisti uudelleen → palvelin ei muista jäsenyyttä.
   // Katkon aikana kirjoitettu ei päässyt palvelimelle: pohjana viimeksi tunnettu palvelimen tila.
   window.lomakeUudelleenliity = () => { if (_avain) { _alustettu = false; liity(_palvelimen); } };

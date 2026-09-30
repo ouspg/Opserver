@@ -86,6 +86,7 @@ window.avaaRaporttiMuokkaus = async function (tid, slug, avain, otsikko) {
   Object.assign(ta, { value: osiot[avain] || "", disabled: false, placeholder: "Osion teksti..." });
   ta.focus();
   window.avaaLomakesessio?.(`raportti:${tid}:${avain}`, modaali, {
+    kuvaus: `Muokkaa raporttia tutkimuksessa "${lyhenna(tutkimusNimi())}"`,
     // Joku muu tallensi: hänen tekstinsä näkymään heti ja oma modaali kiinni.
     tallennettu: (viesti) => {
       paivitaOsio(avain, viesti.arvot?.teksti ?? ta.value);

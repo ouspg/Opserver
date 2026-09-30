@@ -47,7 +47,7 @@ const modaali = document.getElementById("info-modaali");
 let ladattu = false;
 
 async function avaaInfo() {
-  naytaKatselumodaali(modaali, "info");
+  naytaKatselumodaali(modaali, "info", "Katsoo Opserver-infosivua");
   if (ladattu) return;
   const teksti = document.getElementById("info-teksti");
   const versio = document.getElementById("info-versio");

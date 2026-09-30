@@ -206,9 +206,10 @@ function kytkeSulkeminen(modaali, sulje) {
 // Katselumodaali (kurssin tiedot, Opserver-info): näkyviin + läsnäolo muille. Avain on
 // ankkurin data-lomake (kurssin nimi, logo): muut samalla sivulla ja näkymässä näkevät
 // avaajan sen kohdalla kuten HITL-napilla (sykkivä kehys, pallurat, reunakursori).
-function naytaKatselumodaali(modaali, avain) {
+// kuvaus = mitä avaaja tekee (yläpalkin pallura muilla, esim. 'Katsoo kurssia "X"').
+function naytaKatselumodaali(modaali, avain, kuvaus) {
   modaali.classList.remove("piilotettu");
-  window.asetaKatselu?.(avain);
+  window.asetaKatselu?.(avain, kuvaus);
 }
 
 function kytkeKatselumodaali(modaali) {
@@ -216,6 +217,21 @@ function kytkeKatselumodaali(modaali) {
     modaali.classList.add("piilotettu");
     window.asetaKatselu?.(null);
   });
+}
+
+// Lyhennetty nimi läsnäolon kuvauksiin ("Kansallinen kyberturvall…").
+const lyhenna = (teksti, pituus = 30) => {
+  const s = String(teksti ?? "").trim();
+  return s.length > pituus ? `${s.slice(0, pituus - 1)}…` : s;
+};
+
+// Odota ehtoa (esim. osissa renderöityvää elementtiä) enintään ms; ehdon arvo tai null.
+async function odotaEhtoa(ehto, ms = 15000) {
+  for (const loppu = Date.now() + ms; Date.now() < loppu; await new Promise((r) => setTimeout(r, 100))) {
+    const arvo = ehto();
+    if (arvo) return arvo;
+  }
+  return null;
 }
 
 // Kurssin nimi kurssimodaalin ankkurina (kaikki kurssilistat).

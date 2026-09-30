@@ -35,6 +35,7 @@ function avaaHitlModaali(kid, kurssiniimi, ai_perustelu, uusi_tila) {
   modaali.classList.remove("piilotettu");
   // Jaettu lomake: muut saman kurssin päätöstä korjaavat näkevät samat arvot ja toisensa.
   window.avaaLomakesessio?.(`hitl:${aktiivinen_tutkimus.TID}:${kid}`, modaali, {
+    kuvaus: `Muokkaa luokittelua kurssille "${lyhenna(kurssiniimi)}"`,
     tallennettu: () => {
       suljeHitlModaali();
       paivitaTutkimusKurssit();
@@ -162,7 +163,7 @@ function vaihdaSivu(sivu) {
   window.lahetaTilaNyt?.();
   naytaLuokitusLataus();
   window.scrollTo(0, 0);
-  lataaTilaSivu();
+  return lataaTilaSivu();
 }
 
 // Läsnäolotieto (yhteistyo.js): sivutussivu, jotta muut näkevät palluran sivunumeron kohdalla.

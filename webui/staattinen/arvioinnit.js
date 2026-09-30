@@ -145,7 +145,7 @@ document.getElementById("tutkimus-arvioinnit-sisalto").addEventListener("click",
   const v = k.vastaukset[i];
   if (nappi.matches("[data-lomake]")) {
     window.avaaArviointiMuokkaus?.(aktiivinen_tutkimus.TID, aktiivinen_tutkimus.Slug, kid, kys, v,
-                                   k.korjaukset?.[kys.KysID] || null);
+                                   k.korjaukset?.[kys.KysID] || null, k.KurssiNimi);
     return;
   }
   const kohde = `arvion "${k.KurssiNimi}" / "${kys.Kysymys.slice(0, 40)}"`;
