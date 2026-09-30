@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Opserver</title>
   <link rel="icon" href="/staattinen/Opserver.ico" sizes="any">
-  <link rel="stylesheet" href="/staattinen/tyyli.css?v=54">
+  <link rel="stylesheet" href="/staattinen/tyyli.css?v=55">
 </head>
 <body>
   <header>
-    <h1 class="logo"><img src="/staattinen/Opserver.png" alt="Opserver"></h1>
+    <h1 class="logo"><button type="button" id="info-nappi" class="logo-nappi" title="Tietoa Opserverista"
+        aria-haspopup="dialog"><img src="/staattinen/Opserver.png" alt="Opserver"></button></h1>
     <span id="paivitysaika" class="paivitysaika"></span>
     <nav id="paanav">
       <button data-polku="/korkeakoulut">Korkeakoulut</button>
@@ -145,6 +146,17 @@
     </div>
   </div>
 
+  <div id="info-modaali" class="modaali piilotettu" role="dialog" aria-label="Tietoa Opserverista">
+    <div class="modaali-sisalto info-sisalto">
+      <div class="info-yla">
+        <img src="/staattinen/Opserver.png" alt="Opserver" class="info-logo">
+        <button class="modaali-sulje" aria-label="Sulje">✕</button>
+      </div>
+      <div id="info-teksti" class="info-teksti"></div>
+      <p id="info-versio" class="info-versio"></p>
+    </div>
+  </div>
+
   <div id="modaali" class="modaali piilotettu">
     <div class="modaali-sisalto">
       <button class="modaali-sulje" id="modaali-sulje">✕</button>
@@ -171,5 +183,6 @@
   <script src="/staattinen/yhteistyo.js?v=22"></script>
   <script src="/staattinen/arviointimuokkaus.js?v=11"></script>
   <script src="/staattinen/raporttimuokkaus.js?v=6"></script>
+  <script src="/staattinen/info.js?v=1"></script>
 </body>
 </html>

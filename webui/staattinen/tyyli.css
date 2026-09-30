@@ -1173,3 +1173,17 @@ td.arviointi-vastaus {
   0%, 100% { box-shadow: 0 0 0 0 rgba(243, 156, 18, 0.9); background-color: #fff3d6; }
   50% { box-shadow: 0 0 0 5px rgba(243, 156, 18, 0); background-color: #ffd98a; }
 }
+
+/* Opserver-infomodaali (logon klikkaus) */
+.logo-nappi { background: none; border: 0; padding: 0; margin: 0; cursor: pointer; line-height: 0; }
+.logo-nappi:focus-visible { outline: 2px solid #fff; outline-offset: 3px; border-radius: 4px; }
+/* Yläkaista headerin värinen: logon oma tausta (#0e204b) sulautuu siihen. */
+.info-yla { background: #0e214b; margin: -1.5rem -1.5rem 1rem; padding: 1rem; border-radius: 6px 6px 0 0; }
+.info-yla .modaali-sulje { color: #ccd; }
+.info-logo { display: block; height: 3.5rem; width: auto; margin: 0 auto; }
+.info-teksti { line-height: 1.6; }
+.info-teksti h1 { font-size: 1.4rem; }
+.info-teksti h2 { font-size: 1.1rem; margin-top: 1.5rem; }
+.info-teksti ul, .info-teksti ol { padding-left: 1.4rem; }
+.info-teksti li { margin: 0.25rem 0; }
+.info-versio { margin: 1.5rem 0 0; padding-top: 0.75rem; border-top: 1px solid #ddd; font-size: 0.8rem; color: #666; text-align: center; }

@@ -7,7 +7,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from webui import yhteistyo, reitit_katalogi, reitit_luokitukset, reitit_arvioinnit, reitit_raportti
+from webui import yhteistyo, reitit_katalogi, reitit_luokitukset, reitit_arvioinnit, reitit_raportti, reitit_info
 from webui.autentikointi import PerusAutentikointi
 
 sovellus = FastAPI(title="Opserver")
@@ -16,7 +16,7 @@ sovellus.add_middleware(PerusAutentikointi)
 sovellus.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Järjestys = alkuperäinen rekisteröintijärjestys; SPA:n catch-all viimeisenä.
-for moduuli in (yhteistyo, reitit_katalogi, reitit_luokitukset, reitit_arvioinnit, reitit_raportti):
+for moduuli in (yhteistyo, reitit_katalogi, reitit_luokitukset, reitit_arvioinnit, reitit_raportti, reitit_info):
     sovellus.include_router(moduuli.reititin)
 
 STAATTINEN = os.path.join(os.path.dirname(__file__), "staattinen")
