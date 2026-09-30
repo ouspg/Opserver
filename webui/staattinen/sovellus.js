@@ -86,11 +86,18 @@ window.siirryKayttajanLuo = async (k) => {
   if ((k.nakyma ?? null) !== (window.omaNakyma?.() ?? null)) await valitseNakyma(k.nakyma ?? null);
   if (k.sivunumero != null && (window.omaSivunumero?.() ?? null) !== k.sivunumero) await vaihdaSivu(k.sivunumero);
   const avain = k.lomake || k.katselu;
-  if (avain) {
+  if (avain && avain === window.omaModaali?.()) {
+    // Sama modaali jo auki: vieritä oma modaali hänen kohdalleen (reunapallura).
+    const modaali = document.querySelector(".modaali:not(.piilotettu)");
+    const sisalto = modaali?.querySelector(".modaali-sisalto");
+    if (sisalto && k.sijainti?.modaali) {
+      modaali.scrollBy(0, sisalto.getBoundingClientRect().top + k.sijainti.y - innerHeight / 2);
+    }
+  } else if (avain) {
     const ankkuri = await odotaEhtoa(() => document.querySelector(`[data-lomake="${CSS.escape(avain)}"]`));
     ankkuri?.scrollIntoView({ block: "center" });
     ankkuri?.click();
-  } else if (k.sijainti) {
+  } else if (k.sijainti && !k.sijainti.ylapalkki) {  // yläpalkissa: ei vieritettävää
     const { x, y } = k.sijainti;  // sivun koordinaatit; odota että sisältö on niin pitkä
     await odotaEhtoa(() => document.documentElement.scrollHeight >= y, 5000);
     window.scrollTo(x - innerWidth / 2, y - innerHeight / 2);

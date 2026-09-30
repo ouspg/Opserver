@@ -162,6 +162,7 @@ function merkitseAktiiviseksi() {
 let omaKatselu = null;  // { avain, kuvaus }
 window.asetaKatselu = (avain, kuvaus = null) => { omaKatselu = avain ? { avain, kuvaus } : null; lahetaTila(); };
 const omaModaali = () => window.omaLomake?.() ?? omaKatselu?.avain ?? null;
+window.omaModaali = omaModaali;
 
 // Muun käyttäjän avoin modaali tämän sivun ankkureille: jaettu lomake näkyy kaikissa
 // näkymissä (HITL-napit), katselumodaali vain samalla sivulla ja samassa näkymässä.
@@ -231,15 +232,18 @@ function yhdista() {
   ws.addEventListener("error", () => ws.close());
 }
 
-// Toisen käyttäjän pallura yläpalkissa: siirry hänen luokseen (sovellus.js).
-function kytkeMuidenYmpyrat() {
-  const div = document.getElementById("muut-ympyrat");
+// Toisen käyttäjän pallura yläpalkissa tai "tuollapäin"-reunapallura: siirry hänen
+// luokseen (sovellus.js). Elementin data-id = käyttäjän id.
+function kytkeSiirtymat() {
   const siirry = (e) => {
-    const k = muutKayttajat.find((m) => m.id === e.target.closest("canvas")?.dataset.id);
+    const k = muutKayttajat.find((m) => m.id === e.target.closest("[data-id]")?.dataset.id);
     if (k) window.siirryKayttajanLuo?.(k);
   };
-  div.addEventListener("click", siirry);
-  div.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); siirry(e); } });
+  for (const id of ["muut-ympyrat", "kursori-kerros"]) {
+    const el = document.getElementById(id);
+    el.addEventListener("click", siirry);
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); siirry(e); } });
+  }
 }
 
 function paivitaMuutYmpyrat() {
@@ -273,24 +277,44 @@ function paivitaKursorit() {
   const omaLomake = omaModaali();
   const omaSivunumero = window.omaSivunumero?.() ?? null;
   const leveys = document.documentElement.clientWidth, korkeus = document.documentElement.clientHeight;
+  // Yläpalkki on kiinteä (sticky): sisältöalueen näkyvä osa alkaa sen alareunasta.
+  const ylaraja = document.querySelector("header").getBoundingClientRect().bottom;
   const naytettavat = [];
   for (const k of muutKayttajat) {
     if (!k.profiili || k.sivu !== location.pathname || (k.nakyma ?? null) !== omaNakyma) continue;
     if ((k.sivunumero ?? null) !== omaSivunumero) continue;  // eri sivutussivulla → pallura sivunumerossa
     const lomake = modaaliAvain(k);
-    let vx, vy;
+    let vx, vy, ylapalkissa, modaalissa;
     if (lomake === omaLomake && k.sijainti) {
-      vx = k.sijainti.x - window.scrollX; vy = k.sijainti.y - window.scrollY;
+      const s = k.sijainti;  // osoittimenSijainti
+      ylapalkissa = !!s.ylapalkki;
+      modaalissa = !!s.modaali;
+      if (modaalissa) {
+        const sisalto = document.querySelector(".modaali:not(.piilotettu) .modaali-sisalto");
+        if (!sisalto) continue;
+        const r = sisalto.getBoundingClientRect();
+        vx = r.left + s.x; vy = r.top + s.y;
+      } else {
+        vx = s.x - (ylapalkissa ? 0 : window.scrollX);
+        vy = s.y - (ylapalkissa ? 0 : window.scrollY);
+      }
     } else if (lomake && !omaLomake) {
       const nappi = document.querySelector(`[data-lomake="${CSS.escape(lomake)}"]`);
       if (!nappi) continue;  // ponytail: nappi ei renderöity (esim. eri sivutussivulla) → ei suuntaa
       const r = nappi.getBoundingClientRect();
       vx = r.left + r.width / 2; vy = r.top + r.height / 2;
+      ylapalkissa = !!nappi.closest("header");  // esim. logo (infomodaali)
     } else continue;
-    // Ruudun ulkopuolella: pallura jää reunaan ja nuoli osoittaa todelliseen suuntaan.
+    // Yläpalkissa oleva näkyy aina yläpalkin alueella. Sisältöalueella näkymän ulkopuolella
+    // (myös yläpalkin alle vierittynyt) oleva jää reunaan — ylhäällä heti yläpalkin alle —
+    // ja nuoli osoittaa todelliseen suuntaan.
+    // Modaali peittää koko näkymän (myös yläpalkin), joten sen sisällä rajana on näkymä.
+    const [ymin, ymax] = ylapalkissa
+      ? [KURSORI_REUNA / 2, Math.max(KURSORI_REUNA / 2, ylaraja - KURSORI_REUNA / 2)]
+      : [modaalissa ? KURSORI_REUNA : ylaraja + KURSORI_REUNA, korkeus - KURSORI_REUNA];
     const x = Math.min(Math.max(vx, KURSORI_REUNA), leveys - KURSORI_REUNA);
-    const y = Math.min(Math.max(vy, KURSORI_REUNA), korkeus - KURSORI_REUNA);
-    const ulkona = x !== vx || y !== vy;
+    const y = Math.min(Math.max(vy, ymin), ymax);
+    const ulkona = x !== vx || (!ylapalkissa && y !== vy);
     if (lomake !== omaLomake && !ulkona) continue;  // nappi näkyvissä → riittää pikkupallura
     naytettavat.push({ k, x, y, ulkona, kulma: Math.atan2(vy - y, vx - x) });
   }
@@ -318,26 +342,53 @@ function paivitaKursorit() {
 
     piirraYmpyra(el.querySelector("canvas"), k.profiili, k.taso);
     el.querySelector("canvas").dataset.tooltip = k.nimimerkki || "?";
-    el.classList.toggle("ulkona", ulkona);
+    el.classList.toggle("ulkona", ulkona);  // reunapallura on klikattava (kytkeSiirtymat)
+    el.dataset.id = k.id;
     if (ulkona) el.style.setProperty("--kulma", `${kulma}rad`);
     el.style.left = `${x}px`;
     el.style.top = `${y}px`;
   }
 }
 
-// capture: myös taulukon oma (vaaka)vieritys, jotta lomakenappien suunta päivittyy.
-document.addEventListener("scroll", () => paivitaKursorit(), { passive: true, capture: true });
-window.addEventListener("resize", () => paivitaKursorit());
+// Osoittimen sijainti muille (x, y = näkymän koordinaatit, el = elementti osoittimen alla):
+// - modaalissa modaalin sisältölaatikon suhteen: muut lisäävät oman laatikkonsa paikan,
+//   joka sisältää modaalin vierityksen ja keskityksen (sivu on lukittu, modaali vierittyy)
+// - kiinteässä yläpalkissa näkymän koordinaateissa (muut piirtävät yläpalkkiinsa)
+// - muuten sivun koordinaateissa.
+function osoittimenSijainti(x, y, el) {
+  const sisalto = el?.closest?.(".modaali")?.querySelector(".modaali-sisalto");
+  if (sisalto) {
+    const r = sisalto.getBoundingClientRect();
+    return { x: x - r.left, y: y - r.top, modaali: true };
+  }
+  if (el?.closest?.("header")) return { x, y, ylapalkki: true };
+  return { x: x + window.scrollX, y: y + window.scrollY };
+}
 
-document.addEventListener("mousemove", (e) => {
-  hiiri = { x: e.pageX, y: e.pageY };
-  merkitseAktiiviseksi();
+let osoitin = null;  // viimeisin { x, y } näkymän koordinaateissa
+
+function asetaHiiri(x, y, el) {
+  osoitin = { x, y };
+  hiiri = osoittimenSijainti(x, y, el);
   if (!lahetysAjastin) {
     lahetysAjastin = setTimeout(() => {
       lahetysAjastin = null;
       lahetaTila();
     }, LAHETYS_VALI_MS);
   }
+}
+
+// capture: myös taulukon ja modaalin oma vieritys — muiden kursorit ja lomakenappien suunta
+// päivittyvät, ja oma sijainti muuttuu, vaikka hiiri ei liiku (rullalla vieritys).
+document.addEventListener("scroll", () => {
+  paivitaKursorit();
+  if (osoitin) asetaHiiri(osoitin.x, osoitin.y, document.elementFromPoint(osoitin.x, osoitin.y));
+}, { passive: true, capture: true });
+window.addEventListener("resize", () => paivitaKursorit());
+
+document.addEventListener("mousemove", (e) => {
+  asetaHiiri(e.clientX, e.clientY, e.target);
+  merkitseAktiiviseksi();
 });
 
 document.addEventListener("keydown", merkitseAktiiviseksi);
@@ -349,7 +400,7 @@ setInterval(() => {
 }, SYDANLYONTI_VALI_MS);
 
 luoHeaderElementit();
-kytkeMuidenYmpyrat();
+kytkeSiirtymat();
 omaProfiili = lataaProfiili() || arvoUusiProfiili();
 tallennaProfiili();
 document.getElementById("nimimerkki-kentta").value = omaProfiili.nimimerkki;
