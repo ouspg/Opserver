@@ -251,11 +251,15 @@
     piirraKursorit();
   };
 
-  // Muille näkyvä indikaatio: pallurat napin alle + sykkivä korostus jokaiseen
-  // nappiin, jonka lomakkeen joku muu on avannut (kaikissa suodatetuissa näkymissä).
+  // Muille näkyvä indikaatio: pallurat ankkurin viereen + sykkivä korostus jokaiseen
+  // data-lomake-ankkuriin, jonka modaalin joku muu on avannut: jaettu lomake (kaikissa
+  // suodatetuissa näkymissä) tai katselumodaali (sama sivu ja näkymä; yhteistyo.js modaaliAvain).
   window.paivitaLomakePallurat = function (muut) {
     const perAvain = {};
-    for (const k of muut) if (k.lomake && k.profiili) (perAvain[k.lomake] ||= []).push(k);
+    for (const k of muut) {
+      const avain = window.modaaliAvain(k);
+      if (avain && k.profiili) (perAvain[avain] ||= []).push(k);
+    }
     document.querySelectorAll("[data-lomake]").forEach((nappi) => {
       const kayttajat = perAvain[nappi.dataset.lomake] || [];
       const tunniste = JSON.stringify(kayttajat.map((k) => [k.id, k.taso, k.nimimerkki, k.profiili]));
@@ -272,7 +276,7 @@
       rivi.innerHTML = "";
       for (const k of kayttajat) {
         const c = window.luoPallura(k, 10);
-        c.title = `${k.nimimerkki || "?"} muokkaa tätä`;
+        c.title = `${k.nimimerkki || "?"} ${k.lomake ? "muokkaa" : "katsoo"} tätä`;
         rivi.appendChild(c);
       }
     });

@@ -47,7 +47,8 @@ function sisuKuvausOsat(data) {
   return osat;
 }
 
-async function avaaModaali(kid) {
+// avain = ankkuri, jonka kohdalla muut näkevät avaajan (kurssilistan rivi voi näyttää eri vuoden versiota).
+async function avaaModaali(kid, avain = kurssiAvain(kid)) {
   const kurssi = await haeJson(`/api/kurssit/${kid}`);
   const opsUrl = kurssiUrl(kurssi);
   const nimi = escapeHtml(kurssi.KurssiNimi);
@@ -79,8 +80,7 @@ async function avaaModaali(kid) {
       <tr><th>Opetusvuosi</th><td>${escapeHtml(kurssi.Opetusvuosi)}</td></tr>
     </table>
     <div class="ops-kuvaus">${kuvaus}</div>`;
-  document.getElementById("modaali").classList.remove("piilotettu");
+  naytaKatselumodaali(document.getElementById("modaali"), avain);
 }
 
-kytkeSulkeminen(document.getElementById("modaali"),
-                () => document.getElementById("modaali").classList.add("piilotettu"));
+kytkeKatselumodaali(document.getElementById("modaali"));

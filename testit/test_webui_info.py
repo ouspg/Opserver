@@ -41,7 +41,7 @@ def test_infosivun_markdown_renderoityy_ja_html_escapoidaan():
     global.escapeHtml = (a) => String(a ?? "").replace(/[&<>"']/g, (c) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     global.document = { getElementById: () => ({ addEventListener() {}, classList: {} }) };
-    global.window = {}; global.kytkeSulkeminen = () => {};
+    global.window = {}; global.kytkeKatselumodaali = () => {};
     eval(require("fs").readFileSync("webui/staattinen/info.js", "utf8"));
     process.stdout.write(window.markdownHtml(require("fs").readFileSync(0, "utf8")));
     """

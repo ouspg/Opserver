@@ -165,7 +165,7 @@ function koodiJaOpasLinkki(kurssi) {
 // Nimi + opas-linkki samassa solussa (näkymät joissa ei ole Koodi-saraketta).
 function kurssiLinkki(kurssi) {
   const linkki = kurssiOpasLinkki(kurssi);
-  const nimi = escapeHtml(kurssi.KurssiNimi);
+  const nimi = kurssiNimiHtml(kurssi);
   return linkki ? `${nimi} ${linkki}` : nimi;
 }
 
@@ -201,6 +201,27 @@ function suodatinNimi(s) {
 function kytkeSulkeminen(modaali, sulje) {
   modaali.querySelector(".modaali-sulje").addEventListener("click", sulje);
   modaali.addEventListener("click", (e) => { if (e.target === modaali) sulje(); });
+}
+
+// Katselumodaali (kurssin tiedot, Opserver-info): näkyviin + läsnäolo muille. Avain on
+// ankkurin data-lomake (kurssin nimi, logo): muut samalla sivulla ja näkymässä näkevät
+// avaajan sen kohdalla kuten HITL-napilla (sykkivä kehys, pallurat, reunakursori).
+function naytaKatselumodaali(modaali, avain) {
+  modaali.classList.remove("piilotettu");
+  window.asetaKatselu?.(avain);
+}
+
+function kytkeKatselumodaali(modaali) {
+  kytkeSulkeminen(modaali, () => {
+    modaali.classList.add("piilotettu");
+    window.asetaKatselu?.(null);
+  });
+}
+
+// Kurssin nimi kurssimodaalin ankkurina (kaikki kurssilistat).
+const kurssiAvain = (kid) => `kurssi:${kid}`;
+function kurssiNimiHtml(kurssi, kid = kurssi.KID) {
+  return `<span data-lomake="${kurssiAvain(kid)}">${escapeHtml(kurssi.KurssiNimi)}</span>`;
 }
 
 function verkkosivuLinkki(url) {

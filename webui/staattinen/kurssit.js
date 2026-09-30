@@ -119,7 +119,7 @@ function renderKurssit() {
           `<option value="${v.KID}">${escapeHtml(v.Opetusvuosi)}</option>`).join("")}</select>`
       : escapeHtml(uusin.Opetusvuosi);
     return `<tr class="kurssi-rivi" data-kid="${uusin.KID}">
-      <td>${escapeHtml(uusin.KurssiNimi)}</td>
+      <td>${kurssiNimiHtml(uusin)}</td>
       <td class="koodi">${koodiJaOpasLinkki(uusin)}</td>
       ${kurssiMetaSolut(uusin)}
       <td>${vuosiSolmu}</td></tr>`;
@@ -141,7 +141,7 @@ document.getElementById("kurssit-rungot").addEventListener("click", (e) => {
   const rivi = e.target.closest("tr.kurssi-rivi");
   if (!rivi || e.target.closest("a, select")) return;
   const valinta = rivi.querySelector(".vuosivalinta");
-  avaaModaali(parseInt(valinta ? valinta.value : rivi.dataset.kid));
+  avaaModaali(parseInt(valinta ? valinta.value : rivi.dataset.kid), kurssiAvain(rivi.dataset.kid));
 });
 
 function rekisteroiKurssitNakymat() {

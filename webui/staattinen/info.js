@@ -47,7 +47,7 @@ const modaali = document.getElementById("info-modaali");
 let ladattu = false;
 
 async function avaaInfo() {
-  modaali.classList.remove("piilotettu");
+  naytaKatselumodaali(modaali, "info");
   if (ladattu) return;
   const teksti = document.getElementById("info-teksti");
   const versio = document.getElementById("info-versio");
@@ -67,6 +67,6 @@ async function avaaInfo() {
 }
 
 document.getElementById("info-nappi").addEventListener("click", avaaInfo);
-kytkeSulkeminen(modaali, () => modaali.classList.add("piilotettu"));
+kytkeKatselumodaali(modaali);
 window.markdownHtml = markdownHtml;  // testattavuus (selaintesti)
 }
