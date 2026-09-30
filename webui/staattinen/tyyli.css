@@ -1187,3 +1187,11 @@ td.arviointi-vastaus {
 .info-teksti ul, .info-teksti ol { padding-left: 1.4rem; }
 .info-teksti li { margin: 0.25rem 0; }
 .info-versio { margin: 1.5rem 0 0; padding-top: 0.75rem; border-top: 1px solid #ddd; font-size: 0.8rem; color: #666; text-align: center; }
+
+/* Modaali auki → vain modaali vierittyy (kaikki modaalit); gutter estää sisällön hypähdyksen. */
+html { scrollbar-gutter: stable; }
+html:has(.modaali:not(.piilotettu)) { overflow: hidden; }
+.modaali { overscroll-behavior: contain; }
+/* Katselumodaalin ankkurit (kurssin nimi, logo) sykkivät kuten HITL-napit (.lomake-auki). */
+span.lomake-auki { border-radius: 3px; padding: 0 2px; }
+.logo-nappi.lomake-auki { border-radius: 6px; padding: 3px; margin: -3px; }  /* tausta näkyy kuvan ympärillä kehyksenä */

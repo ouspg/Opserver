@@ -157,6 +157,21 @@ function merkitseAktiiviseksi() {
   if (heraa) lahetaTila();
 }
 
+// Avoin katselumodaali (kurssin tiedot, Opserver-info; yhteiset.js): läsnäolo kuten jaetulla
+// lomakkeella — muut näkevät pallurat avainta vastaavan data-lomake-ankkurin kohdalla.
+let omaKatselu = null;
+window.asetaKatselu = (avain) => { omaKatselu = avain; lahetaTila(); };
+const omaModaali = () => window.omaLomake?.() ?? omaKatselu;
+
+// Muun käyttäjän avoin modaali tämän sivun ankkureille: jaettu lomake näkyy kaikissa
+// näkymissä (HITL-napit), katselumodaali vain samalla sivulla ja samassa näkymässä.
+function modaaliAvain(k) {
+  if (k.lomake) return k.lomake;
+  const samaNakyma = k.sivu === location.pathname && (k.nakyma ?? null) === (window.omaNakyma?.() ?? null);
+  return (samaNakyma && k.katselu) || null;
+}
+window.modaaliAvain = modaaliAvain;
+
 function lahetaTila() {
   if (!omaProfiili) return;
   lahetaWs({
@@ -172,6 +187,7 @@ function lahetaTila() {
     nakyma: window.omaNakyma?.() ?? null,
     sivunumero: window.omaSivunumero?.() ?? null,  // valittujen kurssien sivutussivu
     lomake: window.omaLomake?.() ?? null,  // avoin korjauslomake (lomakesessio.js)
+    katselu: omaKatselu,  // avoin katselumodaali
   });
 }
 
@@ -231,18 +247,18 @@ function paivitaKursorit() {
   if (!kerros) return;
 
   // Sama sivu ja suodatinnäkymä (välilehti); muut näkyvät välilehden pallurana.
-  // Sama korjauslomake (tai ei lomaketta): pallura hiiren kohdalla. Muu lomakkeessa oleva,
-  // kun itse ei ole lomakkeessa: pikkupallura avausnapin vieressä (lomakesessio.js) — ja
-  // jos nappi on ruudun ulkopuolella, iso pallura reunassa nuoli napin suuntaan.
+  // Sama modaali (tai ei modaalia): pallura hiiren kohdalla. Muu modaalissa (jaettu lomake tai
+  // katselumodaali) oleva, kun itse ei ole modaalissa: pikkupallura ankkurin vieressä
+  // (lomakesessio.js) — ja jos ankkuri on ruudun ulkopuolella, iso pallura reunassa nuoli sen suuntaan.
   const omaNakyma = window.omaNakyma?.() ?? null;
-  const omaLomake = window.omaLomake?.() ?? null;
+  const omaLomake = omaModaali();
   const omaSivunumero = window.omaSivunumero?.() ?? null;
   const leveys = document.documentElement.clientWidth, korkeus = document.documentElement.clientHeight;
   const naytettavat = [];
   for (const k of muutKayttajat) {
     if (!k.profiili || k.sivu !== location.pathname || (k.nakyma ?? null) !== omaNakyma) continue;
     if ((k.sivunumero ?? null) !== omaSivunumero) continue;  // eri sivutussivulla → pallura sivunumerossa
-    const lomake = k.lomake ?? null;
+    const lomake = modaaliAvain(k);
     let vx, vy;
     if (lomake === omaLomake && k.sijainti) {
       vx = k.sijainti.x - window.scrollX; vy = k.sijainti.y - window.scrollY;

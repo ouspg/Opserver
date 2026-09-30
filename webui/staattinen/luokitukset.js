@@ -295,7 +295,7 @@ function renderTutkimusKurssitRivit(rivit) {
     }
 
     html += `<tr class="kurssi-rivi${hyvaksytty ? " hyvaksytty" : ""}" data-kid="${k.KID}">
-      <td>${escapeHtml(k.KurssiNimi)}</td>
+      <td>${kurssiNimiHtml(k)}</td>
       <td class="koodi">${koodiJaOpasLinkki(k)}</td>
       ${kurssiMetaSolut(k)}
       <td class="perustelu">${perusteluHtml}${toimintoHtml ? `<div class="perustelu-toiminto">${toimintoHtml}</div>` : ""}</td></tr>`;
