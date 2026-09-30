@@ -243,7 +243,7 @@ function aiYhteenveto(v) {
   return osat.length ? osat.join("<br>") : "<em>Ei vastausta</em>";
 }
 
-window.avaaArviointiMuokkaus = function (tid, slug, kid, kysymys, aiVastaus, korjaus) {
+window.avaaArviointiMuokkaus = function (tid, slug, kid, kysymys, aiVastaus, korjaus, kurssiNimi) {
   luoMuokkausModaali();
   _tid = tid; _slug = slug; _kid = kid; _kysid = kysymys.KysID; _kysymys = kysymys;
 
@@ -269,6 +269,7 @@ window.avaaArviointiMuokkaus = function (tid, slug, kid, kysymys, aiVastaus, kor
   // Jaettu lomake: muut saman vastauksen korjausta avanneet näkevät samat arvot.
   const modaali = document.getElementById("arviointimuokkaus-modaali");
   window.avaaLomakesessio?.(`arvio:${tid}:${kid}:${kysymys.KysID}`, modaali, {
+    kuvaus: `Muokkaa arviointia kurssille "${lyhenna(kurssiNimi)}"`,
     erikois: tyyppi() === "lista" ? { lista: { lue: lueLista, aseta: (v) => asetaLista(v || []) } } : {},
     tallennettu: () => { suljeArviointiMuokkaus(); window.paivitaArvioinnit?.(); },
   });

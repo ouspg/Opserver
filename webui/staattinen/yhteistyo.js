@@ -159,9 +159,9 @@ function merkitseAktiiviseksi() {
 
 // Avoin katselumodaali (kurssin tiedot, Opserver-info; yhteiset.js): läsnäolo kuten jaetulla
 // lomakkeella — muut näkevät pallurat avainta vastaavan data-lomake-ankkurin kohdalla.
-let omaKatselu = null;
-window.asetaKatselu = (avain) => { omaKatselu = avain; lahetaTila(); };
-const omaModaali = () => window.omaLomake?.() ?? omaKatselu;
+let omaKatselu = null;  // { avain, kuvaus }
+window.asetaKatselu = (avain, kuvaus = null) => { omaKatselu = avain ? { avain, kuvaus } : null; lahetaTila(); };
+const omaModaali = () => window.omaLomake?.() ?? omaKatselu?.avain ?? null;
 
 // Muun käyttäjän avoin modaali tämän sivun ankkureille: jaettu lomake näkyy kaikissa
 // näkymissä (HITL-napit), katselumodaali vain samalla sivulla ja samassa näkymässä.
@@ -187,7 +187,9 @@ function lahetaTila() {
     nakyma: window.omaNakyma?.() ?? null,
     sivunumero: window.omaSivunumero?.() ?? null,  // valittujen kurssien sivutussivu
     lomake: window.omaLomake?.() ?? null,  // avoin korjauslomake (lomakesessio.js)
-    katselu: omaKatselu,  // avoin katselumodaali
+    katselu: omaKatselu?.avain ?? null,  // avoin katselumodaali
+    // Mitä käyttäjä tekee (yläpalkin pallurassa muilla): avoin modaali, muuten sivu (sovellus.js).
+    tekeminen: window.omaLomakeKuvaus?.() ?? omaKatselu?.kuvaus ?? window.omaSivuKuvaus?.() ?? null,
   });
 }
 
@@ -210,7 +212,7 @@ function yhdista() {
       muutKayttajat = viesti.data.filter((k) => k.id !== omaId);
       // Viesti tulee jokaisesta hiiren liikkeestä: ympyrät ja nav-pallurat (asettelun
       // luku) vain kun niihin vaikuttava tieto muuttuu. Sydänlyönti piirtää navin aina.
-      const ymp = JSON.stringify(muutKayttajat.map((k) => [k.id, k.taso, k.nimimerkki, k.profiili]));
+      const ymp = JSON.stringify(muutKayttajat.map((k) => [k.id, k.taso, k.nimimerkki, k.profiili, k.tekeminen]));
       if (ymp !== ympyraAvain) { ympyraAvain = ymp; paivitaMuutYmpyrat(); }
       const nav = JSON.stringify([ymp, muutKayttajat.map((k) => k.sivu)]);
       if (nav !== navAvain) { navAvain = nav; paivitaNavIndikaattorit(); }
@@ -229,13 +231,29 @@ function yhdista() {
   ws.addEventListener("error", () => ws.close());
 }
 
+// Toisen käyttäjän pallura yläpalkissa: siirry hänen luokseen (sovellus.js).
+function kytkeMuidenYmpyrat() {
+  const div = document.getElementById("muut-ympyrat");
+  const siirry = (e) => {
+    const k = muutKayttajat.find((m) => m.id === e.target.closest("canvas")?.dataset.id);
+    if (k) window.siirryKayttajanLuo?.(k);
+  };
+  div.addEventListener("click", siirry);
+  div.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); siirry(e); } });
+}
+
 function paivitaMuutYmpyrat() {
   const div = document.getElementById("muut-ympyrat");
   if (!div) return;
   while (div.firstChild) div.removeChild(div.firstChild);
   for (const k of muutKayttajat) {
     if (!k.profiili) continue;
-    div.appendChild(luoPallura(k, 24, "vieras-ympyra-pieni"));
+    const c = luoPallura(k, 24, "vieras-ympyra-pieni");
+    if (k.tekeminen) c.title = `${c.title}: ${k.tekeminen}`;  // tooltip (profiili.js)
+    c.tabIndex = 0;  // klikkaus/Enter → siirry käyttäjän luo (kytkeMuidenYmpyrat)
+    c.setAttribute("role", "button");
+    c.dataset.id = k.id;
+    div.appendChild(c);
   }
 }
 
@@ -330,6 +348,7 @@ setInterval(() => {
 }, SYDANLYONTI_VALI_MS);
 
 luoHeaderElementit();
+kytkeMuidenYmpyrat();
 omaProfiili = lataaProfiili() || arvoUusiProfiili();
 tallennaProfiili();
 document.getElementById("nimimerkki-kentta").value = omaProfiili.nimimerkki;

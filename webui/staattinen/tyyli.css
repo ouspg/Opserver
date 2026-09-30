@@ -1195,3 +1195,7 @@ html:has(.modaali:not(.piilotettu)) { overflow: hidden; }
 /* Katselumodaalin ankkurit (kurssin nimi, logo) sykkivät kuten HITL-napit (.lomake-auki). */
 span.lomake-auki { border-radius: 3px; padding: 0 2px; }
 .logo-nappi.lomake-auki { border-radius: 6px; padding: 3px; margin: -3px; }  /* tausta näkyy kuvan ympärillä kehyksenä */
+
+/* Yläpalkin muiden pallurat: klikkaus siirtää käyttäjän luo. */
+#muut-ympyrat canvas { cursor: pointer; }
+#muut-ympyrat canvas:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }

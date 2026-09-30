@@ -20,11 +20,17 @@ function ryhmitaKurssit(kurssit) {
 }
 
 // Täytä OPS-lukuvuosi-suodatin (uusin ensin), oletukseksi uusin
-async function taytaLukuvuodet() {
-  const sel = document.getElementById("suodatin-lukuvuosi");
-  const vuodet = await haeJson("/api/lukuvuodet");
-  sel.innerHTML = vuodet.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
-  // Lista on uusin-ensin, joten ensimmäinen optio (oletusvalinta) on viimeisin vuosi
+// Rinnakkaiset kutsujat (sivun alustus ja näkymän valinta, esim. toisen käyttäjän luo
+// siirryttäessä) jakavat saman haun, jolloin ne jatkavat kutsujärjestyksessä: myöhempi
+// suodatinvalinta voittaa eikä hitaampi alustus kumoa sitä.
+let _lukuvuodet = null;
+function taytaLukuvuodet() {
+  _lukuvuodet ||= haeJson("/api/lukuvuodet").then((vuodet) => {
+    document.getElementById("suodatin-lukuvuosi").innerHTML =
+      vuodet.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+    // Lista on uusin-ensin, joten ensimmäinen optio (oletusvalinta) on viimeisin vuosi
+  }, (virhe) => { _lukuvuodet = null; throw virhe; });
+  return _lukuvuodet;
 }
 
 // Täytä taso-suodatin senhetkisen lukuvuoden + yliopiston mukaan (säilytä valinta)

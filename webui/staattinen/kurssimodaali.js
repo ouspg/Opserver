@@ -80,7 +80,7 @@ async function avaaModaali(kid, avain = kurssiAvain(kid)) {
       <tr><th>Opetusvuosi</th><td>${escapeHtml(kurssi.Opetusvuosi)}</td></tr>
     </table>
     <div class="ops-kuvaus">${kuvaus}</div>`;
-  naytaKatselumodaali(document.getElementById("modaali"), avain);
+  naytaKatselumodaali(document.getElementById("modaali"), avain, `Katsoo kurssia "${lyhenna(kurssi.KurssiNimi)}"`);
 }
 
 kytkeKatselumodaali(document.getElementById("modaali"));

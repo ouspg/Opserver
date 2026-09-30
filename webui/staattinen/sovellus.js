@@ -5,7 +5,7 @@
 
 function navigoi(polku) {
   history.pushState({}, "", polku);
-  renderoi();
+  return renderoi();
 }
 
 window.addEventListener("popstate", renderoi);
@@ -57,7 +57,45 @@ async function renderoi() {
   }
   sovitaAktiivisetOtsikot();
   merkitsePaivitetty();
+  window.lahetaTilaNyt?.();  // sivu ja tekeminen muille heti, ei vasta sydänlyönnillä
 }
+
+// --- Yhteistyö: oma tekeminen ja siirtyminen toisen käyttäjän luo (yhteistyo.js) ---
+
+const SIVU_NIMI = { korkeakoulut: "Korkeakoulut", kurssit: "Kurssit", tutkimukset: "Tutkimukset" };
+const TILA_KUVAUS = { mukana: "valittuja", odottaa: "odottavia", "hylätty": "hylättyjä" };
+
+// Mitä käyttäjä tekee, kun modaalia ei ole auki (yläpalkin pallurassa muilla).
+window.omaSivuKuvaus = () => {
+  const r = jaaPolku();
+  if (!r.slug) return `Katsoo ${SIVU_NIMI[r.sivu] || r.sivu}-sivua`;
+  const nimi = aktiivinen_tutkimus?.Slug === r.slug ? aktiivinen_tutkimus.LuokittelunNimi : r.slug;
+  const tutkimuksessa = `tutkimuksessa "${lyhenna(nimi)}"`;
+  if (r.alasivu === "kurssit") return `Katsoo ${TILA_KUVAUS[r.tila] || "valittuja"} kursseja ${tutkimuksessa}`;
+  if (r.alasivu === "arvioinnit") return `Katsoo arviointeja ${tutkimuksessa}`;
+  if (r.alasivu === "raportti") return `Katsoo raporttia ${tutkimuksessa}`;
+  return `Katsoo tutkimusta "${lyhenna(nimi)}"`;
+};
+
+// Yläpalkin pallurasta toisen käyttäjän luo: sivu → suodatinnäkymä → sivutussivu → hänen
+// avoin modaalinsa (sen data-lomake-ankkurin klikkaus: HITL/Korjaa/Muokkaa-nappi, kurssin
+// nimi, logo — sama polku kuin itse avatessa, myös jaettuun lomakkeeseen liittyminen)
+// tai vieritys hänen hiirensä kohdalle.
+window.siirryKayttajanLuo = async (k) => {
+  if (k.sivu && k.sivu !== location.pathname) await navigoi(k.sivu);
+  if ((k.nakyma ?? null) !== (window.omaNakyma?.() ?? null)) await valitseNakyma(k.nakyma ?? null);
+  if (k.sivunumero != null && (window.omaSivunumero?.() ?? null) !== k.sivunumero) await vaihdaSivu(k.sivunumero);
+  const avain = k.lomake || k.katselu;
+  if (avain) {
+    const ankkuri = await odotaEhtoa(() => document.querySelector(`[data-lomake="${CSS.escape(avain)}"]`));
+    ankkuri?.scrollIntoView({ block: "center" });
+    ankkuri?.click();
+  } else if (k.sijainti) {
+    const { x, y } = k.sijainti;  // sivun koordinaatit; odota että sisältö on niin pitkä
+    await odotaEhtoa(() => document.documentElement.scrollHeight >= y, 5000);
+    window.scrollTo(x - innerWidth / 2, y - innerHeight / 2);
+  }
+};
 
 document.querySelectorAll("#paanav button").forEach((b) => {
   b.addEventListener("click", () => navigoi(b.dataset.polku));
