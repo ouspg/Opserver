@@ -59,6 +59,29 @@ const KURSSIT_RIVIERA = 300;
 let kurssit_lataus = 0;
 let kurssit_kesken = false;
 let kurssit_renderointi = 0;
+// Näkyvä lista rivijärjestyksessä (uusin versio per kurssi) ja sen hakuindeksi (paikannus).
+let kurssit_jarjestyksessa = [];
+let kurssit_hakuindeksi = null;
+
+// Paikannus koko ladatusta listasta selaimessa: nimen alusta osuvat ensin, sitten
+// listan järjestyksessä. Indeksi (taitettu nimi + koodi) lasketaan kerran per renderöinti.
+function paikannaKurssit(teksti, raja = 10) {
+  kurssit_hakuindeksi ||= kurssit_jarjestyksessa.map((k) => taita(`${k.KurssiNimi} ${k.Koodi || ""}`));
+  const haku = taita(teksti), alku = [], muut = [];
+  for (let i = 0; i < kurssit_hakuindeksi.length && alku.length < raja; i++) {
+    const s = kurssit_hakuindeksi[i];
+    if (s.startsWith(haku)) alku.push(kurssit_jarjestyksessa[i]);
+    else if (muut.length < raja && s.includes(haku)) muut.push(kurssit_jarjestyksessa[i]);
+  }
+  return [...alku, ...muut].slice(0, raja);
+}
+
+// Kaikki rivit päätyvät DOMiin erissä, joten siirtyminen = rivin odotus (luoPaikannin).
+luoPaikannin(document.getElementById("kurssit-paikannus"), {
+  hae: async (teksti) => paikannaKurssit(teksti),
+  siirry: async () => {},
+  runko: document.getElementById("kurssit-rungot"),
+});
 
 async function lataaKurssit() {
   const lataus = ++kurssit_lataus;
@@ -107,6 +130,8 @@ function renderKurssit() {
   document.getElementById("kurssit-lkm").textContent = `${lkm} kurssia${kurssit_kesken ? " — ladataan lisää…" : ""}`;
   varustaJarjestys(document.querySelector("#s-kurssit thead"), kurssit_jarjestys, renderKurssit);
   const kierros = ++kurssit_renderointi;  // keskeyttää edellisen renderöinnin erät
+  kurssit_jarjestyksessa = [];
+  kurssit_hakuindeksi = null;
   if (lkm === 0) {
     runko.innerHTML = '<tr><td colspan="6">Ei kursseja.</td></tr>';
     return;
@@ -116,6 +141,7 @@ function renderKurssit() {
     const vertaa = vertaaKursseja(kurssit_jarjestys.sarake, kurssit_jarjestys.suunta);
     ryhmatLista.sort((a, b) => vertaa(a[0], b[0]));
   }
+  kurssit_jarjestyksessa = ryhmatLista.map((versiot) => versiot[0]);
   // Rivit merkkijonoina ja delegoitu klikkikäsittelijä (alla): ~10 000 riviä ilman
   // rivikohtaisia elementtejä ja kuuntelijoita.
   const rivit = ryhmatLista.map((versiot) => {

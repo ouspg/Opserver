@@ -22,6 +22,18 @@ def api_tutkimus_luokitukset_maarat(tutkimus: TutkimusSlugista, kkid: Optional[i
     return mallit.hae_tutkimuksen_tilamaarat(tutkimus["TID"], kkid=kkid, taso=taso, hakusana=hakusana)
 
 
+@reititin.get("/api/tutkimukset/{slug}/luokitukset/paikanna")
+def api_tutkimus_paikanna(tutkimus: TutkimusSlugista, haku: str = "", tila: Optional[str] = None,
+                          kkid: Optional[int] = None, taso: Optional[str] = None,
+                          hakusana: Optional[str] = None, jarjesta: Optional[str] = None,
+                          suunta: Optional[str] = None) -> list[dict]:
+    """Kurssin paikannus listausnäkymästä: enintään 10 osumaa sijainteineen (Indeksi)."""
+    if not haku.strip():
+        return []
+    return mallit.paikanna_kurssit(tutkimus["TID"], haku, tila=tila, kkid=kkid, taso=taso,
+                                   hakusana=hakusana, jarjesta=jarjesta, suunta=suunta)
+
+
 @reititin.get("/api/tutkimukset/{slug}/luokitukset")
 def api_tutkimus_luokitukset(tutkimus: TutkimusSlugista, tila: Optional[str] = None,
                              sivu: int = 0, koko: int = 200,
