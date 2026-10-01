@@ -168,3 +168,45 @@ Ne ovat silti pseudonyymejä (käyttäjä voi vaihtaa nimimerkin omaksi nimeksee
 sessiossa tunnistettavissa), joten lyhyt ilmoitus tarvitaan yhä, mutta velvoitteet
 kevenevät. Päätettävä samalla kannassa jo olevien nimien/sähköpostien käsittely
 (jätetään / sähköpostit NULLiksi / nimet nimimerkeiksi) — muutos migraationa.
+
+## 26. WebSocket-läsnäoloviestiä ei validoida (luottamusraja)
+
+`webui/yhteistyo.py` `ws_kayttajat`: tuntematon viestityyppi tallennetaan sellaisenaan
+(`_yhteydet[uid] = (ws, data)`) ja lähetetään kaikille (koonti enintään 10/s). Kuka tahansa
+(Basic Auth on jaettu yleisölle) voi lähettää mielivaltaisia kenttiä tai megatavujen
+`tekeminen`/`nimimerkki`-arvoja, jotka monistuvat jokaiselle käyttäjälle jaetussa WiFissä.
+Selaimet näyttävät arvot textContentilla/datasetillä (ei XSS), joten riski on kaista/DoS.
+Korjaus: kenttien valkolista + pituusrajat kuten lomakkeilla (`_kelpo_lomakearvo`), esim.
+nimimerkki ≤ 40, tekeminen ≤ 200, sijainti numeroina. Havaittu 2026-10-01 (#89/#91 työssä).
+
+## 27. Selaintodennukset eivät ole repossa
+
+PR:ien #80–#92 headless-Chromium-todennukset (XSS-hyötykuormat, delegoidut klikkaukset,
+lomakkeen liittymiskilpa, katselumodaalien läsnäolo, reunakursorit, modaalin vieritys,
+tooltipit, paikannus) ajettiin jobin väliaikaisskripteillä, jotka katoavat. Regressiot
+huomataan vain käsin. Harkitse `testit/selain/`-hakemistoa (playwright, perf-kanta tai
+mockattu API; ohitetaan jos playwrightia/kantaa ei ole) tärkeimmille skenaarioille.
+
+## 28. Läsnäolon pienet rajoitukset (todettu, ei korjattu)
+
+- Kurssit-sivulla vanhemman vuoden version katselu: läsnäoloavain on rivin uusimman
+  version KID, joten `siirryKayttajanLuo` avaa uusimman version, ei katsottua vuotta.
+- Pallurien tooltip päivittyy vain omasta hiiren liikkeestä: paikallaan olevan osoittimen
+  alle liikkuva vieraspallura ei näytä tooltipia ennen liikettä.
+- `siirryKayttajanLuo` vierittää toisen hiiren sivukoordinaatteihin: eri ikkunaleveydellä
+  rivitys voi siirtää kohtaa hieman (modaalit ja ankkurit eivät kärsi tästä).
+
+## 29. WebSocket-katkon jälkeen lomakkeen aloittajuus lasketaan uudelleen
+
+`lomakesessio.js`: uudelleenliittyessä (`lomakeUudelleenliity`) ensimmäinen vastaus asettaa
+`_aloittaja = _muokkaajat.length === 1`. Jos lomakkeen avannut A:n yhteys katkeaa hetkeksi
+B:n ollessa mukana, A ei enää ole aloittaja → `muistaTunnistus` ei tallenna A:n omaa nimeä
+tallennuksessa. Korjaus: säilytä `_aloittaja` uudelleenliittymisessä (aseta vain
+ensimmäisellä liittymisellä). Havaittu 2026-09-30 #85:n työssä.
+
+## 30. Päätettävä: kurssin paikannuksen aksenttiriippumattomuus (a ↔ ä)
+
+#92: paikannus (ja olemassa oleva hakusanasuodatin) on aksenttiriippumaton kannan
+collationin (`utf8mb4_0900_ai_ci`) mukaan — "a" löytää myös ä-alkuiset, selainpuolella
+`taita()` samoin. Kysytty käyttäjältä 2026-10-01, ei vastausta. Jos ä:n pitää erota:
+`COLLATE utf8mb4_0900_as_ci` LIKE-ehtoihin ja `taita` ilman NFD-poistoa.
