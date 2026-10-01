@@ -177,9 +177,20 @@ th { background: #ececf4; }
    muuttujasta. box-shadow, koska border katoaa position:sticky + border-collapse. */
 thead th {
   position: sticky;
-  top: var(--otsikkokorkeus, 0px);
+  top: calc(var(--otsikkokorkeus, 0px) + var(--ohjainkorkeus, 0px));
   z-index: 5;
   box-shadow: inset 0 -1px 0 #e0e0ec;
+}
+
+/* Kurssilistojen paikannus + sivutus pysyvät yläpalkin alla otsikkorivin yläpuolella;
+   --ohjainkorkeus asetetaan JS:llä näkymä-sectioniin (sovellus.js). flow-root pitää
+   lasten marginaalit sisällä, ettei sisältö näy raosta. */
+.kiinnitetyt {
+  position: sticky;
+  top: var(--otsikkokorkeus, 0px);
+  z-index: 6;
+  display: flow-root;
+  background: #f4f4f8;
 }
 
 /* Järjestysnapit sarakeotsikoissa (▲ nouseva / ▼ laskeva). */

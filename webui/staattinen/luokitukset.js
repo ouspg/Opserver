@@ -196,7 +196,7 @@ window.omaSivunumero = () => (jaaPolku().alasivu === "kurssit" ? tutkimus_sivu :
 
 let _sivutusMuut = [];
 
-// Sivutus ylä- ja alalaitaan: Edellinen, sivunumerot, Seuraava. Samassa näkymässä
+// Sivutus (pysyy näkyvissä yläpalkin alla): Edellinen, sivunumerot, Seuraava. Samassa näkymässä
 // eri sivulla olevat muut käyttäjät näkyvät pallurana oman sivunumeronsa kohdalla.
 function renderTutkimusKurssitSivutus() {
   const kpl = tutkimus_maarat[aktiivinen_tila] ?? 0;

@@ -300,7 +300,7 @@ function paivitaKursorit() {
       }
     } else if (lomake && !omaLomake) {
       const nappi = document.querySelector(`[data-lomake="${CSS.escape(lomake)}"]`);
-      if (!nappi) continue;  // ponytail: nappi ei renderöity (esim. eri sivutussivulla) → ei suuntaa
+      if (!nappi) continue;  // ponytail: nappi ei vielä renderöity → hetken näkymätön (eri sivu: pallura sivutuksessa)
       const r = nappi.getBoundingClientRect();
       vx = r.left + r.width / 2; vy = r.top + r.height / 2;
       ylapalkissa = !!nappi.closest("header");  // esim. logo (infomodaali)

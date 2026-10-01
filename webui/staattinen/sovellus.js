@@ -208,6 +208,10 @@ if (_ylapalkki && window.ResizeObserver) {
   new ResizeObserver(() => {
     document.documentElement.style.setProperty("--otsikkokorkeus", _ylapalkki.offsetHeight + "px");
   }).observe(_ylapalkki);
+  const ohjaimet = new ResizeObserver((havainnot) => {
+    for (const h of havainnot) h.target.parentElement.style.setProperty("--ohjainkorkeus", h.target.offsetHeight + "px");
+  });
+  document.querySelectorAll(".kiinnitetyt").forEach((el) => ohjaimet.observe(el));
 }
 
 koulut_ladattu = lataaKorkeakoulut().catch(() => {});
