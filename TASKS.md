@@ -23,16 +23,6 @@ Tavoite:
 - Näyttäminen: liittyessä uusimmat N tapahtumaa uutispalkkiin; erillinen
   sivutettu tapahtumalokinäkymä (`?alku&koko`), suodatus tutkimuksen mukaan.
 
-## 14. Modaalissa oleva käyttäjä näkymätön, jos hänen HITL-nappiaan ei ole renderöity
-
-PR #50: kun B on HITL-modaalissa ja A samassa suodatinnäkymässä, B:n pallura
-osoittaa A:n ruudun reunalta kohti B:n lomakkeen avausnappia (`[data-lomake]`).
-Jos nappia ei ole A:n DOMissa lainkaan (eri sivutussivu, `?alku&koko` /
-osittainen renderöinti ei vielä ehtinyt, eri välilehti mukana/hylätty), suuntaa
-ei tiedetä ja B on A:lle taas näkymätön (`yhteistyo.js` `paivitaKursorit`,
-`ponytail:`-kommentti). Päätä: riittääkö, vai esim. pallura reunaan/nurkkaan
-"muualla tällä sivulla" -merkinnällä tai sivutusnapin viereen.
-
 ## 16. Kannan varmuuskopiot vain tuotantokoneen omalla levyllä (offsite puuttuu)
 
 PR #53 (`varmuuskopio`): dumpit → `/var/backups/opserver/` samalla koneella →
@@ -51,18 +41,6 @@ korkeakouluja/lukuvuosia/tutkimuksia lisätään, sama levyltä-luku-ilmiö pala
 huomaamatta. Tarkista tuotantokoneen RAM (`free -h`) ja harkitse esim. 512 Mt–1 Gt
 asetusta compose-komentoriville. Mittari: `Innodb_buffer_pool_reads` kasvaa
 tasaisen kuorman alla.
-
-## 23. Tuotannon automaattipäivityksen toipuminen #74:n jälkeen todentamatta
-
-Issuet #63/#68/#72: webui-kontti jäi ajamaan poistettua kuvaa (containerd antaa
-rebuildissa uuden ID:n, compose ei luonut konttia uudelleen) → savutestin
-kuvatuoreus FAIL esti päivitykset. PR #74 korjaa `asenna`:n, mutta päivittäjän
-esitarkistus kaatuu yhä vanhaan konttiin, joten tuotannossa tarvitaan kerran
-`cd ~/Opserver && sudo docker compose up -d --force-recreate webui`. Todenna:
-`sudo docker compose ps` (webui IMAGE = `opserver-webui`, ei `sha256:…`),
-`tail paivittaja.log` ("päivitetty: …" uusimpaan mainiin) ja ettei uusia
-"Automaattipäivitys epäonnistui" -issueita synny. Uudet issuet sisältävät nyt
-ajon lokin (#70).
 
 ## 25. GDPR: tietosuojailmoitus puuttuu; nimi ja sähköposti tallentuvat pysyvästi
 
