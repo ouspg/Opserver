@@ -75,6 +75,7 @@ WebUI:n esittely yleisölle = tuotannon `https://<TUOTANTO_DOMAIN>` (Caddy pää
 ## Git-käytännöt
 
 - **Feature-haarat** jokaiselle ei-triviaalille muutokselle — älä commitoi suoraan `main`-haaraan
+- **Avoimet löydökset:** uudet ominaisuudet ja ympäristö-/infrastruktuuritehtävät (sekä avoimet päätökset) → `TASKS.md`; nykyisen koodin korjaukset (bugit, suorituskyky, lint, tietoturva) → GitHub-issue (`gh issue create`, nimike `bug`/`enhancement`)
 - **Haara-nimeämiskäytäntö:** `feature/kuvaus` uusille ominaisuuksille, `fix/kuvaus` bugikorjauksille, `claude/kuvaus` dokumentaatio- ja konfiguraatiomuutoksille
 - **Pienet, selkeät commitit** — jokainen commit edustaa yhtä ymmärrettävää muutosyksikköä
 - **Commitoi jokaisen loogisen kokonaisuuden jälkeen** — älä odota session loppuun; kun yksi itsenäinen muutos on valmis ja testattu, commitoi se heti
