@@ -1,39 +1,7 @@
-# TASKS.md — avoimet löydökset
+# TASKS.md — avoimet ominaisuudet ja ympäristötehtävät
 
-Session-aikana (2026-09-22, tuotannon `asenna`/Caddy/migraatio-työ) havaittuja
-asioita jotka mainittiin mutta ei korjattu tai vahvistettu käyttäjän kanssa.
-Triagoi: korjaa tai sulje.
-
-## 9. Kapea ikkuna (~520 px): yläpalkin muiden käyttäjien ympyrät menevät logon päälle
-
-Havaittu 2026-09-27 PR #44:n selaintestissä (leveys 520 px): `#muut-ympyrat`
-(muiden käyttäjien 24 px profiiliympyrät headerissa) piirtyvät Opserver-logon päälle.
-Ei #44:n aiheuttama (vanha layout). Puhelimella/zoomilla sama. Korjaus esim.
-flex-wrap/rivitys headerin oikeaan reunaan tai ympyröiden piilotus kapealla.
-
-## 11. Logo Opserver.png 212 kt kilpailee kaistasta hitaalla yhteydellä
-
-PR #39:n mittauksessa (400 kbit/s) logo latautui ~10 s ja jakoi kaistan
-datan kanssa. Pienennä (esim. oikean kokoinen PNG/WebP, tai SVG) — muutaman
-rivin muutos, mutta ei tehty #39:ssä rajauksen vuoksi.
-
-## 12. Tuotannon /api/tasot 27–75 s ja /api/lukuvuodet 64 s — verkko vai kone? — SELVITETTY
-
-**2026-09-29:** kone, ei verkko. OpsKuvaus (ka. 6,3 kt) mahtui InnoDB-riville →
-Kurssi ~250 Mt > 128 Mt buffer pool → jokainen Kurssin läpikäynti luki levyltä
-(odottaa/hylätty-listat 9–22 s). Korjattu PR #61 (KurssiKuvaus-taulu, migraatio
-025); tuotannossa mitattuna jälkeenpäin kaikki listat/määrät 0,1–0,6 s. Sulje.
-
-
-2026-09-27 mitattuna klaudekin katkeilevan yhteyden yli tuotannosta: `/api/tasot`
-27–75 s (yksi aikakatkaisu), `/api/lukuvuodet` 6–64 s, vaikka vastaukset ovat
-alle 400 tavua. Paikallisesti tuotannon kokoisella datalla (Colima, 414 Mt) samat
-kutsut <0,4 s kylmänäkin. Todennäköisesti mittaajan verkko, mutta ei vahvistettu:
-kone voi olla muistin/levyn rajoittama (kyselyt skannaavat koko `Kurssi`-taulun,
-jossa ~8 kt OpsKuvaus/rivi). Tarkistus tuotantokoneella itsellään:
-`time curl -s -o /dev/null -u … https://<domain>/api/tasot` (tai mysql:n
-`SELECT Taso … GROUP BY Taso` -aika). Jos hidas: kattava indeksi `(Taso)` tai
-tasot-välimuistin TTL:n pidennys.
+Uudet ominaisuudet, ympäristö-/infrastruktuuritehtävät ja avoimet päätökset.
+Nykyisen koodin korjaukset (bugit, suorituskyky, lint) ovat GitHub-issueina.
 
 ## 13. Tapahtumaloki: tallennus tietokantaan ja näyttäminen
 
@@ -74,16 +42,6 @@ jolloin tuotantokone ei pääse poistamaan kopioita. Kysytty käyttäjältä
 2026-09-28 — kohdekone päättämättä. Harkitse samalla `.env`:n (LLM-avain,
 GITHUB_ISSUE_TOKEN) säilytystä muualla.
 
-## 18. paivittaja käsin ajettuna: hiljainen exit 0 ei kerro syytä
-
-Tuotannossa 2026-09-28 (`ubuntu@esr-project`): `sudo ./paivittaja` → `exit 0`,
-`paivittaja.log` tyhjä. Hiljaisia poistumisia on neljä (lukko, `cliui.valikko`
-käynnissä, HEAD == origin/main, versio `.paivitys_epaonnistui`:ssa) — cronille
-oikein (ei lokispämmiä 5 min välein), mutta käsin testaava ei näe miksi.
-Syy jäi todentamatta (todennäköisesti HEAD == origin/main; ohjeeksi annettu
-`sudo bash -x ./paivittaja 2>&1 | tail -15`). Ehdotus: jos `[[ -t 1 ]]`
-(pääte), tulosta poistumisen syy; cronissa pysyy hiljaisena.
-
 ## 19. MySQL:n innodb_buffer_pool_size on tuotannossa oletus 128 Mt
 
 2026-09-29 (PR #61:n juurisyy): `docker-compose.yml`:n mysql-palvelu ei aseta
@@ -93,21 +51,6 @@ korkeakouluja/lukuvuosia/tutkimuksia lisätään, sama levyltä-luku-ilmiö pala
 huomaamatta. Tarkista tuotantokoneen RAM (`free -h`) ja harkitse esim. 512 Mt–1 Gt
 asetusta compose-komentoriville. Mittari: `Innodb_buffer_pool_reads` kasvaa
 tasaisen kuorman alla.
-
-## 20. Syvä sivutus hidas: hylätty sivu 301/318 = 1,6 s
-
-2026-09-29 tuotannossa: `/luokitukset?tila=hylätty&sivu=300&koko=100` 1,6 s
-(sivu 0: 0,4 s). `ORDER BY k.KurssiNimi LIMIT 100 OFFSET 30000` järjestää ja
-ohittaa ~30 k riviä. Uusi sivunumerovalitsin (PR #56) tekee viimeisille sivuille
-hyppäämisestä helppoa. Jos haittaa: keyset-sivutus (WHERE KurssiNimi > viimeinen)
-tai kattava indeksi `(KKID, VuosiAlku, VuosiLoppu, KurssiNimi)`.
-
-## 22. Nukkuvan/kummituksen zzZ ei erotu 8–10 px pallurissa
-
-PR #57: zzZ piirretään canvasin sisään; 24–28 px pallurissa luettava, mutta
-alavalikon (8 px), välilehti- ja sivutuspallurissa (10 px) se on valkoinen
-läiskä. Harmaa väri ja kummituksen läpinäkyvyys erottuvat silti. Jos haittaa:
-pieniin pallurihin pelkkä "z" tai CSS-merkki canvasin viereen.
 
 ## 23. Tuotannon automaattipäivityksen toipuminen #74:n jälkeen todentamatta
 
@@ -120,12 +63,6 @@ esitarkistus kaatuu yhä vanhaan konttiin, joten tuotannossa tarvitaan kerran
 `tail paivittaja.log` ("päivitetty: …" uusimpaan mainiin) ja ettei uusia
 "Automaattipäivitys epäonnistui" -issueita synny. Uudet issuet sisältävät nyt
 ajon lokin (#70).
-
-## 24. pyflakes: f-merkkijono ilman muuttujia
-
-`cliui/luokittelunaytto.py` (n. rivi 356, ennen #78:n jakoa) ja
-`raportti/_kehotteet.py` (rivit 17 ja 39): `f"..."` ilman `{}`-kenttiä. Harmiton,
-mutta kohinaa lint-ajoissa; poista `f`-etuliite.
 
 ## 25. GDPR: tietosuojailmoitus puuttuu; nimi ja sähköposti tallentuvat pysyvästi
 
@@ -169,16 +106,6 @@ sessiossa tunnistettavissa), joten lyhyt ilmoitus tarvitaan yhä, mutta velvoitt
 kevenevät. Päätettävä samalla kannassa jo olevien nimien/sähköpostien käsittely
 (jätetään / sähköpostit NULLiksi / nimet nimimerkeiksi) — muutos migraationa.
 
-## 26. WebSocket-läsnäoloviestiä ei validoida (luottamusraja)
-
-`webui/yhteistyo.py` `ws_kayttajat`: tuntematon viestityyppi tallennetaan sellaisenaan
-(`_yhteydet[uid] = (ws, data)`) ja lähetetään kaikille (koonti enintään 10/s). Kuka tahansa
-(Basic Auth on jaettu yleisölle) voi lähettää mielivaltaisia kenttiä tai megatavujen
-`tekeminen`/`nimimerkki`-arvoja, jotka monistuvat jokaiselle käyttäjälle jaetussa WiFissä.
-Selaimet näyttävät arvot textContentilla/datasetillä (ei XSS), joten riski on kaista/DoS.
-Korjaus: kenttien valkolista + pituusrajat kuten lomakkeilla (`_kelpo_lomakearvo`), esim.
-nimimerkki ≤ 40, tekeminen ≤ 200, sijainti numeroina. Havaittu 2026-10-01 (#89/#91 työssä).
-
 ## 27. Selaintodennukset eivät ole repossa
 
 PR:ien #80–#92 headless-Chromium-todennukset (XSS-hyötykuormat, delegoidut klikkaukset,
@@ -186,27 +113,3 @@ lomakkeen liittymiskilpa, katselumodaalien läsnäolo, reunakursorit, modaalin v
 tooltipit, paikannus) ajettiin jobin väliaikaisskripteillä, jotka katoavat. Regressiot
 huomataan vain käsin. Harkitse `testit/selain/`-hakemistoa (playwright, perf-kanta tai
 mockattu API; ohitetaan jos playwrightia/kantaa ei ole) tärkeimmille skenaarioille.
-
-## 28. Läsnäolon pienet rajoitukset (todettu, ei korjattu)
-
-- Kurssit-sivulla vanhemman vuoden version katselu: läsnäoloavain on rivin uusimman
-  version KID, joten `siirryKayttajanLuo` avaa uusimman version, ei katsottua vuotta.
-- Pallurien tooltip päivittyy vain omasta hiiren liikkeestä: paikallaan olevan osoittimen
-  alle liikkuva vieraspallura ei näytä tooltipia ennen liikettä.
-- `siirryKayttajanLuo` vierittää toisen hiiren sivukoordinaatteihin: eri ikkunaleveydellä
-  rivitys voi siirtää kohtaa hieman (modaalit ja ankkurit eivät kärsi tästä).
-
-## 29. WebSocket-katkon jälkeen lomakkeen aloittajuus lasketaan uudelleen
-
-`lomakesessio.js`: uudelleenliittyessä (`lomakeUudelleenliity`) ensimmäinen vastaus asettaa
-`_aloittaja = _muokkaajat.length === 1`. Jos lomakkeen avannut A:n yhteys katkeaa hetkeksi
-B:n ollessa mukana, A ei enää ole aloittaja → `muistaTunnistus` ei tallenna A:n omaa nimeä
-tallennuksessa. Korjaus: säilytä `_aloittaja` uudelleenliittymisessä (aseta vain
-ensimmäisellä liittymisellä). Havaittu 2026-09-30 #85:n työssä.
-
-## 30. Päätettävä: kurssin paikannuksen aksenttiriippumattomuus (a ↔ ä)
-
-#92: paikannus (ja olemassa oleva hakusanasuodatin) on aksenttiriippumaton kannan
-collationin (`utf8mb4_0900_ai_ci`) mukaan — "a" löytää myös ä-alkuiset, selainpuolella
-`taita()` samoin. Kysytty käyttäjältä 2026-10-01, ei vastausta. Jos ä:n pitää erota:
-`COLLATE utf8mb4_0900_as_ci` LIKE-ehtoihin ja `taita` ilman NFD-poistoa.
