@@ -225,6 +225,9 @@ const lyhenna = (teksti, pituus = 30) => {
   return s.length > pituus ? `${s.slice(0, pituus - 1)}…` : s;
 };
 
+// Hakuvertailun muoto: pienaakkoset ilman diakriitteja (kuten kannan utf8mb4_0900_ai_ci).
+const taita = (teksti) => String(teksti ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
 // Odota ehtoa (esim. osissa renderöityvää elementtiä) enintään ms; ehdon arvo tai null.
 async function odotaEhtoa(ehto, ms = 15000) {
   for (const loppu = Date.now() + ms; Date.now() < loppu; await new Promise((r) => setTimeout(r, 100))) {

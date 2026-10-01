@@ -1201,3 +1201,18 @@ span.lomake-auki { border-radius: 3px; padding: 0 2px; }
 /* Yläpalkin muiden pallurat: klikkaus siirtää käyttäjän luo. */
 #muut-ympyrat canvas { cursor: pointer; }
 #muut-ympyrat canvas:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* Kurssin paikannus (paikannus.js): kenttä + autocomplete-lista; löydetty rivi välähtää. */
+.paikannus { margin: 0.25rem 0 0.75rem; font-size: 0.9rem; }
+.paikannus-kentta { position: relative; display: inline-block; }
+.paikannus input { width: min(28rem, 70vw); padding: 0.35rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
+.paikannus-lista {
+  position: absolute; left: 0; top: 100%; z-index: 20; min-width: 100%; max-width: 90vw;
+  margin: 2px 0 0; padding: 0.2rem 0; list-style: none; background: #fff;
+  border: 1px solid #c0cce0; border-radius: 4px; box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+}
+.paikannus-lista li { padding: 0.3rem 0.6rem; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.paikannus-lista li.valittu, .paikannus-lista li:hover { background: #e8eefb; }
+.paikannus-lisa { color: #777; font-size: 0.8rem; margin-left: 0.4rem; }
+tr.paikannettu > td { animation: paikannettu 2.5s ease-out; }
+@keyframes paikannettu { 0%, 30% { background-color: #ffe08a; } 100% { background-color: transparent; } }

@@ -124,6 +124,31 @@ let _luokitusLataus = 0;
 // Hae aktiivisen välilehden nykyinen sivu (ja maaratKanssa: suodatetut tilamäärät
 // rinnakkain) palvelimelta ja renderöi. Vain uusin lataus renderöidään: hitaalla
 // yhteydellä edellisen tilan/sivun myöhästynyt vastaus ei saa korvata uutta.
+// Näkymän tila, suodattimet ja järjestys: listaus ja paikannus kysyvät samaa näkymää.
+function luokitusNakyma() {
+  const p = new URLSearchParams(_suodatinParams(luokitus_suodatin));
+  p.set("tila", aktiivinen_tila);
+  if (luokitus_jarjestys.sarake) {
+    p.set("jarjesta", luokitus_jarjestys.sarake);
+    p.set("suunta", luokitus_jarjestys.suunta);
+  }
+  return p;
+}
+
+// Paikannus palvelimelta (koko näkymä, ei vain nykyinen sivu); osuman Indeksi kertoo sivun.
+luoPaikannin(document.getElementById("tutkimus-kurssit-paikannus"), {
+  hae: (teksti) => {
+    const p = luokitusNakyma();
+    p.set("haku", teksti);
+    return haeJson(`/api/tutkimukset/${aktiivinen_tutkimus.Slug}/luokitukset/paikanna?${p}`);
+  },
+  siirry: async (k) => {
+    const sivu = Math.floor(k.Indeksi / TUTKIMUS_KURSSIT_KOKO);
+    if (sivu !== tutkimus_sivu) await vaihdaSivu(sivu);
+  },
+  runko: document.getElementById("tutkimus-kurssit-rungot"),
+});
+
 async function lataaTilaSivu(maaratKanssa = false) {
   const lataus = ++_luokitusLataus;
   document.querySelectorAll(".tila-nappi, .tila-nappi-nav").forEach((b) => {
@@ -136,10 +161,10 @@ async function lataaTilaSivu(maaratKanssa = false) {
   );
   const slug = aktiivinen_tutkimus.Slug;
   const p = _suodatinParams(luokitus_suodatin);
-  const j = luokitus_jarjestys.sarake
-    ? `&jarjesta=${luokitus_jarjestys.sarake}&suunta=${luokitus_jarjestys.suunta}` : "";
-  const url = `/api/tutkimukset/${slug}/luokitukset?tila=${encodeURIComponent(aktiivinen_tila)}`
-    + `&sivu=${tutkimus_sivu}&koko=${TUTKIMUS_KURSSIT_KOKO}` + (p ? `&${p}` : "") + j;
+  const nakyma = luokitusNakyma();
+  nakyma.set("sivu", tutkimus_sivu);
+  nakyma.set("koko", TUTKIMUS_KURSSIT_KOKO);
+  const url = `/api/tutkimukset/${slug}/luokitukset?${nakyma}`;
   const [rivit, maarat] = await Promise.all([
     haeJson(url),
     maaratKanssa ? haeJson(`/api/tutkimukset/${slug}/luokitukset/maarat?${p}`) : null,
