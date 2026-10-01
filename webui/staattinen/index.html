@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Opserver</title>
   <link rel="icon" href="/staattinen/Opserver.ico" sizes="any">
-  <link rel="stylesheet" href="/staattinen/tyyli.css?v=59">
+  <link rel="stylesheet" href="/staattinen/tyyli.css?v=60">
 </head>
 <body>
   <header>
@@ -51,7 +51,7 @@
         </span>
         <span id="kurssit-lkm" class="lkm"></span>
       </div>
-      <div id="kurssit-paikannus" class="paikannus"></div>
+      <div class="kiinnitetyt"><div id="kurssit-paikannus" class="paikannus"></div></div>
       <table>
         <thead>
           <tr>
@@ -85,16 +85,17 @@
         <button class="tila-nappi" data-tila="hylätty" data-alasivu="kurssit-hylatty">Hylätty</button>
         <span id="tutkimus-kurssit-lkm" class="lkm"></span>
       </div>
-      <div id="tutkimus-kurssit-paikannus" class="paikannus"></div>
       <div id="tutkimus-kurssit-suodatin" class="suodattimet"></div>
-      <div class="sivutus tutkimus-kurssit-sivutus"></div>
+      <div class="kiinnitetyt">
+        <div id="tutkimus-kurssit-paikannus" class="paikannus"></div>
+        <div class="sivutus tutkimus-kurssit-sivutus"></div>
+      </div>
       <table>
         <thead>
           <tr><th data-jarjesta="nimi">Nimi</th><th data-jarjesta="koodi">Koodi</th><th data-jarjesta="taso">Taso</th><th data-jarjesta="oppiaine">Oppiaine</th><th data-jarjesta="op">op</th><th>Perustelu</th></tr>
         </thead>
         <tbody id="tutkimus-kurssit-rungot"></tbody>
       </table>
-      <div class="sivutus tutkimus-kurssit-sivutus"></div>
     </section>
 
     <section id="s-tutkimus-arvioinnit" class="nakyma">
@@ -178,12 +179,12 @@
   <script src="/staattinen/kurssit.js?v=4"></script>
   <script src="/staattinen/kurssimodaali.js?v=3"></script>
   <script src="/staattinen/tutkimukset.js?v=1"></script>
-  <script src="/staattinen/luokitukset.js?v=4"></script>
+  <script src="/staattinen/luokitukset.js?v=5"></script>
   <script src="/staattinen/arvioinnit.js?v=2"></script>
   <script src="/staattinen/raportti.js?v=1"></script>
-  <script src="/staattinen/sovellus.js?v=66"></script>
+  <script src="/staattinen/sovellus.js?v=67"></script>
   <script src="/staattinen/profiili.js?v=2"></script>
-  <script src="/staattinen/yhteistyo.js?v=26"></script>
+  <script src="/staattinen/yhteistyo.js?v=27"></script>
   <script src="/staattinen/arviointimuokkaus.js?v=12"></script>
   <script src="/staattinen/raporttimuokkaus.js?v=7"></script>
   <script src="/staattinen/info.js?v=3"></script>
