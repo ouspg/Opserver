@@ -83,11 +83,3 @@ Ne ovat silti pseudonyymejä (käyttäjä voi vaihtaa nimimerkin omaksi nimeksee
 sessiossa tunnistettavissa), joten lyhyt ilmoitus tarvitaan yhä, mutta velvoitteet
 kevenevät. Päätettävä samalla kannassa jo olevien nimien/sähköpostien käsittely
 (jätetään / sähköpostit NULLiksi / nimet nimimerkeiksi) — muutos migraationa.
-
-## 27. Selaintodennukset eivät ole repossa
-
-PR:ien #80–#92 headless-Chromium-todennukset (XSS-hyötykuormat, delegoidut klikkaukset,
-lomakkeen liittymiskilpa, katselumodaalien läsnäolo, reunakursorit, modaalin vieritys,
-tooltipit, paikannus) ajettiin jobin väliaikaisskripteillä, jotka katoavat. Regressiot
-huomataan vain käsin. Harkitse `testit/selain/`-hakemistoa (playwright, perf-kanta tai
-mockattu API; ohitetaan jos playwrightia/kantaa ei ole) tärkeimmille skenaarioille.

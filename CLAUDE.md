@@ -87,6 +87,7 @@ WebUI:n esittely yleisölle = tuotannon `https://<TUOTANTO_DOMAIN>` (Caddy pää
 - Testit sijaitsevat testattavan koodin rinnalla (esim. `tests/test_hakija.py` tiedostolle `hakija.py`)
 - Aja koko testijoukko jokaisen ei-triviaalin muutoksen jälkeen; ei yhdistämistä epäonnistuneiden testien kanssa
 - Testien täytyy olla nopeita eivätkä ne saa vaatia verkkoyhteyttä — mock-ita ulkoiset kutsut (HTTP, LLM API)
+- **Selaintestit** (`testit/selain/`, playwright + headless Chromium): WebUI-käyttäytyminen oikeaa palvelinta ja MySQL:ää vasten, useampi käyttäjä = `kayttaja(...)`-fixturen eri browser context. Jokainen WebUI-muutos saa selaintestin tänne (ei kertakäyttöskriptejä) ja `./testit/selaintesti.sh` ajetaan ennen PR:ää. Tavallinen `pytest` ohittaa ne. Data: `testit/selain/siemen.py` (deterministinen, synteettinen) — laajenna sitä, jos testi tarvitsee uudenlaista dataa
 
 ## Kehitystyökalut
 
@@ -103,6 +104,7 @@ WebUI:n esittely yleisölle = tuotannon `https://<TUOTANTO_DOMAIN>` (Caddy pää
 - **`./paivittaja`** — tuotannon automaattipäivitys (root-cron 5 min, `/etc/cron.d/opserver`, asennetaan `asenna`:n toimesta): uusi origin/main → savutesti → `varmuuskopio` → ff-pull → `./asenna` → savutesti; epäonnistuessa koodi + kanta palautetaan, GitHub-issue (`GITHUB_ISSUE_TOKEN` .env:ssä) eikä samaa versiota yritetä uudelleen (`.paivitys_epaonnistui`). Jos sivu on rikki jo ennen päivitystä: ei päivitetä, issue kerran per versio (`.paivitys_rikki_ilmoitettu`). Jos pipeline (`cliui.valikko`) on käynnissä, lopettaa heti ennen fetchiä
 - **`./varmuuskopio [nimi]`** / **`./varmuuskopio --palauta TIED`** — mysqldump (gzip) hakemistoon `/var/backups/opserver`, 14 vrk säilytys; cron joka yö 03:15. `asenna` asentaa myös unattended-upgradesin (uudelleenkäynnistys tarvittaessa 04:30)
 - **`./testit/paivittajatesti.sh`** / **`./testit/varmuuskopiotesti.sh`** — päivittäjän logiikka stubeilla (ei Dockeria) / dumppi+palautus kertakäyttökontissa (vaatii Dockerin)
+- **`./testit/selaintesti.sh [pytest-argumentit]`** — selaintestit: käynnistää tarvittaessa `opserver-selain-mysql`-kontin (127.0.0.1:21414, jää käyntiin), asentaa playwrightin `.venv`:iin, luo ajolle oman kannan (alustus + migraatiot + siemen) ja uvicornin vapaaseen porttiin. Vaatii Dockerin; klaudekilla aja hiekkalaatikon ulkopuolella (localhost)
 - **`./testit/vahtikoiratesti.sh`** — varmistaa stub-dockerilla, ettei vahtikoira restartoi tervettä mysqliä (ei vaadi Dockeria)
 
 ## WebUI-käytännöt (huono yhteys + yhteisöllinen annotointi)
@@ -117,7 +119,7 @@ WebUI:ta käytetään yhteisöllisissä sessioissa usein huonolla, katkeilevalla
 - **Kursorien sijainti** (`osoittimenSijainti`): modaalissa sisältölaatikon suhteen, kiinteässä yläpalkissa näkymän koordinaateissa, muuten sivun. Reunapallurat rajataan yläpalkin alareunaan; vieritys päivittää oman sijainnin. Pallura-kerrokset ovat `pointer-events: none` (eivät estä klikkauksia) → tooltip `data-tooltip` + geometrinen osuma (`kytkeTooltipit`), ei `title`.
 - **Kurssilistat:** paikannus (`luoPaikannin`, `paikannus.js`) ja kaikki listaus- ja paikannuskyselyt jakavat näkymän parametrit (`luokitusNakyma`) ja järjestyksen (`_luokitus_jarjestys_sql`, päättyy `k.KID` — vakaa sivutus). Taustan vierityslukko kaikille modaaleille on CSS:ssä (`html:has(.modaali:not(.piilotettu))`).
 - **Klassiset skriptit jakavat globaalin näkyvyysalueen:** kääri modaalitiedostot lohkoon ja vie ulos vain `window.*`. Näkymätiedostot (`kurssit.js`, `luokitukset.js`, …) jakavat globaalit tarkoituksella; latauksen aikana kutsuttavan tai luettavan määrittelyn tiedoston on oltava `index.html`:ssä aiemmin (`yhteiset.js` ensin, `sovellus.js` käynnistää näkymien jälkeen). Testi estää päällekkäiset globaalit funktiot ja `let`/`const`-nimet ja vaatii jokaisen `.js`:n `index.html`:ään `?v=N`:llä.
-- **Todenna selaimella ennen PR:ää:** headless-Chromium tuotantokokoista paikallista kantaa vasten, useampi käyttäjä = eri browser context; verkkokatkos/hitaus CDP:n verkkoemulaatiolla.
+- **Todenna selaimella ennen PR:ää:** uusi/päivitetty testi `testit/selain/`:iin ja `./testit/selaintesti.sh` (ks. Testaus); verkkokatkos/hitaus CDP:n verkkoemulaatiolla. Suorituskyky mitataan erikseen tuotantokokoista kantaa vasten.
 
 ## Vaiheiden valmistumiskriteerit
 

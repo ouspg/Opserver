@@ -26,4 +26,5 @@ if [[ -z "${SELAIN_DB_HOST:-}" ]]; then
     done
 fi
 
-OPSERVER_SELAIN=1 exec $PY -m pytest testit/selain "$@"
+[[ " $* " == *" testit/selain"* ]] || set -- testit/selain "$@"  # oletuspolku vain jos polkua ei annettu
+OPSERVER_SELAIN=1 exec $PY -m pytest "$@"

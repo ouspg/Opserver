@@ -5,7 +5,8 @@ korkeakoulua kohden; joka KID % 10:
   0–1 → mukana (Kurssiluokitus.Mukana=1 + arviointivastaukset kaikkiin kysymyksiin)
   2–6 → hylätty (Mukana=0)
   7–9 → odottaa (ei luokitusta)
-Joka viidennellä kurssilla on myös vanhempi versio (2024-2026) → Kurssit-sivun vuosivalitsin.
+Joka viidennellä kurssilla on myös vanhempi versio (2025-2027, kattaa tutkimuksen lukuvuoden
+ja luokitellaan samoin) → Kurssit-sivun vuosivalitsin.
 Hylättyjä on > 4 sivua (100/sivu) → sivutus; mukana-listassa yli sivu."""
 import json
 import random
@@ -65,13 +66,11 @@ def tayta(kursori):
             nimi = f"{r.choice(ALKUSANAT)} {r.choice(LOPPUSANAT)} {r.randint(1, 999)}"
             perus = (kkid, f"L{kkid}_{i}", f"K{kkid}{i:03d}", nimi, r.choice(TASOT), r.choice(OPPIAINEET),
                      str(r.choice([2, 3, 5, 5, 5, 10])))
-            versiot = ["2026-2027"] + (["2024-2026"] if i % 5 == 0 else [])
+            versiot = ["2026-2027"] + (["2025-2027"] if i % 5 == 0 else [])
             for vuosi in versiot:
                 kid += 1
                 kurssit.append((kid, *perus, vuosi))
                 kuvaukset.append((kid, " ".join(_lause(r, 12) for _ in range(4))))
-                if vuosi != "2026-2027":
-                    continue
                 tila = kid % 10
                 if tila <= 1:
                     luokitukset.append((kid, 1, "LLM: " + _lause(r, 10)))
