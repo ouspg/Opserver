@@ -113,10 +113,3 @@ lomakkeen liittymiskilpa, katselumodaalien läsnäolo, reunakursorit, modaalin v
 tooltipit, paikannus) ajettiin jobin väliaikaisskripteillä, jotka katoavat. Regressiot
 huomataan vain käsin. Harkitse `testit/selain/`-hakemistoa (playwright, perf-kanta tai
 mockattu API; ohitetaan jos playwrightia/kantaa ei ole) tärkeimmille skenaarioille.
-
-## 30. Päätettävä: kurssin paikannuksen aksenttiriippumattomuus (a ↔ ä)
-
-#92: paikannus (ja olemassa oleva hakusanasuodatin) on aksenttiriippumaton kannan
-collationin (`utf8mb4_0900_ai_ci`) mukaan — "a" löytää myös ä-alkuiset, selainpuolella
-`taita()` samoin. Kysytty käyttäjältä 2026-10-01, ei vastausta. Jos ä:n pitää erota:
-`COLLATE utf8mb4_0900_as_ci` LIKE-ehtoihin ja `taita` ilman NFD-poistoa.
