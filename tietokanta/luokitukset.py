@@ -127,6 +127,14 @@ _LUOKITUS_JARJESTYS = {
 }
 
 
+def _luokitus_jarjestys_sql(jarjesta: str | None, suunta: str | None) -> str:
+    """Listauksen järjestys (ilman ORDER BY -sanaa); KID ratkaisee tasatilanteet, jotta
+    sivutus on vakaa ja paikannuksen sijainti vastaa listausta (samannimiset kurssit)."""
+    sarake_sql = _LUOKITUS_JARJESTYS.get(jarjesta or "", "k.KurssiNimi")
+    suunta_sql = "DESC" if (suunta or "").lower() == "laskeva" else "ASC"
+    return f"{sarake_sql} {suunta_sql}, k.KurssiNimi, k.KID"
+
+
 def hae_kurssit_luokituksilla(tid: int, tila: str | None = None,
                               sivu: int = 0, koko: int | None = None,
                               kkid: int | None = None, taso: str | None = None,
@@ -141,9 +149,7 @@ def hae_kurssit_luokituksilla(tid: int, tila: str | None = None,
     where, params = _tutkimus_kurssi_scope(tid)
     tila_sql = f" AND {_TILA_EHTO[tila]}" if tila in _TILA_EHTO else ""
     suod_sql, suod_params = _kurssi_suodatin_sql(kkid, taso, hakusana)
-    sarake_sql = _LUOKITUS_JARJESTYS.get(jarjesta or "", "k.KurssiNimi")
-    suunta_sql = "DESC" if (suunta or "").lower() == "laskeva" else "ASC"
-    jarj_sql = f" ORDER BY {sarake_sql} {suunta_sql}, k.KurssiNimi"
+    jarj_sql = f" ORDER BY {_luokitus_jarjestys_sql(jarjesta, suunta)}"
     raja_sql, raja_params = "", []
     if koko:
         raja_sql = " LIMIT %s OFFSET %s"
@@ -155,6 +161,31 @@ def hae_kurssit_luokituksilla(tid: int, tila: str | None = None,
         f"FROM Kurssi k LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s "
         f"WHERE {where}{tila_sql}{suod_sql}{jarj_sql}{raja_sql}",
         (tid, *params, *suod_params, *raja_params),
+    )
+
+
+def paikanna_kurssit(tid: int, haku: str, tila: str | None = None,
+                     kkid: int | None = None, taso: str | None = None,
+                     hakusana: str | None = None, jarjesta: str | None = None,
+                     suunta: str | None = None, raja: int = 10) -> list[dict]:
+    """Kurssin paikannus (WebUI:n autocomplete): listausnäkymän (tila + suodattimet +
+    järjestys, kuten hae_kurssit_luokituksilla) kurssit, joiden nimessä tai koodissa on
+    haku, ja niiden 0-pohjainen Indeksi näkymän järjestyksessä (sivu = Indeksi // koko).
+    Nimen alusta osuvat ensin, muuten listan järjestyksessä; enintään raja kpl."""
+    where, params = _tutkimus_kurssi_scope(tid)
+    tila_sql = f" AND {_TILA_EHTO[tila]}" if tila in _TILA_EHTO else ""
+    suod_sql, suod_params = _kurssi_suodatin_sql(kkid, taso, hakusana)
+    kirjaimellinen = haku.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return _hae_kaikki(
+        f"SELECT KID, KKID, KurssiNimi, Koodi, Indeksi FROM ("
+        f"SELECT k.KID, k.KKID, k.KurssiNimi, k.Koodi, "
+        f"ROW_NUMBER() OVER (ORDER BY {_luokitus_jarjestys_sql(jarjesta, suunta)}) - 1 AS Indeksi "
+        f"FROM Kurssi k LEFT JOIN Kurssiluokitus kl ON k.KID = kl.KID AND kl.TID = %s "
+        f"WHERE {where}{tila_sql}{suod_sql}) nakyma "
+        f"WHERE KurssiNimi LIKE %s OR Koodi LIKE %s "
+        f"ORDER BY KurssiNimi LIKE %s DESC, Indeksi LIMIT %s",
+        (tid, *params, *suod_params, f"%{kirjaimellinen}%", f"%{kirjaimellinen}%",
+         f"{kirjaimellinen}%", raja),
     )
 
 
