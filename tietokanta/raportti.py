@@ -2,6 +2,7 @@
 from tietokanta.yhteys import yhteys
 from tietokanta._yhteiset import (
     _hae_arvo, _hae_kaikki, _hae_yksi, _kattaa_turvallinen, _rajaus, _rivit_dikteina, _suorita,
+    luokitus_suppilo_sql,
 )
 
 
@@ -95,11 +96,16 @@ def _kattavat_kaudet(kursori, lukuvuosi: str | None) -> list[str]:
 
 
 def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
-    """Per-yliopisto-tilastot raporttia varten.
+    """Per-yliopisto-tilastot raporttia varten: suppilo + HITL-korjaukset.
 
     Rajattu tutkimukseen valittuihin korkeakouluihin ja niihin kursseihin,
     joiden OPS-kausi kattaa tutkimuksen lukuvuoden. Tyhjä valinta/lukuvuosi
     (vanha tutkimus) → ei rajausta kyseisen ulottuvuuden osalta.
+
+    Suppilo (luokitus_suppilo_sql + johdetut): KurssiYhteensa → OdottaaMeta (ei
+    luokitusriviä) | MetaHylkaama (meta-suodatuksen alkuperäinen hylkäys) | LLMlle
+    (meta läpäissyt) = OdottaaLLM + LLMKasitelty. Lopputila HITL:n jälkeen:
+    Mukana, Hylatty (= MetaHylatty + LLMHylatty).
     """
     with yhteys() as yht:
         with yht.cursor() as kursori:
@@ -113,20 +119,15 @@ def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
                 vuosi_ehto = "AND 1 = 0"  # lukuvuosi asetettu, mutta yksikään kausi ei kata sitä
 
             kursori.execute(f"""
-                SELECT
-                    ko.KKID,
-                    ko.KouluNimi,
-                    COUNT(DISTINCT k.KID)                                             AS KurssiYhteensa,
-                    COUNT(DISTINCT CASE WHEN kl.TID = %s THEN kl.KID END)            AS LLMKasitelty,
-                    COUNT(DISTINCT CASE WHEN kl.TID = %s AND kl.Mukana = 1 THEN kl.KID END) AS Mukana,
-                    COUNT(DISTINCT CASE WHEN kl.TID = %s AND kl.Mukana = 0 THEN kl.KID END) AS Hylatty
+                SELECT ko.KKID, ko.KouluNimi, COUNT(k.KID) AS KurssiYhteensa,
+                       {luokitus_suppilo_sql()}
                 FROM Korkeakoulu ko
                 LEFT JOIN Kurssi k ON k.KKID = ko.KKID {vuosi_ehto}
-                LEFT JOIN Kurssiluokitus kl ON kl.KID = k.KID
+                LEFT JOIN Kurssiluokitus kl ON kl.KID = k.KID AND kl.TID = %s
                 {kk_ehto}
                 GROUP BY ko.KKID, ko.KouluNimi
                 ORDER BY ko.KouluNimi
-            """, (tid, tid, tid, *(kaudet if kaudet else []), *kkid_lista))
+            """, (*kaudet, tid, *kkid_lista))
             rivit = _rivit_dikteina(kursori)
             # Lisää HITL-tilastot per yliopisto. HitlLkm = korjaustapahtumien määrä.
             # HitlKursseja + juurisyyjakauma lasketaan kunkin kurssin VIIMEISIMMÄSTÄ
@@ -160,6 +161,13 @@ def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
             juurisyy = {r[0]: r[1:] for r in kursori.fetchall()}
 
             for r in rivit:
+                for avain in ("KurssiYhteensa", "Mukana", "OdottaaLLM", "MetaHylatty",
+                              "LLMHylatty", "Luokiteltu", "MetaHylkaama"):
+                    r[avain] = int(r[avain] or 0)
+                r["OdottaaMeta"] = r["KurssiYhteensa"] - r["Luokiteltu"]
+                r["LLMlle"] = r["Luokiteltu"] - r["MetaHylkaama"]
+                r["LLMKasitelty"] = r["LLMlle"] - r["OdottaaLLM"]
+                r["Hylatty"] = r["MetaHylatty"] + r["LLMHylatty"]
                 r["HitlLkm"] = hitl.get(r["KKID"], 0)
                 kurssit, opas, llm, tuntematon = juurisyy.get(r["KKID"], (0, 0, 0, 0))
                 r["HitlKursseja"] = int(kurssit or 0)

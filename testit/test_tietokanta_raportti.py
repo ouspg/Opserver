@@ -87,3 +87,40 @@ def test_kattavat_kaudet_ohittaa_virheellisen_kauden():
     kursori = MagicMock()
     kursori.fetchall.return_value = [("2025-2026",), ("rikki",), (None,)]
     assert tk_raportti._kattavat_kaudet(kursori, "2025-2026") == ["2025-2026"]
+
+
+class TestTilastotYliopistoittain:
+    """Per-yliopisto-suppilo: meta-hylätyt erotetaan LLM:lle menneistä samalla
+    jaetulla SQL-aggregaatilla kuin hae_tutkimuksen_tilanne (DRY)."""
+    SARAKKEET = ("KKID", "KouluNimi", "KurssiYhteensa", "Mukana", "OdottaaLLM",
+                 "MetaHylatty", "LLMHylatty", "Luokiteltu", "MetaHylkaama")
+
+    def _aja(self, kursori, paarivi):
+        from unittest.mock import patch
+        kursori.description = [(n,) for n in self.SARAKKEET]
+        kursori.fetchall.side_effect = [[paarivi], [], []]
+        with patch.object(tk_raportti, "_rajaus", return_value=("2026-2027", [1])), \
+             patch.object(tk_raportti, "_kattavat_kaudet", return_value=["2026-2027"]):
+            return mallit.hae_tilastot_yliopistoittain(1)
+
+    def test_suppilo_per_yliopisto(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        # 100 kurssia: 5 odottaa metaa, 45 meta-hylkäämää (5 niistä ihminen lisäsi),
+        # 50 LLM:lle: 5 odottaa, 28 LLM-hylättyä, 17 LLM-mukana (+5 meta-lisättyä = 22).
+        r = self._aja(kursori, (1, "OY", 100, 22, 5, 40, 28, 95, 45))[0]
+        assert r["OdottaaMeta"] == 5
+        assert r["MetaHylkaama"] == 45
+        assert r["LLMlle"] == 50
+        assert r["OdottaaLLM"] == 5
+        assert r["LLMKasitelty"] == 45        # LLM:lle − odottaa: ei meta-hylkäämiä
+        assert r["LLMHylatty"] == 28
+        assert r["Mukana"] == 22 and r["Hylatty"] == 68
+
+    def test_kayttaa_jaettua_suppiloaggregaattia(self, mock_yhteys):
+        from tietokanta._yhteiset import luokitus_suppilo_sql
+        yht, kursori = mock_yhteys
+        self._aja(kursori, (1, "OY", 0, 0, 0, 0, 0, 0, 0))
+        sql, params = kursori.execute.call_args_list[0][0]
+        assert luokitus_suppilo_sql() in sql
+        assert "kl.KID = k.KID AND kl.TID = %s" in sql   # muiden tutkimusten luokitukset eivät mukana
+        assert list(params) == ["2026-2027", 1, 1]

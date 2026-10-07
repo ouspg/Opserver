@@ -41,3 +41,26 @@ def test_tilastot_vain_nykyisista_mukana_kursseista(tilastot, kysy):
     assert _kysymys(tilastot, "Mitä muuta")["yhteensa"] == mukana
     assert _kysymys(tilastot, "Työelämälähtöisyys")["yhteensa"] == mukana
     assert _kysymys(tilastot, "Joustavuus")["yhteensa"] == mukana
+
+
+def test_suppilo_erottelee_meta_hylkaamat(tilastot, kysy):
+    """Meta-hylkäämät (myös ihmisen myöhemmin lisäämät) eivät ole 'LLM:n käsittelemiä'."""
+    meta = kysy("SELECT COUNT(*) FROM Kurssiluokitus WHERE TID = 1 AND Luokitteluperuste LIKE 'meta:%' "
+                "AND Luokitteluperuste <> 'meta: odottaa LLM-seulontaa'")
+    kaikki = kysy("SELECT COUNT(*) FROM Kurssiluokitus WHERE TID = 1")
+    s = tilastot["suppilo"]
+    assert s["meta_hylkaama"] == meta > 0
+    assert s["llm_lle"] == kaikki - meta
+    assert s["odottaa_llm"] == kysy("SELECT COUNT(*) FROM Kurssiluokitus WHERE TID = 1 AND Mukana IS NULL") > 0
+    assert s["llm_kasitelty"] == s["llm_lle"] - s["odottaa_llm"]
+    assert s["mukana"] == kysy("SELECT COUNT(*) FROM Kurssiluokitus WHERE TID = 1 AND Mukana = 1")
+    assert tilastot["hitl"]["llm_kasitelty"] == s["llm_kasitelty"]
+
+
+def test_raporttinakyma_nayttaa_suppilon(kayttaja, tilastot):
+    sivu = kayttaja(f"/tutkimukset/{SLUG}/raportti", ".raportti-osio[data-avain=kurssit] .suppilo-taulu")
+    osio = ".raportti-osio[data-avain=kurssit]"
+    for luokka, avain in (("suppilo-meta", "meta_hylkaama"), ("suppilo-llm", "llm_lle"),
+                          ("suppilo-mukana", "mukana")):
+        assert sivu.text_content(f"{osio} .{luokka} td:last-child") == str(tilastot["suppilo"][avain])
+    assert "nimittäjänä meta-suodatuksen läpäisseet" in sivu.text_content(f"{osio} .hitl-mittarit")

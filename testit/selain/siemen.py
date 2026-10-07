@@ -104,10 +104,13 @@ def _raportin_poikkeamat(kursori):
       KID % 50 == 11 LLM hylkäsi, ihminen lisäsi (riittamaton_opas)
       KID % 50 == 20 meta hylkäsi, ihminen lisäsi (juurisyy merkitsemättä)
       KID % 50 == 4  ihminen lisäsi ja poisti → palautettu alkutilaan (ei nettomuutosta)
+      KID % 50 == 7  meta läpäisty, odottaa LLM:ää (Mukana NULL, 'meta: odottaa LLM-seulontaa')
       KID % 20 == 1  joustavuusluokka väärällä kirjainkoolla + reunavälilyönnillä
       KID == 10      joustavuusluokka tuntematon ('Ehkä')"""
     kursori.execute("UPDATE Kurssiluokitus SET Luokitteluperuste = 'meta: taso ei vastaa rajausta' "
                     "WHERE TID = 1 AND (KID % 10 = 3 OR KID % 50 = 20)")
+    kursori.execute("INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste) "
+                    "SELECT 1, KID, NULL, 'meta: odottaa LLM-seulontaa' FROM Kurssi WHERE MOD(KID, 50) = 7")
     kursori.execute("INSERT INTO Vastaukset (TID, KysID, KID, Vastaus, Pisteet, Luokka, Malli) "
                     "SELECT 1, ky.KysID, kl.KID, 'vanha arvio', IF(ky.KysID = 4, 5, NULL), "
                     "IF(ky.KysID = 2, 'Täysin', NULL), 'testimalli' FROM Kurssiluokitus kl "

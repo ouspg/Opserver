@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from tietokanta import mallit
 from tietokanta.valimuisti import ttl_valimuisti
-from raportti import llmraportti
+from raportti import llmraportti, mittarit
 from webui.riippuvuudet import TutkimusSlugista
 from webui.reitit_katalogi import _VALIMUISTI_TTL
 
@@ -142,9 +142,8 @@ def api_raportti_tilastot(tutkimus: TutkimusSlugista) -> dict:
     # HITL-laatumittarit (CLAUDE.md vaihe 4): käsin-muutos-% + juurisyyjakauma.
     # Rakenteellinen, auktoritatiivinen luku — ei LLM-generoitua proosaa.
     tilastot = mallit.hae_tilastot_yliopistoittain(tid)
-    hitl = llmraportti.hitl_mittarit(tilastot)
-
-    return {"kysymykset": tulos_kysymykset, "hitl": hitl}
+    return {"kysymykset": tulos_kysymykset, "hitl": mittarit.hitl_mittarit(tilastot),
+            "suppilo": mittarit.suppilo(tilastot)}
 
 
 @reititin.get("/api/tutkimukset/{slug}/raportti/tilanne")

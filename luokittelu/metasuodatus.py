@@ -1,6 +1,7 @@
 """Meta-suodatus: kirjoittaa Kurssiluokitus-rivit korkeakoulu-, lukuvuosi-,
 taso- ja oppiainerajauksilla."""
 from tietokanta import mallit
+from tietokanta._yhteiset import META_ODOTTAA
 
 _ERA = 500  # riviä per tietokantakierros
 
@@ -60,7 +61,7 @@ def aja(tutkimus: dict, edistyminen_cb=None, kohde: str = "uudet") -> tuple[int,
             oa_ok = _oppiaine_ok(kurssi, oppiainerajaus)
             if taso_ok and oa_ok:
                 lapaisseet += 1
-                rivit.append((kurssi["KID"], None, "meta: odottaa LLM-seulontaa"))
+                rivit.append((kurssi["KID"], None, META_ODOTTAA))
             else:
                 syyt = []
                 if not taso_ok:

@@ -201,3 +201,20 @@ def test_api_raportti_tilastot_vain_nykyiset_mukana_kurssit():
          patch("tietokanta.mallit.hae_tilastot_yliopistoittain", return_value=[]):
         asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot")
     hae.assert_called_once_with(TUTKIMUS["TID"], vain_mukana=True)
+
+
+def test_api_raportti_tilastot_palauttaa_suppilon():
+    """Suppilo erottelee meta-suodatuksen hylkäämät LLM:lle menneistä."""
+    tilastot = [{"KKID": 1, "KouluNimi": "TY", "KurssiYhteensa": 100, "OdottaaMeta": 5,
+                 "MetaHylkaama": 60, "LLMlle": 35, "OdottaaLLM": 5, "LLMKasitelty": 30,
+                 "LLMHylatty": 20, "MetaHylatty": 60, "Mukana": 10, "Hylatty": 80, "HitlLkm": 0,
+                 "HitlKursseja": 0, "RiittamatonOpas": 0, "LlmVirhe": 0, "TuntematonSyy": 0}]
+    with patch("tietokanta.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("tietokanta.mallit.hae_kysymykset", return_value=[]), \
+         patch("tietokanta.mallit.hae_vastaukset", return_value=[]), \
+         patch("tietokanta.mallit.hae_tilastot_yliopistoittain", return_value=tilastot):
+        data = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot").json()
+    assert data["suppilo"]["meta_hylkaama"] == 60
+    assert data["suppilo"]["llm_lle"] == 35
+    assert data["suppilo"]["mukana"] == 10
+    assert data["hitl"]["llm_kasitelty"] == 30

@@ -72,7 +72,8 @@ function _hitlMittaritHtml(hitl) {
     `<tr><td>${nimi}</td><td>${lkm}</td><td>${p(pros)} %</td></tr>`;
   return `<p>Käsin muutettuja luokittelupäätöksiä:
         <strong>${hitl.muutettu} / ${hitl.llm_kasitelty}</strong>
-        LLM-luokiteltua kurssia (<strong>${p(hitl.muutettu_pros)} %</strong>).</p>
+        LLM:n luokittelemaa kurssia (<strong>${p(hitl.muutettu_pros)} %</strong>;
+        nimittäjänä meta-suodatuksen läpäisseet kurssit, joille LLM antoi päätöksen).</p>
       <table class="tilasto-taulu">
         <tr><th>Korjauksen juurisyy</th><th>Kursseja</th><th>Osuus korjauksista</th></tr>
         ${rivi("Riittämätön opinto-opas (oppaan laatu)", hitl.opas, hitl.opas_pros)}
@@ -81,12 +82,30 @@ function _hitlMittaritHtml(hitl) {
       </table>`;
 }
 
-function _renderHitlMittarit(hitl) {
-  if (!hitl || !hitl.llm_kasitelty) return "";
+// Kurssien suppilo: meta-suodatuksen (sääntö) hylkäämät erikseen LLM:n seulomista,
+// lopullinen mukana-lista HITL:n jälkeen omana rivinään.
+function _suppiloHtml(s) {
+  const rivi = (nimi, lkm, luokka = "") =>
+    `<tr${luokka ? ` class="${luokka}"` : ""}><td>${nimi}</td><td>${escapeHtml(lkm ?? 0)}</td></tr>`;
+  return `<table class="tilasto-taulu suppilo-taulu">
+        <tr><th>Kurssien karsiutuminen</th><th>Kursseja</th></tr>
+        ${rivi("Tutkimuksen rajauksessa (lukuvuosi + korkeakoulut)", s.kursseja)}
+        ${rivi("Odottaa meta-suodatusta", s.odottaa_meta)}
+        ${rivi("Meta-suodatuksen hylkäämät (taso-/oppiainerajaus)", s.meta_hylkaama, "suppilo-meta")}
+        ${rivi("LLM:lle (meta-suodatuksen läpäisseet)", s.llm_lle, "suppilo-llm")}
+        ${rivi("— joista odottaa LLM-seulontaa", s.odottaa_llm)}
+        ${rivi("— LLM:n luokittelemat", s.llm_kasitelty)}
+        ${rivi("Lopullinen mukana-lista HITL:n jälkeen", s.mukana, "suppilo-mukana")}
+      </table>`;
+}
+
+function _renderHitlMittarit(tilastot) {
+  const hitl = tilastot?.hitl, s = tilastot?.suppilo;
+  if (!s?.kursseja && !hitl?.llm_kasitelty) return "";
   return `
     <div class="tilastot-osio hitl-mittarit">
-      <h3>Ihmistarkistuksen laatumittarit</h3>
-      ${_hitlMittaritHtml(hitl)}
+      ${s?.kursseja ? `<h3>Kurssien suppilo</h3>${_suppiloHtml(s)}` : ""}
+      ${hitl?.llm_kasitelty ? `<h3>Ihmistarkistuksen laatumittarit</h3>${_hitlMittaritHtml(hitl)}` : ""}
     </div>`;
 }
 
@@ -163,7 +182,7 @@ async function renderTutkimusRaportti(slug, tutkimus, sailyta = false) {
   for (const { avain, otsikko } of RAPORTTI_OSIOT) {
     const teksti = osiot[avain] || "";
     let tilastotHtml = avain === "arvioinnit" ? _renderTilastotTaulukko(tilastot) : "";
-    if (avain === "kurssit") tilastotHtml = _renderHitlMittarit(tilastot?.hitl);
+    if (avain === "kurssit") tilastotHtml = _renderHitlMittarit(tilastot);
     const div = document.createElement("div");
     div.className = "raportti-osio";
     div.dataset.avain = avain;
@@ -199,6 +218,7 @@ function avaaRaporttiTulostus(slug, tutkimus, osiot, tilastot) {
   for (const { avain, otsikko } of RAPORTTI_OSIOT) {
     const teksti = osiot[avain] || "";
     html += `<h2>${otsikko}</h2><p>${escapeHtml(teksti).replace(/\n/g, "</p><p>")}</p>`;
+    if (avain === "kurssit" && tilastot?.suppilo?.kursseja) html += _suppiloHtml(tilastot.suppilo);
     if (avain === "kurssit" && tilastot?.hitl?.llm_kasitelty) html += _hitlMittaritHtml(tilastot.hitl);
   }
   html += `<script>window.print();<\/script></body></html>`;

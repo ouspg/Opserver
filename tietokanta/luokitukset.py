@@ -3,6 +3,7 @@ from tietokanta.yhteys import yhteys
 from tietokanta._yhteiset import (
     LUOKITUS_PAIVITYS, _TILA_EHTO, _hae_kaikki, _kurssi_suodatin_sql, _kysely, _lisaa_rivit,
     _rajaus, _rivit_dikteina, _suorita, _tutkimus_kurssi_scope, _vuosi_kattaa_sql,
+    luokitus_suppilo_sql,
 )
 
 
@@ -301,20 +302,14 @@ def hae_tutkimuksen_tilanne(tid: int) -> dict:
             # ja hakee luokitusrivin eq_ref:llä → 0,67 s (mitattu geopalvelin1, sama
             # tulos 171/33716). ANALYZE TABLE ei muuttanut optimoijan valintaa.
             kursori.execute(
-                f"""SELECT STRAIGHT_JOIN
-                           COALESCE(SUM(kl.Mukana = 1), 0),
-                           COALESCE(SUM(kl.Mukana IS NULL), 0),
-                           COALESCE(SUM(kl.Mukana = 0 AND kl.Luokitteluperuste LIKE 'meta:%%'), 0),
-                           COALESCE(SUM(kl.Mukana = 0 AND (kl.Luokitteluperuste NOT LIKE 'meta:%%'
-                                        OR kl.Luokitteluperuste IS NULL)), 0),
-                           COUNT(*)
+                f"""SELECT STRAIGHT_JOIN {luokitus_suppilo_sql()}
                     FROM Kurssi k
                     JOIN Kurssiluokitus kl ON kl.KID = k.KID AND kl.TID = %s
                     WHERE ({vuosi_sql}) AND k.KKID IN ({kk})""",
                 (tid, *vp, *korkeakoulut),
             )
             hyvaksytty, odottaa_llm, hyl_meta, hyl_llm, luok_maara = (
-                int(x) for x in kursori.fetchone())
+                int(x) for x in kursori.fetchone()[:5])
 
     return {
         "kursseja_yht": kursseja_yht,

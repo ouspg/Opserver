@@ -149,6 +149,43 @@ def _vuosi_kattaa_sql(sarake: str, lukuvuosi: str) -> tuple[str, list]:
     return f"{etuliite}VuosiAlku <= %s AND {etuliite}VuosiLoppu >= %s", [alku, loppu]
 
 
+# Meta-suodatuksen läpäisseen (LLM:ää odottavan) kurssin Luokitteluperuste;
+# LLM-päätös korvaa sen. Muut "meta:"-alkuiset perusteet ovat meta-hylkäyksiä.
+META_ODOTTAA = "meta: odottaa LLM-seulontaa"
+
+
+def meta_hylkays_sql(kl: str = "kl") -> str:
+    """SQL-lauseke: 1 jos luokituksen päätös on meta-suodatuksen hylkäys, muuten 0
+    (myös NULL-perusteelle). Peruste säilyy HITL-korjauksessa → kertoo myös, oliko
+    ihmisen kumoama päätös meta-suodatuksen."""
+    p = f"{kl}.Luokitteluperuste"
+    return f"COALESCE(LEFT({p}, 5) = 'meta:' AND {p} <> '{META_ODOTTAA}', 0)"
+
+
+def luokitus_suppilo_sql(kl: str = "kl") -> str:
+    """Kurssiluokitus-rivien suppiloaggregaatit (jaettu: hae_tutkimuksen_tilanne ja
+    raportin per-yliopisto-tilastot). Meta- ja LLM-päätös erotetaan
+    Luokitteluperusteen "meta:"-etuliitteestä, joka säilyy HITL-korjauksessa.
+    LEFT JOINilla puuttuva luokitusrivi (odottaa meta-suodatusta) ei osu mihinkään.
+
+      Mukana       lopullinen mukana (HITL:n jälkeen)
+      OdottaaLLM   meta läpäisty, LLM-päätös puuttuu
+      MetaHylatty  nyt hylätty meta-suodatuksen perusteella (ks. meta_hylkays_sql)
+      LLMHylatty   nyt hylätty, päätös ei meta-suodatuksen (LLM tai ihminen)
+      Luokiteltu   luokitusrivejä (meta-suodatus ajettu)
+      MetaHylkaama meta-suodatuksen alkuperäiset hylkäykset (myös ihmisen myöhemmin lisäämät)
+
+    Ei %-merkkejä (LEFT(...) LIKE:n sijaan), joten sopii parametrillisiin ja
+    parametrittomiin kyselyihin."""
+    meta = meta_hylkays_sql(kl)
+    return (f"COALESCE(SUM({kl}.Mukana = 1), 0) AS Mukana, "
+            f"COALESCE(SUM({kl}.KID IS NOT NULL AND {kl}.Mukana IS NULL), 0) AS OdottaaLLM, "
+            f"COALESCE(SUM({kl}.Mukana = 0 AND {meta}), 0) AS MetaHylatty, "
+            f"COALESCE(SUM({kl}.Mukana = 0 AND NOT {meta}), 0) AS LLMHylatty, "
+            f"COUNT({kl}.KID) AS Luokiteltu, "
+            f"COALESCE(SUM({kl}.KID IS NOT NULL AND {meta}), 0) AS MetaHylkaama")
+
+
 def _rajaus(kursori, tid: int) -> tuple[str | None, list[int]]:
     """Tutkimuksen (lukuvuosi, korkeakoulujen KKID:t) yhdellä kyselyllä."""
     kursori.execute(

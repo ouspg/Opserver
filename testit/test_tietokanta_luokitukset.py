@@ -39,6 +39,16 @@ class TestHaeTutkimuksenTilanne:
             "hyl_meta": 30, "odottaa_llm": 5, "hyl_llm": 15, "hyvaksytty": 10,
         }
 
+    def test_kayttaa_jaettua_suppiloaggregaattia(self, mock_yhteys):
+        """Sama meta/LLM-erottelu kuin raportin per-yliopisto-tilastoissa."""
+        from tietokanta._yhteiset import luokitus_suppilo_sql
+        yht, kursori = mock_yhteys
+        kursori.fetchone.side_effect = [(100,), (80, 65), (10, 5, 30, 15, 60, 32)]
+        with patch("tietokanta.luokitukset._rajaus", return_value=("2025-2026", [1, 2])):
+            t = mallit.hae_tutkimuksen_tilanne(1)
+        assert luokitus_suppilo_sql() in kursori.execute.call_args_list[-1][0][0]
+        assert t["hyvaksytty"] == 10 and t["hyl_meta"] == 30
+
     def test_ilman_lukuvuotta_kaikki_vuosihylattyja(self, mock_yhteys):
         yht, kursori = mock_yhteys
         kursori.fetchone.side_effect = [(100,)]   # kursseja_yht
