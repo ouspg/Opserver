@@ -4,9 +4,10 @@ Auktoritatiivisia lukuja — LLM vain kirjoittaa niistä proosaa."""
 from tietokanta import mallit
 
 # Raporttiteksteissä käytetyt nimet (samat kaikissa osioissa, ettei luvut sekoitu).
-NIMI_MUKANA = "Lopullinen mukana-lista HITL:n jälkeen"
-NIMI_LLM_LLE = "LLM:lle meni (meta-suodatuksen läpäisseet)"
-NIMI_META = "Meta-suodatus (sääntöpohjainen, ei LLM) hylkäsi"
+NIMI_MUKANA = "Lopullinen mukana-lista (HITL:n jälkeen)"
+NIMI_ALKUPERAINEN = "LLM:n alkuperäinen valinta"
+NIMI_LLM_LLE = "LLM:n seulomat kurssit (meta-suodatuksen läpäisseet)"
+NIMI_META = "Meta-suodatuksen hylkäämät (sääntöpohjainen taso-/oppiainerajaus, ei LLM)"
 
 
 def _osuus(osa: int, koko: int) -> float:
@@ -25,8 +26,10 @@ def suppilo(tilastot: list[dict]) -> dict:
     }
 
 
-def suppilo_teksti(s: dict) -> str:
-    """Suppilo kehotteeseen: jokainen luku nimettynä yksiselitteisesti."""
+def keskeiset_luvut_teksti(tilastot: list[dict]) -> str:
+    """Suppilo + LLM:n alkuperäinen valinta kehotteeseen. Sama lohko kaikissa osioissa,
+    jotta jokainen luku on nimetty yksiselitteisesti ja samoin."""
+    s, m = suppilo(tilastot), hitl_mittarit(tilastot)
     return (
         f"- Kursseja tutkimuksen rajauksessa (lukuvuosi + valitut korkeakoulut): {s['kursseja']}\n"
         f"- Odottaa vielä meta-suodatusta: {s['odottaa_meta']}\n"
@@ -34,6 +37,7 @@ def suppilo_teksti(s: dict) -> str:
         f"- {NIMI_LLM_LLE}: {s['llm_lle']}\n"
         f"  - joista odottaa vielä LLM-seulontaa: {s['odottaa_llm']}\n"
         f"  - LLM:n luokittelemia: {s['llm_kasitelty']}\n"
+        f"- {NIMI_ALKUPERAINEN}: {m['llm_alkuperainen']} (ennen ihmisen korjauksia)\n"
         f"- {NIMI_MUKANA}: {s['mukana']}"
     )
 
@@ -60,6 +64,7 @@ def hitl_mittarit(tilastot: list[dict]) -> dict:
 
     - Suunta × kumottu vaihe: lisatty_/poistettu_ × meta/llm (nettomuutokset alkuperäiseen
       automaattiseen päätökseen; edestakaisin alkutilaan käännetyt = palautettu, eivät virheitä).
+    - HITL:n kattavuus: tarkistetut (hyväksytyt tai korjatut) mukana-kurssit.
     - Kumottujen osuudet omista nimittäjistään: LLM-päätökset / LLM:n luokittelemat
       (meta-suodatuksen läpäisseet, joille LLM antoi päätöksen), meta-päätökset /
       meta-suodatuksen hylkäämät.
@@ -69,7 +74,8 @@ def hitl_mittarit(tilastot: list[dict]) -> dict:
     """
     summa = lambda avain: sum(r.get(avain, 0) for r in tilastot)
     m = {"llm_kasitelty": summa("LLMKasitelty"), "meta_hylkaama": summa("MetaHylkaama"),
-         "mukana": summa("Mukana"), "korjattuja": summa("HitlKursseja"),
+         "mukana": summa("Mukana"), "mukana_tarkistettu": summa("MukanaTarkistettu"),
+         "korjattuja": summa("HitlKursseja"),
          "palautettu": summa("Palautettu")}
     for suunta in ("lisatty", "poistettu"):
         etu = suunta.capitalize()
@@ -103,7 +109,7 @@ def hitl_yhteenveto_teksti(m: dict) -> str:
         f"- Ihminen poisti: {m['poistettu']} (LLM:n valitsemia {m['poistettu_llm']}, "
         f"meta-suodatuksen {m['poistettu_meta']})\n"
         f"- Korjattu edestakaisin ja palautettu alkutilaan (ei nettomuutosta): {m['palautettu']}\n"
-        f"- LLM:n alkuperäinen valinta: {m['llm_alkuperainen']} → {NIMI_MUKANA}: {m['mukana']}\n"
+        f"- {NIMI_ALKUPERAINEN}: {m['llm_alkuperainen']} → {NIMI_MUKANA}: {m['mukana']}\n"
         f"- LLM:n päätöksiä kumottu: {m['llm_kumottu']} / {m['llm_kasitelty']} LLM:n luokittelemasta "
         f"kurssista ({m['llm_kumottu_pros']:.1f} %; nimittäjä = meta-suodatuksen läpäisseet "
         f"kurssit, joille LLM antoi päätöksen)\n"
@@ -115,5 +121,10 @@ def hitl_yhteenveto_teksti(m: dict) -> str:
         f"{m['opas']} kpl ({m['opas_pros']:.1f} %)\n"
         f"- {llm_nimi} (kehotetta parannettava): "
         f"{m['llm_virhe']} kpl ({m['llm_virhe_pros']:.1f} %)\n"
-        f"- Juurisyy merkitsemättä: {m['tuntematon']} kpl ({m['tuntematon_pros']:.1f} %)"
+        f"- Juurisyy merkitsemättä: {m['tuntematon']} kpl ({m['tuntematon_pros']:.1f} %)\n"
+        f"HITL:n kattavuus: Ihminen on tarkistanut (hyväksynyt tai korjannut) {m['mukana_tarkistettu']} / "
+        f"{m['mukana']} lopullisen mukana-listan kurssia. Hylättyjä kursseja ei ole käyty "
+        f"järjestelmällisesti läpi: korjauksia on tehty molempiin suuntiin, mutta hylättyjen "
+        f"tarkistuksesta ei ole kirjausta (vain ihmisen lisäämät {m['lisatty']} kurssia tunnetaan). "
+        f"Siksi korjausosuudesta ei voi päätellä väärien poisjättöjen määrää eikä seulonnan tarkkuutta."
     )

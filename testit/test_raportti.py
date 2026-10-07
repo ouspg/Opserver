@@ -18,7 +18,7 @@ TILASTOT = [
         "KKID": 1, "KouluNimi": "Tampereen yliopisto",
         "KurssiYhteensa": 100, "OdottaaMeta": 10, "MetaHylkaama": 50, "LLMlle": 40,
         "OdottaaLLM": 0, "LLMKasitelty": 40, "LLMHylatty": 28, "MetaHylatty": 50,
-        "Mukana": 12, "Hylatty": 78, "HitlLkm": 3,
+        "Mukana": 12, "Hylatty": 78, "HitlLkm": 3, "MukanaTarkistettu": 9,
         "HitlKursseja": 3, "RiittamatonOpas": 2, "LlmVirhe": 1, "TuntematonSyy": 0,
         "LisattyLLM": 1, "LisattyMeta": 1, "PoistettuLLM": 1, "PoistettuMeta": 0,
         "LisattyOpas": 2, "LisattyLlmVirhe": 0, "LisattyTuntematon": 0,
@@ -28,7 +28,7 @@ TILASTOT = [
         "KKID": 2, "KouluNimi": "Aalto-yliopisto",
         "KurssiYhteensa": 80, "OdottaaMeta": 0, "MetaHylkaama": 45, "LLMlle": 35,
         "OdottaaLLM": 5, "LLMKasitelty": 30, "LLMHylatty": 22, "MetaHylatty": 45,
-        "Mukana": 8, "Hylatty": 67, "HitlLkm": 3,
+        "Mukana": 8, "Hylatty": 67, "HitlLkm": 3, "MukanaTarkistettu": 3,
         "HitlKursseja": 2, "RiittamatonOpas": 0, "LlmVirhe": 0, "TuntematonSyy": 1,
         "LisattyLLM": 1, "LisattyMeta": 0, "PoistettuLLM": 0, "PoistettuMeta": 0,
         "LisattyOpas": 0, "LisattyLlmVirhe": 0, "LisattyTuntematon": 1,
@@ -76,13 +76,20 @@ class TestSuppilo:
         assert "* lopullinen mukana-lista HITL:n jälkeen" in tulos
 
     def test_kehotteet_nimeavat_suppilon_luvut(self):
-        for viesti in (llmraportti._rakenna_johdanto_viesti(TUTKIMUS, TILASTOT),
-                       llmraportti._rakenna_kurssit_viesti(TUTKIMUS, TILASTOT)):
-            assert "Meta-suodatus (sääntöpohjainen, ei LLM) hylkäsi: 95" in viesti
-            assert "LLM:lle meni (meta-suodatuksen läpäisseet): 75" in viesti
+        """Kaikki osiot käyttävät samoja yksiselitteisiä nimiä samoille luvuille."""
+        for viesti in llmraportti.rakenna_viestit(TUTKIMUS, TILASTOT, KYSYMYKSET).values():
+            assert "Meta-suodatuksen hylkäämät (sääntöpohjainen taso-/oppiainerajaus, ei LLM): 95" in viesti
+            assert "LLM:n seulomat kurssit (meta-suodatuksen läpäisseet): 75" in viesti
             assert "LLM:n luokittelemia: 70" in viesti
-            assert "Lopullinen mukana-lista HITL:n jälkeen: 20" in viesti
+            assert "LLM:n alkuperäinen valinta: 18" in viesti
+            assert "Lopullinen mukana-lista (HITL:n jälkeen): 20" in viesti
             assert "LLM käsitteli 180" not in viesti
+
+    def test_kurssit_kertoo_hitl_kattavuuden(self):
+        viesti = llmraportti._rakenna_kurssit_viesti(TUTKIMUS, TILASTOT)
+        assert "Ihminen on tarkistanut (hyväksynyt tai korjannut) 12 / 20 lopullisen mukana-listan kurssia" in viesti
+        assert "Hylättyjä kursseja ei ole käyty järjestelmällisesti läpi" in viesti
+        assert "väärien poisjättöjen määrää" in viesti
 
     def test_hitl_nimittaja_on_llm_luokitellut(self):
         """Käsin muutettujen osuus lasketaan LLM:n luokittelemista, ei kaikista kursseista."""
@@ -139,7 +146,7 @@ class TestRakennaViestiKurssit:
         assert "Ihminen poisti: 1 (LLM:n valitsemia 1, meta-suodatuksen 0)" in viesti
         assert "palautettu alkutilaan (ei nettomuutosta): 1" in viesti
         assert "LLM:n alkuperäinen valinta: 18" in viesti
-        assert "Lopullinen mukana-lista HITL:n jälkeen: 20" in viesti
+        assert "Lopullinen mukana-lista (HITL:n jälkeen): 20" in viesti
         assert "liian tiukka" in viesti and "liian salliva" in viesti
 
     def test_sisaltaa_juurisyyjakauman(self):
@@ -263,7 +270,7 @@ class TestRakennaViestiArvioinnit:
         tilastorajapinnan jakaumat); keskeneräiset arvioinnit kerrotaan erikseen."""
         with patch("raportti.llmraportti.mallit.laske_arvioimattomat", return_value=3) as laske:
             viesti = llmraportti._rakenna_arvioinnit_viesti(TUTKIMUS, KYSYMYKSET, TILASTOT)
-        assert "Arvioitavia kursseja (lopullinen mukana-lista HITL:n jälkeen): 20" in viesti
+        assert "Arvioitavat kurssit = lopullinen mukana-lista (HITL:n jälkeen): 20" in viesti
         assert "joista arviointi kesken: 3" in viesti
         laske.assert_called_once_with(TUTKIMUS["TID"])
 

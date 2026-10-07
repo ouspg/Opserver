@@ -93,7 +93,7 @@ class TestTilastotYliopistoittain:
     """Per-yliopisto-suppilo: meta-hylätyt erotetaan LLM:lle menneistä samalla
     jaetulla SQL-aggregaatilla kuin hae_tutkimuksen_tilanne (DRY)."""
     SARAKKEET = ("KKID", "KouluNimi", "KurssiYhteensa", "Mukana", "OdottaaLLM",
-                 "MetaHylatty", "LLMHylatty", "Luokiteltu", "MetaHylkaama")
+                 "MetaHylatty", "LLMHylatty", "Luokiteltu", "MetaHylkaama", "MukanaTarkistettu")
 
     def _aja(self, kursori, paarivi, hitl=(), hitl_ryhmat=()):
         from unittest.mock import patch
@@ -107,7 +107,7 @@ class TestTilastotYliopistoittain:
         yht, kursori = mock_yhteys
         # 100 kurssia: 5 odottaa metaa, 45 meta-hylkäämää (5 niistä ihminen lisäsi),
         # 50 LLM:lle: 5 odottaa, 28 LLM-hylättyä, 17 LLM-mukana (+5 meta-lisättyä = 22).
-        r = self._aja(kursori, (1, "OY", 100, 22, 5, 40, 28, 95, 45))[0]
+        r = self._aja(kursori, (1, "OY", 100, 22, 5, 40, 28, 95, 45, 10))[0]
         assert r["OdottaaMeta"] == 5
         assert r["MetaHylkaama"] == 45
         assert r["LLMlle"] == 50
@@ -115,15 +115,19 @@ class TestTilastotYliopistoittain:
         assert r["LLMKasitelty"] == 45        # LLM:lle − odottaa: ei meta-hylkäämiä
         assert r["LLMHylatty"] == 28
         assert r["Mukana"] == 22 and r["Hylatty"] == 68
+        assert r["MukanaTarkistettu"] == 10
 
     def test_kayttaa_jaettua_suppiloaggregaattia(self, mock_yhteys):
         from tietokanta._yhteiset import luokitus_suppilo_sql
         yht, kursori = mock_yhteys
-        self._aja(kursori, (1, "OY", 0, 0, 0, 0, 0, 0, 0))
+        self._aja(kursori, (1, "OY", 0, 0, 0, 0, 0, 0, 0, 0))
         sql, params = kursori.execute.call_args_list[0][0]
         assert luokitus_suppilo_sql() in sql
         assert "kl.KID = k.KID AND kl.TID = %s" in sql   # muiden tutkimusten luokitukset eivät mukana
-        assert list(params) == ["2026-2027", 1, 1]
+        assert list(params) == ["2026-2027", 1, 1, 1]
+        # HITL-kattavuus: mukana-kurssi on tarkistettu, jos hyväksytty tai korjattu
+        assert "kl.KayttajaNimi IS NOT NULL OR hk.KID IS NOT NULL" in sql
+        assert "SELECT DISTINCT KID FROM HitlKorjaus WHERE TID = %s" in sql
 
     def test_hitl_suunta_vaihe_ja_juurisyy(self, mock_yhteys):
         """Kunkin kurssin viimeisin korjaus ryhmiteltynä (KKID, UusiTila, Meta,
@@ -131,7 +135,7 @@ class TestTilastotYliopistoittain:
         yht, kursori = mock_yhteys
         ryhmat = [(1, 1, 0, "riittamaton_opas", 1, 4), (1, 1, 1, None, 1, 2),
                   (1, 0, 0, "llm_virhe", 1, 3), (1, 1, 0, "llm_virhe", 0, 5), (2, 0, 0, None, 1, 9)]
-        r = self._aja(kursori, (1, "OY", 100, 22, 5, 40, 28, 95, 45), hitl=[(1, 20)], hitl_ryhmat=ryhmat)[0]
+        r = self._aja(kursori, (1, "OY", 100, 22, 5, 40, 28, 95, 45, 10), hitl=[(1, 20)], hitl_ryhmat=ryhmat)[0]
         assert (r["LisattyLLM"], r["LisattyMeta"], r["PoistettuLLM"], r["PoistettuMeta"]) == (4, 2, 3, 0)
         assert (r["LisattyOpas"], r["LisattyLlmVirhe"], r["LisattyTuntematon"]) == (4, 0, 2)
         assert (r["PoistettuOpas"], r["PoistettuLlmVirhe"], r["PoistettuTuntematon"]) == (0, 3, 0)
@@ -143,7 +147,7 @@ class TestTilastotYliopistoittain:
         """Alkuperäinen päätös: meta-hylkäys = 0, muuten ensimmäisen korjauksen vastakohta."""
         from tietokanta._yhteiset import meta_hylkays_sql
         yht, kursori = mock_yhteys
-        self._aja(kursori, (1, "OY", 0, 0, 0, 0, 0, 0, 0))
+        self._aja(kursori, (1, "OY", 0, 0, 0, 0, 0, 0, 0, 0))
         sql, params = kursori.execute.call_args_list[-1][0]
         assert "MIN(HID)" in sql and "MAX(HID)" in sql
         assert meta_hylkays_sql() in sql

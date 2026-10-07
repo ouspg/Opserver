@@ -161,7 +161,9 @@ def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
     Suppilo (luokitus_suppilo_sql + johdetut): KurssiYhteensa → OdottaaMeta (ei
     luokitusriviä) | MetaHylkaama (meta-suodatuksen alkuperäinen hylkäys) | LLMlle
     (meta läpäissyt) = OdottaaLLM + LLMKasitelty. Lopputila HITL:n jälkeen:
-    Mukana, Hylatty (= MetaHylatty + LLMHylatty). HITL-kentät: ks. _HITL_SUUNTA_SQL.
+    Mukana, Hylatty (= MetaHylatty + LLMHylatty). HITL-kentät: ks. _HITL_SUUNTA_SQL;
+    MukanaTarkistettu = mukana-kurssit, jotka ihminen on hyväksynyt tai korjannut
+    (hylättyjen läpikäynnistä ei ole kirjausta).
     """
     with yhteys() as yht:
         with yht.cursor() as kursori:
@@ -176,14 +178,17 @@ def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
 
             kursori.execute(f"""
                 SELECT ko.KKID, ko.KouluNimi, COUNT(k.KID) AS KurssiYhteensa,
-                       {luokitus_suppilo_sql()}
+                       {luokitus_suppilo_sql()},
+                       COALESCE(SUM(kl.Mukana = 1 AND (kl.KayttajaNimi IS NOT NULL OR hk.KID IS NOT NULL)), 0)
+                           AS MukanaTarkistettu
                 FROM Korkeakoulu ko
                 LEFT JOIN Kurssi k ON k.KKID = ko.KKID {vuosi_ehto}
                 LEFT JOIN Kurssiluokitus kl ON kl.KID = k.KID AND kl.TID = %s
+                LEFT JOIN (SELECT DISTINCT KID FROM HitlKorjaus WHERE TID = %s) hk ON hk.KID = k.KID
                 {kk_ehto}
                 GROUP BY ko.KKID, ko.KouluNimi
                 ORDER BY ko.KouluNimi
-            """, (*kaudet, tid, *kkid_lista))
+            """, (*kaudet, tid, tid, *kkid_lista))
             rivit = _rivit_dikteina(kursori)
             # HitlLkm = korjaustapahtumien määrä per yliopisto.
             kursori.execute("""
@@ -199,7 +204,7 @@ def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
 
             for r in rivit:
                 for avain in ("KurssiYhteensa", "Mukana", "OdottaaLLM", "MetaHylatty",
-                              "LLMHylatty", "Luokiteltu", "MetaHylkaama"):
+                              "LLMHylatty", "Luokiteltu", "MetaHylkaama", "MukanaTarkistettu"):
                     r[avain] = int(r[avain] or 0)
                 r["OdottaaMeta"] = r["KurssiYhteensa"] - r["Luokiteltu"]
                 r["LLMlle"] = r["Luokiteltu"] - r["MetaHylkaama"]

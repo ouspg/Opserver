@@ -4,7 +4,7 @@ from tietokanta import mallit
 from llm import kutsu, tiiviste, kehotteet
 from raportti import kysymystilastot
 from raportti.mittarit import (
-    hitl_mittarit, hitl_yhteenveto_teksti, suppilo, suppilo_teksti, tilasto_taulukko,
+    hitl_mittarit, hitl_yhteenveto_teksti, keskeiset_luvut_teksti, tilasto_taulukko,
 )
 
 OSIOT = ["johdanto", "kurssit", "arvioinnit"]
@@ -14,7 +14,7 @@ OSIOT = ["johdanto", "kurssit", "arvioinnit"]
 _TIIVISTEEN_TILASTOKENTAT = (
     "KKID", "KurssiYhteensa", "LLMKasitelty", "Mukana", "Hylatty", "OdottaaMeta", "MetaHylkaama",
     "LLMlle", "OdottaaLLM", "LLMHylatty", "HitlLkm", "HitlKursseja", "RiittamatonOpas", "LlmVirhe",
-    "TuntematonSyy", "Palautettu",
+    "TuntematonSyy", "Palautettu", "MukanaTarkistettu",
     *(f"{suunta}{osa}" for suunta in ("Lisatty", "Poistettu")
       for osa in ("Meta", "LLM", "Opas", "LlmVirhe", "Tuntematon")),
 )
@@ -149,8 +149,8 @@ Raportointikehote (tutkimuksen taustaohje): {raportointikehote or '(ei annettu)'
 Yleistilastot:
 - Tarkasteltuja yliopistoja: {yliopistojen_lkm}
 
-Kurssien karsiutuminen (suppilo):
-{suppilo_teksti(suppilo(tilastot))}
+Keskeiset luvut (käytä näitä nimiä):
+{keskeiset_luvut_teksti(tilastot)}
 
 Tasorajaus: {tutkimus.get('Tasorajaus') or '(kaikki tasot)'}
 Oppiainerajaus: {tutkimus.get('Oppiainerajaus') or '(kaikki oppiaineet)'}
@@ -177,8 +177,8 @@ Suodatusperusteet:
 Yliopistokohtaiset tilastot:
 {tilasto_taulukko(tilastot)}
 
-Kurssien karsiutuminen (suppilo):
-{suppilo_teksti(suppilo(tilastot))}
+Keskeiset luvut (käytä näitä nimiä):
+{keskeiset_luvut_teksti(tilastot)}
 
 Ihmistarkistuksen (HITL) laatumittarit:
 {hitl_yhteenveto_teksti(mittarit)}
@@ -191,7 +191,9 @@ osuus korjauksista johtui riittämättömästä opinto-oppaasta (eli oppaan laad
 ei mallin virheestä). Raportoi korjausten suunta: jos ihminen lisäsi kursseja enemmän
 kuin poisti, automaattinen seulonta oli liian tiukka (vääriä poisjättöjä); jos poisti
 enemmän, se oli liian salliva. Kerro myös, kohdistuivatko korjaukset meta-suodatukseen
-vai LLM:n päätöksiin."""
+vai LLM:n päätöksiin. Kerro HITL:n kattavuus (mitä ihminen tarkisti) annettujen lukujen
+mukaan, ja älä päättele seulonnan tarkkuutta tai väärien poisjättöjen määrää korjausosuudesta.
+Selitä HITL-osuuksien nimittäjät."""
 
 
 def _rakenna_arvioinnit_viesti(tutkimus: dict, kysymykset: list[dict], tilastot: list[dict]) -> str:
@@ -208,7 +210,10 @@ Raportointikehote: {raportointikehote or '(ei annettu)'}
 Arviointikehote (ohje LLM:lle kurssin arvioinnissa):
 {tutkimus['Arviointikehote']}
 
-Arvioitavia kursseja (lopullinen mukana-lista HITL:n jälkeen): {mukana_yht}, joista arviointi kesken: {kesken}
+Keskeiset luvut (käytä näitä nimiä):
+{keskeiset_luvut_teksti(tilastot)}
+
+Arvioitavat kurssit = lopullinen mukana-lista (HITL:n jälkeen): {mukana_yht}, joista arviointi kesken: {kesken}
 Vastausjakaumat on laskettu vain näistä kursseista.
 Ihmisten korjaamien vastausten määrä: {korjaukset_lkm}
 

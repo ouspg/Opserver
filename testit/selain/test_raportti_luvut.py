@@ -70,6 +70,7 @@ def test_raporttinakyma_nayttaa_suppilon(kayttaja, tilastot):
     assert sivu.text_content(f"{osio} .hitl-poistettu td:nth-child(2)") == str(h["poistettu_llm"])
     assert sivu.text_content(f"{osio} .hitl-alkuperainen") == str(h["llm_alkuperainen"])
     assert sivu.text_content(f"{osio} .hitl-palautettu") == str(h["palautettu"])
+    assert f"{h['mukana_tarkistettu']} / {h['mukana']}" in sivu.text_content(f"{osio} .hitl-kattavuus")
 
 
 def test_hitl_suunta_ja_kumottu_vaihe(tilastot, kysy):
@@ -108,3 +109,11 @@ def test_korjaa_luokat_oikeaa_kantaa_vasten(kanta, kysy, monkeypatch):
     assert [(r["KID"], r["Luokka"]) for r in tuntemattomat] == [(10, "Ehkä")]
     assert korjaus.korjaa_luokat(1)[0] == 0
     monkeypatch.setattr(yhteys, "_pooli", None)
+
+
+def test_hitl_kattavuus(tilastot, kysy):
+    """Tarkistettu mukana-kurssi = hyväksytty (KayttajaNimi) tai ihmisen korjaama."""
+    odotettu = kysy("SELECT COUNT(*) FROM Kurssiluokitus kl WHERE TID = 1 AND Mukana = 1 AND "
+                    "(KayttajaNimi IS NOT NULL OR EXISTS (SELECT 1 FROM HitlKorjaus hk "
+                    "WHERE hk.TID = 1 AND hk.KID = kl.KID))")
+    assert tilastot["hitl"]["mukana_tarkistettu"] == odotettu > 0

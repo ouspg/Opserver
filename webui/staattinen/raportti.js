@@ -76,7 +76,7 @@ function _hitlMittaritHtml(hitl) {
     `<tr><td>${nimi}</td><td>${n(hitl[`lisatty_${s}`])}</td><td>${n(hitl[`poistettu_${s}`])}</td>` +
     `<td>${n(hitl[s])}</td><td>${p(hitl[`${s}_pros`])} %</td></tr>`;
   return `<p>LLM:n alkuperäinen valinta <strong class="hitl-alkuperainen">${n(hitl.llm_alkuperainen)}</strong>
-        kurssia → lopullinen mukana-lista HITL:n jälkeen <strong>${n(hitl.mukana)}</strong>.</p>
+        kurssia → lopullinen mukana-lista (HITL:n jälkeen) <strong>${n(hitl.mukana)}</strong>.</p>
       <table class="tilasto-taulu hitl-suunta">
         <tr><th>Ihmisen nettomuutos</th><th>LLM:n päätös</th><th>Meta-suodatuksen päätös</th><th>Yhteensä</th></tr>
         ${suunta("hitl-lisatty", "Lisäsi mukaan", "lisatty")}
@@ -88,6 +88,9 @@ function _hitlMittaritHtml(hitl) {
         Meta-suodatuksen päätöksiä kumottu: ${n(hitl.meta_kumottu)} / ${n(hitl.meta_hylkaama)}
         (${p(hitl.meta_kumottu_pros)} %). Edestakaisin korjattuja, palautettu alkutilaan:
         <span class="hitl-palautettu">${n(hitl.palautettu)}</span>.</p>
+      <p class="hitl-kattavuus">Kattavuus: ihminen on tarkistanut (hyväksynyt tai korjannut)
+        <strong>${n(hitl.mukana_tarkistettu)} / ${n(hitl.mukana)}</strong> mukana-listan kurssia.
+        Hylättyjä ei ole käyty järjestelmällisesti läpi, joten väärien poisjättöjen määrää ei tiedetä.</p>
       <table class="tilasto-taulu">
         <tr><th>Korjauksen juurisyy</th><th>Lisätyt</th><th>Poistetut</th><th>Yhteensä</th><th>Osuus muutoksista</th></tr>
         ${syy("Riittämätön opinto-opas (oppaan laatu)", "opas")}
@@ -106,10 +109,10 @@ function _suppiloHtml(s) {
         ${rivi("Tutkimuksen rajauksessa (lukuvuosi + korkeakoulut)", s.kursseja)}
         ${rivi("Odottaa meta-suodatusta", s.odottaa_meta)}
         ${rivi("Meta-suodatuksen hylkäämät (taso-/oppiainerajaus)", s.meta_hylkaama, "suppilo-meta")}
-        ${rivi("LLM:lle (meta-suodatuksen läpäisseet)", s.llm_lle, "suppilo-llm")}
+        ${rivi("LLM:n seulomat kurssit (meta-suodatuksen läpäisseet)", s.llm_lle, "suppilo-llm")}
         ${rivi("— joista odottaa LLM-seulontaa", s.odottaa_llm)}
         ${rivi("— LLM:n luokittelemat", s.llm_kasitelty)}
-        ${rivi("Lopullinen mukana-lista HITL:n jälkeen", s.mukana, "suppilo-mukana")}
+        ${rivi("Lopullinen mukana-lista (HITL:n jälkeen)", s.mukana, "suppilo-mukana")}
       </table>`;
 }
 
