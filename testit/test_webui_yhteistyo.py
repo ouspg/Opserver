@@ -1,4 +1,7 @@
 """WebUI-testit: reaaliaikainen yhteistyö: näkymät, jaetut lomakkeet ja läsnäolo (webui/yhteistyo.py)."""
+import pytest
+from starlette.websockets import WebSocketDisconnect
+
 from webui import yhteistyo
 from testit.webui_apu import _auth_pois  # noqa: F401 — autouse-fixture
 from testit.webui_apu import asiakas
@@ -104,3 +107,90 @@ def test_lasnaolopaivitykset_kootaan_yhdeksi_lahetykseksi(monkeypatch):
             a.send_json({"nimimerkki": "A", "sijainti": {"x": x, "y": 0}})
         data = _kayttajaviesti(a)["data"]
         assert [k["sijainti"]["x"] for k in data] == [4]
+
+
+# --- Läsnäoloviestin validointi (#100): luottamusraja selain → kaikki käyttäjät ---
+# Yksi yhteys per testi (ks. yllä): koontitehtävä lähettää samalle yhteydelle.
+
+_PROFIILI = {"taustavari": "#c0392b", "etualavari": "#ffffff",
+             "bitmappi": [0x18, 0x3C, 0x7E, 0xDB, 0xFF, 0x5A, 0x81, 0x42]}
+# Sama muoto kuin yhteistyo.js lahetaTila() lähettää.
+_TILA = {"nimimerkki": "Aino", "profiili": _PROFIILI,
+         "sijainti": {"x": 120.5, "y": 3400, "modaali": True}, "taso": "aktiivinen",
+         "sivu": "/tutkimukset/kyber/kurssit", "nakyma": "abc", "sivunumero": 2,
+         "lomake": "hitl:1:7", "katselu": None, "tekeminen": 'Muokkaa luokittelua kurssille "X"'}
+
+
+@pytest.fixture
+def kootusti(monkeypatch):
+    monkeypatch.setattr(yhteistyo, "_KOONTI_S", 0.01)
+    monkeypatch.setattr(yhteistyo, "_koonti", None)
+
+
+def test_lasnaolon_kelvollinen_tila_valittyy_sellaisenaan(kootusti):
+    with asiakas.websocket_connect("/ws") as a:
+        a.send_json(_TILA)
+        (oma,) = _kayttajaviesti(a)["data"]
+        assert {k: v for k, v in oma.items() if k != "id"} == _TILA
+
+
+def test_lasnaolon_tuntemattomat_ja_virheelliset_kentat_pudotetaan(kootusti):
+    # Kuka tahansa (jaettu Basic Auth) voi lähettää mitä vain: tuntemattomat kentät ja
+    # väärän tyyppiset/ylipitkät arvot eivät saa monistua muille. Kelvolliset säilyvät.
+    paha = {**_TILA, "roska": "x", "nimimerkki": "N" * 41, "tekeminen": "t" * 201,
+            "sivunumero": "2", "taso": "jumala", "nakyma": {"a": 1},
+            "sijainti": {"x": 1e12, "y": 0}, "profiili": {**_PROFIILI, "bitmappi": [999] * 8}}
+    with asiakas.websocket_connect("/ws") as a:
+        a.send_json(paha)
+        (oma,) = _kayttajaviesti(a)["data"]
+        for kentta in ("roska", "nimimerkki", "tekeminen", "sivunumero", "taso", "nakyma",
+                       "sijainti", "profiili"):
+            assert kentta not in oma, kentta
+        assert oma["sivu"] == _TILA["sivu"] and oma["lomake"] == "hitl:1:7"
+        # Sijainnin tuntemattomat avaimet pudotetaan, liput vain totuusarvoina
+        a.send_json({**_TILA, "sijainti": {"x": 1, "y": 2, "ylapalkki": True, "modaali": "x", "z": 5}})
+        assert _kayttajaviesti(a)["data"][0]["sijainti"] == {"x": 1, "y": 2, "ylapalkki": True}
+
+
+def test_ylisuuri_lasnaoloviesti_hylataan_kokonaan(kootusti):
+    # Muutaman kt:n raja ennen JSON-jäsennystä: megatavujen tila ei päädy kenellekään.
+    with asiakas.websocket_connect("/ws") as a:
+        a.send_json({**_TILA, "nimimerkki": "Bertta", "roska": "x" * 5000})
+        a.send_json(_TILA)
+        (oma,) = _kayttajaviesti(a)["data"]
+        assert oma["nimimerkki"] == "Aino" and "roska" not in oma
+
+
+def test_uutisen_teksti_rajataan_ja_roskaviesti_ei_kaada_yhteytta(kootusti):
+    with asiakas.websocket_connect("/ws") as a:
+        a.send_text("ei jsonia")
+        a.send_json([1, 2])
+        a.send_json({"tyyppi": 5})
+        a.send_json({"tyyppi": "uutinen", "teksti": "y" * 1001})
+        a.send_json({"tyyppi": "uutinen", "teksti": {"x": 1}})
+        a.send_json({"tyyppi": "uutinen", "teksti": "Aino hyväksyi"})
+        while (v := a.receive_json())["tyyppi"] != "uutinen":
+            pass
+        assert v["teksti"] == "Aino hyväksyi"
+
+
+def test_jattimainen_viesti_katkaisee_yhteyden(monkeypatch):
+    monkeypatch.setattr(yhteistyo, "_yhteydet", {})
+    with asiakas.websocket_connect("/ws") as a:
+        a.receive_json()
+        a.send_text("x" * (yhteistyo._VIESTI_MAX + 1))
+        with pytest.raises(WebSocketDisconnect):
+            while True:
+                a.receive_json()
+    assert yhteistyo._yhteydet == {}
+
+
+def test_iso_lomakeviesti_kelpaa_kenttajarjestyksesta_riippumatta(monkeypatch):
+    # Raporttiosio voi olla satoja kt; koko rajataan jäsennyksen jälkeen tyypin
+    # mukaan, ei olettamalla "tyyppi"-kentän olevan JSONissa ensimmäisenä.
+    monkeypatch.setattr(yhteistyo, "_lomakkeet", {})
+    iso = "x" * 10_000
+    with asiakas.websocket_connect("/ws") as a:
+        a.send_json({"avain": "raportti:1:johdanto", "arvot": {"teksti": iso}, "tyyppi": "lomake-liity"})
+        a.send_json({"tyyppi": "lomake-liity", "avain": "pieni:1", "arvot": {}})  # pudotettu iso → tämä tulisi ensin
+        assert _lomakeviesti(a)["arvot"] == {"teksti": iso}

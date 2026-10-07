@@ -8,6 +8,8 @@ import pytest
 from testit.selain.conftest import SLUG, _db_asetukset
 
 KUORMA = '<img src=x onerror="window.__xss=(window.__xss||0)+1">XSSTESTI'
+# Palvelin välittää nimimerkin muille vain ≤ 40 merkkisenä (yhteistyo.py, #100).
+NIMI_KUORMA = "<img src=x onerror=__xss=1>XSSTESTI"
 KURSSIT = f"/tutkimukset/{SLUG}/kurssit-valittu"
 RIVI = "#tutkimus-kurssit-rungot tr.kurssi-rivi"
 
@@ -91,7 +93,7 @@ def test_raportti_kuorma_tekstina_eika_tyhjene_pollauksessa(kayttaja, kuorma):
 def test_nimimerkki_raporttimuokkaimessa_tekstina(kayttaja, pohja, kuorma):
     """Toisen käyttäjän kuormaa sisältävä nimimerkki näkyy muokkaajissa tekstinä + ympyrä piirretty."""
     a = kayttaja(f"/tutkimukset/{SLUG}/raportti", ".raportti-osio")
-    profiili = {"nimimerkki": KUORMA, "taustavari": "#c0392b", "etualavari": "#ffffff",
+    profiili = {"nimimerkki": NIMI_KUORMA,"taustavari": "#c0392b", "etualavari": "#ffffff",
                 "bitmappi": [24, 60, 126, 219, 255, 90, 129, 66]}
     b = kayttaja("/")
     b.context.add_cookies([{"name": "opserverKayttaja", "url": pohja,
