@@ -67,3 +67,34 @@ def test_edistyminen_kutsutaan_eran_jalkeen():
          patch("arviointi.korjaus.mallit.aseta_vastaukset"):
         korjaus.korjaa_raaka_json(1, lambda n, yht, k, o: havainnot.append((n, yht, k, o)))
     assert havainnot == [(3, 3, 3, 0)]   # kaikki 3 yhdessä erässä
+
+
+LUOKKAKYSYMYKSET = [
+    {"KysID": 1, "Luokittelu": "luokittelu",
+     "LuokitteluMaarittely": {"luokat": [{"nimi": "Täysin"}, {"nimi": "Ei lainkaan"}]}},
+    {"KysID": 2, "Luokittelu": "asteikko", "LuokitteluMaarittely": {"minimi": 1}},
+]
+
+
+def _aja_luokat(rivit):
+    with patch("arviointi.korjaus.mallit.hae_kysymykset", return_value=LUOKKAKYSYMYKSET), \
+         patch("arviointi.korjaus.mallit.hae_epakanoniset_luokat", return_value=rivit) as hae, \
+         patch("arviointi.korjaus.mallit.paivita_luokat") as paivita:
+        tulos = korjaus.korjaa_luokat(1)
+    return tulos, hae, paivita
+
+
+def test_korjaa_luokat_kanonisoi_ja_jattaa_tuntemattomat():
+    rivit = [{"VasID": 7, "KysID": 1, "KID": 3, "Luokka": "ei lainkaan "},
+             {"VasID": 8, "KysID": 1, "KID": 4, "Luokka": "Ehkä"}]
+    (korjatut, tuntemattomat), hae, paivita = _aja_luokat(rivit)
+    hae.assert_called_once_with(1, {1: ["Täysin", "Ei lainkaan"]})   # vain luokittelukysymykset
+    paivita.assert_called_once_with([("Ei lainkaan", 7)])
+    assert korjatut == 1
+    assert tuntemattomat == [rivit[1]]
+
+
+def test_korjaa_luokat_ei_kirjoita_kun_ei_korjattavaa():
+    (korjatut, tuntemattomat), _, paivita = _aja_luokat([])
+    assert (korjatut, tuntemattomat) == (0, [])
+    paivita.assert_not_called()

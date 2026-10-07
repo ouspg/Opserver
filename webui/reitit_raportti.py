@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from tietokanta import mallit
 from tietokanta.valimuisti import ttl_valimuisti
 from raportti import llmraportti, mittarit
+from arviointi.luokat import kanoninen_luokka
 from webui.riippuvuudet import TutkimusSlugista
 from webui.reitit_katalogi import _VALIMUISTI_TTL
 
@@ -99,7 +100,7 @@ def api_raportti_tilastot(tutkimus: TutkimusSlugista) -> dict:
         if luokittelu == "luokittelu":
             jakauma: dict[str, int] = {}
             for v in vastaukset:
-                luokka = v.get("Luokka") or ""
+                luokka = kanoninen_luokka(k, v.get("Luokka") or "")
                 if luokka:
                     jakauma[luokka] = jakauma.get(luokka, 0) + 1
             kohta["jakauma"] = jakauma

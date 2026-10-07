@@ -220,3 +220,19 @@ def test_api_raportti_tilastot_palauttaa_suppilon():
     assert data["suppilo"]["llm_lle"] == 35
     assert data["suppilo"]["mukana"] == 10
     assert data["hitl"]["llm_kasitelty"] == 30
+
+
+def test_api_raportti_tilastot_kokoaa_luokat_kanonisesti():
+    """Varmistus vanhoille riveille: 'ei lainkaan ' ja 'Ei lainkaan' samaan luokkaan;
+    tuntematon arvo näkyy omana luokkanaan (löydettävissä korjattavaksi)."""
+    ks = [{"KysID": 10, "TID": 1, "Kysymys": "Joustavuus?", "Luokittelu": "luokittelu",
+           "LuokitteluMaarittely": {"luokat": [{"nimi": "Täysin"}, {"nimi": "Ei lainkaan"}]}}]
+    vs = [{"KysID": 10, "KID": k, "Vastaus": "p", "Pisteet": None, "Luokka": l}
+          for k, l in [(1, "Ei lainkaan"), (2, " ei lainkaan "), (3, "TÄYSIN"), (4, "Ehkä")]]
+    with patch("tietokanta.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("tietokanta.mallit.hae_kysymykset", return_value=ks), \
+         patch("tietokanta.mallit.hae_vastaukset", return_value=vs), \
+         patch("tietokanta.mallit.hae_tilastot_yliopistoittain", return_value=[]):
+        k = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot").json()["kysymykset"][0]
+    assert k["jakauma"] == {"Ei lainkaan": 2, "Täysin": 1, "Ehkä": 1}
+    assert k["yhteensa"] == 4

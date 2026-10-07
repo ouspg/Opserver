@@ -83,3 +83,28 @@ def test_hitl_suunta_ja_kumottu_vaihe(tilastot, kysy):
     assert (h["lisatty_opas"], h["lisatty_tuntematon"], h["poistettu_llm_virhe"]) == (lkm(11), lkm(20), lkm(2))
     assert h["llm_virhe"] == lkm(2)     # palautetun kurssin llm_virhe ei ole nettomuutos
     assert h["llm_alkuperainen"] == h["mukana"] - lkm(11) - lkm(20) + lkm(2)
+
+
+def test_jakauma_kokoaa_luokat_kanonisesti(tilastot):
+    """siemen: KID % 20 == 1 → ' täysin ' tms., KID 10 → 'Ehkä' (tuntematon, näkyy omana luokkanaan)."""
+    assert set(_kysymys(tilastot, "Joustavuus")["jakauma"]) == {"Täysin", "Osittain", "Ei lainkaan", "Ehkä"}
+
+
+def test_korjaa_luokat_oikeaa_kantaa_vasten(kanta, kysy, monkeypatch):
+    """Vanhojen rivien korjausajo (CLI-valikko): binäärivertailu löytää epäkanoniset,
+    korjaa ne ja jättää tuntemattoman ennalleen; toinen ajo ei muuta mitään. Viimeisenä,
+    koska muuttaa kantaa (tilastot-fixture on jo laskettu)."""
+    from tietokanta import yhteys
+    from arviointi import korjaus
+    db = _db_asetukset()
+    for avain, arvo in (("DB_HOST", db["host"]), ("DB_PORT", str(db["port"])), ("DB_USER", db["user"]),
+                        ("DB_PASSWORD", db["password"]), ("DB_NAME", kanta)):
+        monkeypatch.setenv(avain, arvo)
+    monkeypatch.setattr(yhteys, "_pooli", None)
+    vaarat = kysy("SELECT COUNT(*) FROM Vastaukset WHERE KysID = 2 AND Luokka COLLATE utf8mb4_bin "
+                  "NOT IN ('Täysin', 'Osittain', 'Ei lainkaan', 'Ehkä')")
+    korjatut, tuntemattomat = korjaus.korjaa_luokat(1)
+    assert korjatut == vaarat > 0
+    assert [(r["KID"], r["Luokka"]) for r in tuntemattomat] == [(10, "Ehkä")]
+    assert korjaus.korjaa_luokat(1)[0] == 0
+    monkeypatch.setattr(yhteys, "_pooli", None)

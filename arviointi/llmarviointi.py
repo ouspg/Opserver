@@ -3,6 +3,7 @@ import json
 import time
 from tietokanta import mallit
 from llm import kutsu, tiiviste, kehotteet, kurssimuoto, asetukset, erakutsu
+from arviointi.luokat import kanoninen_luokka
 
 _OLETUS_ERAKOKO = 5  # kursseja per LLM-kutsu; .env:n ARVIOINTI_ERAKOKO ohittaa
 
@@ -101,7 +102,7 @@ def pura_vastaus(kysymys: dict, raw) -> tuple:
             pass  # katkennut/viallinen → säilyy tekstinä, kuten ennenkin
     if luokittelu == "luokittelu" and isinstance(raw, dict):
         vastaus = raw.get("perustelu", "")
-        luokka = raw.get("luokka", "")
+        luokka = kanoninen_luokka(kysymys, raw.get("luokka", ""))
     elif luokittelu == "asteikko" and isinstance(raw, dict):
         vastaus = raw.get("perustelu", "")
         pisteet = float(raw["pisteet"]) if raw.get("pisteet") is not None else None

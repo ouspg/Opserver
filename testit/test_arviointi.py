@@ -93,6 +93,19 @@ class TestPuraVastaus:
         vastaus, *_ = llmarviointi.pura_vastaus({"Luokittelu": "vapaa_teksti"}, raw)
         assert vastaus == "Kurssi suoritetaan Exam-tenttinä."
 
+    LUOKITTELU = {"Luokittelu": "luokittelu", "LuokitteluMaarittely": {"luokat": [
+        {"nimi": "Täysin", "kuvaus": "a"}, {"nimi": "Ei lainkaan", "kuvaus": "b"}]}}
+
+    def test_luokka_kanonisoidaan_kirjainkoosta_ja_valilyonneista_riippumatta(self):
+        raw = {"luokka": "  ei LAINKAAN ", "perustelu": "Läsnäolo."}
+        _, _, luokka, _ = llmarviointi.pura_vastaus(self.LUOKITTELU, raw)
+        assert luokka == "Ei lainkaan"
+
+    def test_tuntematon_luokka_sailyy_raakana(self):
+        """Dataa ei hävitetä: tuntematon arvo jää sellaisenaan korjattavaksi (korjaus.korjaa_luokat)."""
+        _, _, luokka, _ = llmarviointi.pura_vastaus(self.LUOKITTELU, {"luokka": "Ehkä ", "perustelu": "?"})
+        assert luokka == "Ehkä "
+
     def test_aaltosululla_alkava_mutta_viallinen_jsonvastaus_sailyy_tekstina(self):
         raw = '{katkennut'
         vastaus, *_ = llmarviointi.pura_vastaus({"Luokittelu": "luokittelu"}, raw)
