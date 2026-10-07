@@ -52,7 +52,10 @@ def test_suppilo_erottelee_meta_hylkaamat(tilastot, kysy):
     assert s["meta_hylkaama"] == meta > 0
     assert s["llm_lle"] == kaikki - meta
     assert s["odottaa_llm"] == kysy("SELECT COUNT(*) FROM Kurssiluokitus WHERE TID = 1 AND Mukana IS NULL") > 0
-    assert s["llm_kasitelty"] == s["llm_lle"] - s["odottaa_llm"]
+    # siemen: %100==56 odotti LLM:ää, ihminen päätti suoraan → ei LLM:n käsittelemä (#114)
+    suoraan = kysy("SELECT COUNT(*) FROM Kurssiluokitus WHERE TID = 1 AND MOD(KID, 100) = 56")
+    assert tilastot["hitl"]["suoraan"] == suoraan > 0
+    assert s["llm_kasitelty"] == s["llm_lle"] - s["odottaa_llm"] - suoraan
     assert s["mukana"] == kysy("SELECT COUNT(*) FROM Kurssiluokitus WHERE TID = 1 AND Mukana = 1")
     assert tilastot["hitl"]["llm_kasitelty"] == s["llm_kasitelty"]
 
@@ -83,6 +86,7 @@ def test_hitl_suunta_ja_kumottu_vaihe(tilastot, kysy):
     assert h["palautettu"] == lkm(4) > 0
     assert (h["lisatty_opas"], h["lisatty_tuntematon"], h["poistettu_llm_virhe"]) == (lkm(11), lkm(20), lkm(2))
     assert h["llm_virhe"] == lkm(2)     # palautetun kurssin llm_virhe ei ole nettomuutos
+    # siemen: %100==56 ihmisen suora hylkäys ei ole LLM:n kumottu valinta
     assert h["llm_alkuperainen"] == h["mukana"] - lkm(11) - lkm(20) + lkm(2)
 
 
@@ -111,6 +115,22 @@ def test_kehoteraportti_oikeaa_kantaa_vasten(kanta_ymparisto):
                      "LLM:n alkuperäinen valinta:", "Ihminen lisäsi mukaan:", "Mukana-%",
                      'Ei pääteltävissä opinto-oppaasta ("-")', "Luvut ovat mainintoja"):
         assert odotettu in tulos.stdout
+
+
+def test_hitl_vastaukset_vain_mukana_kursseista(kanta_ymparisto, kysy, monkeypatch):
+    """Ihmisen korjaamat arviovastaukset lasketaan vain nyt mukana olevista kursseista,
+    kuten tilastot (#114); siemen: poistetulla %50==2 -kurssilla korjattu vastaus."""
+    from tietokanta import yhteys, raportti
+    for avain, arvo in kanta_ymparisto.items():
+        monkeypatch.setenv(avain, arvo)
+    monkeypatch.setattr(yhteys, "_pooli", None)
+    kaikki = kysy("SELECT COUNT(*) FROM Vastaukset WHERE TID = 1 AND Malli IS NULL")
+    mukana = kysy("SELECT COUNT(*) FROM Vastaukset v JOIN Kurssiluokitus kl ON kl.TID = 1 "
+                  "AND kl.KID = v.KID AND kl.Mukana = 1 WHERE v.TID = 1 AND v.Malli IS NULL")
+    assert kaikki > mukana
+    assert raportti.laske_hitl_vastaukset(1) == mukana
+    assert raportti.laske_hitl_vastaukset(1, jalkeen="2000-01-01") == mukana
+    monkeypatch.setattr(yhteys, "_pooli", None)
 
 
 def test_korjaa_luokat_oikeaa_kantaa_vasten(kanta_ymparisto, kysy, monkeypatch):

@@ -71,7 +71,8 @@ def hitl_mittarit(tilastot: list[dict]) -> dict:
     - Kumottujen osuudet omista nimittäjistään: LLM-päätökset / LLM:n luokittelemat
       (meta-suodatuksen läpäisseet, joille LLM antoi päätöksen), meta-päätökset /
       meta-suodatuksen hylkäämät.
-    - LLM:n alkuperäinen valinta = lopullinen mukana − ihmisen lisäämät + ihmisen poistamat.
+    - LLM:n alkuperäinen valinta = lopullinen mukana − ihmisen lisäämät + ihmisen poistamat
+      − ihmisen suoraan mukaan ottamat LLM:ää odottaneet.
     - Juurisyyjakauma suunnittain ja yhteensä (osuus nettomuutoksista): riittämätön
       opas (data-ongelma) vs. LLM:n virhe (kehote-ongelma).
     """
@@ -79,7 +80,7 @@ def hitl_mittarit(tilastot: list[dict]) -> dict:
     m = {"llm_kasitelty": summa("LLMKasitelty"), "meta_hylkaama": summa("MetaHylkaama"),
          "mukana": summa("Mukana"), "mukana_tarkistettu": summa("MukanaTarkistettu"),
          "korjattuja": summa("HitlKursseja"),
-         "palautettu": summa("Palautettu")}
+         "palautettu": summa("Palautettu"), "suoraan": summa("Suoraan")}
     for suunta in ("lisatty", "poistettu"):
         etu = suunta.capitalize()
         m[f"{suunta}_meta"], m[f"{suunta}_llm"] = summa(f"{etu}Meta"), summa(f"{etu}LLM")
@@ -91,7 +92,7 @@ def hitl_mittarit(tilastot: list[dict]) -> dict:
     m["llm_kumottu_pros"] = _osuus(m["llm_kumottu"], m["llm_kasitelty"])
     m["meta_kumottu"] = m["lisatty_meta"] + m["poistettu_meta"]
     m["meta_kumottu_pros"] = _osuus(m["meta_kumottu"], m["meta_hylkaama"])
-    m["llm_alkuperainen"] = m["mukana"] - m["lisatty"] + m["poistettu"]
+    m["llm_alkuperainen"] = m["mukana"] - m["lisatty"] + m["poistettu"] - summa("SuoraanMukana")
     for syy in ("opas", "llm_virhe", "tuntematon"):
         m[syy] = m[f"lisatty_{syy}"] + m[f"poistettu_{syy}"]
         m[f"{syy}_pros"] = _osuus(m[syy], m["muutettu"])
@@ -112,6 +113,8 @@ def hitl_yhteenveto_teksti(m: dict) -> str:
         f"- Ihminen poisti: {m['poistettu']} (LLM:n valitsemia {m['poistettu_llm']}, "
         f"meta-suodatuksen {m['poistettu_meta']})\n"
         f"- Korjattu edestakaisin ja palautettu alkutilaan (ei nettomuutosta): {m['palautettu']}\n"
+        f"- LLM-seulontaa odottaneita, jotka ihminen päätti suoraan: {m['suoraan']} "
+        f"(eivät ole LLM:n päätöksiä eivätkä korjauksia)\n"
         f"- {NIMI_ALKUPERAINEN}: {m['llm_alkuperainen']} → {NIMI_MUKANA}: {m['mukana']}\n"
         f"- LLM:n päätöksiä kumottu: {m['llm_kumottu']} / {m['llm_kasitelty']} LLM:n luokittelemasta "
         f"kurssista ({m['llm_kumottu_pros']:.1f} %; nimittäjä = meta-suodatuksen läpäisseet "

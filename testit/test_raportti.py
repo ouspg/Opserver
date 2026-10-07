@@ -219,6 +219,13 @@ class TestHitlMittarit:
         m = mittarit.hitl_mittarit(TILASTOT)
         assert m["mukana"] == 20 and m["llm_alkuperainen"] == 18
 
+    def test_suoraan_paatetyt_eivat_ole_llm_valintoja(self):
+        """Ihmisen suoraan mukaan ottama LLM:ää odottanut kurssi ei ole LLM:n valinta (#114)."""
+        m = mittarit.hitl_mittarit([{**r, "Suoraan": 2, "SuoraanMukana": 1} if r["KKID"] == 1 else r
+                                    for r in TILASTOT])
+        assert m["suoraan"] == 2 and m["llm_alkuperainen"] == 17
+        assert "suoraan: 2" in mittarit.hitl_yhteenveto_teksti(m)
+
     def test_nolla_muutosta_ei_jaa_nollalla(self):
         m = mittarit.hitl_mittarit([{"LLMKasitelty": 0}])
         assert m["llm_kumottu_pros"] == 0.0 and m["meta_kumottu_pros"] == 0.0

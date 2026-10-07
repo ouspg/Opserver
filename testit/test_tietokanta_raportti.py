@@ -80,6 +80,8 @@ class TestRaporttiTila:
         mallit.laske_hitl_vastaukset(1)
         sql, params = kursori.execute.call_args[0]
         assert "Aikaleima" not in sql and list(params) == [1]
+        # Vain nyt mukana olevien kurssien vastaukset (#114), kuten hae_vastaukset(vain_mukana=True)
+        assert "kl.Mukana = 1" in sql
 
 
 def test_kattavat_kaudet_ohittaa_virheellisen_kauden():
@@ -133,8 +135,8 @@ class TestTilastotYliopistoittain:
         """Kunkin kurssin viimeisin korjaus ryhmiteltynä (KKID, UusiTila, Meta,
         Juurisyy, Muutos, lkm): Muutos = 0 → palautettu alkutilaan."""
         yht, kursori = mock_yhteys
-        ryhmat = [(1, 1, 0, "riittamaton_opas", 1, 4), (1, 1, 1, None, 1, 2),
-                  (1, 0, 0, "llm_virhe", 1, 3), (1, 1, 0, "llm_virhe", 0, 5), (2, 0, 0, None, 1, 9)]
+        ryhmat = [(1, 1, 0, "riittamaton_opas", 1, 0, 4), (1, 1, 1, None, 1, 0, 2),
+                  (1, 0, 0, "llm_virhe", 1, 0, 3), (1, 1, 0, "llm_virhe", 0, 0, 5), (2, 0, 0, None, 1, 0, 9)]
         r = self._aja(kursori, (1, "OY", 100, 22, 5, 40, 28, 95, 45, 10), hitl=[(1, 20)], hitl_ryhmat=ryhmat)[0]
         assert (r["LisattyLLM"], r["LisattyMeta"], r["PoistettuLLM"], r["PoistettuMeta"]) == (4, 2, 3, 0)
         assert (r["LisattyOpas"], r["LisattyLlmVirhe"], r["LisattyTuntematon"]) == (4, 0, 2)
@@ -142,6 +144,17 @@ class TestTilastotYliopistoittain:
         assert r["Palautettu"] == 5 and r["HitlKursseja"] == 14 and r["HitlLkm"] == 20
         # Juurisyyt yhteensä vain nettomuutoksista (palautettu ei ole virhe)
         assert (r["RiittamatonOpas"], r["LlmVirhe"], r["TuntematonSyy"]) == (4, 3, 2)
+
+    def test_odottaneen_suora_paatos_ei_ole_llm_paatos(self, mock_yhteys):
+        """LLM:ää odottanut kurssi (META_ODOTTAA), jonka ihminen päätti suoraan:
+        ei LLMKasitelty:ssä eikä LLM:n kumoamissa (#114)."""
+        yht, kursori = mock_yhteys
+        ryhmat = [(1, 1, 0, None, 1, 1, 2), (1, 0, 0, None, 1, 1, 1), (1, 0, 0, None, 1, 0, 3)]
+        r = self._aja(kursori, (1, "OY", 100, 22, 5, 40, 28, 95, 45, 10), hitl_ryhmat=ryhmat)[0]
+        assert r["Suoraan"] == 3 and r["SuoraanMukana"] == 2
+        assert r["LLMKasitelty"] == 42       # 50 LLM:lle − 5 odottaa − 3 ihmisen suoraan päättämää
+        assert (r["LisattyLLM"], r["PoistettuLLM"]) == (0, 3)
+        assert r["HitlKursseja"] == 6
 
     def test_hitl_kysely_vertaa_ensimmaiseen_korjaukseen(self, mock_yhteys):
         """Alkuperäinen päätös: meta-hylkäys = 0, muuten ensimmäisen korjauksen vastakohta."""
@@ -151,6 +164,7 @@ class TestTilastotYliopistoittain:
         sql, params = kursori.execute.call_args_list[-1][0]
         assert "MIN(HID)" in sql and "MAX(HID)" in sql
         assert meta_hylkays_sql() in sql
+        assert f"kl.Luokitteluperuste = '{tk_raportti.META_ODOTTAA}'" in sql
         assert list(params) == [1, 1]
 
 
