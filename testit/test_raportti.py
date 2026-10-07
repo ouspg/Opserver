@@ -236,7 +236,8 @@ class TestRaporttiTiiviste:
 def _hitl_maara():
     """Arvioinnit-osion korjausmäärä on COUNT-kysely; oletuksena 0."""
     with patch("raportti.llmraportti.mallit.laske_hitl_vastaukset", return_value=0) as m, \
-         patch("raportti.llmraportti.mallit.laske_arvioimattomat", return_value=0):
+         patch("raportti.llmraportti.mallit.laske_arvioimattomat", return_value=0), \
+         patch("tietokanta.mallit.hae_vastaukset", return_value=[]):
         yield m
 
 
@@ -265,6 +266,21 @@ class TestRakennaViestiArvioinnit:
         assert "Arvioitavia kursseja (lopullinen mukana-lista HITL:n jälkeen): 20" in viesti
         assert "joista arviointi kesken: 3" in viesti
         laske.assert_called_once_with(TUTKIMUS["TID"])
+
+
+    def test_sisaltaa_jakaumat_ja_ei_paateltavissa(self):
+        """Sama laskenta kuin tilastorajapinnassa (kysymystilastot), mukana-kurssit."""
+        kys = [{"KysID": 2, "Kysymys": "Joustavuus?", "Luokittelu": "luokittelu", "LuokitteluMaarittely": {
+            "luokat": [{"nimi": "Täysin", "kuvaus": "etänä"}, {"nimi": "ei voi päätellä", "kuvaus": "?"}]}}]
+        vs = [{"KysID": 2, "KID": k, "Vastaus": "p", "Luokka": l}
+              for k, l in [(1, "Täysin"), (2, "täysin"), (3, "ei voi päätellä"), (4, "Täysin")]]
+        with patch("tietokanta.mallit.hae_vastaukset", return_value=vs) as hae:
+            viesti = llmraportti._rakenna_arvioinnit_viesti(TUTKIMUS, kys, TILASTOT)
+        hae.assert_called_once_with(TUTKIMUS["TID"], vain_mukana=True)
+        assert "- Täysin: 3 (75.0 %)" in viesti
+        assert 'Ei pääteltävissä opinto-oppaasta ("ei voi päätellä"): 1 (25.0 %)' in viesti
+        assert "pääviesti" in viesti
+        assert "vahvempi näyttö" in viesti and "riittämättömyyden" in viesti
 
 
 class TestAja:

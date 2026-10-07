@@ -2,6 +2,7 @@
 import json
 from tietokanta import mallit
 from llm import kutsu, tiiviste, kehotteet
+from raportti import kysymystilastot
 from raportti.mittarit import (
     hitl_mittarit, hitl_yhteenveto_teksti, suppilo, suppilo_teksti, tilasto_taulukko,
 )
@@ -197,7 +198,7 @@ def _rakenna_arvioinnit_viesti(tutkimus: dict, kysymykset: list[dict], tilastot:
     mukana_yht = sum(r["Mukana"] for r in tilastot)
     korjaukset_lkm = mallit.laske_hitl_vastaukset(tutkimus["TID"])
     kesken = mallit.laske_arvioimattomat(tutkimus["TID"])
-    kysymysteksti = "\n".join(f"{i+1}. {k['Kysymys']}" for i, k in enumerate(kysymykset))
+    jakaumat = kysymystilastot.kehoteteksti(kysymystilastot.hae(tutkimus["TID"], kysymykset))
     raportointikehote = tutkimus.get("Raportointikehote") or ""
     return f"""Kirjoita tutkimusraportin arvioinnit-osio seuraavien tietojen pohjalta.
 
@@ -207,15 +208,21 @@ Raportointikehote: {raportointikehote or '(ei annettu)'}
 Arviointikehote (ohje LLM:lle kurssin arvioinnissa):
 {tutkimus['Arviointikehote']}
 
-Arviointikysymykset ({len(kysymykset)} kpl):
-{kysymysteksti or '(ei kysymyksiä)'}
-
 Arvioitavia kursseja (lopullinen mukana-lista HITL:n jälkeen): {mukana_yht}, joista arviointi kesken: {kesken}
-Vastausjakaumat (tilastot) on laskettu vain näistä kursseista.
+Vastausjakaumat on laskettu vain näistä kursseista.
 Ihmisten korjaamien vastausten määrä: {korjaukset_lkm}
 
-Kirjoita osio, joka esittelee arviointimenetelmän, käytetyt kysymykset ja kuvaa
-arvioinnin laajuuden sekä ihmisten tekemien korjausten merkityksen."""
+Arviointikysymykset ({len(kysymykset)} kpl) ja vastausjakaumat (osuudet vastanneista kursseista):
+{jakaumat}
+
+Kirjoita osio, joka esittelee arviointimenetelmän ja käytetyt kysymykset sekä kuvaa
+arvioinnin laajuuden ja ihmisten tekemien korjausten merkityksen. Tulkitse kunkin
+kysymyksen pääviesti jakaumasta (esim. täysin joustavien kurssien osuus, aiempaa
+osaamista vaativien kurssien osuus) ja käytä annettuja prosentteja. Raportoi jokaisen
+kysymyksen "ei pääteltävissä" -vastausten osuus opinto-oppaiden riittämättömyyden
+mittarina: se kattaa kaikki arvioidut kurssit, joten se on vahvempi näyttö oppaiden
+puutteista kuin HITL-korjausten juurisyyt (jotka koskevat vain ihmisen korjaamia kursseja).
+Lista-kysymyksen luvut ovat mainintoja, eivät kurssien osuuksia, jotka summautuisivat 100 %:iin."""
 
 
 def aja(tutkimus: dict, edistyminen_cb=None) -> int:
