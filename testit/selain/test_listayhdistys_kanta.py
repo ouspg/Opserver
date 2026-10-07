@@ -62,7 +62,6 @@ def test_arvomaarat_erottavat_kirjainkoon(db):
 
 
 def test_kuittaus_kirjoittaa_listat_ja_paatokset_idempotentisti(db):
-    from tietokanta import mallit
     from raportti import listanormalisointi as ln
     kysid = db["kysid"]
     aikaleimat = db["kysy"]("SELECT VasID, Aikaleima, Kehotetiiviste FROM Vastaukset WHERE TID = %s", (TID,))
