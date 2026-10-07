@@ -56,36 +56,61 @@ def tilasto_taulukko(rivit: list[dict]) -> str:
 
 
 def hitl_mittarit(tilastot: list[dict]) -> dict:
-    """Kaksi raporttimittaria HITL-korjauksista (CLAUDE.md, vaihe 4):
+    """HITL-korjausmittarit (CLAUDE.md, vaihe 4) kunkin kurssin viimeisimmästä korjauksesta.
 
-    1. Käsin muutettujen osuus = muutetut kurssit / LLM:n luokittelemat kurssit
-       (meta-suodatuksen läpäisseet, joille LLM on antanut päätöksen).
-    2. Juurisyyjakauma = korjauksista montako % johtui riittämättömästä
-       oppaasta (data-ongelma) vs. LLM:n virheestä (kehote-ongelma).
+    - Suunta × kumottu vaihe: lisatty_/poistettu_ × meta/llm (nettomuutokset alkuperäiseen
+      automaattiseen päätökseen; edestakaisin alkutilaan käännetyt = palautettu, eivät virheitä).
+    - Kumottujen osuudet omista nimittäjistään: LLM-päätökset / LLM:n luokittelemat
+      (meta-suodatuksen läpäisseet, joille LLM antoi päätöksen), meta-päätökset /
+      meta-suodatuksen hylkäämät.
+    - LLM:n alkuperäinen valinta = lopullinen mukana − ihmisen lisäämät + ihmisen poistamat.
+    - Juurisyyjakauma suunnittain ja yhteensä (osuus nettomuutoksista): riittämätön
+      opas (data-ongelma) vs. LLM:n virhe (kehote-ongelma).
     """
-    llm_kasitelty = sum(r["LLMKasitelty"] for r in tilastot)
-    muutettu = sum(r["HitlKursseja"] for r in tilastot)
-    opas = sum(r["RiittamatonOpas"] for r in tilastot)
-    llm_virhe = sum(r["LlmVirhe"] for r in tilastot)
-    tuntematon = sum(r["TuntematonSyy"] for r in tilastot)
-    return {
-        "llm_kasitelty": llm_kasitelty, "muutettu": muutettu,
-        "muutettu_pros": _osuus(muutettu, llm_kasitelty),
-        "opas": opas, "opas_pros": _osuus(opas, muutettu),
-        "llm_virhe": llm_virhe, "llm_virhe_pros": _osuus(llm_virhe, muutettu),
-        "tuntematon": tuntematon, "tuntematon_pros": _osuus(tuntematon, muutettu),
-    }
+    summa = lambda avain: sum(r.get(avain, 0) for r in tilastot)
+    m = {"llm_kasitelty": summa("LLMKasitelty"), "meta_hylkaama": summa("MetaHylkaama"),
+         "mukana": summa("Mukana"), "korjattuja": summa("HitlKursseja"),
+         "palautettu": summa("Palautettu")}
+    for suunta in ("lisatty", "poistettu"):
+        etu = suunta.capitalize()
+        m[f"{suunta}_meta"], m[f"{suunta}_llm"] = summa(f"{etu}Meta"), summa(f"{etu}LLM")
+        m[suunta] = m[f"{suunta}_meta"] + m[f"{suunta}_llm"]
+        for syy, avain in (("opas", "Opas"), ("llm_virhe", "LlmVirhe"), ("tuntematon", "Tuntematon")):
+            m[f"{suunta}_{syy}"] = summa(f"{etu}{avain}")
+    m["muutettu"] = m["lisatty"] + m["poistettu"]
+    m["llm_kumottu"] = m["lisatty_llm"] + m["poistettu_llm"]
+    m["llm_kumottu_pros"] = _osuus(m["llm_kumottu"], m["llm_kasitelty"])
+    m["meta_kumottu"] = m["lisatty_meta"] + m["poistettu_meta"]
+    m["meta_kumottu_pros"] = _osuus(m["meta_kumottu"], m["meta_hylkaama"])
+    m["llm_alkuperainen"] = m["mukana"] - m["lisatty"] + m["poistettu"]
+    for syy in ("opas", "llm_virhe", "tuntematon"):
+        m[syy] = m[f"lisatty_{syy}"] + m[f"poistettu_{syy}"]
+        m[f"{syy}_pros"] = _osuus(m[syy], m["muutettu"])
+    return m
 
 
 def hitl_yhteenveto_teksti(m: dict) -> str:
     """Muotoilee HITL-mittarit raporttikehotteeseen sopivaksi tekstilohkoksi."""
     opas_nimi = mallit.JUURISYYT["riittamaton_opas"]
     llm_nimi = mallit.JUURISYYT["llm_virhe"]
+    syyt = lambda suunta: (f"{opas_nimi} {m[f'{suunta}_opas']}, {llm_nimi} {m[f'{suunta}_llm_virhe']}, "
+                           f"merkitsemättä {m[f'{suunta}_tuntematon']}")
     return (
-        f"Ihmisen käsin muuttamia luokittelupäätöksiä: {m['muutettu']} / "
-        f"{m['llm_kasitelty']} LLM:n luokittelemaa kurssia ({m['muutettu_pros']:.1f} %; "
-        f"nimittäjä = meta-suodatuksen läpäisseet kurssit, joille LLM antoi päätöksen).\n"
-        f"Korjausten juurisyyt (osuus käsin muutetuista kursseista):\n"
+        f"Luokittelupäätösten korjaukset (kunkin kurssin viimeisin korjaus verrattuna "
+        f"alkuperäiseen automaattiseen päätökseen):\n"
+        f"- Ihminen lisäsi mukaan: {m['lisatty']} (LLM:n hylkäämiä {m['lisatty_llm']}, "
+        f"meta-suodatuksen hylkäämiä {m['lisatty_meta']})\n"
+        f"- Ihminen poisti: {m['poistettu']} (LLM:n valitsemia {m['poistettu_llm']}, "
+        f"meta-suodatuksen {m['poistettu_meta']})\n"
+        f"- Korjattu edestakaisin ja palautettu alkutilaan (ei nettomuutosta): {m['palautettu']}\n"
+        f"- LLM:n alkuperäinen valinta: {m['llm_alkuperainen']} → {NIMI_MUKANA}: {m['mukana']}\n"
+        f"- LLM:n päätöksiä kumottu: {m['llm_kumottu']} / {m['llm_kasitelty']} LLM:n luokittelemasta "
+        f"kurssista ({m['llm_kumottu_pros']:.1f} %; nimittäjä = meta-suodatuksen läpäisseet "
+        f"kurssit, joille LLM antoi päätöksen)\n"
+        f"- Meta-suodatuksen päätöksiä kumottu: {m['meta_kumottu']} / {m['meta_hylkaama']} "
+        f"meta-suodatuksen hylkäämästä ({m['meta_kumottu_pros']:.1f} %)\n"
+        f"Juurisyyt suunnittain: lisätyt: {syyt('lisatty')}; poistetut: {syyt('poistettu')}.\n"
+        f"Juurisyyt yhteensä (osuus {m['muutettu']} nettomuutoksesta):\n"
         f"- {opas_nimi} (tieto ei ollut oppaassa, data-ongelma): "
         f"{m['opas']} kpl ({m['opas_pros']:.1f} %)\n"
         f"- {llm_nimi} (kehotetta parannettava): "

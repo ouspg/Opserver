@@ -80,14 +80,14 @@ def test_api_raportti_tilastot_asteikko():
 
 
 def test_api_raportti_tilastot_hitl_mittarit():
-    """Rakenteellinen HITL-laatumittari: käsin-muutos-% + juurisyyjakauma."""
+    """Rakenteellinen HITL-laatumittari: suunta × kumottu vaihe + juurisyyjakauma."""
     tilastot = [
-        {"KKID": 1, "KouluNimi": "TY", "KurssiYhteensa": 100, "LLMKasitelty": 40,
-         "Mukana": 12, "Hylatty": 28, "HitlLkm": 3,
-         "HitlKursseja": 3, "RiittamatonOpas": 2, "LlmVirhe": 1, "TuntematonSyy": 0},
-        {"KKID": 2, "KouluNimi": "AY", "KurssiYhteensa": 80, "LLMKasitelty": 30,
-         "Mukana": 8, "Hylatty": 22, "HitlLkm": 1,
-         "HitlKursseja": 1, "RiittamatonOpas": 0, "LlmVirhe": 0, "TuntematonSyy": 1},
+        {"KKID": 1, "KouluNimi": "TY", "KurssiYhteensa": 100, "LLMKasitelty": 40, "MetaHylkaama": 50,
+         "Mukana": 12, "Hylatty": 28, "HitlLkm": 3, "HitlKursseja": 3,
+         "LisattyLLM": 1, "LisattyMeta": 1, "PoistettuLLM": 1, "LisattyOpas": 2, "PoistettuLlmVirhe": 1},
+        {"KKID": 2, "KouluNimi": "AY", "KurssiYhteensa": 80, "LLMKasitelty": 30, "MetaHylkaama": 0,
+         "Mukana": 8, "Hylatty": 22, "HitlLkm": 1, "HitlKursseja": 1,
+         "PoistettuLLM": 1, "PoistettuTuntematon": 1},
     ]
     with patch("tietokanta.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("tietokanta.mallit.hae_kysymykset", return_value=[]), \
@@ -98,7 +98,9 @@ def test_api_raportti_tilastot_hitl_mittarit():
     hitl = vastaus.json()["hitl"]
     assert hitl["llm_kasitelty"] == 70
     assert hitl["muutettu"] == 4
-    assert round(hitl["muutettu_pros"], 1) == 5.7
+    assert (hitl["lisatty_llm"], hitl["lisatty_meta"], hitl["poistettu_llm"]) == (1, 1, 2)
+    assert hitl["llm_kumottu"] == 3 and round(hitl["llm_kumottu_pros"], 1) == 4.3
+    assert hitl["llm_alkuperainen"] == 20 - 2 + 2
     assert hitl["opas"] == 2 and round(hitl["opas_pros"], 1) == 50.0
     assert hitl["llm_virhe"] == 1
 

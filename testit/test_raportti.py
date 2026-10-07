@@ -20,18 +20,26 @@ TILASTOT = [
         "OdottaaLLM": 0, "LLMKasitelty": 40, "LLMHylatty": 28, "MetaHylatty": 50,
         "Mukana": 12, "Hylatty": 78, "HitlLkm": 3,
         "HitlKursseja": 3, "RiittamatonOpas": 2, "LlmVirhe": 1, "TuntematonSyy": 0,
+        "LisattyLLM": 1, "LisattyMeta": 1, "PoistettuLLM": 1, "PoistettuMeta": 0,
+        "LisattyOpas": 2, "LisattyLlmVirhe": 0, "LisattyTuntematon": 0,
+        "PoistettuOpas": 0, "PoistettuLlmVirhe": 1, "PoistettuTuntematon": 0, "Palautettu": 0,
     },
     {
         "KKID": 2, "KouluNimi": "Aalto-yliopisto",
         "KurssiYhteensa": 80, "OdottaaMeta": 0, "MetaHylkaama": 45, "LLMlle": 35,
         "OdottaaLLM": 5, "LLMKasitelty": 30, "LLMHylatty": 22, "MetaHylatty": 45,
-        "Mukana": 8, "Hylatty": 67, "HitlLkm": 1,
-        "HitlKursseja": 1, "RiittamatonOpas": 0, "LlmVirhe": 0, "TuntematonSyy": 1,
+        "Mukana": 8, "Hylatty": 67, "HitlLkm": 3,
+        "HitlKursseja": 2, "RiittamatonOpas": 0, "LlmVirhe": 0, "TuntematonSyy": 1,
+        "LisattyLLM": 1, "LisattyMeta": 0, "PoistettuLLM": 0, "PoistettuMeta": 0,
+        "LisattyOpas": 0, "LisattyLlmVirhe": 0, "LisattyTuntematon": 1,
+        "PoistettuOpas": 0, "PoistettuLlmVirhe": 0, "PoistettuTuntematon": 0, "Palautettu": 1,
     },
 ]
 # Suppilo: 180 kurssia → 10 odottaa metaa, 95 meta-hylkäämää, 75 LLM:lle
 # (5 odottaa, 70 LLM-luokiteltua) → lopullinen mukana 20.
-# HITL: LLM-luokiteltu 70, käsin muutettu 4 (5,7 %); juurisyyt
+# HITL (viimeisin korjaus per kurssi): nettomuutoksia 4 = lisätty 3 (LLM 2, meta 1)
+# + poistettu 1 (LLM); 1 palautettu alkutilaan. LLM-päätöksiä kumottu 3 / 70 (4,3 %),
+# meta 1 / 95 (1,1 %). LLM:n alkuperäinen valinta 20 − 3 + 1 = 18. Juurisyyt
 # riittämätön opas 2 (50 %), LLM:n virhe 1 (25 %), tuntematon 1 (25 %).
 
 KYSYMYKSET = [
@@ -122,7 +130,17 @@ class TestRakennaViestiKurssit:
 
     def test_sisaltaa_kasin_muutos_osuuden(self):
         viesti = llmraportti._rakenna_kurssit_viesti(TUTKIMUS, TILASTOT)
-        assert "5.7" in viesti  # 4 / 70 LLM-luokiteltua kurssia
+        assert "LLM:n päätöksiä kumottu: 3 / 70 LLM:n luokittelemasta kurssista (4.3 %" in viesti
+        assert "Meta-suodatuksen päätöksiä kumottu: 1 / 95 meta-suodatuksen hylkäämästä (1.1 %)" in viesti
+
+    def test_sisaltaa_hitl_suunnan(self):
+        viesti = llmraportti._rakenna_kurssit_viesti(TUTKIMUS, TILASTOT)
+        assert "Ihminen lisäsi mukaan: 3 (LLM:n hylkäämiä 2, meta-suodatuksen hylkäämiä 1)" in viesti
+        assert "Ihminen poisti: 1 (LLM:n valitsemia 1, meta-suodatuksen 0)" in viesti
+        assert "palautettu alkutilaan (ei nettomuutosta): 1" in viesti
+        assert "LLM:n alkuperäinen valinta: 18" in viesti
+        assert "Lopullinen mukana-lista HITL:n jälkeen: 20" in viesti
+        assert "liian tiukka" in viesti and "liian salliva" in viesti
 
     def test_sisaltaa_juurisyyjakauman(self):
         viesti = llmraportti._rakenna_kurssit_viesti(TUTKIMUS, TILASTOT)
@@ -137,16 +155,28 @@ class TestHitlMittarit:
         m = mittarit.hitl_mittarit(TILASTOT)
         assert m["llm_kasitelty"] == 70
         assert m["muutettu"] == 4
-        assert round(m["muutettu_pros"], 1) == 5.7
+        assert m["llm_kumottu"] == 3 and round(m["llm_kumottu_pros"], 1) == 4.3
+        assert m["meta_kumottu"] == 1 and round(m["meta_kumottu_pros"], 1) == 1.1
         assert m["opas"] == 2 and round(m["opas_pros"], 1) == 50.0
         assert m["llm_virhe"] == 1 and round(m["llm_virhe_pros"], 1) == 25.0
         assert m["tuntematon"] == 1
 
+    def test_suunta_ja_kumottu_vaihe(self):
+        m = mittarit.hitl_mittarit(TILASTOT)
+        assert (m["lisatty"], m["lisatty_llm"], m["lisatty_meta"]) == (3, 2, 1)
+        assert (m["poistettu"], m["poistettu_llm"], m["poistettu_meta"]) == (1, 1, 0)
+        assert m["palautettu"] == 1 and m["korjattuja"] == 5
+        assert (m["lisatty_opas"], m["lisatty_llm_virhe"], m["lisatty_tuntematon"]) == (2, 0, 1)
+        assert (m["poistettu_opas"], m["poistettu_llm_virhe"], m["poistettu_tuntematon"]) == (0, 1, 0)
+
+    def test_llm_alkuperainen_valinta(self):
+        """Lopullinen mukana − ihmisen lisäämät + ihmisen poistamat."""
+        m = mittarit.hitl_mittarit(TILASTOT)
+        assert m["mukana"] == 20 and m["llm_alkuperainen"] == 18
+
     def test_nolla_muutosta_ei_jaa_nollalla(self):
-        tyhjat = [{"LLMKasitelty": 0, "HitlKursseja": 0, "RiittamatonOpas": 0,
-                   "LlmVirhe": 0, "TuntematonSyy": 0}]
-        m = mittarit.hitl_mittarit(tyhjat)
-        assert m["muutettu_pros"] == 0.0
+        m = mittarit.hitl_mittarit([{"LLMKasitelty": 0}])
+        assert m["llm_kumottu_pros"] == 0.0 and m["meta_kumottu_pros"] == 0.0
         assert m["opas_pros"] == 0.0
 
 
@@ -175,6 +205,10 @@ class TestRaporttiTiiviste:
     def test_muuttuu_kun_suppilo_muuttuu(self):
         """Meta-suodatuksen uudelleenajo siirtää kursseja meta-hylätyistä LLM:lle."""
         muutettu = [dict(TILASTOT[0], MetaHylkaama=49, LLMlle=41), TILASTOT[1]]
+        assert self._tiiviste() != self._tiiviste(tilastot=muutettu)
+
+    def test_muuttuu_kun_hitl_suunta_muuttuu(self):
+        muutettu = [dict(TILASTOT[0], LisattyLLM=0, PoistettuLLM=2), TILASTOT[1]]
         assert self._tiiviste() != self._tiiviste(tilastot=muutettu)
 
     def test_muuttuu_kun_juurisyy_muuttuu(self):

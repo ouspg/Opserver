@@ -64,3 +64,22 @@ def test_raporttinakyma_nayttaa_suppilon(kayttaja, tilastot):
                           ("suppilo-mukana", "mukana")):
         assert sivu.text_content(f"{osio} .{luokka} td:last-child") == str(tilastot["suppilo"][avain])
     assert "nimittäjänä meta-suodatuksen läpäisseet" in sivu.text_content(f"{osio} .hitl-mittarit")
+    h = tilastot["hitl"]
+    assert sivu.text_content(f"{osio} .hitl-lisatty td:nth-child(2)") == str(h["lisatty_llm"])
+    assert sivu.text_content(f"{osio} .hitl-lisatty td:nth-child(3)") == str(h["lisatty_meta"])
+    assert sivu.text_content(f"{osio} .hitl-poistettu td:nth-child(2)") == str(h["poistettu_llm"])
+    assert sivu.text_content(f"{osio} .hitl-alkuperainen") == str(h["llm_alkuperainen"])
+    assert sivu.text_content(f"{osio} .hitl-palautettu") == str(h["palautettu"])
+
+
+def test_hitl_suunta_ja_kumottu_vaihe(tilastot, kysy):
+    """siemen: %50==11 LLM-hylkäys → lisätty, %50==20 meta-hylkäys → lisätty,
+    %50==2 LLM-valinta → poistettu, %50==4 lisätty+poistettu → palautettu."""
+    lkm = lambda j: kysy(f"SELECT COUNT(*) FROM Kurssiluokitus WHERE TID = 1 AND MOD(KID, 50) = {j}")
+    h = tilastot["hitl"]
+    assert (h["lisatty_llm"], h["lisatty_meta"]) == (lkm(11), lkm(20))
+    assert (h["poistettu_llm"], h["poistettu_meta"]) == (lkm(2), 0)
+    assert h["palautettu"] == lkm(4) > 0
+    assert (h["lisatty_opas"], h["lisatty_tuntematon"], h["poistettu_llm_virhe"]) == (lkm(11), lkm(20), lkm(2))
+    assert h["llm_virhe"] == lkm(2)     # palautetun kurssin llm_virhe ei ole nettomuutos
+    assert h["llm_alkuperainen"] == h["mukana"] - lkm(11) - lkm(20) + lkm(2)

@@ -95,10 +95,10 @@ class TestTilastotYliopistoittain:
     SARAKKEET = ("KKID", "KouluNimi", "KurssiYhteensa", "Mukana", "OdottaaLLM",
                  "MetaHylatty", "LLMHylatty", "Luokiteltu", "MetaHylkaama")
 
-    def _aja(self, kursori, paarivi):
+    def _aja(self, kursori, paarivi, hitl=(), hitl_ryhmat=()):
         from unittest.mock import patch
         kursori.description = [(n,) for n in self.SARAKKEET]
-        kursori.fetchall.side_effect = [[paarivi], [], []]
+        kursori.fetchall.side_effect = [[paarivi], list(hitl), list(hitl_ryhmat)]
         with patch.object(tk_raportti, "_rajaus", return_value=("2026-2027", [1])), \
              patch.object(tk_raportti, "_kattavat_kaudet", return_value=["2026-2027"]):
             return mallit.hae_tilastot_yliopistoittain(1)
@@ -124,3 +124,27 @@ class TestTilastotYliopistoittain:
         assert luokitus_suppilo_sql() in sql
         assert "kl.KID = k.KID AND kl.TID = %s" in sql   # muiden tutkimusten luokitukset eivät mukana
         assert list(params) == ["2026-2027", 1, 1]
+
+    def test_hitl_suunta_vaihe_ja_juurisyy(self, mock_yhteys):
+        """Kunkin kurssin viimeisin korjaus ryhmiteltynä (KKID, UusiTila, Meta,
+        Juurisyy, Muutos, lkm): Muutos = 0 → palautettu alkutilaan."""
+        yht, kursori = mock_yhteys
+        ryhmat = [(1, 1, 0, "riittamaton_opas", 1, 4), (1, 1, 1, None, 1, 2),
+                  (1, 0, 0, "llm_virhe", 1, 3), (1, 1, 0, "llm_virhe", 0, 5), (2, 0, 0, None, 1, 9)]
+        r = self._aja(kursori, (1, "OY", 100, 22, 5, 40, 28, 95, 45), hitl=[(1, 20)], hitl_ryhmat=ryhmat)[0]
+        assert (r["LisattyLLM"], r["LisattyMeta"], r["PoistettuLLM"], r["PoistettuMeta"]) == (4, 2, 3, 0)
+        assert (r["LisattyOpas"], r["LisattyLlmVirhe"], r["LisattyTuntematon"]) == (4, 0, 2)
+        assert (r["PoistettuOpas"], r["PoistettuLlmVirhe"], r["PoistettuTuntematon"]) == (0, 3, 0)
+        assert r["Palautettu"] == 5 and r["HitlKursseja"] == 14 and r["HitlLkm"] == 20
+        # Juurisyyt yhteensä vain nettomuutoksista (palautettu ei ole virhe)
+        assert (r["RiittamatonOpas"], r["LlmVirhe"], r["TuntematonSyy"]) == (4, 3, 2)
+
+    def test_hitl_kysely_vertaa_ensimmaiseen_korjaukseen(self, mock_yhteys):
+        """Alkuperäinen päätös: meta-hylkäys = 0, muuten ensimmäisen korjauksen vastakohta."""
+        from tietokanta._yhteiset import meta_hylkays_sql
+        yht, kursori = mock_yhteys
+        self._aja(kursori, (1, "OY", 0, 0, 0, 0, 0, 0, 0))
+        sql, params = kursori.execute.call_args_list[-1][0]
+        assert "MIN(HID)" in sql and "MAX(HID)" in sql
+        assert meta_hylkays_sql() in sql
+        assert list(params) == [1, 1]

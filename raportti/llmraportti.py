@@ -9,6 +9,16 @@ from raportti.mittarit import (
 OSIOT = ["johdanto", "kurssit", "arvioinnit"]
 
 
+# Tilastorivin kentät, joiden muutos vanhentaa raportin (suppilo + HITL-suunnat).
+_TIIVISTEEN_TILASTOKENTAT = (
+    "KKID", "KurssiYhteensa", "LLMKasitelty", "Mukana", "Hylatty", "OdottaaMeta", "MetaHylkaama",
+    "LLMlle", "OdottaaLLM", "LLMHylatty", "HitlLkm", "HitlKursseja", "RiittamatonOpas", "LlmVirhe",
+    "TuntematonSyy", "Palautettu",
+    *(f"{suunta}{osa}" for suunta in ("Lisatty", "Poistettu")
+      for osa in ("Meta", "LLM", "Opas", "LlmVirhe", "Tuntematon")),
+)
+
+
 def raporttitiiviste(tutkimus: dict, tilastot: list[dict] | None = None,
                      kysymykset: list[dict] | None = None) -> str:
     """SHA-256-tiiviste lähdeaineistosta, josta raportti koottiin — raportin
@@ -26,12 +36,8 @@ def raporttitiiviste(tutkimus: dict, tilastot: list[dict] | None = None,
     vastaus_tila = mallit.hae_vastaus_tiivisteet(tid)
     hitl_vastaukset = mallit.hae_hitl_vastaukset(tid)
 
-    tilasto_osa = json.dumps(sorted(
-        [r["KKID"], r["KurssiYhteensa"], r["LLMKasitelty"], r["Mukana"], r["Hylatty"],
-         r.get("OdottaaMeta", 0), r.get("MetaHylkaama", 0), r.get("LLMlle", 0),
-         r.get("OdottaaLLM", 0), r.get("LLMHylatty", 0), r.get("HitlLkm", 0), r.get("HitlKursseja", 0), r.get("RiittamatonOpas", 0),
-         r.get("LlmVirhe", 0), r.get("TuntematonSyy", 0)]
-        for r in tilastot), ensure_ascii=False)
+    tilasto_osa = json.dumps(sorted([r.get(avain, 0) for avain in _TIIVISTEEN_TILASTOKENTAT]
+                                    for r in tilastot), ensure_ascii=False)
     kysymys_osa = json.dumps(sorted(
         [k["KysID"], k.get("Kysymys") or "", k.get("Luokittelu") or "vapaa_teksti",
          json.dumps(k.get("LuokitteluMaarittely"), sort_keys=True, ensure_ascii=False)]
@@ -181,7 +187,10 @@ sekä kuvaa yliopistokohtaiset tulokset ja suppilon: erottele meta-suodatuksen
 (sääntöpohjainen taso-/oppiainerajaus) hylkäämät LLM:n seulomista kursseista. Raportoi eksplisiittisesti,
 kuinka suuri osuus luokittelupäätöksistä jouduttiin muuttamaan käsin ja kuinka suuri
 osuus korjauksista johtui riittämättömästä opinto-oppaasta (eli oppaan laadusta,
-ei mallin virheestä)."""
+ei mallin virheestä). Raportoi korjausten suunta: jos ihminen lisäsi kursseja enemmän
+kuin poisti, automaattinen seulonta oli liian tiukka (vääriä poisjättöjä); jos poisti
+enemmän, se oli liian salliva. Kerro myös, kohdistuivatko korjaukset meta-suodatukseen
+vai LLM:n päätöksiin."""
 
 
 def _rakenna_arvioinnit_viesti(tutkimus: dict, kysymykset: list[dict], tilastot: list[dict]) -> str:

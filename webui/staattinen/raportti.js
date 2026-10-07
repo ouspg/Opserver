@@ -61,24 +61,38 @@ function _renderTilastotTaulukko(tilastot) {
   return html;
 }
 
-// HITL-laatumittarit (CLAUDE.md vaihe 4): montako % luokittelupäätöksistä
-// muutettiin käsin, ja montako % korjauksista johtui riittämättömästä
-// oppaasta (data) vs. LLM:n virheestä (kehote). Auktoritatiivinen rakenteellinen
-// luku — erillään LLM-generoidusta proosasta.
-// Mittariteksti + juurisyytaulukko; näkymässä (tyyli.css) ja tulosteessa (oma <style>).
+// HITL-laatumittarit (CLAUDE.md vaihe 4) kunkin kurssin viimeisimmästä korjauksesta:
+// suunta (lisätty/poistettu) × kumottu vaihe (LLM/meta), LLM:n alkuperäinen valinta
+// vs. lopullinen lista, kumottujen osuudet ja juurisyyt suunnittain. Auktoritatiivinen
+// rakenteellinen luku — erillään LLM-generoidusta proosasta.
+// Näkymässä (tyyli.css) ja tulosteessa (oma <style>).
 function _hitlMittaritHtml(hitl) {
   const p = (x) => (x ?? 0).toFixed(1);
-  const rivi = (nimi, lkm, pros) =>
-    `<tr><td>${nimi}</td><td>${lkm}</td><td>${p(pros)} %</td></tr>`;
-  return `<p>Käsin muutettuja luokittelupäätöksiä:
-        <strong>${hitl.muutettu} / ${hitl.llm_kasitelty}</strong>
-        LLM:n luokittelemaa kurssia (<strong>${p(hitl.muutettu_pros)} %</strong>;
-        nimittäjänä meta-suodatuksen läpäisseet kurssit, joille LLM antoi päätöksen).</p>
+  const n = (x) => escapeHtml(x ?? 0);
+  const suunta = (luokka, nimi, s) =>
+    `<tr class="${luokka}"><td>${nimi}</td><td>${n(hitl[`${s}_llm`])}</td>` +
+    `<td>${n(hitl[`${s}_meta`])}</td><td>${n(hitl[s])}</td></tr>`;
+  const syy = (nimi, s) =>
+    `<tr><td>${nimi}</td><td>${n(hitl[`lisatty_${s}`])}</td><td>${n(hitl[`poistettu_${s}`])}</td>` +
+    `<td>${n(hitl[s])}</td><td>${p(hitl[`${s}_pros`])} %</td></tr>`;
+  return `<p>LLM:n alkuperäinen valinta <strong class="hitl-alkuperainen">${n(hitl.llm_alkuperainen)}</strong>
+        kurssia → lopullinen mukana-lista HITL:n jälkeen <strong>${n(hitl.mukana)}</strong>.</p>
+      <table class="tilasto-taulu hitl-suunta">
+        <tr><th>Ihmisen nettomuutos</th><th>LLM:n päätös</th><th>Meta-suodatuksen päätös</th><th>Yhteensä</th></tr>
+        ${suunta("hitl-lisatty", "Lisäsi mukaan", "lisatty")}
+        ${suunta("hitl-poistettu", "Poisti", "poistettu")}
+      </table>
+      <p>LLM:n päätöksiä kumottu: <strong>${n(hitl.llm_kumottu)} / ${n(hitl.llm_kasitelty)}</strong>
+        LLM:n luokittelemaa kurssia (<strong>${p(hitl.llm_kumottu_pros)} %</strong>;
+        nimittäjänä meta-suodatuksen läpäisseet kurssit, joille LLM antoi päätöksen).
+        Meta-suodatuksen päätöksiä kumottu: ${n(hitl.meta_kumottu)} / ${n(hitl.meta_hylkaama)}
+        (${p(hitl.meta_kumottu_pros)} %). Edestakaisin korjattuja, palautettu alkutilaan:
+        <span class="hitl-palautettu">${n(hitl.palautettu)}</span>.</p>
       <table class="tilasto-taulu">
-        <tr><th>Korjauksen juurisyy</th><th>Kursseja</th><th>Osuus korjauksista</th></tr>
-        ${rivi("Riittämätön opinto-opas (oppaan laatu)", hitl.opas, hitl.opas_pros)}
-        ${rivi("LLM:n väärinymmärrys (kehote)", hitl.llm_virhe, hitl.llm_virhe_pros)}
-        ${rivi("Juurisyy merkitsemättä", hitl.tuntematon, hitl.tuntematon_pros)}
+        <tr><th>Korjauksen juurisyy</th><th>Lisätyt</th><th>Poistetut</th><th>Yhteensä</th><th>Osuus muutoksista</th></tr>
+        ${syy("Riittämätön opinto-opas (oppaan laatu)", "opas")}
+        ${syy("LLM:n väärinymmärrys (kehote)", "llm_virhe")}
+        ${syy("Juurisyy merkitsemättä", "tuntematon")}
       </table>`;
 }
 
