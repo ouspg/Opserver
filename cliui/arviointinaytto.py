@@ -76,17 +76,19 @@ def _arvioi(stdscr, tutkimus: dict) -> None:
         ("Muokkaa LLM-arvioinnin asetuksia", lambda s, t: llmvaihe.muokkaa_asetukset(s, t, _vaihe())),
         ("Siirrä testiajo varsinaiseen aineistoon", lambda s, t: llmvaihe.siirra_testiajo(s, t, _vaihe())),
         ("Poista testiajo", lambda s, t: llmvaihe.poista_testiajo(s, t, _vaihe())),
-        ("Korjaa raakana tallennetut JSON-vastaukset", _korjaa_raaka_json),
+        ("Korjaa raaka-JSON-vastaukset ja luokkien kirjoitusasu", _korjaa_raaka_json),
         ("Näytä tilanne", _nayta_tilanne),
     ]
     toimintovalikko(stdscr, f"Arvioi — {tutkimus['LuokittelunNimi']}", toiminnot, tutkimus)
 
 
 def _korjaa_raaka_json(stdscr, tutkimus: dict) -> None:
-    """Jäsentää uudelleen vastaukset, joiden teksti jäi raa'aksi JSON-objektiksi.
+    """Jäsentää uudelleen vastaukset, joiden teksti jäi raa'aksi JSON-objektiksi, ja
+    kanonisoi luokkien kirjoitusasun ('ei lainkaan ' → 'Ei lainkaan').
 
     Ei kuluta LLM-kutsuja: data on tallessa Vastaus-kentässä. Turvallinen ajaa
-    uudelleen — korjattu rivi ei enää täytä hakuehtoa.
+    uudelleen — korjattu rivi ei enää täytä hakuehtoa. Tuntemattomat luokat jäävät
+    ennalleen ja listataan korjattaviksi (WebUI:n arviokorjaus).
     """
     from arviointi import korjaus
 
@@ -101,16 +103,21 @@ def _korjaa_raaka_json(stdscr, tutkimus: dict) -> None:
 
     try:
         korjatut, ohitetut = korjaus.korjaa_raaka_json(tutkimus["TID"], edistyminen)
+        luokat, tuntemattomat = korjaus.korjaa_luokat(tutkimus["TID"])
     except Exception as e:
         nayta_viesti(stdscr, f"Virhe korjauksessa: {e}")
         return
 
-    if korjatut == ohitetut == 0:
+    if korjatut == ohitetut == luokat == 0 and not tuntemattomat:
         nayta_viesti(stdscr, "Ei korjattavia vastauksia — kaikki on jäsennetty oikein.")
         return
-    viesti = f"Korjattu {korjatut} vastausta."
+    viesti = f"Korjattu {korjatut} vastausta, kanonisoitu {luokat} luokkaa."
     if ohitetut:
         viesti += f" Ohitettu {ohitetut} (teksti ei jäsenny — jätetty ennalleen)."
+    if tuntemattomat:
+        esimerkit = ", ".join(sorted({f"'{r['Luokka']}'" for r in tuntemattomat})[:5])
+        viesti += (f" Tuntematon luokka {len(tuntemattomat)} vastauksessa ({esimerkit}) —"
+                   f" jätetty ennalleen, korjaa WebUI:n arvioinneissa.")
     nayta_viesti(stdscr, viesti)
 
 

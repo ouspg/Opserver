@@ -1,7 +1,7 @@
 """Testit raportti-moduulille."""
 from unittest.mock import patch, call, ANY
 import pytest
-from raportti import llmraportti
+from raportti import llmraportti, mittarit
 
 TUTKIMUS = {
     "TID": 1,
@@ -16,19 +16,34 @@ TUTKIMUS = {
 TILASTOT = [
     {
         "KKID": 1, "KouluNimi": "Tampereen yliopisto",
-        "KurssiYhteensa": 100, "LLMKasitelty": 40,
-        "Mukana": 12, "Hylatty": 28, "HitlLkm": 3,
+        "KurssiYhteensa": 100, "OdottaaMeta": 10, "MetaHylkaama": 50, "LLMlle": 40,
+        "OdottaaLLM": 0, "LLMKasitelty": 40, "LLMHylatty": 28, "MetaHylatty": 50,
+        "Mukana": 12, "Hylatty": 78, "HitlLkm": 3, "MukanaTarkistettu": 9,
         "HitlKursseja": 3, "RiittamatonOpas": 2, "LlmVirhe": 1, "TuntematonSyy": 0,
+        "LisattyLLM": 1, "LisattyMeta": 1, "PoistettuLLM": 1, "PoistettuMeta": 0,
+        "LisattyOpas": 2, "LisattyLlmVirhe": 0, "LisattyTuntematon": 0,
+        "PoistettuOpas": 0, "PoistettuLlmVirhe": 1, "PoistettuTuntematon": 0, "Palautettu": 0,
     },
     {
         "KKID": 2, "KouluNimi": "Aalto-yliopisto",
-        "KurssiYhteensa": 80, "LLMKasitelty": 30,
-        "Mukana": 8, "Hylatty": 22, "HitlLkm": 1,
-        "HitlKursseja": 1, "RiittamatonOpas": 0, "LlmVirhe": 0, "TuntematonSyy": 1,
+        "KurssiYhteensa": 80, "OdottaaMeta": 0, "MetaHylkaama": 45, "LLMlle": 35,
+        "OdottaaLLM": 5, "LLMKasitelty": 30, "LLMHylatty": 22, "MetaHylatty": 45,
+        "Mukana": 8, "Hylatty": 67, "HitlLkm": 3, "MukanaTarkistettu": 3,
+        "HitlKursseja": 2, "RiittamatonOpas": 0, "LlmVirhe": 0, "TuntematonSyy": 1,
+        "LisattyLLM": 1, "LisattyMeta": 0, "PoistettuLLM": 0, "PoistettuMeta": 0,
+        "LisattyOpas": 0, "LisattyLlmVirhe": 0, "LisattyTuntematon": 1,
+        "PoistettuOpas": 0, "PoistettuLlmVirhe": 0, "PoistettuTuntematon": 0, "Palautettu": 1,
     },
 ]
-# Yhteensä: LLM-luokiteltu 70, käsin muutettu 4 (5,7 %); juurisyyt
+# Suppilo: 180 kurssia → 10 odottaa metaa, 95 meta-hylkäämää, 75 LLM:lle
+# (5 odottaa, 70 LLM-luokiteltua) → lopullinen mukana 20.
+# HITL (viimeisin korjaus per kurssi): nettomuutoksia 4 = lisätty 3 (LLM 2, meta 1)
+# + poistettu 1 (LLM); 1 palautettu alkutilaan. LLM-päätöksiä kumottu 3 / 70 (4,3 %),
+# meta 1 / 95 (1,1 %). LLM:n alkuperäinen valinta 20 − 3 + 1 = 18. Juurisyyt
 # riittämätön opas 2 (50 %), LLM:n virhe 1 (25 %), tuntematon 1 (25 %).
+
+MALLIT = {"seulonta": [("gemini-2.5-flash", 30000), ("gpt-4o-mini", 2000)],
+          "arviointi": [("gemini-2.5-pro", 1400)]}
 
 KYSYMYKSET = [
     {"KysID": 10, "TID": 1, "Kysymys": "Liittyykö kurssi kyberturvallisuuteen?"},
@@ -38,15 +53,73 @@ KYSYMYKSET = [
 
 class TestTilastoTaulukko:
     def test_sisaltaa_yliopiston_nimen(self):
-        tulos = llmraportti._tilasto_taulukko(TILASTOT)
+        tulos = mittarit.tilasto_taulukko(TILASTOT)
         assert "Tampereen yliopisto" in tulos
         assert "Aalto-yliopisto" in tulos
 
     def test_sisaltaa_lukuarvot(self):
-        tulos = llmraportti._tilasto_taulukko(TILASTOT)
+        tulos = mittarit.tilasto_taulukko(TILASTOT)
         assert "100" in tulos
         assert "12" in tulos
         assert "3" in tulos
+
+
+class TestSuppilo:
+    def test_summaa_yliopistot(self):
+        assert mittarit.suppilo(TILASTOT) == {
+            "kursseja": 180, "odottaa_meta": 10, "meta_hylkaama": 95, "llm_lle": 75,
+            "odottaa_llm": 5, "llm_kasitelty": 70, "llm_hylatty": 50, "mukana": 20,
+            "hylatty": 145,
+        }
+
+    def test_taulukko_erottelee_meta_ja_llm(self):
+        tulos = mittarit.tilasto_taulukko(TILASTOT)
+        for otsikko in ("Meta-hylk.", "LLM:lle", "LLM-hyl.", "Odottaa", "Mukana*"):
+            assert otsikko in tulos
+        assert "* lopullinen mukana-lista HITL:n jälkeen" in tulos
+
+    def test_kehotteet_nimeavat_suppilon_luvut(self):
+        """Kaikki osiot käyttävät samoja yksiselitteisiä nimiä samoille luvuille."""
+        for viesti in llmraportti.rakenna_viestit(TUTKIMUS, TILASTOT, KYSYMYKSET).values():
+            assert "Meta-suodatuksen hylkäämät (sääntöpohjainen taso-/oppiainerajaus, ei LLM): 95" in viesti
+            assert "LLM:n seulomat kurssit (meta-suodatuksen läpäisseet): 75" in viesti
+            assert "LLM:n luokittelemia: 70" in viesti
+            assert "LLM:n alkuperäinen valinta: 18" in viesti
+            assert "Lopullinen mukana-lista (HITL:n jälkeen): 20" in viesti
+            assert "LLM käsitteli 180" not in viesti
+
+    def test_kurssit_kertoo_hitl_kattavuuden(self):
+        viesti = llmraportti._rakenna_kurssit_viesti(TUTKIMUS, TILASTOT)
+        assert "Ihminen on tarkistanut (hyväksynyt tai korjannut) 12 / 20 lopullisen mukana-listan kurssia" in viesti
+        assert "Hylättyjä kursseja ei ole käyty järjestelmällisesti läpi" in viesti
+        assert "väärien poisjättöjen määrää" in viesti
+
+    def test_hitl_nimittaja_on_llm_luokitellut(self):
+        """Käsin muutettujen osuus lasketaan LLM:n luokittelemista, ei kaikista kursseista."""
+        assert mittarit.hitl_mittarit(TILASTOT)["llm_kasitelty"] == 70
+
+
+class TestJarjestelmakehote:
+    def test_kiellot(self):
+        teksti = llmraportti._lue_jarjestelmakehote()
+        assert '"otos"' in teksti and '"edustava"' in teksti
+        assert "suhteutettuna" in teksti
+        assert "Jokainen väite nojaa kehotteessa annettuun lukuun" in teksti
+        assert "vain kerran, johdannossa" in teksti
+        assert '"pääosin tarkka"' in teksti
+
+    def test_taulukko_suhteuttaa_mukana_seulotuista(self):
+        """Yliopistovertailu vain suhteutettuna: mukana-osuus LLM:n seulomista."""
+        tulos = mittarit.tilasto_taulukko(TILASTOT)
+        assert "Mukana-%" in tulos
+        assert "30.0" in tulos      # 12 / 40
+        assert "22.9" in tulos      # 8 / 35
+
+    def test_taustavaite_vain_johdannossa(self):
+        viestit = llmraportti.rakenna_viestit(TUTKIMUS, TILASTOT, KYSYMYKSET)
+        assert "esitä se tässä osiossa" in viestit["johdanto"]
+        for osio in ("kurssit", "arvioinnit"):
+            assert "Älä toista johdannon taustaväitettä" in viestit[osio]
 
 
 class TestRakennaViestiJohdanto:
@@ -71,6 +144,18 @@ class TestRakennaViestiJohdanto:
         assert "20" in viesti  # 12 + 8
 
 
+    def test_menetelmatiedot(self):
+        """Mallit tallennetuista vastauksista (ei .env-oletus), lukuvuosi, korkeakoulut, rajaukset."""
+        tutkimus = dict(TUTKIMUS, Lukuvuosi="2026-2027")
+        viesti = llmraportti._rakenna_johdanto_viesti(tutkimus, TILASTOT)
+        assert "Lukuvuosi: 2026-2027" in viesti
+        assert "Korkeakoulut (2): Tampereen yliopisto, Aalto-yliopisto" in viesti
+        assert "Seulonnan (LLM-luokittelu) mallit: gemini-2.5-flash (30000 kurssia), gpt-4o-mini (2000 kurssia)" in viesti
+        assert "Arvioinnin mallit: gemini-2.5-pro (1400 vastausta)" in viesti
+        assert "Tasorajaus: aine" in viesti and "Oppiainerajaus: Tietotekniikka" in viesti
+        assert "menetelmäkappale" in viesti
+
+
 class TestRakennaViestiKurssit:
     def test_sisaltaa_valintakehotteen(self):
         viesti = llmraportti._rakenna_kurssit_viesti(TUTKIMUS, TILASTOT)
@@ -90,7 +175,17 @@ class TestRakennaViestiKurssit:
 
     def test_sisaltaa_kasin_muutos_osuuden(self):
         viesti = llmraportti._rakenna_kurssit_viesti(TUTKIMUS, TILASTOT)
-        assert "5.7" in viesti  # 4 / 70 LLM-luokiteltua kurssia
+        assert "LLM:n päätöksiä kumottu: 3 / 70 LLM:n luokittelemasta kurssista (4.3 %" in viesti
+        assert "Meta-suodatuksen päätöksiä kumottu: 1 / 95 meta-suodatuksen hylkäämästä (1.1 %)" in viesti
+
+    def test_sisaltaa_hitl_suunnan(self):
+        viesti = llmraportti._rakenna_kurssit_viesti(TUTKIMUS, TILASTOT)
+        assert "Ihminen lisäsi mukaan: 3 (LLM:n hylkäämiä 2, meta-suodatuksen hylkäämiä 1)" in viesti
+        assert "Ihminen poisti: 1 (LLM:n valitsemia 1, meta-suodatuksen 0)" in viesti
+        assert "palautettu alkutilaan (ei nettomuutosta): 1" in viesti
+        assert "LLM:n alkuperäinen valinta: 18" in viesti
+        assert "Lopullinen mukana-lista (HITL:n jälkeen): 20" in viesti
+        assert "liian tiukka" in viesti and "liian salliva" in viesti
 
     def test_sisaltaa_juurisyyjakauman(self):
         viesti = llmraportti._rakenna_kurssit_viesti(TUTKIMUS, TILASTOT)
@@ -102,19 +197,31 @@ class TestRakennaViestiKurssit:
 
 class TestHitlMittarit:
     def test_laskee_osuudet(self):
-        m = llmraportti.hitl_mittarit(TILASTOT)
+        m = mittarit.hitl_mittarit(TILASTOT)
         assert m["llm_kasitelty"] == 70
         assert m["muutettu"] == 4
-        assert round(m["muutettu_pros"], 1) == 5.7
+        assert m["llm_kumottu"] == 3 and round(m["llm_kumottu_pros"], 1) == 4.3
+        assert m["meta_kumottu"] == 1 and round(m["meta_kumottu_pros"], 1) == 1.1
         assert m["opas"] == 2 and round(m["opas_pros"], 1) == 50.0
         assert m["llm_virhe"] == 1 and round(m["llm_virhe_pros"], 1) == 25.0
         assert m["tuntematon"] == 1
 
+    def test_suunta_ja_kumottu_vaihe(self):
+        m = mittarit.hitl_mittarit(TILASTOT)
+        assert (m["lisatty"], m["lisatty_llm"], m["lisatty_meta"]) == (3, 2, 1)
+        assert (m["poistettu"], m["poistettu_llm"], m["poistettu_meta"]) == (1, 1, 0)
+        assert m["palautettu"] == 1 and m["korjattuja"] == 5
+        assert (m["lisatty_opas"], m["lisatty_llm_virhe"], m["lisatty_tuntematon"]) == (2, 0, 1)
+        assert (m["poistettu_opas"], m["poistettu_llm_virhe"], m["poistettu_tuntematon"]) == (0, 1, 0)
+
+    def test_llm_alkuperainen_valinta(self):
+        """Lopullinen mukana − ihmisen lisäämät + ihmisen poistamat."""
+        m = mittarit.hitl_mittarit(TILASTOT)
+        assert m["mukana"] == 20 and m["llm_alkuperainen"] == 18
+
     def test_nolla_muutosta_ei_jaa_nollalla(self):
-        tyhjat = [{"LLMKasitelty": 0, "HitlKursseja": 0, "RiittamatonOpas": 0,
-                   "LlmVirhe": 0, "TuntematonSyy": 0}]
-        m = llmraportti.hitl_mittarit(tyhjat)
-        assert m["muutettu_pros"] == 0.0
+        m = mittarit.hitl_mittarit([{"LLMKasitelty": 0}])
+        assert m["llm_kumottu_pros"] == 0.0 and m["meta_kumottu_pros"] == 0.0
         assert m["opas_pros"] == 0.0
 
 
@@ -138,6 +245,15 @@ class TestRaporttiTiiviste:
 
     def test_muuttuu_kun_tilastot_muuttuu(self):
         muutettu = [{**TILASTOT[0], "Mukana": 999}, TILASTOT[1]]
+        assert self._tiiviste() != self._tiiviste(tilastot=muutettu)
+
+    def test_muuttuu_kun_suppilo_muuttuu(self):
+        """Meta-suodatuksen uudelleenajo siirtää kursseja meta-hylätyistä LLM:lle."""
+        muutettu = [dict(TILASTOT[0], MetaHylkaama=49, LLMlle=41), TILASTOT[1]]
+        assert self._tiiviste() != self._tiiviste(tilastot=muutettu)
+
+    def test_muuttuu_kun_hitl_suunta_muuttuu(self):
+        muutettu = [dict(TILASTOT[0], LisattyLLM=0, PoistettuLLM=2), TILASTOT[1]]
         assert self._tiiviste() != self._tiiviste(tilastot=muutettu)
 
     def test_muuttuu_kun_juurisyy_muuttuu(self):
@@ -164,7 +280,10 @@ class TestRaporttiTiiviste:
 @pytest.fixture(autouse=True)
 def _hitl_maara():
     """Arvioinnit-osion korjausmäärä on COUNT-kysely; oletuksena 0."""
-    with patch("raportti.llmraportti.mallit.laske_hitl_vastaukset", return_value=0) as m:
+    with patch("raportti.llmraportti.mallit.laske_hitl_vastaukset", return_value=0) as m, \
+         patch("raportti.llmraportti.mallit.laske_arvioimattomat", return_value=0), \
+         patch("tietokanta.mallit.hae_vastaukset", return_value=[]), \
+         patch("raportti.llmraportti.mallit.hae_kaytetyt_mallit", return_value=MALLIT):
         yield m
 
 
@@ -183,6 +302,31 @@ class TestRakennaViestiArvioinnit:
             viesti = llmraportti._rakenna_arvioinnit_viesti(TUTKIMUS, KYSYMYKSET, TILASTOT)
         assert "27" in viesti
         laske.assert_called_once_with(TUTKIMUS["TID"])   # COUNT, ei rivinoutoa
+
+
+    def test_arvioitujen_maara_on_lopullinen_mukana_lista(self):
+        """Arvioitujen kurssien joukko = nykyiset mukana-kurssit (sama kuin
+        tilastorajapinnan jakaumat); keskeneräiset arvioinnit kerrotaan erikseen."""
+        with patch("raportti.llmraportti.mallit.laske_arvioimattomat", return_value=3) as laske:
+            viesti = llmraportti._rakenna_arvioinnit_viesti(TUTKIMUS, KYSYMYKSET, TILASTOT)
+        assert "Arvioitavat kurssit = lopullinen mukana-lista (HITL:n jälkeen): 20" in viesti
+        assert "joista arviointi kesken: 3" in viesti
+        laske.assert_called_once_with(TUTKIMUS["TID"])
+
+
+    def test_sisaltaa_jakaumat_ja_ei_paateltavissa(self):
+        """Sama laskenta kuin tilastorajapinnassa (kysymystilastot), mukana-kurssit."""
+        kys = [{"KysID": 2, "Kysymys": "Joustavuus?", "Luokittelu": "luokittelu", "LuokitteluMaarittely": {
+            "luokat": [{"nimi": "Täysin", "kuvaus": "etänä"}, {"nimi": "ei voi päätellä", "kuvaus": "?"}]}}]
+        vs = [{"KysID": 2, "KID": k, "Vastaus": "p", "Luokka": l}
+              for k, l in [(1, "Täysin"), (2, "täysin"), (3, "ei voi päätellä"), (4, "Täysin")]]
+        with patch("tietokanta.mallit.hae_vastaukset", return_value=vs) as hae:
+            viesti = llmraportti._rakenna_arvioinnit_viesti(TUTKIMUS, kys, TILASTOT)
+        hae.assert_called_once_with(TUTKIMUS["TID"], vain_mukana=True)
+        assert "- Täysin: 3 (75.0 %)" in viesti
+        assert 'Ei pääteltävissä opinto-oppaasta ("ei voi päätellä"): 1 (25.0 %)' in viesti
+        assert "pääviesti" in viesti
+        assert "vahvempi näyttö" in viesti and "riittämättömyyden" in viesti
 
 
 class TestAja:
@@ -360,5 +504,5 @@ class TestPaivitaTuoreus:
 
 
 def test_jarjestelmakehote_luetaan_kehotetiedostosta():
-    from raportti import llmraportti
+    from raportti import llmraportti, mittarit
     assert llmraportti._lue_jarjestelmakehote().strip()

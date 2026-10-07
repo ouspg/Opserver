@@ -7,7 +7,8 @@ korkeakoulua kohden; joka KID % 10:
   7–9 → odottaa (ei luokitusta)
 Joka viidennellä kurssilla on myös vanhempi versio (2025-2027, kattaa tutkimuksen lukuvuoden
 ja luokitellaan samoin) → Kurssit-sivun vuosivalitsin.
-Hylättyjä on > 4 sivua (100/sivu) → sivutus; mukana-listassa yli sivu."""
+Hylättyjä on > 4 sivua (100/sivu) → sivutus; mukana-listassa yli sivu.
+Raportin lukujen poikkeustapaukset: ks. _raportin_poikkeamat."""
 import json
 import random
 
@@ -92,3 +93,36 @@ def tayta(kursori):
     kursori.executemany("INSERT INTO RaporttiOsio (TID, OsioAvain, Teksti) VALUES (1, %s, %s)",
                         [("johdanto", "Johdanto: " + _lause(r, 30)), ("kurssit", "Kurssit: " + _lause(r, 30)),
                          ("arvioinnit", "Arvioinnit: " + _lause(r, 30))])
+    _raportin_poikkeamat(kursori)
+
+
+def _raportin_poikkeamat(kursori):
+    """Raportin lukujen erikoistapaukset KID:n mukaan (ei muuta Mukana-lukuja eikä
+    satunnaisjonoa, joten muiden testien data pysyy ennallaan):
+      KID % 10 == 3  meta-suodatuksen hylkäämä (Luokitteluperuste 'meta: …')
+      KID % 50 == 2  LLM otti, ihminen poisti (llm_virhe) → vanhat vastaukset jäävät kantaan
+      KID % 50 == 11 LLM hylkäsi, ihminen lisäsi (riittamaton_opas)
+      KID % 50 == 20 meta hylkäsi, ihminen lisäsi (juurisyy merkitsemättä)
+      KID % 50 == 4  ihminen lisäsi ja poisti → palautettu alkutilaan (ei nettomuutosta)
+      KID % 50 == 7  meta läpäisty, odottaa LLM:ää (Mukana NULL, 'meta: odottaa LLM-seulontaa')
+      KID % 20 == 1  joustavuusluokka väärällä kirjainkoolla + reunavälilyönnillä
+      KID == 10      joustavuusluokka tuntematon ('Ehkä')
+      KID % 50 == 1  ihminen hyväksyi LLM:n mukaan-päätöksen (HITL-kattavuus)"""
+    kursori.execute("UPDATE Kurssiluokitus SET Luokitteluperuste = 'meta: taso ei vastaa rajausta' "
+                    "WHERE TID = 1 AND (KID % 10 = 3 OR KID % 50 = 20)")
+    kursori.execute("INSERT INTO Kurssiluokitus (TID, KID, Mukana, Luokitteluperuste) "
+                    "SELECT 1, KID, NULL, 'meta: odottaa LLM-seulontaa' FROM Kurssi WHERE MOD(KID, 50) = 7")
+    kursori.execute("INSERT INTO Vastaukset (TID, KysID, KID, Vastaus, Pisteet, Luokka, Malli) "
+                    "SELECT 1, ky.KysID, kl.KID, 'vanha arvio', IF(ky.KysID = 4, 5, NULL), "
+                    "IF(ky.KysID = 2, 'Täysin', NULL), 'testimalli' FROM Kurssiluokitus kl "
+                    "JOIN Kysymykset ky ON ky.TID = 1 AND ky.KysID IN (2, 4, 5) WHERE kl.TID = 1 AND kl.KID % 50 = 2")
+    hitl = "INSERT INTO HitlKorjaus (TID, KID, UusiTila, Perustelu, KayttajaNimi, Sahkoposti, Juurisyy) " \
+           "SELECT 1, KID, %s, 'testikorjaus', 'Testaaja', 't@example.com', %s FROM Kurssiluokitus " \
+           "WHERE TID = 1 AND MOD(KID, 50) = %s"
+    for tila, juurisyy, jaannos in [(0, "llm_virhe", 2), (1, "riittamaton_opas", 11), (1, None, 20),
+                                    (1, "llm_virhe", 4), (0, "llm_virhe", 4)]:
+        kursori.execute(hitl, (tila, juurisyy, jaannos))
+    kursori.execute("UPDATE Vastaukset SET Luokka = CONCAT(' ', LOWER(Luokka), ' ') "
+                    "WHERE TID = 1 AND KysID = 2 AND KID % 20 = 1")
+    kursori.execute("UPDATE Vastaukset SET Luokka = 'Ehkä' WHERE TID = 1 AND KysID = 2 AND KID = 10")
+    kursori.execute("UPDATE Kurssiluokitus SET KayttajaNimi = 'Hyväksyjä' WHERE TID = 1 AND KID % 50 = 1")

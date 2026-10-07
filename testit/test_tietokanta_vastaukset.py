@@ -108,3 +108,48 @@ class TestHitlRivitEivatSotkeLaskentaa:
         assert "HyvaksyjaNimi = NULL" in kursori.execute.call_args[0][0]
         testimallit.siirra_testiajo_luokittelu("ajo1")
         assert "KayttajaNimi = NULL" in kursori.execute.call_args[0][0]
+
+    def test_hae_vastaukset_oletuksena_kaikki_kurssit(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        mallit.hae_vastaukset(1)
+        sql, params = kursori.execute.call_args[0]
+        assert "Kurssiluokitus" not in sql and list(params) == [1]
+
+    def test_hae_vastaukset_vain_mukana_rajaa_sql_joinilla(self, mock_yhteys):
+        """HITL:ssä pois käännetyn kurssin vanhat vastaukset eivät kuulu raportin
+        tilastoihin — rajaus kannassa (JOIN), ei Pythonissa."""
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        mallit.hae_vastaukset(1, vain_mukana=True)
+        sql, params = kursori.execute.call_args[0]
+        assert "JOIN Kurssiluokitus kl" in sql
+        assert "kl.TID = v.TID" in sql and "kl.Mukana = 1" in sql
+        assert list(params) == [1]
+
+
+class TestEpakanonisetLuokat:
+    def test_hakee_vain_sallituista_poikkeavat_tavu_tarkasti(self, mock_yhteys):
+        """Kannan oletuskollaatio (ai_ci) pitäisi 'ei lainkaan' = 'Ei lainkaan' → vertailu binäärinä."""
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        mallit.hae_epakanoniset_luokat(1, {10: ["Täysin", "Ei lainkaan"], 11: ["A"]})
+        sql, params = kursori.execute.call_args[0]
+        assert "COLLATE utf8mb4_bin NOT IN" in sql
+        assert "Luokka IS NOT NULL" in sql and "Luokka <> ''" in sql
+        assert list(params) == [1, 10, "Täysin", "Ei lainkaan", 11, "A"]
+
+    def test_ei_kyselya_ilman_luokittelukysymyksia(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        assert mallit.hae_epakanoniset_luokat(1, {}) == []
+        kursori.execute.assert_not_called()
+
+    def test_paivita_luokat_vasid_lla(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        mallit.paivita_luokat([("Ei lainkaan", 7), ("Täysin", 8)])
+        sql, rivit = kursori.executemany.call_args[0]
+        assert sql.startswith("UPDATE Vastaukset SET Luokka = %s WHERE VasID = %s")
+        assert rivit == [("Ei lainkaan", 7), ("Täysin", 8)]

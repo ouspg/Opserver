@@ -56,6 +56,31 @@ def hae_raakana_tallennetut_vastaukset(tid: int) -> list[dict]:
     )
 
 
+def hae_epakanoniset_luokat(tid: int, sallitut: dict[int, list[str]]) -> list[dict]:
+    """Luokittelukysymysten vastausrivit, joiden Luokka ei ole täsmälleen mikään
+    sallituista nimistä ({KysID: [nimet]}). Vertailu binäärinä: kannan oletuskollaatio
+    (utf8mb4_0900_ai_ci) pitäisi 'ei lainkaan ' -tyyppiset arvot jo sallittuina."""
+    if not sallitut:
+        return []
+    ehdot, params = [], [tid]
+    for kysid, nimet in sallitut.items():
+        ehdot.append(f"(KysID = %s AND Luokka COLLATE utf8mb4_bin NOT IN ({','.join(['%s'] * len(nimet))}))")
+        params += [kysid, *nimet]
+    return _hae_kaikki(
+        f"""SELECT VasID, KysID, KID, Luokka FROM Vastaukset
+            WHERE TID = %s AND Luokka IS NOT NULL AND Luokka <> '' AND ({' OR '.join(ehdot)})""",
+        tuple(params),
+    )
+
+
+def paivita_luokat(rivit: list[tuple[str, int]]) -> None:
+    """Asettaa Luokka-arvot riveittäin [(luokka, VasID)]. Ei koske muihin kenttiin:
+    hyväksyntä ja Aikaleima (ihmisen korjauksen ajankohta) säilyvät."""
+    with yhteys() as yht:
+        with yht.cursor() as kursori:
+            kursori.executemany("UPDATE Vastaukset SET Luokka = %s WHERE VasID = %s", rivit)
+
+
 def hae_vastaus_tiivisteet(tid: int) -> dict[tuple[int, int], dict]:
     """Palauttaa tutkimuksen vastausten tilan: {(KID, KysID): {tiiviste, vastattu, hitl}}.
 
@@ -99,18 +124,25 @@ def poista_vastaukset_kysymykselta(kysid: int) -> None:
     _suorita("DELETE FROM Vastaukset WHERE KysID = %s", (kysid,))
 
 
-def hae_vastaukset(tid: int) -> list[dict]:
+def hae_vastaukset(tid: int, vain_mukana: bool = False) -> list[dict]:
     """Tutkimuksen vastaukset: sekä LLM:n että ihmisten korjaukset.
 
     Rivin alkuperä: Malli IS NULL → ihmisen korjaus, muuten LLM:n vastaus
     (ks. migraatio_022). Uusin ensin saman (kysymys, kurssi) -parin sisällä,
     jotta esittäjä voi ottaa ensimmäisen osuman voittajaksi.
+
+    vain_mukana: vain kurssit, jotka ovat nyt mukana (Kurssiluokitus.Mukana = 1).
+    HITL:ssä pois käännetyn kurssin vanhat vastaukset jäävät kantaan, mutta
+    raportin tilastoihin ne eivät kuulu. Rajaus JOINilla kannassa.
     """
+    mukana_join = ("JOIN Kurssiluokitus kl ON kl.TID = v.TID AND kl.KID = v.KID AND kl.Mukana = 1"
+                   if vain_mukana else "")
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute("""
+            kursori.execute(f"""
                 SELECT v.*
                 FROM Vastaukset v
+                {mukana_join}
                 WHERE v.TID = %s
                 ORDER BY v.KID, v.KysID, (v.Malli IS NULL) DESC, v.Aikaleima DESC
             """, (tid,))

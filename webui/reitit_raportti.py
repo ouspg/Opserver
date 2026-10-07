@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from tietokanta import mallit
 from tietokanta.valimuisti import ttl_valimuisti
-from raportti import llmraportti
+from raportti import kysymystilastot, llmraportti, mittarit
 from webui.riippuvuudet import TutkimusSlugista
 from webui.reitit_katalogi import _VALIMUISTI_TTL
 
@@ -72,78 +72,14 @@ def api_raportti(tutkimus: TutkimusSlugista) -> dict:
 
 @reititin.get("/api/tutkimukset/{slug}/raportti/tilastot")
 def api_raportti_tilastot(tutkimus: TutkimusSlugista) -> dict:
-    """Palauttaa per-kysymys-tilastot rakenteellisille arvioinneille ilman LLM-kutsua."""
+    """Palauttaa per-kysymys-tilastot rakenteellisille arvioinneille ilman LLM-kutsua.
+    Vain nykyiset mukana-kurssit (sama joukko kuin raportin "lopullinen mukana-lista")."""
     tid = tutkimus["TID"]
-    kysymykset = mallit.hae_kysymykset(tid)
-    vastaukset_lista = mallit.hae_vastaukset(tid)
-
-    # Rakenna per-kysymys indeksi vastauksista. hae_vastaukset palauttaa saman
-    # (kurssi, kysymys) -parin HITL-rivin ennen LLM-riviä → ensimmäinen voittaa,
-    # eikä ihmisen korjaama pari tule tilastoon kahdesti.
-    v_per_kys: dict[int, list[dict]] = {k["KysID"]: [] for k in kysymykset}
-    nahdyt: set[tuple[int, int]] = set()
-    for v in vastaukset_lista:
-        kysid = v["KysID"]
-        if kysid in v_per_kys and (v["KID"], kysid) not in nahdyt:
-            nahdyt.add((v["KID"], kysid))
-            v_per_kys[kysid].append(v)
-
-    tulos_kysymykset = []
-    for k in kysymykset:
-        kysid = k["KysID"]
-        luokittelu = k.get("Luokittelu", "vapaa_teksti")
-        vastaukset = v_per_kys.get(kysid, [])
-        kohta: dict = {"kysid": kysid, "kysymys": k["Kysymys"], "luokittelu": luokittelu}
-
-        if luokittelu == "luokittelu":
-            jakauma: dict[str, int] = {}
-            for v in vastaukset:
-                luokka = v.get("Luokka") or ""
-                if luokka:
-                    jakauma[luokka] = jakauma.get(luokka, 0) + 1
-            kohta["jakauma"] = jakauma
-            kohta["yhteensa"] = sum(jakauma.values())
-
-        elif luokittelu == "asteikko":
-            pisteet_arvot = [v["Pisteet"] for v in vastaukset if v.get("Pisteet") is not None]
-            jakauma_num: dict[str, int] = {}
-            for p in pisteet_arvot:
-                avain = str(int(round(p)))
-                jakauma_num[avain] = jakauma_num.get(avain, 0) + 1
-            kohta["yhteensa"] = len(pisteet_arvot)
-            kohta["jakauma"] = jakauma_num
-            if pisteet_arvot:
-                kohta["keskiarvo"] = round(sum(pisteet_arvot) / len(pisteet_arvot), 2)
-                kohta["minimi"] = min(pisteet_arvot)
-                kohta["maksimi"] = max(pisteet_arvot)
-            else:
-                kohta["keskiarvo"] = None
-                kohta["minimi"] = None
-                kohta["maksimi"] = None
-
-        elif luokittelu == "lista":
-            jakauma_lista: dict[str, int] = {}
-            vastattuja = 0
-            for v in vastaukset:
-                kohdat = v.get("Lista") or []
-                if kohdat:
-                    vastattuja += 1
-                for kohde in kohdat:
-                    jakauma_lista[kohde] = jakauma_lista.get(kohde, 0) + 1
-            kohta["jakauma"] = dict(sorted(jakauma_lista.items(), key=lambda p: -p[1]))
-            kohta["yhteensa"] = vastattuja
-
-        else:  # vapaa_teksti
-            kohta["yhteensa"] = sum(1 for v in vastaukset if v.get("Vastaus"))
-
-        tulos_kysymykset.append(kohta)
-
     # HITL-laatumittarit (CLAUDE.md vaihe 4): käsin-muutos-% + juurisyyjakauma.
     # Rakenteellinen, auktoritatiivinen luku — ei LLM-generoitua proosaa.
     tilastot = mallit.hae_tilastot_yliopistoittain(tid)
-    hitl = llmraportti.hitl_mittarit(tilastot)
-
-    return {"kysymykset": tulos_kysymykset, "hitl": hitl}
+    return {"kysymykset": kysymystilastot.hae(tid), "hitl": mittarit.hitl_mittarit(tilastot),
+            "suppilo": mittarit.suppilo(tilastot)}
 
 
 @reititin.get("/api/tutkimukset/{slug}/raportti/tilanne")

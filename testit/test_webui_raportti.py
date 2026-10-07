@@ -80,14 +80,14 @@ def test_api_raportti_tilastot_asteikko():
 
 
 def test_api_raportti_tilastot_hitl_mittarit():
-    """Rakenteellinen HITL-laatumittari: käsin-muutos-% + juurisyyjakauma."""
+    """Rakenteellinen HITL-laatumittari: suunta × kumottu vaihe + juurisyyjakauma."""
     tilastot = [
-        {"KKID": 1, "KouluNimi": "TY", "KurssiYhteensa": 100, "LLMKasitelty": 40,
-         "Mukana": 12, "Hylatty": 28, "HitlLkm": 3,
-         "HitlKursseja": 3, "RiittamatonOpas": 2, "LlmVirhe": 1, "TuntematonSyy": 0},
-        {"KKID": 2, "KouluNimi": "AY", "KurssiYhteensa": 80, "LLMKasitelty": 30,
-         "Mukana": 8, "Hylatty": 22, "HitlLkm": 1,
-         "HitlKursseja": 1, "RiittamatonOpas": 0, "LlmVirhe": 0, "TuntematonSyy": 1},
+        {"KKID": 1, "KouluNimi": "TY", "KurssiYhteensa": 100, "LLMKasitelty": 40, "MetaHylkaama": 50,
+         "Mukana": 12, "Hylatty": 28, "HitlLkm": 3, "HitlKursseja": 3,
+         "LisattyLLM": 1, "LisattyMeta": 1, "PoistettuLLM": 1, "LisattyOpas": 2, "PoistettuLlmVirhe": 1},
+        {"KKID": 2, "KouluNimi": "AY", "KurssiYhteensa": 80, "LLMKasitelty": 30, "MetaHylkaama": 0,
+         "Mukana": 8, "Hylatty": 22, "HitlLkm": 1, "HitlKursseja": 1,
+         "PoistettuLLM": 1, "PoistettuTuntematon": 1},
     ]
     with patch("tietokanta.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
          patch("tietokanta.mallit.hae_kysymykset", return_value=[]), \
@@ -98,7 +98,9 @@ def test_api_raportti_tilastot_hitl_mittarit():
     hitl = vastaus.json()["hitl"]
     assert hitl["llm_kasitelty"] == 70
     assert hitl["muutettu"] == 4
-    assert round(hitl["muutettu_pros"], 1) == 5.7
+    assert (hitl["lisatty_llm"], hitl["lisatty_meta"], hitl["poistettu_llm"]) == (1, 1, 2)
+    assert hitl["llm_kumottu"] == 3 and round(hitl["llm_kumottu_pros"], 1) == 4.3
+    assert hitl["llm_alkuperainen"] == 20 - 2 + 2
     assert hitl["opas"] == 2 and round(hitl["opas_pros"], 1) == 50.0
     assert hitl["llm_virhe"] == 1
 
@@ -190,3 +192,47 @@ def test_api_raportti_tilastot_ihmisen_korjaus_voittaa_eika_tuplaa():
     k = data["kysymykset"][0]
     assert k["jakauma"] == {"matala": 1, "korkea": 1}
     assert k["yhteensa"] == 2
+
+
+def test_api_raportti_tilastot_vain_nykyiset_mukana_kurssit():
+    """Tilastot lasketaan vain kursseista, jotka ovat nyt mukana (Mukana = 1):
+    HITL:ssä pois käännetyn kurssin vanhat arviot eivät saa paisuttaa lukuja."""
+    with patch("tietokanta.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("tietokanta.mallit.hae_kysymykset", return_value=[]), \
+         patch("tietokanta.mallit.hae_vastaukset", return_value=[]) as hae, \
+         patch("tietokanta.mallit.hae_tilastot_yliopistoittain", return_value=[]):
+        asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot")
+    hae.assert_called_once_with(TUTKIMUS["TID"], vain_mukana=True)
+
+
+def test_api_raportti_tilastot_palauttaa_suppilon():
+    """Suppilo erottelee meta-suodatuksen hylkäämät LLM:lle menneistä."""
+    tilastot = [{"KKID": 1, "KouluNimi": "TY", "KurssiYhteensa": 100, "OdottaaMeta": 5,
+                 "MetaHylkaama": 60, "LLMlle": 35, "OdottaaLLM": 5, "LLMKasitelty": 30,
+                 "LLMHylatty": 20, "MetaHylatty": 60, "Mukana": 10, "Hylatty": 80, "HitlLkm": 0,
+                 "HitlKursseja": 0, "RiittamatonOpas": 0, "LlmVirhe": 0, "TuntematonSyy": 0}]
+    with patch("tietokanta.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("tietokanta.mallit.hae_kysymykset", return_value=[]), \
+         patch("tietokanta.mallit.hae_vastaukset", return_value=[]), \
+         patch("tietokanta.mallit.hae_tilastot_yliopistoittain", return_value=tilastot):
+        data = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot").json()
+    assert data["suppilo"]["meta_hylkaama"] == 60
+    assert data["suppilo"]["llm_lle"] == 35
+    assert data["suppilo"]["mukana"] == 10
+    assert data["hitl"]["llm_kasitelty"] == 30
+
+
+def test_api_raportti_tilastot_kokoaa_luokat_kanonisesti():
+    """Varmistus vanhoille riveille: 'ei lainkaan ' ja 'Ei lainkaan' samaan luokkaan;
+    tuntematon arvo näkyy omana luokkanaan (löydettävissä korjattavaksi)."""
+    ks = [{"KysID": 10, "TID": 1, "Kysymys": "Joustavuus?", "Luokittelu": "luokittelu",
+           "LuokitteluMaarittely": {"luokat": [{"nimi": "Täysin"}, {"nimi": "Ei lainkaan"}]}}]
+    vs = [{"KysID": 10, "KID": k, "Vastaus": "p", "Pisteet": None, "Luokka": l}
+          for k, l in [(1, "Ei lainkaan"), (2, " ei lainkaan "), (3, "TÄYSIN"), (4, "Ehkä")]]
+    with patch("tietokanta.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("tietokanta.mallit.hae_kysymykset", return_value=ks), \
+         patch("tietokanta.mallit.hae_vastaukset", return_value=vs), \
+         patch("tietokanta.mallit.hae_tilastot_yliopistoittain", return_value=[]):
+        k = asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot").json()["kysymykset"][0]
+    assert k["jakauma"] == {"Ei lainkaan": 2, "Täysin": 1, "Ehkä": 1}
+    assert k["yhteensa"] == 4

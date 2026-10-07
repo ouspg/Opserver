@@ -1,7 +1,8 @@
 """Raporttiosiot, raportin tuoreus ja raportin tilastot."""
 from tietokanta.yhteys import yhteys
 from tietokanta._yhteiset import (
-    _hae_arvo, _hae_kaikki, _hae_yksi, _kattaa_turvallinen, _rajaus, _rivit_dikteina, _suorita,
+    _hae_arvo, _hae_kaikki, _hae_yksi, _kysely, _kattaa_turvallinen, _rajaus, _rivit_dikteina, _suorita,
+    luokitus_suppilo_sql, meta_hylkays_sql,
 )
 
 
@@ -82,6 +83,26 @@ def laske_hitl_vastaukset(tid: int, jalkeen=None) -> int:
 
 # --- Raporttitilastot ---
 
+def hae_kaytetyt_mallit(tid: int) -> dict[str, list[tuple[str, int]]]:
+    """Seulonnassa ja arvioinnissa oikeasti käytetyt LLM-mallit tallennetuista riveistä
+    (ei .env-oletus): {"seulonta": [(malli, kursseja)], "arviointi": [(malli, vastauksia)]},
+    yleisin ensin. Meta-suodatuksen ja ihmisen rivit (Malli NULL/'') eivät ole mukana."""
+    rivit = _kysely(
+        """SELECT 'seulonta', Malli, COUNT(*) FROM Kurssiluokitus
+           WHERE TID = %s AND Malli IS NOT NULL AND Malli <> '' GROUP BY Malli
+           UNION ALL
+           SELECT 'arviointi', Malli, COUNT(*) FROM Vastaukset
+           WHERE TID = %s AND Malli IS NOT NULL AND Malli <> '' GROUP BY Malli""",
+        (tid, tid), lambda kursori: kursori.fetchall(),
+    )
+    tulos: dict[str, list[tuple[str, int]]] = {"seulonta": [], "arviointi": []}
+    for vaihe, malli, lkm in rivit:
+        tulos[vaihe].append((malli, int(lkm)))
+    for lista in tulos.values():
+        lista.sort(key=lambda p: -p[1])
+    return tulos
+
+
 def _kattavat_kaudet(kursori, lukuvuosi: str | None) -> list[str]:
     """Aineiston Opetusvuosi-arvot, jotka kattavat tutkimuksen lukuvuoden.
 
@@ -94,12 +115,75 @@ def _kattavat_kaudet(kursori, lukuvuosi: str | None) -> list[str]:
     return [k for k in kaikki if _kattaa_turvallinen(k, lukuvuosi)]
 
 
+# HITL-korjausten suunta ja kumottu vaihe kunkin kurssin VIIMEISIMMÄSTÄ korjauksesta
+# (MAX(HID)), jotta edestakaisin korjattu kurssi ei tuplaannu ja lopputila kertoo
+# ihmisen lopullisen kannan. UusiTila = suunta (1 = lisätty, 0 = poistettu).
+# Meta = kumottiinko meta-suodatuksen päätös (Luokitteluperuste säilyy korjauksessa).
+# Muutos = poikkeaako lopputila alkuperäisestä automaattisesta päätöksestä:
+# meta-hylkäyksen alkutila on 0, muuten alkutila on ENSIMMÄISEN korjauksen
+# vastakohta (korjaus kääntää aina silloisen tilan; HITL-kursseja ei ajeta LLM:llä
+# uudelleen). Muutos = 0 → käännetty takaisin alkutilaan, ei nettomuutosta.
+_HITL_SUUNTA_SQL = f"""
+    SELECT k.KKID, uusin.UusiTila, uusin.Meta, uusin.Juurisyy, uusin.Muutos, COUNT(*)
+    FROM (
+        SELECT v.KID, hk.UusiTila, hk.Juurisyy, {meta_hylkays_sql()} AS Meta,
+               hk.UusiTila <> IF({meta_hylkays_sql()}, 0, 1 - eka.UusiTila) AS Muutos
+        FROM (SELECT KID, MIN(HID) AS MinHID, MAX(HID) AS MaxHID
+              FROM HitlKorjaus WHERE TID = %s GROUP BY KID) v
+        JOIN HitlKorjaus hk ON hk.HID = v.MaxHID
+        JOIN HitlKorjaus eka ON eka.HID = v.MinHID
+        LEFT JOIN Kurssiluokitus kl ON kl.TID = %s AND kl.KID = v.KID
+    ) uusin
+    JOIN Kurssi k ON k.KID = uusin.KID
+    GROUP BY k.KKID, uusin.UusiTila, uusin.Meta, uusin.Juurisyy, uusin.Muutos
+"""
+_SUUNNAT = {1: "Lisatty", 0: "Poistettu"}
+_SYYT = {"riittamaton_opas": ("Opas", "RiittamatonOpas"), "llm_virhe": ("LlmVirhe", "LlmVirhe"),
+         None: ("Tuntematon", "TuntematonSyy")}
+
+
+def _tyhjat_hitl_suunnat() -> dict:
+    """HITL-kentät nollina: {Lisatty,Poistettu}×{Meta,LLM,Opas,LlmVirhe,Tuntematon},
+    Palautettu, HitlKursseja ja nettomuutosten juurisyyt (RiittamatonOpas, LlmVirhe,
+    TuntematonSyy)."""
+    kentat = {f"{suunta}{osa}": 0 for suunta in _SUUNNAT.values()
+              for osa in ("Meta", "LLM", "Opas", "LlmVirhe", "Tuntematon")}
+    return {**kentat, "Palautettu": 0, "HitlKursseja": 0,
+            "RiittamatonOpas": 0, "LlmVirhe": 0, "TuntematonSyy": 0}
+
+
+def _kokoa_hitl_suunnat(ryhmat) -> dict[int, dict]:
+    """_HITL_SUUNTA_SQL:n ryhmät → {KKID: HITL-kentät}. Tuntematon juurisyykoodi
+    lasketaan merkitsemättömäksi."""
+    tulos: dict[int, dict] = {}
+    for kkid, uusi_tila, meta, juurisyy, muutos, lkm in ryhmat:
+        r = tulos.setdefault(kkid, _tyhjat_hitl_suunnat())
+        lkm = int(lkm)
+        r["HitlKursseja"] += lkm
+        if not int(muutos):
+            r["Palautettu"] += lkm
+            continue
+        suunta = _SUUNNAT[int(uusi_tila)]
+        syy, yhteensa = _SYYT.get(juurisyy, _SYYT[None])
+        r[f"{suunta}{'Meta' if int(meta) else 'LLM'}"] += lkm
+        r[f"{suunta}{syy}"] += lkm
+        r[yhteensa] += lkm
+    return tulos
+
+
 def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
-    """Per-yliopisto-tilastot raporttia varten.
+    """Per-yliopisto-tilastot raporttia varten: suppilo + HITL-korjaukset.
 
     Rajattu tutkimukseen valittuihin korkeakouluihin ja niihin kursseihin,
     joiden OPS-kausi kattaa tutkimuksen lukuvuoden. Tyhjä valinta/lukuvuosi
     (vanha tutkimus) → ei rajausta kyseisen ulottuvuuden osalta.
+
+    Suppilo (luokitus_suppilo_sql + johdetut): KurssiYhteensa → OdottaaMeta (ei
+    luokitusriviä) | MetaHylkaama (meta-suodatuksen alkuperäinen hylkäys) | LLMlle
+    (meta läpäissyt) = OdottaaLLM + LLMKasitelty. Lopputila HITL:n jälkeen:
+    Mukana, Hylatty (= MetaHylatty + LLMHylatty). HITL-kentät: ks. _HITL_SUUNTA_SQL;
+    MukanaTarkistettu = mukana-kurssit, jotka ihminen on hyväksynyt tai korjannut
+    (hylättyjen läpikäynnistä ei ole kirjausta).
     """
     with yhteys() as yht:
         with yht.cursor() as kursori:
@@ -113,25 +197,20 @@ def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
                 vuosi_ehto = "AND 1 = 0"  # lukuvuosi asetettu, mutta yksikään kausi ei kata sitä
 
             kursori.execute(f"""
-                SELECT
-                    ko.KKID,
-                    ko.KouluNimi,
-                    COUNT(DISTINCT k.KID)                                             AS KurssiYhteensa,
-                    COUNT(DISTINCT CASE WHEN kl.TID = %s THEN kl.KID END)            AS LLMKasitelty,
-                    COUNT(DISTINCT CASE WHEN kl.TID = %s AND kl.Mukana = 1 THEN kl.KID END) AS Mukana,
-                    COUNT(DISTINCT CASE WHEN kl.TID = %s AND kl.Mukana = 0 THEN kl.KID END) AS Hylatty
+                SELECT ko.KKID, ko.KouluNimi, COUNT(k.KID) AS KurssiYhteensa,
+                       {luokitus_suppilo_sql()},
+                       COALESCE(SUM(kl.Mukana = 1 AND (kl.KayttajaNimi IS NOT NULL OR hk.KID IS NOT NULL)), 0)
+                           AS MukanaTarkistettu
                 FROM Korkeakoulu ko
                 LEFT JOIN Kurssi k ON k.KKID = ko.KKID {vuosi_ehto}
-                LEFT JOIN Kurssiluokitus kl ON kl.KID = k.KID
+                LEFT JOIN Kurssiluokitus kl ON kl.KID = k.KID AND kl.TID = %s
+                LEFT JOIN (SELECT DISTINCT KID FROM HitlKorjaus WHERE TID = %s) hk ON hk.KID = k.KID
                 {kk_ehto}
                 GROUP BY ko.KKID, ko.KouluNimi
                 ORDER BY ko.KouluNimi
-            """, (tid, tid, tid, *(kaudet if kaudet else []), *kkid_lista))
+            """, (*kaudet, tid, tid, *kkid_lista))
             rivit = _rivit_dikteina(kursori)
-            # Lisää HITL-tilastot per yliopisto. HitlLkm = korjaustapahtumien määrä.
-            # HitlKursseja + juurisyyjakauma lasketaan kunkin kurssin VIIMEISIMMÄSTÄ
-            # korjauksesta (MAX(HID) per KID), jotta edestakaisin korjattu kurssi
-            # ei tuplaannu ja lopputila kertoo ihmisen lopullisen syyn.
+            # HitlLkm = korjaustapahtumien määrä per yliopisto.
             kursori.execute("""
                 SELECT k.KKID, COUNT(DISTINCT hk.HID) AS HitlLkm
                 FROM HitlKorjaus hk
@@ -140,30 +219,17 @@ def hae_tilastot_yliopistoittain(tid: int) -> list[dict]:
                 GROUP BY k.KKID
             """, (tid,))
             hitl = {r[0]: r[1] for r in kursori.fetchall()}
-
-            kursori.execute("""
-                SELECT k.KKID,
-                       COUNT(*)                                    AS HitlKursseja,
-                       SUM(uusin.Juurisyy = 'riittamaton_opas')    AS RiittamatonOpas,
-                       SUM(uusin.Juurisyy = 'llm_virhe')           AS LlmVirhe,
-                       SUM(uusin.Juurisyy IS NULL)                 AS TuntematonSyy
-                FROM (
-                    SELECT hk.KID, hk.Juurisyy
-                    FROM HitlKorjaus hk
-                    JOIN (SELECT KID, MAX(HID) AS MaxHID
-                          FROM HitlKorjaus WHERE TID = %s GROUP BY KID) v
-                      ON hk.HID = v.MaxHID
-                ) uusin
-                JOIN Kurssi k ON uusin.KID = k.KID
-                GROUP BY k.KKID
-            """, (tid,))
-            juurisyy = {r[0]: r[1:] for r in kursori.fetchall()}
+            kursori.execute(_HITL_SUUNTA_SQL, (tid, tid))
+            suunnat = _kokoa_hitl_suunnat(kursori.fetchall())
 
             for r in rivit:
-                r["HitlLkm"] = hitl.get(r["KKID"], 0)
-                kurssit, opas, llm, tuntematon = juurisyy.get(r["KKID"], (0, 0, 0, 0))
-                r["HitlKursseja"] = int(kurssit or 0)
-                r["RiittamatonOpas"] = int(opas or 0)
-                r["LlmVirhe"] = int(llm or 0)
-                r["TuntematonSyy"] = int(tuntematon or 0)
+                for avain in ("KurssiYhteensa", "Mukana", "OdottaaLLM", "MetaHylatty",
+                              "LLMHylatty", "Luokiteltu", "MetaHylkaama", "MukanaTarkistettu"):
+                    r[avain] = int(r[avain] or 0)
+                r["OdottaaMeta"] = r["KurssiYhteensa"] - r["Luokiteltu"]
+                r["LLMlle"] = r["Luokiteltu"] - r["MetaHylkaama"]
+                r["LLMKasitelty"] = r["LLMlle"] - r["OdottaaLLM"]
+                r["Hylatty"] = r["MetaHylatty"] + r["LLMHylatty"]
+                r["HitlLkm"] = int(hitl.get(r["KKID"], 0))
+                r.update(suunnat.get(r["KKID"]) or _tyhjat_hitl_suunnat())
             return rivit
