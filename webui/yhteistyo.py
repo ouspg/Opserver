@@ -117,7 +117,7 @@ def _siivottu_tila(data: dict) -> dict:
     if "sijainti" in tila:
         s = tila["sijainti"]
         tila["sijainti"] = {"x": s["x"], "y": s["y"],
-                            **{k: True for k in ("modaali", "ylapalkki") if s.get(k) is True}}
+                            **{k: True for k in ("modaali", "ylapalkki", "kiinnitetty") if s.get(k) is True}}
     return tila
 
 
