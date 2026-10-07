@@ -1,5 +1,6 @@
 """Päivityskatko käyttäjän silmin: haeJson odottaa 503:n / verkkokatkon yli ja näyttää
-yhteysilmoituksen, katkennut WebSocket näyttää saman ilmoituksen."""
+yhteysilmoituksen, katkennut WebSocket näyttää saman ilmoituksen, ja uudelleenyhdistyksen
+jälkeen vaihtunut versio lataa sivun uudelleen — paitsi jos modaali on auki (ilmoitus)."""
 import json
 
 import pytest
@@ -49,3 +50,40 @@ def test_katkennut_websocket_nayttaa_ilmoituksen(kayttaja):
     s.wait_for_selector(f"{ILMOITUS}.katko", timeout=10000)
     s.context.set_offline(False)
     s.wait_for_selector(ILMOITUS, state="hidden", timeout=10000)
+
+
+def _uusi_versio(k):
+    def info(reitti):
+        vastaus = reitti.fetch()
+        reitti.fulfill(response=vastaus, json={**vastaus.json(), "versio": "uusi-versio"})
+    k.route("**/api/info", info)
+
+
+def _yhdista_uudelleen(s):
+    s.wait_for_function("latausVersio() !== null && ws && ws.readyState === WebSocket.OPEN")
+    s.evaluate("window.__ennen_latausta = true")
+    _uusi_versio(s.context)
+    s.evaluate("ws.close()")
+
+
+def test_uusi_versio_lataa_sivun_kun_modaali_ei_auki(kayttaja):
+    s = kayttaja(TUTKIMUKSET, RIVI, alustus=_nopea)
+    _yhdista_uudelleen(s)
+    s.wait_for_function("!window.__ennen_latausta", timeout=10000)  # sivu latautui
+    s.wait_for_selector(RIVI)
+    s.wait_for_function("latausVersio() === 'uusi-versio'")
+    assert not s.is_visible(ILMOITUS)
+
+
+def test_uusi_versio_vain_ilmoitus_kun_modaali_auki(kayttaja):
+    """Avoin modaali (kesken oleva HITL-korjaus ei saa kadota) → ilmoitus + Lataa-nappi."""
+    s = kayttaja(TUTKIMUKSET, RIVI, alustus=_nopea)
+    s.click("#info-nappi")
+    s.wait_for_selector("#info-modaali:not(.piilotettu)")
+    _yhdista_uudelleen(s)
+    s.wait_for_selector(f"{ILMOITUS}.uusi-versio:has-text('Uusi versio saatavilla')", timeout=10000)
+    s.wait_for_timeout(500)
+    assert s.evaluate("window.__ennen_latausta") is True
+    assert s.is_visible("#info-modaali")
+    s.click(f"{ILMOITUS} button")
+    s.wait_for_function("!window.__ennen_latausta", timeout=10000)

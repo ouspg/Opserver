@@ -133,7 +133,7 @@ function paivitaNavIndikaattorit() {
 }
 
 let ws = null;
-let wsKatkoAjastin = null;
+let wsKatkoAjastin = null, wsYhdistetty = false;
 let omaId = null;
 let lahetysAjastin = null;
 let viimeisinAktiivisuus = Date.now();
@@ -229,10 +229,12 @@ function yhdista() {
     }
   });
 
+  // Uudelleenyhdistys = palvelin on ehkä päivittynyt (myös alle ilmoitusviiveen katko).
   ws.addEventListener("open", () => {
     clearTimeout(wsKatkoAjastin);
     wsKatkoAjastin = null;
-    window.yhteysPalautui?.("ws");
+    if (!window.yhteysPalautui?.("ws") && wsYhdistetty) window.tarkistaVersio?.();
+    wsYhdistetty = true;
   });
   ws.addEventListener("close", () => {
     wsKatkoAjastin ??= setTimeout(() => window.yhteysKatkennut?.("ws"), YHTEYS.wsIlmoitusViiveMs);
