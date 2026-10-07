@@ -4,6 +4,15 @@
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 
+# Vahtikoira tauolle asennuksen ajaksi: sen minuutin välein ajama `compose up -d`
+# kilpaili webuin uudelleenluonnin kanssa ja jätti jumiin väliaikaisen
+# "<id>_opserver-webui-1"-kontin (nimikonflikti, 2026-10-07). Käsin asetettua
+# taukoa ei poisteta; tapettu asenna jättää tauon, joka vanhenee 2 h:ssa.
+if [[ ! -e .vahtikoira_tauolla ]]; then
+    touch .vahtikoira_tauolla
+    trap 'rm -f .vahtikoira_tauolla' EXIT
+fi
+
 command -v docker >/dev/null || { echo "docker puuttuu"; exit 1; }
 command -v curl >/dev/null || { echo "curl puuttuu"; exit 1; }
 
