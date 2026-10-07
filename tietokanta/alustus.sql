@@ -107,6 +107,28 @@ CREATE TABLE IF NOT EXISTS `Kysymykset` (
   KEY `Kysymykset_ibfk_1` (`TID`),
   CONSTRAINT `Kysymykset_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE IF NOT EXISTS `ListaLlmKasitelty` (
+  `KysID` int NOT NULL,
+  `TID` int NOT NULL,
+  `Tiiviste` varchar(64) NOT NULL,
+  `Aikaleima` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`KysID`),
+  KEY `idx_tid` (`TID`),
+  CONSTRAINT `ListaLlmKasitelty_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE,
+  CONSTRAINT `ListaLlmKasitelty_ibfk_2` FOREIGN KEY (`KysID`) REFERENCES `Kysymykset` (`KysID`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+CREATE TABLE IF NOT EXISTS `ListaYhdistys` (
+  `TID` int NOT NULL,
+  `KysID` int NOT NULL,
+  `Lahde` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `Kohde` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `Hyvaksytty` tinyint(1) NOT NULL,
+  `Aikaleima` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`KysID`,`Lahde`,`Kohde`),
+  KEY `idx_tid` (`TID`),
+  CONSTRAINT `ListaYhdistys_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE,
+  CONSTRAINT `ListaYhdistys_ibfk_2` FOREIGN KEY (`KysID`) REFERENCES `Kysymykset` (`KysID`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 CREATE TABLE IF NOT EXISTS `RaporttiOsio` (
   `RID` int NOT NULL AUTO_INCREMENT,
   `TID` int NOT NULL,

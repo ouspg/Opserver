@@ -12,6 +12,10 @@
   CONSTRAINT `Kurssiluokitus_testi_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE
   CONSTRAINT `Kurssiluokitus_testi_ibfk_2` FOREIGN KEY (`KID`) REFERENCES `Kurssi` (`KID`) ON DELETE CASCADE
   CONSTRAINT `Kysymykset_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE
+  CONSTRAINT `ListaLlmKasitelty_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE
+  CONSTRAINT `ListaLlmKasitelty_ibfk_2` FOREIGN KEY (`KysID`) REFERENCES `Kysymykset` (`KysID`) ON DELETE CASCADE
+  CONSTRAINT `ListaYhdistys_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE
+  CONSTRAINT `ListaYhdistys_ibfk_2` FOREIGN KEY (`KysID`) REFERENCES `Kysymykset` (`KysID`) ON DELETE CASCADE
   CONSTRAINT `RaporttiOsio_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE
   CONSTRAINT `RaporttiTuoreus_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE
   CONSTRAINT `TutkimusKorkeakoulu_ibfk_1` FOREIGN KEY (`TID`) REFERENCES `Tutkimus` (`TID`) ON DELETE CASCADE
@@ -36,6 +40,8 @@
   KEY `idx_tid_ajo` (`TID`,`Ajo`)
   KEY `idx_tid_ajo` (`TID`,`Ajo`)
   KEY `idx_tid` (`TID`)
+  KEY `idx_tid` (`TID`)
+  KEY `idx_tid` (`TID`)
   PRIMARY KEY (`HID`)
   PRIMARY KEY (`KAID`)
   PRIMARY KEY (`KID`)
@@ -43,6 +49,8 @@
   PRIMARY KEY (`KKID`)
   PRIMARY KEY (`KLID`)
   PRIMARY KEY (`KysID`)
+  PRIMARY KEY (`KysID`)
+  PRIMARY KEY (`KysID`,`Lahde`,`Kohde`)
   PRIMARY KEY (`RID`)
   PRIMARY KEY (`TID`)
   PRIMARY KEY (`TID`)
@@ -61,6 +69,8 @@
   UNIQUE KEY `uniikki_tid_osio` (`TID`,`OsioAvain`)
   `Aikaleima` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
   `Aikaleima` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `Aikaleima` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `Aikaleima` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
   `Aikaleima` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   `Ajo` varchar(32) NOT NULL
   `Ajo` varchar(32) NOT NULL
@@ -72,6 +82,7 @@
   `HID` int NOT NULL AUTO_INCREMENT
   `HyvaksyjaNimi` varchar(255) DEFAULT NULL
   `HyvaksyjaSahkoposti` varchar(255) DEFAULT NULL
+  `Hyvaksytty` tinyint(1) NOT NULL
   `Juurisyy` varchar(32) DEFAULT NULL
   `Juurisyy` varchar(32) DEFAULT NULL
   `KAID` int NOT NULL AUTO_INCREMENT
@@ -94,14 +105,18 @@
   `Kehotetiiviste` varchar(64) DEFAULT NULL
   `Kehotetiiviste` varchar(64) DEFAULT NULL
   `Kehotetiiviste` varchar(64) DEFAULT NULL
+  `Kohde` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
   `Koodi` varchar(50) DEFAULT NULL
   `KouluNimi` varchar(255) NOT NULL
   `KurssiNimi` varchar(255) NOT NULL
   `KysID` int NOT NULL
   `KysID` int NOT NULL
+  `KysID` int NOT NULL
+  `KysID` int NOT NULL
   `KysID` int NOT NULL AUTO_INCREMENT
   `Kysymys` text NOT NULL
   `LahdeId` varchar(50) DEFAULT NULL
+  `Lahde` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
   `Laskentatiiviste` varchar(64) DEFAULT NULL
   `Lista` json DEFAULT NULL
   `Lista` json DEFAULT NULL
@@ -151,12 +166,15 @@
   `TID` int NOT NULL
   `TID` int NOT NULL
   `TID` int NOT NULL
+  `TID` int NOT NULL
+  `TID` int NOT NULL
   `TID` int NOT NULL AUTO_INCREMENT
   `TLID` int NOT NULL AUTO_INCREMENT
   `Tarkistettu` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   `Taso` varchar(30) DEFAULT NULL
   `Tasorajaus` varchar(255) DEFAULT NULL
   `Teksti` mediumtext NOT NULL
+  `Tiiviste` varchar(64) NOT NULL
   `UusiTila` tinyint(1) NOT NULL
   `VTID` int NOT NULL AUTO_INCREMENT
   `VasID` int NOT NULL AUTO_INCREMENT
@@ -167,6 +185,8 @@
   `VuosiLoppu` smallint unsigned GENERATED ALWAYS AS ((case when (char_length(substring_index(`Opetusvuosi`,_utf8mb4'-',-(1))) = 4) then cast(substring_index(`Opetusvuosi`,_utf8mb4'-',-(1)) as unsigned) else (((cast(substring_index(`Opetusvuosi`,_utf8mb4'-',1) as unsigned) DIV 100) * 100) + cast(substring_index(`Opetusvuosi`,_utf8mb4'-',-(1)) as unsigned)) end)) VIRTUAL
   `ajettu` datetime DEFAULT CURRENT_TIMESTAMP
   `nimi` varchar(64) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -205,10 +225,14 @@
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -245,6 +269,8 @@
 /*!50503 SET character_set_client = utf8mb4 */;
 /*!50503 SET character_set_client = utf8mb4 */;
 /*!50503 SET character_set_client = utf8mb4 */;
+/*!50503 SET character_set_client = utf8mb4 */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `HitlKorjaus` (
 CREATE TABLE `Korkeakoulu` (
 CREATE TABLE `KurssiKuvaus` (
@@ -253,6 +279,8 @@ CREATE TABLE `Kurssiarviointi` (
 CREATE TABLE `Kurssiluokitus_testi` (
 CREATE TABLE `Kurssiluokitus` (
 CREATE TABLE `Kysymykset` (
+CREATE TABLE `ListaLlmKasitelty` (
+CREATE TABLE `ListaYhdistys` (
 CREATE TABLE `RaporttiOsio` (
 CREATE TABLE `RaporttiTuoreus` (
 CREATE TABLE `TutkimusKorkeakoulu` (
@@ -268,6 +296,8 @@ DROP TABLE IF EXISTS `Kurssiarviointi`;
 DROP TABLE IF EXISTS `Kurssiluokitus_testi`;
 DROP TABLE IF EXISTS `Kurssiluokitus`;
 DROP TABLE IF EXISTS `Kysymykset`;
+DROP TABLE IF EXISTS `ListaLlmKasitelty`;
+DROP TABLE IF EXISTS `ListaYhdistys`;
 DROP TABLE IF EXISTS `RaporttiOsio`;
 DROP TABLE IF EXISTS `RaporttiTuoreus`;
 DROP TABLE IF EXISTS `TutkimusKorkeakoulu`;
