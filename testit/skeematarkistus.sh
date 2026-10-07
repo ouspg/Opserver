@@ -19,13 +19,18 @@ fi
 
 set -a; source .env; set +a
 
+# Oma väliaikaistiedosto: kiinteä /tmp-polku jäi root-cronin (paivittaja) omistamaksi,
+# jolloin ubuntu-käyttäjän ajo kaatui "Permission denied".
+SKEEMA_NYT=$(mktemp)
+trap 'rm -f "$SKEEMA_NYT"' EXIT
+
 # < /dev/null: docker compose exec perii stdinin päätteestä ja voi muuten
 # pysähtyä SIGTTIN:iin taustaprosessina — sama ansa kuin asennassa.
 docker compose exec -T -e MYSQL_PWD="$DB_PASSWORD" mysql \
     mysqldump -u"$DB_USER" "${VEDOS_LIPUT[@]}" "$DB_NAME" < /dev/null \
-    | normalisoi_vedos > /tmp/skeema_nyt.sql
+    | normalisoi_vedos > "$SKEEMA_NYT"
 
-if diff -u testit/fixtures/tavoiteskeema.sql /tmp/skeema_nyt.sql; then
+if diff -u testit/fixtures/tavoiteskeema.sql "$SKEEMA_NYT"; then
     echo "OK: kannan skeema vastaa tavoiteskeemaa."
 else
     echo
