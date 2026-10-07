@@ -14,6 +14,7 @@ load_dotenv()
 
 _MAX_TOKENIT = 4096
 _AIKAKATKAISU_S = 120
+_AIKAKATKAISU_RAJATON_S = 600  # pitkä vastaus ilman max_tokens-rajaa
 
 # Suojaa globaalin tahdistus-/backoff-tilan, kun useat säikeet (rinnakkainen
 # eräajo) kutsuvat kysy():tä samanaikaisesti. Vain pienet tilapäivitykset ja
@@ -117,7 +118,7 @@ def _rakenna_viestit(viesti: str, jarjestelma: str, vakaa_prefix: str | None) ->
 
 
 def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
-         vakaa_prefix: str | None = None) -> str:
+         vakaa_prefix: str | None = None, rajaton: bool = False) -> str:
     """Lähettää viestin LLM:lle ja palauttaa vastauksen tekstinä.
 
     json_muoto=True lisää response_format: json_object pyyntöön, jolloin
@@ -126,6 +127,9 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
     vakaa_prefix: viestin muuttumaton alkuosa (esim. järjestelmä + kehote +
     kysymykset), joka merkitään kehotevälimuistiin. Kun useat erät jakavat saman
     etuliitteen, sitä ei laskuteta/prosessoida uudelleen tukevilla malleilla.
+
+    rajaton=True jättää max_tokens-rajan pois (mallin oma yläraja) ja pidentää
+    aikakatkaisua — harvoille kutsuille, joiden vastaus voi olla pitkä.
     """
     global _viive_s, _viimeisin_kaytto
     perus_url = os.environ.get("LLM_PROVIDER")
@@ -143,9 +147,10 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
             time.sleep(viive)
         runko = {
             "model": malli,
-            "max_tokens": asetukset.lue_int("LLM_MAX_TOKENIT", _MAX_TOKENIT),
             "messages": _rakenna_viestit(viesti, jarjestelma, vakaa_prefix),
         }
+        if not rajaton:
+            runko["max_tokens"] = asetukset.lue_int("LLM_MAX_TOKENIT", _MAX_TOKENIT)
         # Ajattelutokenit laskutetaan ulostulohintaan — seulonta on luokittelu-,
         # ei päättelytehtävä, joten "low" leikkaa kulun ilman laatuhaittaa.
         # Tyhjä/puuttuva = mallin oma oletus (OpenRouterin yhtenäinen parametri).
@@ -162,7 +167,7 @@ def kysy(viesti: str, jarjestelma: str = "", json_muoto: bool = False,
             f"{perus_url.rstrip('/')}/chat/completions",
             headers={"Authorization": f"Bearer {api_avain}"},
             json=runko,
-            timeout=_AIKAKATKAISU_S,
+            timeout=_AIKAKATKAISU_RAJATON_S if rajaton else _AIKAKATKAISU_S,
         )
         if vastaus.status_code == 429:
             _kasvata_viivetta()

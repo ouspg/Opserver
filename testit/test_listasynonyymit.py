@@ -79,14 +79,15 @@ class TestKysyErissa:
         viesti, jarjestelma = kysy.call_args[0][:2]
         assert "Opetusmenetelmät?" in viesti and '["Luennot", 30]' in viesti and '["luento", 1]' in viesti
         assert jarjestelma == "J" and kysy.call_args.kwargs["json_muoto"] is True
+        assert kysy.call_args.kwargs["rajaton"] is True
 
     def test_isot_joukot_pilkotaan_aakkosjarjestyksessa(self):
-        maarat = {f"arvo{i:03d}": 1 for i in range(ls.ERAKOKO + 5)}
+        maarat = {f"arvo{i:04d}": 1 for i in range(ls.ERAKOKO + 5)}
         with patch("raportti.listasynonyymit.kutsu.kysy", return_value='{"yhdistykset": []}') as kysy:
             parit, virheet = ls.kysy_erissa("K", maarat, "J")
         assert kysy.call_count == 2 and virheet == 0
-        assert '"arvo000"' in kysy.call_args_list[0][0][0]
-        assert f'"arvo{ls.ERAKOKO:03d}"' in kysy.call_args_list[1][0][0]
+        assert '"arvo0000"' in kysy.call_args_list[0][0][0]
+        assert f'"arvo{ls.ERAKOKO:04d}"' in kysy.call_args_list[1][0][0]
 
     def test_katkennut_vastaus_puolittaa_eran(self):
         maarat = {f"a{i:02d}": 1 for i in range(40)}

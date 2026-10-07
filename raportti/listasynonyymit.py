@@ -16,7 +16,7 @@ from raportti.listanormalisointi import (
 )
 
 KEHOTETIEDOSTO = "listasynonyymijarjestelma.txt"
-ERAKOKO = 150        # arvoa per LLM-kutsu (rajaa vastauksen pituutta → ei katkea)
+ERAKOKO = 1000       # arvoa per LLM-kutsu; kutsuja on vähän → ilman max_tokens-rajaa
 _MINIMIERA = 10      # tätä pienempää erää ei enää puoliteta
 
 
@@ -77,7 +77,8 @@ def kysy_erissa(kysymys: str, maarat: dict[str, int], jarjestelma: str) -> tuple
     while jono:
         era = jono.pop(0)
         try:
-            vastaus = kutsu.kysy(_viesti(kysymys, maarat, era), jarjestelma, json_muoto=True)
+            vastaus = kutsu.kysy(_viesti(kysymys, maarat, era), jarjestelma, json_muoto=True,
+                                  rajaton=True)
             parit.extend(jasenna_vastaus(vastaus))
         except ValueError:
             if len(era) > _MINIMIERA:
