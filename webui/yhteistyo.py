@@ -62,6 +62,65 @@ def _kelpo_lomakearvot(arvot) -> bool:
         isinstance(k, str) and len(k) <= 50 and _kelpo_lomakearvo(v) for k, v in arvot.items())
 
 
+# --- Läsnäoloviestin validointi (luottamusraja: jaettu Basic Auth → kuka tahansa voi lähettää).
+# Tila monistuu jokaiselle käyttäjälle, joten vain tunnetut kentät rajatuin arvoin (#100).
+# Kentät = yhteistyo.js lahetaTila(); uusi kenttä sinne → myös tänne.
+
+_VIESTI_MAX = 1_000_000   # merkkiä; isompi katkaisee yhteyden (lomake: raporttiosio ≤ 200 000)
+_TILA_MAX = 4096          # läsnäoloviestin koko merkkeinä (rajataan jäsennyksen jälkeen tyypin mukaan)
+_UUTINEN_MAX = 1000       # uutisessa kurssin ja tutkimuksen koko nimi
+_SIJAINTI_MAX = 1e6       # px; sivun koordinaatit pitkällä sivulla
+_TASOT = ("aktiivinen", "passiivinen", "nukkuva", "kummitus")
+
+
+def _teksti(pituus: int, tyhja_ok: bool = True):
+    return lambda v: (v is None and tyhja_ok) or (isinstance(v, str) and len(v) <= pituus)
+
+
+def _luku(v, raja: float) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and abs(v) <= raja
+
+
+def _kelpo_profiili(p) -> bool:
+    return (isinstance(p, dict) and set(p) <= {"taustavari", "etualavari", "bitmappi"}
+            and all(_teksti(30, False)(p.get(k)) for k in ("taustavari", "etualavari"))
+            and isinstance(p.get("bitmappi"), list) and len(p["bitmappi"]) == 8
+            and all(isinstance(b, int) and not isinstance(b, bool) and 0 <= b <= 255
+                    for b in p["bitmappi"]))
+
+
+def _kelpo_sivunumero(v) -> bool:
+    return v is None or (isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 100000)
+
+
+def _kelpo_sijainti(s) -> bool:
+    return isinstance(s, dict) and _luku(s.get("x"), _SIJAINTI_MAX) and _luku(s.get("y"), _SIJAINTI_MAX)
+
+
+_TILAKENTAT = {
+    "nimimerkki": _teksti(40, False),
+    "profiili": _kelpo_profiili,
+    "sijainti": _kelpo_sijainti,
+    "taso": lambda v: v in _TASOT,
+    "sivu": _teksti(500),
+    "nakyma": _teksti(200),
+    "sivunumero": _kelpo_sivunumero,
+    "lomake": _teksti(100),
+    "katselu": _teksti(100),
+    "tekeminen": _teksti(200),
+}
+
+
+def _siivottu_tila(data: dict) -> dict:
+    """Läsnäolotila muille: vain tunnetut, kelvolliset kentät (virheellinen kenttä pudotetaan)."""
+    tila = {k: data[k] for k, kelpo in _TILAKENTAT.items() if k in data and kelpo(data[k])}
+    if "sijainti" in tila:
+        s = tila["sijainti"]
+        tila["sijainti"] = {"x": s["x"], "y": s["y"],
+                            **{k: True for k in ("modaali", "ylapalkki") if s.get(k) is True}}
+    return tila
+
+
 async def _laheta(viesti: str, uidit=None) -> None:
     """Viesti annetuille (oletus: kaikille) yhteyksille. Katkennut yhteys poistetaan;
     sen oma ws-käsittelijä siivoaa lomakesessiot."""
@@ -152,12 +211,24 @@ async def ws_kayttajat(ws: WebSocket) -> None:
         await ws.send_text(json.dumps({"tyyppi": "oma-id", "id": uid}))
         await ws.send_text(json.dumps({"tyyppi": "nakymat", "data": _nakymat}))
         while True:
-            data = await ws.receive_json()
+            raaka = await ws.receive_text()
+            if len(raaka) > _VIESTI_MAX:
+                await ws.close(code=1009)  # jättimäinen viesti: ei jäsennetä lainkaan
+                break
+            try:
+                data = json.loads(raaka)
+            except ValueError:
+                continue
+            if not isinstance(data, dict):
+                continue
             tyyppi = data.get("tyyppi")
             if tyyppi == "uutinen":
+                teksti = data.get("teksti")
+                if not (isinstance(teksti, str) and len(teksti) <= _UUTINEN_MAX):
+                    continue
                 aika = datetime.now().strftime("%H:%M")
-                await _laheta(json.dumps({"tyyppi": "uutinen", "teksti": data.get("teksti", ""), "aika": aika}))
-            elif tyyppi and tyyppi.startswith("lomake-"):
+                await _laheta(json.dumps({"tyyppi": "uutinen", "teksti": teksti, "aika": aika}))
+            elif isinstance(tyyppi, str) and tyyppi.startswith("lomake-"):
                 avain = data.get("avain")
                 if not (isinstance(avain, str) and 0 < len(avain) <= 100):
                     continue
@@ -186,10 +257,12 @@ async def ws_kayttajat(ws: WebSocket) -> None:
                     await _laheta_lomake(avain, lahettaja=uid, tyyppi="lomake-tallennettu")
                 elif tyyppi == "lomake-poistu":
                     await _poistu_lomakkeesta(avain, uid)
-            else:
-                _yhteydet[uid] = (ws, data)
+            elif tyyppi is None and len(raaka) <= _TILA_MAX:  # läsnäolo
+                _yhteydet[uid] = (ws, _siivottu_tila(data))
                 await _laheta_kaikille()
     except WebSocketDisconnect:
+        pass
+    finally:  # myös virheellinen kehys (esim. binääri) siivoaa yhteyden ja lomakesessiot
         _yhteydet.pop(uid, None)
         for avain in list(_lomakkeet):
             await _poistu_lomakkeesta(avain, uid)

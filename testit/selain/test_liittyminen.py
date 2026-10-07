@@ -78,3 +78,29 @@ def test_liittyminen_hitl_lomakkeeseen_ennen_vastausta(kayttaja):
     expect(a.locator("#hitl-nimi")).to_have_value("Bertta")
     a.keyboard.type("Z")
     expect(b.locator("#hitl-perustelu")).to_have_value("B-tekstiA1Z", timeout=10000)
+
+
+def test_aloittajuus_sailyy_websocket_katkon_yli(kayttaja):
+    """#102: lomakkeen avannut A pysyy aloittajana, vaikka hänen yhteytensä katkeaa B:n
+    ollessa mukana → A:n tallennus muistaa hänen oman nimensä ja sähköpostinsa."""
+    a = _uusi(kayttaja, VALITTU, HITL)
+    b = _uusi(kayttaja, VALITTU, HITL)
+    a.locator(HITL).nth(1).click()
+    a.fill("#hitl-nimi", "Aino")
+    a.fill("#hitl-sahkoposti", "aino@esimerkki.fi")
+    a.fill("#hitl-perustelu", "katkon yli")
+    a.locator('input[name="hitl-juurisyy"]').first.check()
+    b.locator(HITL).nth(1).click()
+    expect(b.locator("#hitl-nimi")).to_have_value("Aino", timeout=10000)
+
+    a.evaluate("""(() => { const k = window.lomakeKuuntelija; window._vastauksia = 0;
+      window.lomakeKuuntelija = (v) => { window._vastauksia++; k(v); }; })()""")
+    a.evaluate("ws.close()")
+    a.wait_for_function("ws.readyState === WebSocket.CLOSED")
+    a.evaluate("window._vastauksia = 0")
+    # Uudelleenyhdistys (3 s) → uudelleenliittyminen → palvelimen vastaus (2 jäsentä).
+    a.wait_for_function("ws.readyState === WebSocket.OPEN && window._vastauksia > 0", timeout=15000)
+    assert a.evaluate("window.lomakeOlenAloittaja()")
+    a.click("#hitl-laheta")
+    a.wait_for_function("localStorage.getItem('hitl_nimi') === 'Aino'", timeout=10000)
+    assert a.evaluate("localStorage.getItem('hitl_sahkoposti')") == "aino@esimerkki.fi"
