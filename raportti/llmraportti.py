@@ -156,7 +156,9 @@ Tasorajaus: {tutkimus.get('Tasorajaus') or '(kaikki tasot)'}
 Oppiainerajaus: {tutkimus.get('Oppiainerajaus') or '(kaikki oppiaineet)'}
 
 Kirjoita johdanto, joka esittelee tutkimuksen aiheen, tavoitteen ja laajuuden.
-Mainitse tarkasteltujen yliopistojen ja kurssien määrät."""
+Mainitse tarkasteltujen yliopistojen ja kurssien määrät. Jos raportointikehotteessa on
+tutkimuksen yhteinen taustaväite (esim. opettajien hallinnollinen kuormitus),
+esitä se tässä osiossa — se esitetään vain kerran koko raportissa."""
 
 
 def _rakenna_kurssit_viesti(tutkimus: dict, tilastot: list[dict]) -> str:
@@ -193,7 +195,7 @@ kuin poisti, automaattinen seulonta oli liian tiukka (vääriä poisjättöjä);
 enemmän, se oli liian salliva. Kerro myös, kohdistuivatko korjaukset meta-suodatukseen
 vai LLM:n päätöksiin. Kerro HITL:n kattavuus (mitä ihminen tarkisti) annettujen lukujen
 mukaan, ja älä päättele seulonnan tarkkuutta tai väärien poisjättöjen määrää korjausosuudesta.
-Selitä HITL-osuuksien nimittäjät."""
+Selitä HITL-osuuksien nimittäjät. Älä toista johdannon taustaväitettä."""
 
 
 def _rakenna_arvioinnit_viesti(tutkimus: dict, kysymykset: list[dict], tilastot: list[dict]) -> str:
@@ -227,7 +229,8 @@ osaamista vaativien kurssien osuus) ja käytä annettuja prosentteja. Raportoi j
 kysymyksen "ei pääteltävissä" -vastausten osuus opinto-oppaiden riittämättömyyden
 mittarina: se kattaa kaikki arvioidut kurssit, joten se on vahvempi näyttö oppaiden
 puutteista kuin HITL-korjausten juurisyyt (jotka koskevat vain ihmisen korjaamia kursseja).
-Lista-kysymyksen luvut ovat mainintoja, eivät kurssien osuuksia, jotka summautuisivat 100 %:iin."""
+Lista-kysymyksen luvut ovat mainintoja, eivät kurssien osuuksia, jotka summautuisivat 100 %:iin.
+Älä toista johdannon taustaväitettä."""
 
 
 def aja(tutkimus: dict, edistyminen_cb=None) -> int:

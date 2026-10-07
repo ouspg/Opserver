@@ -45,16 +45,19 @@ def keskeiset_luvut_teksti(tilastot: list[dict]) -> str:
 def tilasto_taulukko(rivit: list[dict]) -> str:
     """Per-yliopisto-suppilo tekstitaulukkona."""
     sarakkeet = [("Kursseja", "KurssiYhteensa"), ("Meta-hylk.", "MetaHylkaama"), ("LLM:lle", "LLMlle"),
-                 ("LLM-hyl.", "LLMHylatty"), ("Odottaa", None), ("Mukana*", "Mukana"), ("HITL", "HitlLkm")]
+                 ("LLM-hyl.", "LLMHylatty"), ("Odottaa", None), ("Mukana*", "Mukana"),
+                 ("Mukana-%", "%"), ("HITL", "HitlLkm")]
     otsikko = f"{'Yliopisto':<40}" + "".join(f" {nimi:>10}" for nimi, _ in sarakkeet)
     rivit_txt = [otsikko, "-" * len(otsikko)]
     for r in rivit:
-        arvot = [r.get("OdottaaMeta", 0) + r.get("OdottaaLLM", 0) if avain is None else r.get(avain, 0)
-                 for _, avain in sarakkeet]
+        erikois = {None: r.get("OdottaaMeta", 0) + r.get("OdottaaLLM", 0),
+                   "%": f"{_osuus(r.get('Mukana', 0), r.get('LLMlle', 0)):.1f}"}
+        arvot = [erikois[avain] if avain in erikois else r.get(avain, 0) for _, avain in sarakkeet]
         rivit_txt.append(f"{r['KouluNimi']:<40}" + "".join(f" {a:>10}" for a in arvot))
     rivit_txt.append("Meta-hylk. = meta-suodatuksen hylkäämät; LLM:lle = meta-suodatuksen läpäisseet; "
                      "LLM-hyl. = nyt hylätyt, joiden päätös ei ole meta-suodatuksen; Odottaa = meta- tai "
-                     "LLM-vaihe kesken; HITL = korjaustapahtumia.")
+                     "LLM-vaihe kesken; Mukana-% = mukana / LLM:lle (vertaa yliopistoja vain tällä); "
+                     "HITL = korjaustapahtumia.")
     rivit_txt.append("* lopullinen mukana-lista HITL:n jälkeen")
     return "\n".join(rivit_txt)
 

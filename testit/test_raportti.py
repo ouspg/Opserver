@@ -96,6 +96,29 @@ class TestSuppilo:
         assert mittarit.hitl_mittarit(TILASTOT)["llm_kasitelty"] == 70
 
 
+class TestJarjestelmakehote:
+    def test_kiellot(self):
+        teksti = llmraportti._lue_jarjestelmakehote()
+        assert '"otos"' in teksti and '"edustava"' in teksti
+        assert "suhteutettuna" in teksti
+        assert "Jokainen väite nojaa kehotteessa annettuun lukuun" in teksti
+        assert "vain kerran, johdannossa" in teksti
+        assert '"pääosin tarkka"' in teksti
+
+    def test_taulukko_suhteuttaa_mukana_seulotuista(self):
+        """Yliopistovertailu vain suhteutettuna: mukana-osuus LLM:n seulomista."""
+        tulos = mittarit.tilasto_taulukko(TILASTOT)
+        assert "Mukana-%" in tulos
+        assert "30.0" in tulos      # 12 / 40
+        assert "22.9" in tulos      # 8 / 35
+
+    def test_taustavaite_vain_johdannossa(self):
+        viestit = llmraportti.rakenna_viestit(TUTKIMUS, TILASTOT, KYSYMYKSET)
+        assert "esitä se tässä osiossa" in viestit["johdanto"]
+        for osio in ("kurssit", "arvioinnit"):
+            assert "Älä toista johdannon taustaväitettä" in viestit[osio]
+
+
 class TestRakennaViestiJohdanto:
     def test_sisaltaa_tutkimuksen_nimen(self):
         viesti = llmraportti._rakenna_johdanto_viesti(TUTKIMUS, TILASTOT)
