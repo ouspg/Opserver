@@ -67,7 +67,7 @@ def _kelpo_lomakearvot(arvot) -> bool:
 # Kentät = yhteistyo.js lahetaTila(); uusi kenttä sinne → myös tänne.
 
 _VIESTI_MAX = 1_000_000   # merkkiä; isompi katkaisee yhteyden (lomake: raporttiosio ≤ 200 000)
-_TILA_MAX = 4096          # läsnäolo- ja uutisviesti merkkeinä ennen JSON-jäsennystä
+_TILA_MAX = 4096          # läsnäoloviestin koko merkkeinä (rajataan jäsennyksen jälkeen tyypin mukaan)
 _UUTINEN_MAX = 1000       # uutisessa kurssin ja tutkimuksen koko nimi
 _SIJAINTI_MAX = 1e6       # px; sivun koordinaatit pitkällä sivulla
 _TASOT = ("aktiivinen", "passiivinen", "nukkuva", "kummitus")
@@ -215,9 +215,6 @@ async def ws_kayttajat(ws: WebSocket) -> None:
             if len(raaka) > _VIESTI_MAX:
                 await ws.close(code=1009)  # jättimäinen viesti: ei jäsennetä lainkaan
                 break
-            # Vain jaettu lomake voi olla iso (raporttiosio); selain lähettää sen tyypin ensin.
-            if len(raaka) > _TILA_MAX and not raaka.startswith('{"tyyppi":"lomake-'):
-                continue
             try:
                 data = json.loads(raaka)
             except ValueError:
@@ -260,7 +257,7 @@ async def ws_kayttajat(ws: WebSocket) -> None:
                     await _laheta_lomake(avain, lahettaja=uid, tyyppi="lomake-tallennettu")
                 elif tyyppi == "lomake-poistu":
                     await _poistu_lomakkeesta(avain, uid)
-            elif tyyppi is None and len(raaka) <= _TILA_MAX:  # läsnäolo (koko: tupla-avain ohittaa etuliitteen)
+            elif tyyppi is None and len(raaka) <= _TILA_MAX:  # läsnäolo
                 _yhteydet[uid] = (ws, _siivottu_tila(data))
                 await _laheta_kaikille()
     except WebSocketDisconnect:

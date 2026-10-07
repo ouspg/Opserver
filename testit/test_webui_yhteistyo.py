@@ -183,3 +183,14 @@ def test_jattimainen_viesti_katkaisee_yhteyden(monkeypatch):
             while True:
                 a.receive_json()
     assert yhteistyo._yhteydet == {}
+
+
+def test_iso_lomakeviesti_kelpaa_kenttajarjestyksesta_riippumatta(monkeypatch):
+    # Raporttiosio voi olla satoja kt; koko rajataan jäsennyksen jälkeen tyypin
+    # mukaan, ei olettamalla "tyyppi"-kentän olevan JSONissa ensimmäisenä.
+    monkeypatch.setattr(yhteistyo, "_lomakkeet", {})
+    iso = "x" * 10_000
+    with asiakas.websocket_connect("/ws") as a:
+        a.send_json({"avain": "raportti:1:johdanto", "arvot": {"teksti": iso}, "tyyppi": "lomake-liity"})
+        a.send_json({"tyyppi": "lomake-liity", "avain": "pieni:1", "arvot": {}})  # pudotettu iso → tämä tulisi ensin
+        assert _lomakeviesti(a)["arvot"] == {"teksti": iso}
