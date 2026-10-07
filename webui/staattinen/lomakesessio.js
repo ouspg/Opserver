@@ -195,7 +195,7 @@
   window.avaaLomakesessio = function (avain, modaali, { erikois = {}, tallennettu = null, kuvaus = null } = {}) {
     if (_avain) window.suljeLomakesessio();
     _avain = avain; _modaali = modaali; _erikois = erikois; _tallennettu = tallennettu; _kuvaus = kuvaus;
-    _alustettu = false; _aloittaja = false; _muokkaajat = []; _odottava = null; _palvelimen = {};
+    _alustettu = false; _aloittaja = null; _muokkaajat = []; _odottava = null; _palvelimen = {};
     kuuntele(modaali);
     liity();
     piirraMuokkaajat();
@@ -219,7 +219,7 @@
   // Erikoiskenttä muuttui (esim. listan kohta lisättiin/poistettiin).
   window.lomakeMuuttui = (kentta) => { if (_avain && !_sovelletaan) jonoon(kentta, true, null); };
   // Oliko lomake tämän käyttäjän alustama (nimi/sähköposti ovat hänen omansa)?
-  window.lomakeOlenAloittaja = () => !_avain || _aloittaja;
+  window.lomakeOlenAloittaja = () => !_avain || _aloittaja === true;
   window.omaLomake = () => _avain;
   window.omaLomakeKuvaus = () => (_avain ? _kuvaus : null);
   // WebSocket yhdisti uudelleen → palvelin ei muista jäsenyyttä.
@@ -234,7 +234,7 @@
     if (!_alustettu) {
       // Ensimmäinen vastaus: palvelimen arvot (ensimmäisen avaajan) kenttiin, paitsi
       // liittymisen jälkeen itse muutettuihin (yhdista) — ne lähetetään palvelimelle.
-      _aloittaja = _muokkaajat.length === 1;
+      _aloittaja ??= _muokkaajat.length === 1;  // vain ensimmäisellä liittymisellä, ei katkon jälkeen (#102)
       _alustettu = true;
       for (const [k, v] of Object.entries(_palvelimen)) {
         const oma = lue(k);
