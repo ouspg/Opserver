@@ -140,7 +140,7 @@ def api_arvio_korjaus(tutkimus: TutkimusSlugista, kid: int, kysid: int, pyynto: 
     if kysymys is None:
         raise HTTPException(status_code=404, detail="Kysymystä ei löydy tästä tutkimuksesta")
     # Tyyppitarkistus: luokka on oltava kysymyksen määrittelemien joukossa, pisteet
-    # asteikon sisällä. Väärä arvo rikkoisi raporttitilastot hiljaa.
+    # asteikon sisällä, lista enintään max_kohdat. Väärä arvo rikkoisi raporttitilastot hiljaa.
     maarittely = kysymys.get("LuokitteluMaarittely") or {}  # hae_kysymykset jäsentää JSONin
     tyyppi = kysymys.get("Luokittelu") or "vapaa_teksti"
     if tyyppi == "luokittelu" and pyynto.luokka:
@@ -151,6 +151,9 @@ def api_arvio_korjaus(tutkimus: TutkimusSlugista, kid: int, kysid: int, pyynto: 
         minimi, maksimi = maarittely.get("minimi", 1), maarittely.get("maksimi", 5)
         if not (minimi <= pyynto.pisteet <= maksimi):
             raise HTTPException(status_code=400, detail=f"Pisteet {minimi}–{maksimi} ulkopuolella")
+    if tyyppi == "lista" and pyynto.lista and maarittely.get("max_kohdat"):
+        if len(pyynto.lista) > maarittely["max_kohdat"]:
+            raise HTTPException(status_code=400, detail=f"Enintään {maarittely['max_kohdat']} kohtaa")
     mallit.tallenna_hitl_vastaus(
         tid, kid, kysid, pyynto.vastaus, nimi, pyynto.sahkoposti.strip(),
         pisteet=pyynto.pisteet, luokka=pyynto.luokka, lista=pyynto.lista,

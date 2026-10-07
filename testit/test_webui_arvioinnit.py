@@ -135,6 +135,24 @@ def test_korjaus_hyvaksyy_asteikon_rajalla():
     assert tallenna.call_args.kwargs["pisteet"] == 5
 
 
+KYSYMYS_LISTA = {**KYSYMYS, "KysID": 32, "Luokittelu": "lista", "LuokitteluMaarittely": {"max_kohdat": 2}}
+
+
+def test_korjaus_hylkaa_liian_pitkan_listan():
+    """max_kohdat rajataan myös palvelimella, ei vain frontissa (#119)."""
+    runko = {"vastaus": "p", "lista": ["a", "b", "c"], "nimi": "T", "sahkoposti": "t@e.fi"}
+    vastaus, tallenna = _korjaus([KYSYMYS_LISTA], runko, kysid=32)
+    assert vastaus.status_code == 400
+    tallenna.assert_not_called()
+
+
+def test_korjaus_hyvaksyy_listan_rajalla():
+    runko = {"vastaus": "p", "lista": ["a", "b"], "nimi": "T", "sahkoposti": "t@e.fi"}
+    vastaus, tallenna = _korjaus([KYSYMYS_LISTA], runko, kysid=32)
+    assert vastaus.status_code == 200
+    assert tallenna.call_args.kwargs["lista"] == ["a", "b"]
+
+
 def test_korjaus_hylkaa_tuntemattoman_juurisyyn():
     runko = {"vastaus": "p", "luokka": "Täysin", "nimi": "T", "sahkoposti": "t@e.fi",
              "juurisyy": "keksitty_syy"}
