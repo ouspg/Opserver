@@ -133,6 +133,7 @@ function paivitaNavIndikaattorit() {
 }
 
 let ws = null;
+let wsKatkoAjastin = null;
 let omaId = null;
 let lahetysAjastin = null;
 let viimeisinAktiivisuus = Date.now();
@@ -228,7 +229,15 @@ function yhdista() {
     }
   });
 
-  ws.addEventListener("close", () => setTimeout(yhdista, 3000));
+  ws.addEventListener("open", () => {
+    clearTimeout(wsKatkoAjastin);
+    wsKatkoAjastin = null;
+    window.yhteysPalautui?.("ws");
+  });
+  ws.addEventListener("close", () => {
+    wsKatkoAjastin ??= setTimeout(() => window.yhteysKatkennut?.("ws"), YHTEYS.wsIlmoitusViiveMs);
+    setTimeout(yhdista, YHTEYS.wsUudelleenMs);
+  });
   ws.addEventListener("error", () => ws.close());
 }
 

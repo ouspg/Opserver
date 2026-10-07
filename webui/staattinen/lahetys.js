@@ -64,12 +64,14 @@
     };
     piirra();
     const animaatio = setInterval(piirra, RUUDUN_KESTO_MS);
+    const avain = Symbol(url);  // yhteysilmoitus.js
     try {
       for (let kerta = 0; ; kerta++) {
         vaihe = "Lähetetään";
         try {
           const { status, data } = await yritys(url, runko, () => { vaihe = "Odotetaan vastausta"; });
           if (status >= 200 && status < 300) return data;
+          if (status === 503) window.yhteysKatkennut?.(avain, "huolto");  // palvelinta päivitetään
           if (status < 500 && status !== 408 && status !== 429) {
             const syy = typeof data.detail === "string" ? data.detail : `HTTP ${status}`;
             throw Object.assign(new Error(syy), { lopullinen: true });
@@ -82,6 +84,7 @@
       }
     } finally {
       window.lahetyksiaKesken--;
+      window.yhteysPalautui?.(avain);
       clearInterval(animaatio);
       nappi.textContent = alkuteksti;
       nappi.disabled = false;

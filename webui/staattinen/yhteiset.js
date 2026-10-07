@@ -29,20 +29,36 @@ function tekstiHtml(teksti) {
 }
 
 // Ilman aikarajaa jumiin jäänyt yhteys pysäyttäisi automaattipäivityksen (paivitys_kaynnissa).
-const HAKU_AIKARAJA_MS = 20000;
+// Yli Caddyn 30 s odotuksen (lb_try_duration): lyhyen päivityskatkon aikana pidätetty
+// pyyntö onnistuu, eikä sitä katkaista kesken.
+const HAKU_AIKARAJA_MS = 35000;
 
 // fetch + JSON; verkkovirhe, aikakatkaisu tai 5xx → uusi yritys kasvavalla viiveellä.
+// Katko (503 = palvelinta päivitetään, tai ei vastausta lainkaan) → yritetään
+// YHTEYS.elpymisAikaMs ajan (Retry-After huomioiden) ja näytetään yhteysilmoitus.
 async function haeJson(url, yrityksia = 4) {
-  for (let yritys = 1; ; yritys++) {
-    try {
-      const r = await fetch(url, { signal: AbortSignal.timeout(HAKU_AIKARAJA_MS) });
-      if (r.ok) return await r.json();
-      if (r.status < 500) throw Object.assign(new Error(`HTTP ${r.status}`), { lopullinen: true });
-      throw new Error(`HTTP ${r.status}`);
-    } catch (e) {
-      if (e.lopullinen || yritys >= yrityksia) throw e;
+  const alku = Date.now();
+  const avain = Symbol(url);
+  try {
+    for (let yritys = 1; ; yritys++) {
+      let viive = 1000 * yritys, syy = "yhteys";
+      try {
+        const r = await fetch(url, { signal: AbortSignal.timeout(HAKU_AIKARAJA_MS) });
+        if (r.ok) return await r.json();
+        if (r.status < 500) throw Object.assign(new Error(`HTTP ${r.status}`), { lopullinen: true });
+        syy = r.status === 503 ? "huolto" : null;
+        if (syy) viive = 1000 * (Number(r.headers.get("Retry-After")) || yritys);
+        throw new Error(`HTTP ${r.status}`);
+      } catch (e) {
+        if (e.lopullinen) throw e;
+        const katko = syy && Date.now() - alku < YHTEYS.elpymisAikaMs;
+        if (yritys >= yrityksia && !katko) throw e;
+        if (syy) yhteysKatkennut(avain, syy);
+      }
+      await new Promise((valmis) => setTimeout(valmis, Math.min(viive, YHTEYS.viiveMaxMs)));
     }
-    await new Promise((valmis) => setTimeout(valmis, 1000 * yritys));
+  } finally {
+    yhteysPalautui(avain);
   }
 }
 
