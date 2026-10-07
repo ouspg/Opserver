@@ -236,6 +236,7 @@ ei mallin virheestä)."""
 def _rakenna_arvioinnit_viesti(tutkimus: dict, kysymykset: list[dict], tilastot: list[dict]) -> str:
     mukana_yht = sum(r["Mukana"] for r in tilastot)
     korjaukset_lkm = mallit.laske_hitl_vastaukset(tutkimus["TID"])
+    kesken = mallit.laske_arvioimattomat(tutkimus["TID"])
     kysymysteksti = "\n".join(f"{i+1}. {k['Kysymys']}" for i, k in enumerate(kysymykset))
     raportointikehote = tutkimus.get("Raportointikehote") or ""
     return f"""Kirjoita tutkimusraportin arvioinnit-osio seuraavien tietojen pohjalta.
@@ -249,7 +250,8 @@ Arviointikehote (ohje LLM:lle kurssin arvioinnissa):
 Arviointikysymykset ({len(kysymykset)} kpl):
 {kysymysteksti or '(ei kysymyksiä)'}
 
-Arvioitujen kurssien määrä: {mukana_yht}
+Arvioitavia kursseja (lopullinen mukana-lista HITL:n jälkeen): {mukana_yht}, joista arviointi kesken: {kesken}
+Vastausjakaumat (tilastot) on laskettu vain näistä kursseista.
 Ihmisten korjaamien vastausten määrä: {korjaukset_lkm}
 
 Kirjoita osio, joka esittelee arviointimenetelmän, käytetyt kysymykset ja kuvaa

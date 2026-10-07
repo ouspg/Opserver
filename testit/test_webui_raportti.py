@@ -190,3 +190,14 @@ def test_api_raportti_tilastot_ihmisen_korjaus_voittaa_eika_tuplaa():
     k = data["kysymykset"][0]
     assert k["jakauma"] == {"matala": 1, "korkea": 1}
     assert k["yhteensa"] == 2
+
+
+def test_api_raportti_tilastot_vain_nykyiset_mukana_kurssit():
+    """Tilastot lasketaan vain kursseista, jotka ovat nyt mukana (Mukana = 1):
+    HITL:ssä pois käännetyn kurssin vanhat arviot eivät saa paisuttaa lukuja."""
+    with patch("tietokanta.mallit.hae_tutkimus_slugilla", return_value=TUTKIMUS), \
+         patch("tietokanta.mallit.hae_kysymykset", return_value=[]), \
+         patch("tietokanta.mallit.hae_vastaukset", return_value=[]) as hae, \
+         patch("tietokanta.mallit.hae_tilastot_yliopistoittain", return_value=[]):
+        asiakas.get("/api/tutkimukset/kyber-2025/raportti/tilastot")
+    hae.assert_called_once_with(TUTKIMUS["TID"], vain_mukana=True)

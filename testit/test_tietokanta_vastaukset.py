@@ -108,3 +108,23 @@ class TestHitlRivitEivatSotkeLaskentaa:
         assert "HyvaksyjaNimi = NULL" in kursori.execute.call_args[0][0]
         testimallit.siirra_testiajo_luokittelu("ajo1")
         assert "KayttajaNimi = NULL" in kursori.execute.call_args[0][0]
+
+    def test_hae_vastaukset_oletuksena_kaikki_kurssit(self, mock_yhteys):
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        mallit.hae_vastaukset(1)
+        sql, params = kursori.execute.call_args[0]
+        assert "Kurssiluokitus" not in sql and list(params) == [1]
+
+    def test_hae_vastaukset_vain_mukana_rajaa_sql_joinilla(self, mock_yhteys):
+        """HITL:ssä pois käännetyn kurssin vanhat vastaukset eivät kuulu raportin
+        tilastoihin — rajaus kannassa (JOIN), ei Pythonissa."""
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = []
+        kursori.description = []
+        mallit.hae_vastaukset(1, vain_mukana=True)
+        sql, params = kursori.execute.call_args[0]
+        assert "JOIN Kurssiluokitus kl" in sql
+        assert "kl.TID = v.TID" in sql and "kl.Mukana = 1" in sql
+        assert list(params) == [1]

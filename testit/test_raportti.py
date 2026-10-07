@@ -164,7 +164,8 @@ class TestRaporttiTiiviste:
 @pytest.fixture(autouse=True)
 def _hitl_maara():
     """Arvioinnit-osion korjausmäärä on COUNT-kysely; oletuksena 0."""
-    with patch("raportti.llmraportti.mallit.laske_hitl_vastaukset", return_value=0) as m:
+    with patch("raportti.llmraportti.mallit.laske_hitl_vastaukset", return_value=0) as m, \
+         patch("raportti.llmraportti.mallit.laske_arvioimattomat", return_value=0):
         yield m
 
 
@@ -183,6 +184,16 @@ class TestRakennaViestiArvioinnit:
             viesti = llmraportti._rakenna_arvioinnit_viesti(TUTKIMUS, KYSYMYKSET, TILASTOT)
         assert "27" in viesti
         laske.assert_called_once_with(TUTKIMUS["TID"])   # COUNT, ei rivinoutoa
+
+
+    def test_arvioitujen_maara_on_lopullinen_mukana_lista(self):
+        """Arvioitujen kurssien joukko = nykyiset mukana-kurssit (sama kuin
+        tilastorajapinnan jakaumat); keskeneräiset arvioinnit kerrotaan erikseen."""
+        with patch("raportti.llmraportti.mallit.laske_arvioimattomat", return_value=3) as laske:
+            viesti = llmraportti._rakenna_arvioinnit_viesti(TUTKIMUS, KYSYMYKSET, TILASTOT)
+        assert "Arvioitavia kursseja (lopullinen mukana-lista HITL:n jälkeen): 20" in viesti
+        assert "joista arviointi kesken: 3" in viesti
+        laske.assert_called_once_with(TUTKIMUS["TID"])
 
 
 class TestAja:

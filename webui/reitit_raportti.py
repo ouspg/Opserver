@@ -72,10 +72,11 @@ def api_raportti(tutkimus: TutkimusSlugista) -> dict:
 
 @reititin.get("/api/tutkimukset/{slug}/raportti/tilastot")
 def api_raportti_tilastot(tutkimus: TutkimusSlugista) -> dict:
-    """Palauttaa per-kysymys-tilastot rakenteellisille arvioinneille ilman LLM-kutsua."""
+    """Palauttaa per-kysymys-tilastot rakenteellisille arvioinneille ilman LLM-kutsua.
+    Vain nykyiset mukana-kurssit (sama joukko kuin raportin "lopullinen mukana-lista")."""
     tid = tutkimus["TID"]
     kysymykset = mallit.hae_kysymykset(tid)
-    vastaukset_lista = mallit.hae_vastaukset(tid)
+    vastaukset_lista = mallit.hae_vastaukset(tid, vain_mukana=True)
 
     # Rakenna per-kysymys indeksi vastauksista. hae_vastaukset palauttaa saman
     # (kurssi, kysymys) -parin HITL-rivin ennen LLM-riviä → ensimmäinen voittaa,

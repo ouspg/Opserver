@@ -99,18 +99,25 @@ def poista_vastaukset_kysymykselta(kysid: int) -> None:
     _suorita("DELETE FROM Vastaukset WHERE KysID = %s", (kysid,))
 
 
-def hae_vastaukset(tid: int) -> list[dict]:
+def hae_vastaukset(tid: int, vain_mukana: bool = False) -> list[dict]:
     """Tutkimuksen vastaukset: sekä LLM:n että ihmisten korjaukset.
 
     Rivin alkuperä: Malli IS NULL → ihmisen korjaus, muuten LLM:n vastaus
     (ks. migraatio_022). Uusin ensin saman (kysymys, kurssi) -parin sisällä,
     jotta esittäjä voi ottaa ensimmäisen osuman voittajaksi.
+
+    vain_mukana: vain kurssit, jotka ovat nyt mukana (Kurssiluokitus.Mukana = 1).
+    HITL:ssä pois käännetyn kurssin vanhat vastaukset jäävät kantaan, mutta
+    raportin tilastoihin ne eivät kuulu. Rajaus JOINilla kannassa.
     """
+    mukana_join = ("JOIN Kurssiluokitus kl ON kl.TID = v.TID AND kl.KID = v.KID AND kl.Mukana = 1"
+                   if vain_mukana else "")
     with yhteys() as yht:
         with yht.cursor() as kursori:
-            kursori.execute("""
+            kursori.execute(f"""
                 SELECT v.*
                 FROM Vastaukset v
+                {mukana_join}
                 WHERE v.TID = %s
                 ORDER BY v.KID, v.KysID, (v.Malli IS NULL) DESC, v.Aikaleima DESC
             """, (tid,))
