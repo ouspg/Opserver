@@ -118,3 +118,14 @@ def test_llm_kasitellyt_tallentuvat(db):
     assert mallit.hae_llm_kasitellyt(TID) == {kysid: ln.arvojoukon_tiiviste({"Muu"}, "K")}
     ln.tallenna_kuittaus(TID, [], lahetetyt={kysid: {"Muu", "X"}}, kehote="K")
     assert mallit.hae_llm_kasitellyt(TID) == {kysid: ln.arvojoukon_tiiviste({"Muu", "X"}, "K")}
+
+
+def test_yhdistaminen_muuttaa_raportin_tuoreustietoa(db):
+    """raporttitiiviste lukee listan MD5:n hae_vastaus_tiivisteet-kyselystä."""
+    from tietokanta import mallit
+    from raportti import listanormalisointi as ln
+    ennen = mallit.hae_vastaus_tiivisteet(TID)
+    ln.tallenna_kuittaus(TID, [ln.Ehdotus(db["kysid"], 1, "k", "Muu", "Muut")])
+    jalkeen = mallit.hae_vastaus_tiivisteet(TID)
+    assert ennen[(4, db["kysid"])]["lista"] != jalkeen[(4, db["kysid"])]["lista"]
+    assert ennen[(1, db["kysid"])] == jalkeen[(1, db["kysid"])]
