@@ -88,7 +88,7 @@ def _normalisoi_listat(stdscr, tutkimus: dict) -> int | None:
     if virheet:
         piirra_otsikko(stdscr, otsikko)
         nayta_viesti(stdscr, "LLM-vastaus jäi osin jäsentymättä (kysytään uudelleen ensi kerralla): "
-                     + "; ".join(virheet), 3)
+                     + "; ".join(virheet)[:300], 3)
     kuitatut = []
     if ehdotukset:
         kuitatut = kuittaa_ehdotukset(stdscr, f"b) Synonyymit (LLM) — {tutkimus['LuokittelunNimi']}", ehdotukset)
