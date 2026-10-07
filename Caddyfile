@@ -9,5 +9,38 @@
 			disable_http_challenge
 		}
 	}
-	reverse_proxy webui:12121
+
+	# Päivitys luo webui-kontin uudelleen (5–10 s katko): yhteyden muodostus
+	# yritetään uudelleen sekunnin välein 30 s ajan, joten lyhyt katko näkyy
+	# käyttäjälle vain hitaana latauksena eikä 502:na. Koskee vain yhteyden
+	# muodostusta (myös WebSocket-kättely) — muodostetut yhteydet eivät muutu.
+	reverse_proxy webui:12121 {
+		lb_try_duration 30s
+		lb_try_interval 1s
+	}
+
+	# Yli 30 s katko: huoltovastaus ilman ulkoisia resursseja (webui alhaalla →
+	# staattisetkaan tiedostot eivät tule). Ei Basic Authia (webui hoitaa sen),
+	# mutta vastaus ei sisällä dataa. haeJson tunnistaa 503:n ja odottaa.
+	handle_errors 502 503 504 {
+		header Retry-After 10
+		header Cache-Control no-store
+		@api path /api/*
+		handle @api {
+			header Content-Type application/json
+			respond `{"huolto": true, "detail": "Palvelua päivitetään"}` 503
+		}
+		handle {
+			header Content-Type "text/html; charset=utf-8"
+			respond `<!doctype html>
+<html lang="fi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="10">
+<title>Palvelua päivitetään</title></head>
+<body style="font-family: sans-serif; text-align: center; margin-top: 20vh; color: #333">
+<h1>Palvelua päivitetään</h1>
+<p>Sivu latautuu automaattisesti, kun palvelu on taas käytettävissä.</p>
+</body></html>` 503
+		}
+	}
 }

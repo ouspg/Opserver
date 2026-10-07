@@ -161,11 +161,17 @@ done
 ./testit/skeematarkistus.sh \
     || { echo "Kannan skeema ei vastaa tavoitetta — ks. erot yllä. Asennus keskeytetty."; exit 1; }
 
-# Caddyfile on bind-mount — compose ei huomaa pelkkää tiedostomuutosta, joten
-# caddy jää ajamaan vanhaa konfiguraatiota ellei sitä erikseen käynnistetä
-# uudelleen. Turvallista: sertti on jo /data-volyymissa, restart ei tarvitse
-# uutta ACME-kierrosta jos sertti on voimassa.
-docker compose restart caddy
+# Caddyfile on yksittäisen tiedoston bind-mount: pull korvaa tiedoston uudella
+# inodella, ja kontti näkee yhä vanhan — compose ei huomaa muutosta. Restart vain
+# jos kontin näkemä tiedosto eroaa reposta: turha restart katkaisee TLS:n ja
+# kaikki yhteydet jokaisessa päivityksessä. Jos exec epäonnistuu (caddy ei
+# käynnissä), tiiviste on tyhjä → eroaa → restart. Sertti on /data-volyymissa,
+# restart ei tarvitse uutta ACME-kierrosta jos sertti on voimassa.
+if [[ "$(docker compose exec -T caddy sha256sum /etc/caddy/Caddyfile < /dev/null 2>/dev/null | cut -d' ' -f1)" \
+      != "$(sha256sum Caddyfile | cut -d' ' -f1)" ]]; then
+    echo "Caddyfile muuttunut — käynnistetään caddy uudelleen"
+    docker compose restart caddy
+fi
 
 # Cron: vahtikoira joka minuutti (korvaa vanhan rivin, ei tuplaa)
 rivi="* * * * * $PWD/vahtikoira >> $PWD/vahtikoira.log 2>&1"

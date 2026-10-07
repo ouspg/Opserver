@@ -118,14 +118,17 @@ def selain():
 
 @pytest.fixture
 def kayttaja(selain, pohja):
-    """Tehdas: kayttaja(polku, odota=None, leveys=1280, korkeus=800) → uusi sivu omassa
-    browser contextissaan (= eri käyttäjä: oma eväste, localStorage ja profiili).
+    """Tehdas: kayttaja(polku, odota=None, leveys=1280, korkeus=800, alustus=None) → uusi sivu
+    omassa browser contextissaan (= eri käyttäjä: oma eväste, localStorage ja profiili).
+    alustus(context) ajetaan ennen sivun avausta (esim. route, add_init_script).
     Sivun JS-virheet kaatavat testin lopuksi."""
     kontekstit, virheet = [], []
 
-    def uusi(polku, odota=None, leveys=1280, korkeus=800):
+    def uusi(polku, odota=None, leveys=1280, korkeus=800, alustus=None):
         k = selain.new_context(viewport={"width": leveys, "height": korkeus})
         kontekstit.append(k)
+        if alustus:
+            alustus(k)
         sivu = k.new_page()
         sivu.on("pageerror", lambda e: virheet.append(str(e)))
         sivu.goto(pohja + polku)
