@@ -91,15 +91,35 @@ def test_jakauma_kokoaa_luokat_kanonisesti(tilastot):
     assert set(_kysymys(tilastot, "Joustavuus")["jakauma"]) == {"Täysin", "Osittain", "Ei lainkaan", "Ehkä"}
 
 
-def test_korjaa_luokat_oikeaa_kantaa_vasten(kanta, kysy, monkeypatch):
+@pytest.fixture(scope="module")
+def kanta_ymparisto(kanta):
+    """DB_*-ympäristö, jolla putken koodi (tietokanta.yhteys) käyttää testikantaa."""
+    db = _db_asetukset()
+    return {"DB_HOST": db["host"], "DB_PORT": str(db["port"]), "DB_USER": db["user"],
+            "DB_PASSWORD": db["password"], "DB_NAME": kanta}
+
+
+def test_kehoteraportti_oikeaa_kantaa_vasten(kanta_ymparisto):
+    """./kehoteraportti kokoaa kaikki osiot oikeasta kannasta (mallit, jakaumat, HITL)."""
+    import os
+    import subprocess
+    from testit.selain.conftest import JUURI
+    tulos = subprocess.run([str(JUURI / "kehoteraportti"), SLUG], capture_output=True, text=True,
+                           env={**os.environ, **kanta_ymparisto}, timeout=60)
+    assert tulos.returncode == 0, tulos.stderr
+    for odotettu in ("Seulonnan (LLM-luokittelu) mallit: testimalli", "Lukuvuosi: 2026-2027",
+                     "LLM:n alkuperäinen valinta:", "Ihminen lisäsi mukaan:", "Mukana-%",
+                     'Ei pääteltävissä opinto-oppaasta ("-")', "Luvut ovat mainintoja"):
+        assert odotettu in tulos.stdout
+
+
+def test_korjaa_luokat_oikeaa_kantaa_vasten(kanta_ymparisto, kysy, monkeypatch):
     """Vanhojen rivien korjausajo (CLI-valikko): binäärivertailu löytää epäkanoniset,
     korjaa ne ja jättää tuntemattoman ennalleen; toinen ajo ei muuta mitään. Viimeisenä,
     koska muuttaa kantaa (tilastot-fixture on jo laskettu)."""
     from tietokanta import yhteys
     from arviointi import korjaus
-    db = _db_asetukset()
-    for avain, arvo in (("DB_HOST", db["host"]), ("DB_PORT", str(db["port"])), ("DB_USER", db["user"]),
-                        ("DB_PASSWORD", db["password"]), ("DB_NAME", kanta)):
+    for avain, arvo in kanta_ymparisto.items():
         monkeypatch.setenv(avain, arvo)
     monkeypatch.setattr(yhteys, "_pooli", None)
     vaarat = kysy("SELECT COUNT(*) FROM Vastaukset WHERE KysID = 2 AND Luokka COLLATE utf8mb4_bin "

@@ -152,3 +152,16 @@ class TestTilastotYliopistoittain:
         assert "MIN(HID)" in sql and "MAX(HID)" in sql
         assert meta_hylkays_sql() in sql
         assert list(params) == [1, 1]
+
+
+class TestKaytetytMallit:
+    def test_ryhmittelee_vaiheittain_aggregaattina(self, mock_yhteys):
+        """Mallit tallennetuista riveistä (GROUP BY, ei rivinoutoa); tyhjä/NULL malli ohitetaan."""
+        yht, kursori = mock_yhteys
+        kursori.fetchall.return_value = [("seulonta", "m1", 30), ("arviointi", "m2", 5), ("seulonta", "m3", 40)]
+        tulos = mallit.hae_kaytetyt_mallit(1)
+        assert tulos == {"seulonta": [("m3", 40), ("m1", 30)], "arviointi": [("m2", 5)]}
+        sql, params = kursori.execute.call_args[0]
+        assert "GROUP BY Malli" in sql and "Kurssiluokitus" in sql and "Vastaukset" in sql
+        assert "Malli <> ''" in sql
+        assert list(params) == [1, 1]

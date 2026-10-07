@@ -138,6 +138,22 @@ def rakenna_viestit(tutkimus: dict, tilastot: list[dict], kysymykset: list[dict]
     }
 
 
+def _menetelmatiedot(tutkimus: dict, tilastot: list[dict]) -> str:
+    """Menetelmäkappaleen faktat: aineiston rajaus ja oikeasti käytetyt mallit."""
+    kaytetyt = mallit.hae_kaytetyt_mallit(tutkimus["TID"])
+    mallilista = lambda vaihe, yksikko: ", ".join(
+        f"{malli} ({lkm} {yksikko})" for malli, lkm in kaytetyt[vaihe]) or "(ei vielä ajettu)"
+    koulut = [r["KouluNimi"] for r in tilastot]
+    return (
+        f"- Lukuvuosi: {tutkimus.get('Lukuvuosi') or '(ei rajattu)'}\n"
+        f"- Korkeakoulut ({len(koulut)}): {', '.join(koulut)}\n"
+        f"- Tasorajaus: {tutkimus.get('Tasorajaus') or '(kaikki tasot)'}\n"
+        f"- Oppiainerajaus: {tutkimus.get('Oppiainerajaus') or '(kaikki oppiaineet)'}\n"
+        f"- Seulonnan (LLM-luokittelu) mallit: {mallilista('seulonta', 'kurssia')}\n"
+        f"- Arvioinnin mallit: {mallilista('arviointi', 'vastausta')}"
+    )
+
+
 def _rakenna_johdanto_viesti(tutkimus: dict, tilastot: list[dict]) -> str:
     yliopistojen_lkm = len([r for r in tilastot if r["KurssiYhteensa"] > 0])
     raportointikehote = tutkimus.get("Raportointikehote") or ""
@@ -152,10 +168,13 @@ Yleistilastot:
 Keskeiset luvut (käytä näitä nimiä):
 {keskeiset_luvut_teksti(tilastot)}
 
-Tasorajaus: {tutkimus.get('Tasorajaus') or '(kaikki tasot)'}
-Oppiainerajaus: {tutkimus.get('Oppiainerajaus') or '(kaikki oppiaineet)'}
+Menetelmätiedot:
+{_menetelmatiedot(tutkimus, tilastot)}
 
 Kirjoita johdanto, joka esittelee tutkimuksen aiheen, tavoitteen ja laajuuden.
+Kirjoita lisäksi lyhyt menetelmäkappale: aineisto (lukuvuosi, korkeakoulut, rajaukset),
+kaksivaiheinen seulonta (sääntöpohjainen meta-suodatus taso- ja oppiainerajauksella,
+sitten LLM-seulonta), arviointi kysymyssarjalla, käytetyt mallit ja ihmisen tarkistus (HITL).
 Mainitse tarkasteltujen yliopistojen ja kurssien määrät. Jos raportointikehotteessa on
 tutkimuksen yhteinen taustaväite (esim. opettajien hallinnollinen kuormitus),
 esitä se tässä osiossa — se esitetään vain kerran koko raportissa."""

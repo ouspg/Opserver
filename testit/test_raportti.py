@@ -42,6 +42,9 @@ TILASTOT = [
 # meta 1 / 95 (1,1 %). LLM:n alkuperäinen valinta 20 − 3 + 1 = 18. Juurisyyt
 # riittämätön opas 2 (50 %), LLM:n virhe 1 (25 %), tuntematon 1 (25 %).
 
+MALLIT = {"seulonta": [("gemini-2.5-flash", 30000), ("gpt-4o-mini", 2000)],
+          "arviointi": [("gemini-2.5-pro", 1400)]}
+
 KYSYMYKSET = [
     {"KysID": 10, "TID": 1, "Kysymys": "Liittyykö kurssi kyberturvallisuuteen?"},
     {"KysID": 11, "TID": 1, "Kysymys": "Soveltuuko kurssi ESR-hankkeeseen?"},
@@ -139,6 +142,18 @@ class TestRakennaViestiJohdanto:
     def test_sisaltaa_mukana_luvun(self):
         viesti = llmraportti._rakenna_johdanto_viesti(TUTKIMUS, TILASTOT)
         assert "20" in viesti  # 12 + 8
+
+
+    def test_menetelmatiedot(self):
+        """Mallit tallennetuista vastauksista (ei .env-oletus), lukuvuosi, korkeakoulut, rajaukset."""
+        tutkimus = dict(TUTKIMUS, Lukuvuosi="2026-2027")
+        viesti = llmraportti._rakenna_johdanto_viesti(tutkimus, TILASTOT)
+        assert "Lukuvuosi: 2026-2027" in viesti
+        assert "Korkeakoulut (2): Tampereen yliopisto, Aalto-yliopisto" in viesti
+        assert "Seulonnan (LLM-luokittelu) mallit: gemini-2.5-flash (30000 kurssia), gpt-4o-mini (2000 kurssia)" in viesti
+        assert "Arvioinnin mallit: gemini-2.5-pro (1400 vastausta)" in viesti
+        assert "Tasorajaus: aine" in viesti and "Oppiainerajaus: Tietotekniikka" in viesti
+        assert "menetelmäkappale" in viesti
 
 
 class TestRakennaViestiKurssit:
@@ -267,7 +282,8 @@ def _hitl_maara():
     """Arvioinnit-osion korjausmäärä on COUNT-kysely; oletuksena 0."""
     with patch("raportti.llmraportti.mallit.laske_hitl_vastaukset", return_value=0) as m, \
          patch("raportti.llmraportti.mallit.laske_arvioimattomat", return_value=0), \
-         patch("tietokanta.mallit.hae_vastaukset", return_value=[]):
+         patch("tietokanta.mallit.hae_vastaukset", return_value=[]), \
+         patch("raportti.llmraportti.mallit.hae_kaytetyt_mallit", return_value=MALLIT):
         yield m
 
 

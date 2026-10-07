@@ -1,7 +1,7 @@
 """Raporttiosiot, raportin tuoreus ja raportin tilastot."""
 from tietokanta.yhteys import yhteys
 from tietokanta._yhteiset import (
-    _hae_arvo, _hae_kaikki, _hae_yksi, _kattaa_turvallinen, _rajaus, _rivit_dikteina, _suorita,
+    _hae_arvo, _hae_kaikki, _hae_yksi, _kysely, _kattaa_turvallinen, _rajaus, _rivit_dikteina, _suorita,
     luokitus_suppilo_sql, meta_hylkays_sql,
 )
 
@@ -82,6 +82,26 @@ def laske_hitl_vastaukset(tid: int, jalkeen=None) -> int:
 
 
 # --- Raporttitilastot ---
+
+def hae_kaytetyt_mallit(tid: int) -> dict[str, list[tuple[str, int]]]:
+    """Seulonnassa ja arvioinnissa oikeasti käytetyt LLM-mallit tallennetuista riveistä
+    (ei .env-oletus): {"seulonta": [(malli, kursseja)], "arviointi": [(malli, vastauksia)]},
+    yleisin ensin. Meta-suodatuksen ja ihmisen rivit (Malli NULL/'') eivät ole mukana."""
+    rivit = _kysely(
+        """SELECT 'seulonta', Malli, COUNT(*) FROM Kurssiluokitus
+           WHERE TID = %s AND Malli IS NOT NULL AND Malli <> '' GROUP BY Malli
+           UNION ALL
+           SELECT 'arviointi', Malli, COUNT(*) FROM Vastaukset
+           WHERE TID = %s AND Malli IS NOT NULL AND Malli <> '' GROUP BY Malli""",
+        (tid, tid), lambda kursori: kursori.fetchall(),
+    )
+    tulos: dict[str, list[tuple[str, int]]] = {"seulonta": [], "arviointi": []}
+    for vaihe, malli, lkm in rivit:
+        tulos[vaihe].append((malli, int(lkm)))
+    for lista in tulos.values():
+        lista.sort(key=lambda p: -p[1])
+    return tulos
+
 
 def _kattavat_kaudet(kursori, lukuvuosi: str | None) -> list[str]:
     """Aineiston Opetusvuosi-arvot, jotka kattavat tutkimuksen lukuvuoden.
