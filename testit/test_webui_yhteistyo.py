@@ -148,8 +148,8 @@ def test_lasnaolon_tuntemattomat_ja_virheelliset_kentat_pudotetaan(kootusti):
             assert kentta not in oma, kentta
         assert oma["sivu"] == _TILA["sivu"] and oma["lomake"] == "hitl:1:7"
         # Sijainnin tuntemattomat avaimet pudotetaan, liput vain totuusarvoina
-        a.send_json({**_TILA, "sijainti": {"x": 1, "y": 2, "ylapalkki": True, "modaali": "x", "z": 5}})
-        assert _kayttajaviesti(a)["data"][0]["sijainti"] == {"x": 1, "y": 2, "ylapalkki": True}
+        a.send_json({**_TILA, "sijainti": {"x": 1, "y": 2, "ylapalkki": True, "kiinnitetty": True, "modaali": "x", "z": 5}})
+        assert _kayttajaviesti(a)["data"][0]["sijainti"] == {"x": 1, "y": 2, "ylapalkki": True, "kiinnitetty": True}
 
 
 def test_ylisuuri_lasnaoloviesti_hylataan_kokonaan(kootusti):

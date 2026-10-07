@@ -97,7 +97,7 @@ window.siirryKayttajanLuo = async (k) => {
     const ankkuri = await odotaEhtoa(() => document.querySelector(`[data-lomake="${CSS.escape(avain)}"]`));
     ankkuri?.scrollIntoView({ block: "center" });
     ankkuri?.click();
-  } else if (k.sijainti && !k.sijainti.ylapalkki) {  // yläpalkissa: ei vieritettävää
+  } else if (k.sijainti && !k.sijainti.ylapalkki && !k.sijainti.kiinnitetty) {  // palkeissa: ei vieritettävää
     const { x, y } = k.sijainti;  // sivun koordinaatit; odota että sisältö on niin pitkä
     await odotaEhtoa(() => document.documentElement.scrollHeight >= y, 5000);
     window.scrollTo(x - innerWidth / 2, y - innerHeight / 2);

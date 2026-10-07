@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 if len(sys.argv) != 2:
-    print(f"Käyttö: ./kehoteraportti <tutkimuksen-slug>", file=sys.stderr)
+    print("Käyttö: ./kehoteraportti <tutkimuksen-slug>", file=sys.stderr)
     sys.exit(1)
 
 slug = sys.argv[1]
@@ -36,7 +36,7 @@ jarjestelma = llmraportti._lue_jarjestelmakehote()
 viiva = "=" * 72
 
 print(f"\n{viiva}")
-print(f"  JÄRJESTELMÄKEHOTE (kaikille osioille)")
+print("  JÄRJESTELMÄKEHOTE (kaikille osioille)")
 print(viiva)
 print(jarjestelma)
 

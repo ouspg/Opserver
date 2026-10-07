@@ -117,7 +117,7 @@ def _korjaa_raaka_json(stdscr, tutkimus: dict) -> None:
     if tuntemattomat:
         esimerkit = ", ".join(sorted({f"'{r['Luokka']}'" for r in tuntemattomat})[:5])
         viesti += (f" Tuntematon luokka {len(tuntemattomat)} vastauksessa ({esimerkit}) —"
-                   f" jätetty ennalleen, korjaa WebUI:n arvioinneissa.")
+                   " jätetty ennalleen, korjaa WebUI:n arvioinneissa.")
     nayta_viesti(stdscr, viesti)
 
 

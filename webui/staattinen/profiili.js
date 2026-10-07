@@ -120,7 +120,17 @@ function piirraYmpyra(canvas, profiili, taso = "aktiivinen") {
   }
   ctx.restore();
 
-  if (taso === "nukkuva" || taso === "kummitus") {
+  if ((taso === "nukkuva" || taso === "kummitus") && w < 16) {
+    // Pikkupallura (8–10 px): zzZ olisi valkoinen läiskä → yksi z koko pallurassa.
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `bold ${w}px sans-serif`;
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "#222";
+    ctx.fillStyle = "#fff";
+    ctx.strokeText("z", cx, cy);
+    ctx.fillText("z", cx, cy);
+  } else if (taso === "nukkuva" || taso === "kummitus") {
     // zzZ portaana oikeaan yläkulmaan: kirjaimet kasvavat ylös oikealle.
     ctx.textAlign = "right";
     ctx.textBaseline = "top";

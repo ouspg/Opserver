@@ -288,19 +288,27 @@ function paivitaKursorit() {
   const omaLomake = omaModaali();
   const omaSivunumero = window.omaSivunumero?.() ?? null;
   const leveys = document.documentElement.clientWidth, korkeus = document.documentElement.clientHeight;
-  // Yläpalkki on kiinteä (sticky): sisältöalueen näkyvä osa alkaa sen alareunasta.
-  const ylaraja = document.querySelector("header").getBoundingClientRect().bottom;
+  // Yläpalkki on kiinteä (sticky): sisältöalueen näkyvä osa alkaa sen alareunasta — tai
+  // kurssilistan kiinnitetyn sivutus-/paikannuspalkin alareunasta, kun se on jumittunut
+  // yläpalkin alle (muuten sen yläpuolinen sisältö näkyy).
+  const ylapalkinAla = document.querySelector("header").getBoundingClientRect().bottom;
+  const palkki = kiinnitettyPalkki()?.getBoundingClientRect();
+  const ylaraja = palkki && palkki.top <= ylapalkinAla + 1 ? palkki.bottom : ylapalkinAla;
   const naytettavat = [];
   for (const k of muutKayttajat) {
     if (!k.profiili || k.sivu !== location.pathname || (k.nakyma ?? null) !== omaNakyma) continue;
     if ((k.sivunumero ?? null) !== omaSivunumero) continue;  // eri sivutussivulla → pallura sivunumerossa
     const lomake = modaaliAvain(k);
-    let vx, vy, ylapalkissa, modaalissa;
+    let vx, vy, ylapalkissa, modaalissa, palkissa;
     if (lomake === omaLomake && k.sijainti) {
       const s = k.sijainti;  // osoittimenSijainti
       ylapalkissa = !!s.ylapalkki;
       modaalissa = !!s.modaali;
-      if (modaalissa) {
+      palkissa = !!s.kiinnitetty;
+      if (palkissa) {
+        if (!palkki) continue;
+        vx = s.x; vy = palkki.top + s.y;
+      } else if (modaalissa) {
         const sisalto = document.querySelector(".modaali:not(.piilotettu) .modaali-sisalto");
         if (!sisalto) continue;
         const r = sisalto.getBoundingClientRect();
@@ -320,12 +328,14 @@ function paivitaKursorit() {
     // (myös yläpalkin alle vierittynyt) oleva jää reunaan — ylhäällä heti yläpalkin alle —
     // ja nuoli osoittaa todelliseen suuntaan.
     // Modaali peittää koko näkymän (myös yläpalkin), joten sen sisällä rajana on näkymä.
+    // Kiinnitetyssä palkissa oleva näkyy aina palkin alueella.
     const [ymin, ymax] = ylapalkissa
-      ? [KURSORI_REUNA / 2, Math.max(KURSORI_REUNA / 2, ylaraja - KURSORI_REUNA / 2)]
+      ? [KURSORI_REUNA / 2, Math.max(KURSORI_REUNA / 2, ylapalkinAla - KURSORI_REUNA / 2)]
+      : palkissa ? [palkki.top, palkki.bottom]
       : [modaalissa ? KURSORI_REUNA : ylaraja + KURSORI_REUNA, korkeus - KURSORI_REUNA];
     const x = Math.min(Math.max(vx, KURSORI_REUNA), leveys - KURSORI_REUNA);
     const y = Math.min(Math.max(vy, ymin), ymax);
-    const ulkona = x !== vx || (!ylapalkissa && y !== vy);
+    const ulkona = x !== vx || (!ylapalkissa && !palkissa && y !== vy);
     if (lomake !== omaLomake && !ulkona) continue;  // nappi näkyvissä → riittää pikkupallura
     naytettavat.push({ k, x, y, ulkona, kulma: Math.atan2(vy - y, vx - x) });
   }
@@ -366,6 +376,11 @@ function paivitaKursorit() {
 //   joka sisältää modaalin vierityksen ja keskityksen (sivu on lukittu, modaali vierittyy)
 // - kiinteässä yläpalkissa näkymän koordinaateissa (muut piirtävät yläpalkkiinsa)
 // - muuten sivun koordinaateissa.
+// Näkyvän näkymän kiinnitetty sivutus-/paikannuspalkki (kurssilistat), tai undefined.
+function kiinnitettyPalkki() {
+  return [...document.querySelectorAll(".kiinnitetyt")].find((e) => e.offsetParent);
+}
+
 function osoittimenSijainti(x, y, el) {
   const sisalto = el?.closest?.(".modaali")?.querySelector(".modaali-sisalto");
   if (sisalto) {
@@ -373,6 +388,9 @@ function osoittimenSijainti(x, y, el) {
     return { x: x - r.left, y: y - r.top, modaali: true };
   }
   if (el?.closest?.("header")) return { x, y, ylapalkki: true };
+  // Kiinnitetty palkki on eri kohdassa eri vierityksellä → palkin yläreunan suhteen.
+  const palkki = el?.closest?.(".kiinnitetyt");
+  if (palkki) return { x, y: y - palkki.getBoundingClientRect().top, kiinnitetty: true };
   return { x: x + window.scrollX, y: y + window.scrollY };
 }
 
