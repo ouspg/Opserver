@@ -1,6 +1,7 @@
 """Raporttinäkymä: LLM-raportin generointi tutkimukselle."""
 import threading
-from cliui.apurit import piirra_otsikko, nayta_viesti
+from cliui.apurit import kirjoita_rivi, piirra_otsikko, nayta_viesti
+from cliui.ehdotusnaytto import kuittaa_ehdotukset
 from cliui.valikot import toimintovalikko, valitse_tutkimus
 
 # Tuoreuslaskenta on raskas (per-yliopisto-tilastot + kaikki vastaukset etäkannasta),
@@ -49,9 +50,70 @@ def _raportti(stdscr, tutkimus: dict) -> None:
     toimintovalikko(stdscr, f"Raportti — {tutkimus['LuokittelunNimi']}", toiminnot, tutkimus)
 
 
+def _tila(stdscr, otsikko: str, teksti: str) -> None:
+    piirra_otsikko(stdscr, otsikko)
+    kirjoita_rivi(stdscr, 3, teksti)
+    stdscr.refresh()
+
+
+def _normalisoi_listat(stdscr, tutkimus: dict) -> int | None:
+    """Lista-tyypin kysymysten arvojen yhdistäminen ennen raporttia: aiemmin
+    hyväksytyt automaattisesti, sitten a) kirjainkoko ja b) LLM:n synonyymit
+    käyttäjän kuittaamina. Palauttaa muuttuneiden vastausrivien määrän, None jos
+    käyttäjä peruutti (kuitatut vaiheet ovat jo tallessa, peruttu ei)."""
+    from raportti import listanormalisointi as ln, listasynonyymit as ls
+    tid = tutkimus["TID"]
+    otsikko = f"Lista-arvojen yhdistäminen — {tutkimus['LuokittelunNimi']}"
+    kysymykset = ln.lista_kysymykset(tid)
+    if not kysymykset:
+        return 0
+    _tila(stdscr, otsikko, "Sovelletaan aiemmin hyväksyttyjä yhdistämisiä...")
+    muuttui = ln.sovella_tallennetut(tid)
+
+    _tila(stdscr, otsikko, "Etsitään kirjainkokoeroja...")
+    ehdotukset = ln.kirjainkoko_ehdotukset(tid, kysymykset)
+    if ehdotukset:
+        kuitatut = kuittaa_ehdotukset(stdscr, f"a) Kirjainkokoerot — {tutkimus['LuokittelunNimi']}", ehdotukset)
+        if kuitatut is None:
+            return None
+        muuttui += ln.tallenna_kuittaus(tid, kuitatut)
+
+    _tila(stdscr, otsikko, "Kysytään LLM:ltä synonyymejä...")
+
+    def edistyminen(i, yht, kysymys):
+        kirjoita_rivi(stdscr, 4, f"  Kysymys {i + 1}/{yht}: {kysymys}")
+        stdscr.refresh()
+
+    ehdotukset, lahetetyt, virheet = ls.synonyymiehdotukset(tid, kysymykset, edistyminen)
+    if virheet:
+        piirra_otsikko(stdscr, otsikko)
+        nayta_viesti(stdscr, "LLM-vastaus jäi osin jäsentymättä (kysytään uudelleen ensi kerralla): "
+                     + "; ".join(virheet), 3)
+    kuitatut = []
+    if ehdotukset:
+        kuitatut = kuittaa_ehdotukset(stdscr, f"b) Synonyymit (LLM) — {tutkimus['LuokittelunNimi']}", ehdotukset)
+        if kuitatut is None:
+            return None
+    return muuttui + ln.tallenna_kuittaus(tid, kuitatut, lahetetyt, ls.lue_kehote())
+
+
 def _generoi(stdscr, tutkimus: dict) -> None:
     from raportti import llmraportti
+    try:
+        muuttui = _normalisoi_listat(stdscr, tutkimus)
+    except EnvironmentError as e:
+        nayta_viesti(stdscr, f"Virhe: {e}")
+        return
+    except Exception as e:
+        nayta_viesti(stdscr, f"Lista-arvojen yhdistäminen epäonnistui: {e}")
+        return
+    if muuttui is None:
+        piirra_otsikko(stdscr, f"Raportti — {tutkimus['LuokittelunNimi']}")
+        nayta_viesti(stdscr, "Keskeytetty — raporttia ei generoitu.", 3)
+        return
     piirra_otsikko(stdscr, f"Raportti — {tutkimus['LuokittelunNimi']}")
+    if muuttui:
+        stdscr.addstr(2, 0, f"Lista-arvoja yhdistetty {muuttui} vastauksessa.")
     stdscr.addstr(3, 0, "Yhdistetään LLM:ään...")
     stdscr.refresh()
 
