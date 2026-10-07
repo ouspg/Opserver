@@ -104,7 +104,9 @@ def _raportin_poikkeamat(kursori):
       KID % 50 == 11 LLM hylkäsi, ihminen lisäsi (riittamaton_opas)
       KID % 50 == 20 meta hylkäsi, ihminen lisäsi (juurisyy merkitsemättä)
       KID % 50 == 4  ihminen lisäsi ja poisti → palautettu alkutilaan (ei nettomuutosta)
-      KID % 50 == 7  meta läpäisty, odottaa LLM:ää (Mukana NULL, 'meta: odottaa LLM-seulontaa')
+      KID % 50 == 7  meta läpäisty, odottaa LLM:ää (Mukana NULL, 'meta: odottaa LLM-seulontaa');
+      KID % 100 == 56 odotti LLM:ää, ihminen hylkäsi suoraan (ei LLM:n päätös; jo hylätty)
+      KID % 50 == 2  lisäksi ihmisen korjaama arviovastaus (Malli NULL) poistetulla kurssilla
       KID % 20 == 1  joustavuusluokka väärällä kirjainkoolla + reunavälilyönnillä
       KID == 10      joustavuusluokka tuntematon ('Ehkä')
       KID % 50 == 1  ihminen hyväksyi LLM:n mukaan-päätöksen (HITL-kattavuus)"""
@@ -122,6 +124,10 @@ def _raportin_poikkeamat(kursori):
     for tila, juurisyy, jaannos in [(0, "llm_virhe", 2), (1, "riittamaton_opas", 11), (1, None, 20),
                                     (1, "llm_virhe", 4), (0, "llm_virhe", 4)]:
         kursori.execute(hitl, (tila, juurisyy, jaannos))
+    kursori.execute(hitl.replace("MOD(KID, 50)", "MOD(KID, 100)"), (0, None, 56))
+    kursori.execute("UPDATE Kurssiluokitus SET Luokitteluperuste = 'meta: odottaa LLM-seulontaa' "
+                    "WHERE TID = 1 AND MOD(KID, 100) = 56")
+    kursori.execute("UPDATE Vastaukset SET Malli = NULL WHERE TID = 1 AND KysID = 5 AND KID % 50 = 2")
     kursori.execute("UPDATE Vastaukset SET Luokka = CONCAT(' ', LOWER(Luokka), ' ') "
                     "WHERE TID = 1 AND KysID = 2 AND KID % 20 = 1")
     kursori.execute("UPDATE Vastaukset SET Luokka = 'Ehkä' WHERE TID = 1 AND KysID = 2 AND KID = 10")
