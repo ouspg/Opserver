@@ -106,6 +106,7 @@ WebUI:n esittely yleisölle = tuotannon `https://<TUOTANTO_DOMAIN>` (Caddy pää
 - **`./testit/paivittajatesti.sh`** / **`./testit/varmuuskopiotesti.sh`** — päivittäjän logiikka stubeilla (ei Dockeria) / dumppi+palautus kertakäyttökontissa (vaatii Dockerin)
 - **`./testit/selaintesti.sh [pytest-argumentit]`** — selaintestit: käynnistää tarvittaessa `opserver-selain-mysql`-kontin (127.0.0.1:21414, jää käyntiin), asentaa playwrightin `.venv`:iin, luo ajolle oman kannan (alustus + migraatiot + siemen) ja uvicornin vapaaseen porttiin. Vaatii Dockerin; klaudekilla aja hiekkalaatikon ulkopuolella (localhost)
 - **`./testit/vahtikoiratesti.sh`** — varmistaa stub-dockerilla, ettei vahtikoira restartoi tervettä mysqliä (ei vaadi Dockeria)
+- **`./testit/huoltotesti.sh`** — Caddyfilen päivityskatkokäytös kertakäyttökonteissa (~45 s, vaatii Dockerin): alle 30 s webui-katko → pyyntö odottaa ja onnistuu; pidempi → 503-huoltosivu (HTML, `/api/*` JSON) + `Retry-After`. Aja aina kun muutat `Caddyfile`ä
 
 ## WebUI-käytännöt (huono yhteys + yhteisöllinen annotointi)
 
