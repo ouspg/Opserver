@@ -83,3 +83,36 @@ Ne ovat silti pseudonyymejä (käyttäjä voi vaihtaa nimimerkin omaksi nimeksee
 sessiossa tunnistettavissa), joten lyhyt ilmoitus tarvitaan yhä, mutta velvoitteet
 kevenevät. Päätettävä samalla kannassa jo olevien nimien/sähköpostien käsittely
 (jätetään / sähköpostit NULLiksi / nimet nimimerkeiksi) — muutos migraationa.
+
+## 31. esr_kyber: arviointikysymysten tekstit ja asteikko (tuotannon dataa)
+
+Raporttikatselmoinnissa 2026-10-07 (Fable-lukija + käyttäjä) löytyi kysymysdatan
+virheitä, jotka korjataan tutkimuksen asetuksista (ei koodia):
+- K1:n tekstissä "Työpaketissa 1", vaikka raportti on työpaketti 2:n → vuotaa raporttiin.
+- K5 (asteikko 1–5): päiden merkitys määrittelemättä eikä "ei pääteltävissä" -vaihtoehtoa
+  → pakotettu arvio; raportin "ei pääteltävissä" -mittari (PR #107) ei kata K5:tä.
+- K2/K6 molemmat "Joustavuus:", K3/K4 "Soveltuvuus:" → taulukossa vaikea erottaa;
+  anna lyhyet erottelevat nimet.
+- Yhtenäinen "ei pääteltävissä" -luokan nimi kaikkiin luokittelukysymyksiin (nyt "-",
+  "ei voi päätellä", "Ei pysty määrittelemään", "EOS") — heuristiikka #107:ssä tunnistaa
+  ne, mutta yksi nimi on varmempi.
+Kysymysten muutos vanhentaa arviot → arviointi (vaihe 3) ajetaan uudelleen muutetuille.
+
+## 32. esr_kyber: valintakehote on liian salliva (HITL poisti 204/418)
+
+Tuotannon HITL-mittarit 2026-10-07 (PR #107:n suunta-analyysi): LLM:n alkuperäinen
+valinta 418 kurssia, lopullinen mukana-lista 227. Ihminen poisti 204 LLM:n mukaan
+ottamaa (176 LLM-virhe, 28 riittämätön opas) ja lisäsi vain 13 (5 meta-hylättyä,
+8 LLM-hylättyä). Virhetaksonomian mukaan (LLM:n väärinymmärrys) → paranna
+valintakehotetta ja aja vaihe 2 uudelleen. Lähtökohdaksi HITL-korjausten perustelut
+(`HitlKorjaus.Perustelu`, UusiTila=0, Juurisyy='llm_virhe'): mitä yhteistä
+poistetuilla on. Huom: uudelleenajo ei saa kumota ihmisen päätöksiä.
+
+## 33. Lista-arvojen yhdistämispäätösten selaus ja peruminen
+
+PR #108: hyväksytyt ja hylätyt yhdistämisehdotukset tallentuvat pysyvästi
+(`ListaYhdistys`), ja hyväksytyt sovelletaan automaattisesti jokaisella
+raporttigeneroinnilla. Väärin hyväksytyn yhdistämisen (tai turhaan hylätyn)
+voi nyt korjata vain SQL:llä. Tarvitaan CLIUI-näkymä: listaa päätökset
+kysymyksittäin, salli peruminen (palauttaa raaka-arvot? → vaatii alkuperäisten
+arvojen säilytyksen, nyt Lista kirjoitetaan yli — päätä ensin).
