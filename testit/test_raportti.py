@@ -269,6 +269,12 @@ class TestRaporttiTiiviste:
         b = self._tiiviste(vastaus_tila={(1, 10): {"tiiviste": "x", "vastattu": True}})
         assert a != b
 
+    def test_muuttuu_kun_lista_arvot_muuttuvat(self):
+        """Lista-arvojen yhdistäminen muuttaa vain listan sisältöä (ei kehotetiivistettä)."""
+        a = self._tiiviste(vastaus_tila={(1, 10): {"tiiviste": "x", "vastattu": True, "lista": "m1"}})
+        b = self._tiiviste(vastaus_tila={(1, 10): {"tiiviste": "x", "vastattu": True, "lista": "m2"}})
+        assert a != b
+
     def test_muuttuu_kun_korjaus_lisataan(self):
         a = self._tiiviste(kommentit=[])
         b = self._tiiviste(kommentit=[{"KID": 1, "KysID": 10, "Vastaus": "Uusi",

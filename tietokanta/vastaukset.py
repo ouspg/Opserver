@@ -82,7 +82,7 @@ def paivita_luokat(rivit: list[tuple[str, int]]) -> None:
 
 
 def hae_vastaus_tiivisteet(tid: int) -> dict[tuple[int, int], dict]:
-    """Palauttaa tutkimuksen vastausten tilan: {(KID, KysID): {tiiviste, vastattu, hitl}}.
+    """Palauttaa tutkimuksen vastausten tilan: {(KID, KysID): {tiiviste, vastattu, hitl, lista}}.
 
     vastattu = True jos vastauksessa on ei-tyhjä teksti, luokka tai pisteet.
     Käytetään tunnistamaan mitkä (kurssi, kysymys) -parit tarvitsevat
@@ -92,6 +92,9 @@ def hae_vastaus_tiivisteet(tid: int) -> dict[tuple[int, int], dict]:
     uudelleen edes kehotteen muuttuessa — sama sääntö kuin luokittelupuolella
     (_luokittelemattomat_ehto sulkee HitlKorjaus-kurssit pois). Ihmisen työtä ei
     ylikirjoiteta, ja riittämättömän opinto-oppaan täydennys säilyy.
+
+    lista = Lista-sarakkeen MD5 (raportin tuoreus: lista-arvojen yhdistäminen
+    muuttaa vain sitä, ks. raportti.listanormalisointi).
     """
     with yhteys() as yht:
         with yht.cursor() as kursori:
@@ -99,7 +102,8 @@ def hae_vastaus_tiivisteet(tid: int) -> dict[tuple[int, int], dict]:
                 SELECT v.KID, v.KysID, v.Kehotetiiviste, (v.Malli IS NULL) AS Hitl,
                        ((v.Vastaus IS NOT NULL AND v.Vastaus <> '')
                         OR v.Luokka IS NOT NULL OR v.Pisteet IS NOT NULL
-                        OR v.Lista IS NOT NULL) AS Vastattu
+                        OR v.Lista IS NOT NULL) AS Vastattu,
+                       MD5(v.Lista) AS ListaTiiviste
                 FROM Vastaukset v
                 WHERE v.TID = %s
                 ORDER BY (v.Malli IS NULL)
@@ -111,6 +115,7 @@ def hae_vastaus_tiivisteet(tid: int) -> dict[tuple[int, int], dict]:
                     "tiiviste": r["Kehotetiiviste"],
                     "vastattu": bool(r["Vastattu"]),
                     "hitl": bool(r["Hitl"]),
+                    "lista": r.get("ListaTiiviste"),
                 }
                 for r in _rivit_dikteina(kursori)
             }

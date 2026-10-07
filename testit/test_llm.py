@@ -46,6 +46,16 @@ class TestKysy:
             {"role": "user", "content": "kysymys"},
         ]
 
+    def test_rajaton_jattaa_max_tokens_pois_ja_pidentaa_aikakatkaisua(self):
+        with patch.dict(os.environ, _ENV), \
+             patch("llm.kutsu.requests.post", return_value=self._mock_vastaus("ok")) as mock_post:
+            kutsu.kysy("kysymys")
+            kutsu.kysy("kysymys", rajaton=True)
+        oletus, rajaton = mock_post.call_args_list
+        assert "max_tokens" in oletus.kwargs["json"]
+        assert "max_tokens" not in rajaton.kwargs["json"]
+        assert rajaton.kwargs["timeout"] > oletus.kwargs["timeout"]
+
     def test_kysy_kayttaa_oletusjarjestelmakehotetta(self):
         with patch.dict(os.environ, _ENV), \
              patch("llm.kutsu.requests.post", return_value=self._mock_vastaus("ok")) as mock_post:

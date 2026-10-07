@@ -70,6 +70,18 @@ class TestHitlVastaukset:
         tulos = mallit.hae_vastaus_tiivisteet(1)
         assert tulos[(5, 30)]["hitl"] is True
 
+    def test_vastaus_tiivisteet_sisaltaa_listan_tiivisteen(self, mock_yhteys):
+        """Raportin tuoreus: lista-arvojen yhdistäminen muuttaa vain Listaa (ei
+        Kehotetiivistettä) → listan sisällön tiiviste kulkee mukana (MD5 kannassa,
+        ei koko listaa verkon yli)."""
+        yht, kursori = mock_yhteys
+        kursori.description = [("KID",), ("KysID",), ("Kehotetiiviste",), ("Hitl",), ("Vastattu",),
+                               ("ListaTiiviste",)]
+        kursori.fetchall.return_value = [(5, 30, "tiiv", 0, 1, "abc")]
+        tulos = mallit.hae_vastaus_tiivisteet(1)
+        assert tulos[(5, 30)]["lista"] == "abc"
+        assert "MD5(v.Lista)" in kursori.execute.call_args[0][0]
+
 
 class TestHitlRivitEivatSotkeLaskentaa:
     """LLM- ja HITL-rivi ovat samalla (KID, KysID) -parilla (migraatio_022);

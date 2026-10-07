@@ -44,7 +44,7 @@ def raporttitiiviste(tutkimus: dict, tilastot: list[dict] | None = None,
          json.dumps(k.get("LuokitteluMaarittely"), sort_keys=True, ensure_ascii=False)]
         for k in kysymykset), ensure_ascii=False)
     vastaus_osa = json.dumps(sorted(
-        [kid, kysid, v.get("tiiviste") or "", bool(v.get("vastattu"))]
+        [kid, kysid, v.get("tiiviste") or "", bool(v.get("vastattu")), v.get("lista") or ""]
         for (kid, kysid), v in vastaus_tila.items()), ensure_ascii=False)
     # Ihmisen korjaukset mukaan signatuuriin: korjaus muuttaa raportin sisällön
     # samoin kuin uusi LLM-vastaus, joten raportti on sen jälkeen vanhentunut.
