@@ -7,7 +7,8 @@
 #               + migraatiot 001-003 merkitty ajetuiksi = tuotannon tila 2026-09-22,
 #               jossa migraatio_004 kaatui "Table 'Vastaukset' doesn't exist".
 #   edellinen — kanta alustettu haaran kantaversion (merge-base main) alustus.sql:stä:
-#               ajaa haaran uudet migraatiot oikeasti olemassa olevia tauluja vasten.
+#               ajaa haaran uudet migraatiot oikeasti olemassa olevia tauluja ja
+#               siemenrivejä (testit/fixtures/migraatio_siemen.sql) vasten.
 #   tuore     — kanta alustettu nykyisestä alustus.sql + alustus_migraatiot.sql:stä.
 #
 # Kaikissa lopputuloksen on oltava sama: kaikki migraatiot merkitty ajetuiksi
@@ -17,6 +18,7 @@ cd "$(dirname "$(readlink -f "$0")")/.."
 source testit/skeemavedos.sh
 
 KONTTI=migraatiotesti
+SIEMEN=testit/fixtures/migraatio_siemen.sql
 KUVA=mysql:8.4
 TMP=$(mktemp -d)
 siivoa() { docker rm -f "$KONTTI" >/dev/null 2>&1 || true; }
@@ -80,6 +82,13 @@ echo "== skenaario: edellinen skeema ($(git rev-parse --short "$KANTAVERSIO"))"
 kaynnista
 git show "$KANTAVERSIO:tietokanta/alustus.sql" | aja_sql
 git show "$KANTAVERSIO:tietokanta/alustus_migraatiot.sql" | aja_sql
+# Siemenrivit, jotta datariippuvat migraatiolauseet ajetaan oikeaa dataa vasten (#120).
+# Kantaversion kopio, koska se vastaa kantaversion skeemaa; puuttuessa nykyinen.
+if git cat-file -e "$KANTAVERSIO:$SIEMEN" 2>/dev/null; then
+    git show "$KANTAVERSIO:$SIEMEN" | aja_sql
+else
+    aja_sql < "$SIEMEN"
+fi
 aja_migraatiot
 tarkista edellinen
 vedos > "$TMP/edellinen.sql"
@@ -88,6 +97,7 @@ echo "== skenaario: tuore kanta"
 kaynnista
 aja_sql < tietokanta/alustus.sql
 aja_sql < tietokanta/alustus_migraatiot.sql
+aja_sql < "$SIEMEN"  # todentaa, että siemen vastaa nykyistä skeemaa
 aja_migraatiot
 tarkista tuore
 vedos > "$TMP/tuore.sql"
