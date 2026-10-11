@@ -37,9 +37,11 @@ def test_infomodaali_sisalto_ja_sulkeminen(kayttaja, pohja):
 
 
 def _vieras(s, ehto="true"):
-    """Odottaa vieraan kursorin, joka täyttää ehdon (k = {x, y, ulkona, kulma}); palauttaa sen."""
+    """Odottaa vieraan kursorin, joka täyttää ehdon (k = {x, y, ulkona, kulma}); palauttaa sen.
+    Vasta kun left/top-liukuma (tyyli.css) on päättynyt: kesken liukuman luettu kohta ei ole
+    pallura, ja sen klikkaus menee ohi (#115)."""
     lauseke = """(ehto) => { const el = document.querySelector('#kursori-kerros .vieras-kursori');
-      if (!el) return null; const r = el.querySelector('canvas').getBoundingClientRect();
+      if (!el || el.getAnimations().length) return null; const r = el.querySelector('canvas').getBoundingClientRect();
       const k = { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2),
                   ulkona: el.classList.contains('ulkona'), kulma: parseFloat(el.style.getPropertyValue('--kulma')) || 0 };
       return new Function('k', 'return ' + ehto)(k) ? k : null; }"""

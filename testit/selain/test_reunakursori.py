@@ -11,8 +11,9 @@ from testit.selain.conftest import SLUG
 VALITUT = f"/tutkimukset/{SLUG}/kurssit-valittu"
 RIVI = "#tutkimus-kurssit-rungot tr.kurssi-rivi"
 REUNA = 30  # KURSORI_REUNA (yhteistyo.js)
+AY = 650  # A:n osoittimen y ylhäällä: kurssirivi kiinnitetyn palkin (n. 360–440) alapuolella
 KURSORI = """() => { const el = document.querySelector('#kursori-kerros .vieras-kursori');
-  if (!el) return null; const r = el.querySelector('canvas').getBoundingClientRect();
+  if (!el || el.getAnimations().length) return null; const r = el.querySelector('canvas').getBoundingClientRect();
   const k = {x: r.left + r.width / 2, y: r.top + r.height / 2, ulkona: el.classList.contains('ulkona'),
           kulma: parseFloat(el.style.getPropertyValue('--kulma')),
           ylapalkki: document.querySelector('header').getBoundingClientRect().bottom,
@@ -21,7 +22,8 @@ KURSORI = """() => { const el = document.querySelector('#kursori-kerros .vieras-
 
 
 def _odota_kursori(b, ehto):
-    """Odottaa, että A:n kursori B:llä (k) täyttää JS-ehdon; palauttaa sen tiedot."""
+    """Odottaa, että A:n kursori B:llä (k) täyttää JS-ehdon; palauttaa sen tiedot (vasta kun
+    left/top-liukuma on päättynyt — muuten klikkaus osuu ohi, #115)."""
     try:
         b.wait_for_function(f"() => {{ const k = ({KURSORI})(); return k && ({ehto}); }}", timeout=10000)
     except Aikakatkaisu:
@@ -29,9 +31,24 @@ def _odota_kursori(b, ehto):
     return b.evaluate(KURSORI)
 
 
+def _vierita(sivu, y):
+    """Vierittää kohtaan y vasta, kun lista on renderöity niin pitkäksi (osa kerrallaan) —
+    muuten scrollTo jää vajaaksi ja kursori ei ole ruudun ulkopuolella (#115)."""
+    sivu.wait_for_function(f"document.documentElement.scrollHeight >= {y} + innerHeight", timeout=15000)
+    sivu.evaluate(f"scrollTo(0, {y})")
+    sivu.wait_for_function(f"Math.abs(scrollY - {y}) < 1")
+
+
 def _liikuta(sivu, x, y):
     sivu.mouse.move(x - 5, y)
     sivu.mouse.move(x, y)
+
+
+def _liikuta_riville(a):
+    """A:n osoitin sisältöön (kurssiriville), ei kiinnitettyyn palkkiin: palkissa oleva
+    sijainti lähetetään palkin suhteen (#106), ja palkin kohta elää latauksen aikana (#115)."""
+    a.wait_for_function(f"document.elementFromPoint(645, {AY})?.closest('tr.kurssi-rivi')")
+    _liikuta(a, 645, AY)
 
 
 @pytest.fixture
@@ -44,7 +61,7 @@ def kaksi(kayttaja):
 def test_ylapalkissa_oleva_nakyy_ylapalkissa(kaksi):
     """A vierittänyt alas, hiiri yläpalkissa → B:llä pallura yläpalkin alueella, ei nuolta."""
     a, b = kaksi
-    a.evaluate("scrollTo(0, 2000)")
+    _vierita(a, 2000)
     _liikuta(a, 705, 45)
     _odota_kursori(b, "!k.ulkona && Math.abs(k.x - 705) < 2 && k.y <= k.ylapalkki")
 
@@ -52,16 +69,16 @@ def test_ylapalkissa_oleva_nakyy_ylapalkissa(kaksi):
 def test_ylapuolella_oleva_heti_ylapalkin_alla(kaksi):
     """A ylhäällä, B vierittänyt alas → reunapallura heti yläpalkin alla, nuoli ylös."""
     a, b = kaksi
-    _liikuta(a, 645, 405)
-    b.evaluate("scrollTo(0, 2500)")
+    _liikuta_riville(a)
+    _vierita(b, 2500)
     _odota_kursori(b, f"k.ulkona && k.kulma < -1 && k.ala < k.y && k.y <= k.ala + {REUNA} + 10")
 
 
 def test_ylapalkin_taakse_vierittynyt_reunassa(kaksi):
     """A:n kohta on B:llä yläpalkin takana → reunapallura heti yläpalkin alla."""
     a, b = kaksi
-    _liikuta(a, 645, 405)
-    b.evaluate("scrollTo(0, 405 - 40)")
+    _liikuta_riville(a)
+    _vierita(b, AY - 40)
     k = _odota_kursori(b, f"k.ulkona && k.ala < k.y && k.y <= k.ala + {REUNA} + 10")
     assert k["ala"] > 40  # A:n kohta (y=40 näkymässä) on todella yläpalkin alla
 
@@ -69,12 +86,12 @@ def test_ylapalkin_taakse_vierittynyt_reunassa(kaksi):
 def test_reunapalluran_klikkaus_vierittaa_luo(kaksi):
     """Reunapalluran klikkaus vierittää B:n niin, että A:n osoitin näkyy."""
     a, b = kaksi
-    _liikuta(a, 645, 405)
-    b.evaluate("scrollTo(0, 2500)")
+    _liikuta_riville(a)
+    _vierita(b, 2500)
     k = _odota_kursori(b, "k.ulkona && k.kulma < -1")
     b.mouse.click(k["x"], k["y"])
-    b.wait_for_function("scrollY + document.querySelector('header').getBoundingClientRect().bottom <= 405"
-                        " && 405 <= scrollY + innerHeight", timeout=10000)
+    b.wait_for_function(f"scrollY + document.querySelector('header').getBoundingClientRect().bottom <= {AY}"
+                        f" && {AY} <= scrollY + innerHeight", timeout=10000)
 
 
 def test_koottu_ylapalkki_pallura_ylapalkin_alareunassa(kaksi):
@@ -94,8 +111,8 @@ def test_kiinnitetyn_palkin_alla_reunapallura_palkin_alapuolella(kaksi):
     """B vierittänyt alas → sivutuspalkki jumittunut yläpalkin alle; A ylhäällä → reunapallura
     palkin alla, ei sivutusnappien päällä (#106)."""
     a, b = kaksi
-    _liikuta(a, 645, 405)
-    b.evaluate("scrollTo(0, 2500)")
+    _liikuta_riville(a)
+    _vierita(b, 2500)
     k = _odota_kursori(b, f"k.ulkona && k.kulma < -1 && k.palkki.bottom < k.y && k.y <= k.palkki.bottom + {REUNA} + 10")
     assert k["palkki"]["top"] <= k["ylapalkki"] + 1  # palkki todella jumittunut
 
@@ -104,7 +121,7 @@ def test_kiinnitetyssa_palkissa_oleva_nakyy_palkissa(kaksi):
     """A osoittaa sivutusta eri vierityksellä kuin B → B:llä pallura B:n palkissa samassa
     kohdassa palkin suhteen, ei reunapallurana."""
     a, b = kaksi
-    a.evaluate("scrollTo(0, 2000)")
+    _vierita(a, 2000)
     nappi = a.locator(".kiinnitetyt:visible .sivutus button").first.bounding_box()
     palkki_a = a.locator(".kiinnitetyt:visible").bounding_box()
     ax, ay = nappi["x"] + nappi["width"] / 2, nappi["y"] + nappi["height"] / 2
