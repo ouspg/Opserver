@@ -87,6 +87,7 @@ WebUI:n esittely yleisölle = tuotannon `https://<TUOTANTO_DOMAIN>` (Caddy pää
 - Testit sijaitsevat testattavan koodin rinnalla (esim. `tests/test_hakija.py` tiedostolle `hakija.py`)
 - Aja koko testijoukko jokaisen ei-triviaalin muutoksen jälkeen; ei yhdistämistä epäonnistuneiden testien kanssa
 - Testien täytyy olla nopeita eivätkä ne saa vaatia verkkoyhteyttä — mock-ita ulkoiset kutsut (HTTP, LLM API)
+- **Mobiilin suorituskykytestit** (`testit/selain/test_mobiili_suorituskyky.py`, merkki `suorituskyky`): puhelinemulaatio + CPU 4× hitaampi, Long Tasks / Event Timing -rajat (vaste ≤ 100 ms, pisin jumi, vierityksen ruutuväli). Ajetaan selaintestien mukana siemendatalla; tuotantokokoista perf-kantaa vasten `SELAIN_POHJA=http://127.0.0.1:PORTTI ./testit/selaintesti.sh -m suorituskyky -s` (WebUI käynnissä perf-kantaa vasten). Aja tuotantokokoisena aina kun muutat kurssilistoja, yläpalkkia tai läsnäolon viestinkäsittelyä — siemendatan 900 riviä ei paljasta koko DOMin läpikäyntejä
 - **Selaintestit** (`testit/selain/`, playwright + headless Chromium): WebUI-käyttäytyminen oikeaa palvelinta ja MySQL:ää vasten, useampi käyttäjä = `kayttaja(...)`-fixturen eri browser context. Jokainen WebUI-muutos saa selaintestin tänne (ei kertakäyttöskriptejä) ja `./testit/selaintesti.sh` ajetaan ennen PR:ää. Tavallinen `pytest` ohittaa ne. Data: `testit/selain/siemen.py` (deterministinen, synteettinen) — laajenna sitä, jos testi tarvitsee uudenlaista dataa
 
 ## Kehitystyökalut

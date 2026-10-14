@@ -274,13 +274,14 @@ def test_siirtyminen_eri_leveydella_samalle_riville(kayttaja):
 
 def test_kapea_ylapalkki_piilottaa_ohjeen_ja_siirtaa_ympyrat_logon_alle(kayttaja):
     """#94: ikkunan kaventuessa ensin "Nimimerkkisi:" pois, sitten muiden ympyrät omalle
-    rivilleen logon alle — ympyrät eivät koskaan logon päällä."""
+    rivilleen logon alle — ympyrät eivät koskaan logon päällä. Alle 601 px mobiilinäkymä
+    (kaikki hampurilaisvalikossa, test_mobiili.py)."""
     for _ in range(4):
         kayttaja(TUTKIMUS, "#oma-ympyra")
     s = kayttaja(TUTKIMUS, "#oma-ympyra")
     expect(s.locator(YLAPALKKI)).to_have_count(4, timeout=15000)
     tilat = []
-    for leveys in range(1280, 340, -20):
+    for leveys in range(1280, 600, -20):
         s.set_viewport_size({"width": leveys, "height": 800})
         s.evaluate("new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))")  # resize käsitelty
         tila = s.evaluate("""() => {

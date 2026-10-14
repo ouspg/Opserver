@@ -32,7 +32,7 @@ def test_kurssit_jarjestys_ja_rivin_klikkaus(kayttaja):
     s.wait_for_function("!kurssit_kesken && kaikki_kurssit.length > 0")
     s.click("#s-kurssit th[data-jarjesta=nimi] .jarjesta-nappi[data-suunta=laskeva]")
     s.wait_for_function(f"document.querySelectorAll('{KURSSIT_RIVI}').length === kurssit_jarjestyksessa.length")
-    nimet = s.eval_on_selector_all(f"{KURSSIT_RIVI} td:first-child", "e => e.map((x) => x.textContent)")
+    nimet = s.eval_on_selector_all(f"{KURSSIT_RIVI} td:first-child [data-lomake]", "e => e.map((x) => x.textContent)")
     assert nimet[0].startswith("Ö")  # siemen: "Öljyteollisuuden …" → ä/ö aakkosten lopussa
     assert s.evaluate("(n) => n.every((x, i) => i === 0 || LAJITTELIJA.compare(n[i - 1], x) >= 0)", nimet)
     solu = s.locator(KURSSIT_RIVI).first.locator("td").first

@@ -62,7 +62,7 @@ async function haeJson(url, yrityksia = 4) {
   }
 }
 
-// Pienennä otsikon fonttia kunnes se mahtuu yhdelle riville; alaraja 16px.
+// Pienennä otsikon fonttia kunnes se mahtuu yhdelle riville; alaraja 16px, sitten rivitys (puhelin).
 function sovitaOtsikko(el) {
   if (!el || !el.textContent.trim()) return;
   el.style.whiteSpace = "nowrap";
@@ -75,6 +75,7 @@ function sovitaOtsikko(el) {
     koko -= 1;
     el.style.fontSize = koko + "px";
   }
+  if (el.scrollWidth > el.clientWidth) el.style.whiteSpace = "normal";
 }
 
 function sovitaAktiivisetOtsikot() {
@@ -193,11 +194,42 @@ function tasoTeksti(taso) {
   return taso ? escapeHtml(tasoNimi(taso)) : "—";
 }
 
-// Kurssirivin taso-, oppiaine- ja op-solut (kurssilista ja tutkimuksen kurssit).
+// Tasotagi [A] mobiilin kurssilistaan; napautus näyttää selitteen (kytketty alla).
+function tasoTagi(taso) {
+  if (!taso) return "";
+  const nimi = tasoNimi(taso);
+  const selite = /opinnot$/i.test(nimi) ? nimi : `${nimi} opinnot`;
+  return `<span class="taso-tagi" tabindex="0" role="button" data-selite="${escapeHtml(selite)}"
+    aria-label="${escapeHtml(selite)}">[${escapeHtml(nimi[0].toUpperCase())}]</span>`;
+}
+// Capture: tagin napautus ei avaa riviä (rivien klikkaus on delegoitu tbodyyn); muut sulkeutuvat.
+document.addEventListener("click", (e) => {
+  const tagi = e.target.closest?.(".taso-tagi");
+  [...document.getElementsByClassName("taso-tagi auki")].forEach((t) => { if (t !== tagi) t.classList.remove("auki"); });
+  if (!tagi) return;
+  tagi.classList.toggle("auki");
+  e.stopPropagation();
+}, true);
+document.addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches?.(".taso-tagi")) { e.preventDefault(); e.target.click(); }
+});
+
+// Kurssirivin nimisolu: mobiilissa oppiaine sulkeissa nimen perässä (oma sarake piilossa).
+function kurssiNimiSolu(k, kid = k.KID) {
+  const oppiaine = k.Oppiaine ? `<span class="vain-mobiili"> (${escapeHtml(k.Oppiaine)})</span>` : "";
+  return `<td>${kurssiNimiHtml(k, kid)}${oppiaine}</td>`;
+}
+
+// Kurssirivin taso-, oppiaine- ja op-solut (kurssilista ja tutkimuksen kurssit) + mobiilin
+// yhdistetty sarake "6op [A] 🌐" (koodi-, taso-, oppiaine- ja op-sarakkeiden tilalla).
 function kurssiMetaSolut(k) {
-  return `<td>${tasoTeksti(k.Taso)}</td>
-      <td>${escapeHtml(k.Oppiaine || "—")}</td>
-      <td class="op">${escapeHtml(k.Opintopisteet ?? "—")}</td>`;
+  const url = kurssiUrl(k);
+  const op = k.Opintopisteet ? `${escapeHtml(k.Opintopisteet)}op ` : "";
+  const opas = url ? ` <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="ops-linkki" aria-label="Opinto-opas">🌐</a>` : "";
+  return `<td class="vain-tyopoyta">${tasoTeksti(k.Taso)}</td>
+      <td class="vain-tyopoyta">${escapeHtml(k.Oppiaine || "—")}</td>
+      <td class="op vain-tyopoyta">${escapeHtml(k.Opintopisteet ?? "—")}</td>
+      <td class="vain-mobiili mobiili-tiedot">${op}${tasoTagi(k.Taso)}${opas}</td>`;
 }
 
 const OSARENDER_VALI_MS = 2000;

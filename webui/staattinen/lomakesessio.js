@@ -261,9 +261,17 @@
       const avain = window.modaaliAvain(k);
       if (avain && k.profiili) (perAvain[avain] ||= []).push(k);
     }
-    document.querySelectorAll("[data-lomake]").forEach((nappi) => {
+    // Vain ankkurit, joilla on nyt tai oli käyttäjiä: kaikkien läpikäynti (Kurssit-sivulla
+    // ~9 000 kurssinimeä) maksoi puhelimella ~50 ms jokaisesta läsnäoloviestistä.
+    const kohteet = new Set(document.getElementsByClassName("lomake-auki"));  // luokkaindeksi, ei läpikäyntiä
+    const tunnisteet = {};
+    for (const [avain, kayttajat] of Object.entries(perAvain)) {
+      tunnisteet[avain] = JSON.stringify(kayttajat.map((k) => [k.id, k.taso, k.nimimerkki, k.profiili]));
+      document.querySelectorAll(`[data-lomake="${CSS.escape(avain)}"]`).forEach((n) => kohteet.add(n));
+    }
+    kohteet.forEach((nappi) => {
       const kayttajat = perAvain[nappi.dataset.lomake] || [];
-      const tunniste = JSON.stringify(kayttajat.map((k) => [k.id, k.taso, k.nimimerkki, k.profiili]));
+      const tunniste = tunnisteet[nappi.dataset.lomake] ?? "[]";
       if (nappi.dataset.lomakeTila === tunniste) return;
       nappi.dataset.lomakeTila = tunniste;
       nappi.classList.toggle("lomake-auki", kayttajat.length > 0);

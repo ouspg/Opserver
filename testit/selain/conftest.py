@@ -6,7 +6,11 @@ pytest-ajo ohittaa nämä, koska ne vaativat MySQL:n ja selaimen.
 Jokainen ajo luo oman kannan (selain_<pid>) MySQL-palvelimelle SELAIN_DB_*, ajaa
 alustus.sql:n + esitäyttämättömät migraatiot, täyttää siemen.py:n datalla, käynnistää
 uvicornin vapaaseen porttiin ja pudottaa kannan lopuksi → ajot eivät sotke toisiaan
-ja kirjoittavat testit alkavat aina samasta tilasta."""
+ja kirjoittavat testit alkavat aina samasta tilasta.
+
+SELAIN_POHJA=http://… → valmiiksi käynnissä oleva WebUI (esim. tuotantokokoinen perf-kanta)
+oman kannan ja uvicornin sijaan; vain suorituskykytesteille (-m suorituskyky), muut testit
+olettavat siemen.py:n datan."""
 import os
 import re
 import socket
@@ -76,8 +80,12 @@ def kanta():
 
 
 @pytest.fixture(scope="session")
-def pohja(kanta):
+def pohja(request):
     """Käynnissä olevan WebUI:n osoite (ilman Basic Authia)."""
+    if os.environ.get("SELAIN_POHJA"):
+        yield os.environ["SELAIN_POHJA"].rstrip("/")
+        return
+    kanta = request.getfixturevalue("kanta")
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         portti = s.getsockname()[1]
@@ -140,3 +148,7 @@ def kayttaja(selain, pohja):
     for k in kontekstit:
         k.close()
     assert not virheet, f"JS-virheet sivulla: {virheet}"
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "suorituskyky: mobiilinäkymän suorituskykymittaukset (myös SELAIN_POHJA)")

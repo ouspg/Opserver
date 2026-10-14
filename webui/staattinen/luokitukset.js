@@ -115,7 +115,7 @@ async function renderTutkimusKurssit(slug, nimi, sailyta = false) {
 // tilalle — muuten edellinen näkymä jää näkyviin kuin mitään ei tapahtuisi.
 function naytaLuokitusLataus() {
   document.getElementById("tutkimus-kurssit-rungot").innerHTML =
-    '<tr class="lataus-rivi"><td colspan="6">Ladataan kursseja…</td></tr>';
+    '<tr class="lataus-rivi"><td colspan="7">Ladataan kursseja…</td></tr>';
   document.getElementById("tutkimus-kurssit-lkm").textContent = "Ladataan…";
 }
 
@@ -295,7 +295,7 @@ function renderTutkimusKurssitRivit(rivit) {
   const runko = document.getElementById("tutkimus-kurssit-rungot");
   runko.innerHTML = "";
   if (rivit.length === 0) {
-    runko.innerHTML = `<tr><td colspan="6">Ei kursseja tässä kategoriassa.</td></tr>`;
+    runko.innerHTML = `<tr><td colspan="7">Ei kursseja tässä kategoriassa.</td></tr>`;
     return;
   }
   let html = "";
@@ -321,8 +321,8 @@ function renderTutkimusKurssitRivit(rivit) {
     }
 
     html += `<tr class="kurssi-rivi${hyvaksytty ? " hyvaksytty" : ""}" data-kid="${k.KID}">
-      <td>${kurssiNimiHtml(k)}</td>
-      <td class="koodi">${koodiJaOpasLinkki(k)}</td>
+      ${kurssiNimiSolu(k)}
+      <td class="koodi vain-tyopoyta">${koodiJaOpasLinkki(k)}</td>
       ${kurssiMetaSolut(k)}
       <td class="perustelu">${perusteluHtml}${toimintoHtml ? `<div class="perustelu-toiminto">${toimintoHtml}</div>` : ""}</td></tr>`;
   }

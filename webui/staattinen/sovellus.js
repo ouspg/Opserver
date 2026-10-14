@@ -213,6 +213,19 @@ function asetaYlapalkkiKoottu(koottu) {
 }
 _valikkovihje.addEventListener("click", () => asetaYlapalkkiKoottu(!_ylapalkki.classList.contains("koottu")));
 asetaYlapalkkiKoottu(!!localStorage.getItem("ylapalkki_koottu"));  // tila säilyy uudelleenlatauksessa
+
+// Mobiilin hampurilaisvalikko (tyyli.css): navigointi valikosta ja Esc sulkevat sen.
+const _mobiilinappi = document.getElementById("mobiilivalikko-nappi");
+function asetaMobiilivalikko(auki) {
+  _ylapalkki.classList.toggle("valikko-auki", auki);
+  _mobiilinappi.setAttribute("aria-expanded", String(auki));
+  _mobiilinappi.textContent = auki ? "✕" : "☰";
+}
+_mobiilinappi.addEventListener("click", () => asetaMobiilivalikko(!_ylapalkki.classList.contains("valikko-auki")));
+document.getElementById("ylapalkki-valikko").addEventListener("click", (e) => {
+  if (e.target.closest("nav button")) asetaMobiilivalikko(false);
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") asetaMobiilivalikko(false); });
 if (_ylapalkki && window.ResizeObserver) {
   new ResizeObserver(() => {
     document.documentElement.style.setProperty("--otsikkokorkeus", _ylapalkki.offsetHeight + "px");

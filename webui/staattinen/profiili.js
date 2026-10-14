@@ -176,7 +176,7 @@ function luoHeaderElementit() {
       <input type="text" id="nimimerkki-kentta" autocomplete="off" spellcheck="false" maxlength="40">
       <button id="nollaa-nimimerkki" title="Arvo uusi nimimerkki">↺ Nollaa</button>
     </div>`;
-  document.querySelector("header").appendChild(alue);
+  document.getElementById("ylapalkki-valikko").appendChild(alue);
 
   const uutispalkki = document.createElement("div");
   uutispalkki.id = "uutispalkki";
@@ -224,6 +224,7 @@ function luoHeaderElementit() {
 // Kapea ikkuna (#94): yhteistyöalue ei saa mennä logon päälle. Ensin piilotetaan
 // "Nimimerkkisi:", sitten muiden ympyrät omalle rivilleen logon alle. Mitataan,
 // koska tarvittava leveys riippuu ympyröiden määrästä (ei kiinteää media-rajaa).
+const MOBIILI = matchMedia("(max-width: 600px)");  // = tyyli.css:n mobiiliraja
 function sovitaYlapalkki() {
   const header = document.querySelector("header");
   const logo = header.querySelector("h1.logo img");
@@ -232,7 +233,7 @@ function sovitaYlapalkki() {
   const mahtuu = () => alue.getBoundingClientRect().left >= logo.getBoundingClientRect().right + 16;
   header.classList.remove("ei-nimimerkkiohjetta");
   if (ympyrat.parentNode !== alue) alue.prepend(ympyrat);
-  if (mahtuu()) return;
+  if (MOBIILI.matches || mahtuu()) return;  // mobiilissa kaikki hampurilaisvalikossa
   header.classList.add("ei-nimimerkkiohjetta");
   if (mahtuu()) return;
   header.querySelector("h1").after(ympyrat);
@@ -343,7 +344,9 @@ function kytkeTooltipit() {
   const tarkista = (e) => {
     viimeisin = e;
     const modaali = document.querySelector(".modaali:not(.piilotettu)");
-    const osuma = [...document.querySelectorAll("canvas[data-tooltip]")].find((c) => {
+    // Tagi-indeksi: attribuuttivalitsin kävisi läpi koko DOMin (pitkä kurssilista), canvaksia on vähän.
+    const osuma = [...document.getElementsByTagName("canvas")].find((c) => {
+      if (!c.dataset.tooltip) return false;
       if (modaali && !modaali.contains(c) && !c.closest("#kursori-kerros")) return false;
       const r = c.getBoundingClientRect();
       return r.width > 0 && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;

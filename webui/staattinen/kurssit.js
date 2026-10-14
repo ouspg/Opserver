@@ -58,6 +58,13 @@ const KURSSIT_OSA = 2000;
 const KURSSIT_RIVIERA = 300;
 let kurssit_lataus = 0;
 let kurssit_kesken = false;
+
+// Kurssitaulukon rungot (tbodyt) korvataan yhdellä, jossa annetut rivit.
+function korvaaKurssiRungot(rivitHtml) {
+  const taulu = document.getElementById("kurssit-rungot");
+  taulu.querySelectorAll("tbody").forEach((t) => t.remove());
+  taulu.insertAdjacentHTML("beforeend", `<tbody>${rivitHtml}</tbody>`);
+}
 let kurssit_renderointi = 0;
 // Näkyvä lista rivijärjestyksessä (uusin versio per kurssi) ja sen hakuindeksi (paikannus).
 let kurssit_jarjestyksessa = [];
@@ -95,7 +102,7 @@ async function lataaKurssit() {
   kaikki_kurssit = [];
   kurssit_kesken = true;
   kurssit_renderointi++;  // edellisen listan erät eivät jatku latausrivin perään
-  document.getElementById("kurssit-rungot").innerHTML = '<tr><td colspan="6">Ladataan kursseja…</td></tr>';
+  korvaaKurssiRungot('<tr><td colspan="7">Ladataan kursseja…</td></tr>');
   let renderoity = 0;
   try {
     for (;;) {
@@ -133,7 +140,7 @@ function renderKurssit() {
   kurssit_jarjestyksessa = [];
   kurssit_hakuindeksi = null;
   if (lkm === 0) {
-    runko.innerHTML = '<tr><td colspan="6">Ei kursseja.</td></tr>';
+    korvaaKurssiRungot('<tr><td colspan="7">Ei kursseja.</td></tr>');
     return;
   }
   const ryhmatLista = Object.values(ryhmat);
@@ -151,24 +158,25 @@ function renderKurssit() {
           `<option value="${v.KID}">${escapeHtml(v.Opetusvuosi)}</option>`).join("")}</select>`
       : escapeHtml(uusin.Opetusvuosi);
     return `<tr class="kurssi-rivi" data-kid="${uusin.KID}">
-      <td>${kurssiNimiHtml(uusin)}</td>
-      <td class="koodi">${koodiJaOpasLinkki(uusin)}</td>
+      ${kurssiNimiSolu(uusin)}
+      <td class="koodi vain-tyopoyta">${koodiJaOpasLinkki(uusin)}</td>
       ${kurssiMetaSolut(uusin)}
       <td>${vuosiSolmu}</td></tr>`;
   });
   // DOMiin erissä: koko listan asettelu kerralla jumitti sivun ~1 s (8 700 riviä),
-  // erä ~50 ms. Kaikki rivit päätyvät lopulta DOMiin (selaimen haku toimii).
+  // erä ~50 ms. Kaikki rivit päätyvät lopulta DOMiin (selaimen haku toimii). Erä omaan
+  // tbodyyn: mobiilissa ruudun ulkopuolisia eriä ei asetella eikä piirretä (tyyli.css).
   let i = 0;
   const era = () => {
     if (kierros !== kurssit_renderointi) return;
-    runko.insertAdjacentHTML("beforeend", rivit.slice(i, i += KURSSIT_RIVIERA).join(""));
+    runko.insertAdjacentHTML("beforeend", `<tbody>${rivit.slice(i, i += KURSSIT_RIVIERA).join("")}</tbody>`);
     if (i < rivit.length) setTimeout(era);
   };
-  runko.innerHTML = "";
+  runko.querySelectorAll("tbody").forEach((t) => t.remove());
   era();
 }
 
-// Rivin klikkaus avaa kurssin (valitun vuoden version); linkki ja vuosivalinta eivät.
+// Rivin klikkaus avaa kurssin (valitun vuoden version); linkki ja vuosivalinta eivät (myös otsikkorivi).
 document.getElementById("kurssit-rungot").addEventListener("click", (e) => {
   const rivi = e.target.closest("tr.kurssi-rivi");
   if (!rivi || e.target.closest("a, select")) return;

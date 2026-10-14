@@ -385,7 +385,7 @@ function paivitaKursorit() {
 // - muuten sivun koordinaateissa; kurssirivin päällä lisäksi rivin suhteen (rivinKohta).
 // Näkyvän näkymän kiinnitetty sivutus-/paikannuspalkki (kurssilistat), tai undefined.
 function kiinnitettyPalkki() {
-  return [...document.querySelectorAll(".kiinnitetyt")].find((e) => e.offsetParent);
+  return [...document.getElementsByClassName("kiinnitetyt")].find((e) => e.offsetParent);  // luokkaindeksi: ei DOM-läpikäyntiä
 }
 
 function osoittimenSijainti(x, y, el) {
@@ -416,14 +416,18 @@ function rivinKohta(s) {
 }
 window.rivinKohta = rivinKohta;
 
-let osoitin = null;  // viimeisin { x, y } näkymän koordinaateissa
+let osoitin = null;  // viimeisin { x, y, el } näkymän koordinaateissa
 
-function asetaHiiri(x, y, el) {
-  osoitin = { x, y };
-  hiiri = osoittimenSijainti(x, y, el);
+// Sijainti lasketaan vasta lähetettäessä (≤ 1 / LAHETYS_VALI_MS): vierityksessä elementti
+// osoittimen alla selvitetään osumatestillä, joka on pitkällä kurssilistalla kallis. Hiiren
+// alla ollut elementti on voinut irrota DOMista (uudelleenpiirto) → silloinkin osumatesti.
+function asetaHiiri(x, y, el = null) {
+  osoitin = { x, y, el };
   if (!lahetysAjastin) {
     lahetysAjastin = setTimeout(() => {
       lahetysAjastin = null;
+      const { x: ox, y: oy, el: oel } = osoitin;
+      hiiri = osoittimenSijainti(ox, oy, oel?.isConnected ? oel : document.elementFromPoint(ox, oy));
       lahetaTila();
     }, LAHETYS_VALI_MS);
   }
@@ -431,9 +435,14 @@ function asetaHiiri(x, y, el) {
 
 // capture: myös taulukon ja modaalin oma vieritys — muiden kursorit ja lomakenappien suunta
 // päivittyvät, ja oma sijainti muuttuu, vaikka hiiri ei liiku (rullalla vieritys).
+// Kursorit kerran ruudunpäivitystä kohden, ei jokaisella vieritystapahtumalla.
+let kursoritTulossa = false;
 document.addEventListener("scroll", () => {
-  paivitaKursorit();
-  if (osoitin) asetaHiiri(osoitin.x, osoitin.y, document.elementFromPoint(osoitin.x, osoitin.y));
+  if (!kursoritTulossa) {
+    kursoritTulossa = true;
+    requestAnimationFrame(() => { kursoritTulossa = false; paivitaKursorit(); });
+  }
+  if (osoitin) asetaHiiri(osoitin.x, osoitin.y);
 }, { passive: true, capture: true });
 window.addEventListener("resize", () => paivitaKursorit());
 

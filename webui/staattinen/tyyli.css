@@ -24,11 +24,14 @@ header h1.logo img { height: 2.5rem; width: auto; display: block; }
 
 /* Navigaation käsin piilotus: yläpalkin alalaidan keskellä oleva ympyränappi
    (#valikkovihje) piilottaa valikkorivit (^) ja tuo ne takaisin (☰).
-   Ympyrä on puoliksi navipalkin ja puoliksi sisältöalueen päällä. */
-header.koottu #paanav,
-header.koottu #tutkimus-nav,
-header.koottu #uutispalkki {
-  display: none;
+   Ympyrä on puoliksi navipalkin ja puoliksi sisältöalueen päällä. Ei mobiilissa
+   (siellä hampurilaisvalikko, ks. tiedoston loppu). */
+@media (min-width: 601px) {
+  header.koottu #paanav,
+  header.koottu #tutkimus-nav,
+  header.koottu #uutispalkki {
+    display: none;
+  }
 }
 
 #valikkovihje {
@@ -1251,3 +1254,102 @@ tr.paikannettu > td { animation: paikannettu 2.5s ease-out; }
 #yhteysilmoitus.katko { background: #fff3cd; color: #664d03; }
 #yhteysilmoitus.uusi-versio { background: #1f4e79; color: #fff; }
 #yhteysilmoitus button { pointer-events: auto; margin-left: 0.6rem; }
+
+/* --- Mobiilinäkymä (≤ 600 px) ---
+   Yläpalkissa vain logo + hampurilaisnappi; navigointi, läsnäolo ja nimimerkki
+   (#ylapalkki-valikko) aukeavat paneeliksi yläpalkin alle. Paneeli on sisällön päällä
+   (absolute) eikä yläpalkin korkeus muutu: avaus ei siirrä eikä asettele uudelleen
+   tuhansien rivien kurssilistaa (test_mobiili_suorituskyky.py).
+   Kurssilistat: koodi/taso/oppiaine/op → yksi sarake "6op [A] 🌐", oppiaine nimen perään. */
+#ylapalkki-valikko { display: contents; }
+#mobiilivalikko-nappi, .vain-mobiili { display: none; }
+
+.taso-tagi { position: relative; cursor: pointer; font-weight: 600; color: #3a4a7a; }
+.taso-tagi.auki::after {
+  content: attr(data-selite);
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a2e;
+  color: #fff;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: normal;
+  white-space: nowrap;
+  z-index: 5;
+}
+
+@media (max-width: 600px) {
+  header { padding: 0.5rem 1rem; }
+  header h1 { margin: 0; }
+  #mobiilivalikko-nappi {
+    display: block;
+    position: absolute;
+    top: 50%;
+    right: 1rem;
+    transform: translateY(-50%);
+    width: 2.6rem;
+    height: 2.6rem;
+    padding: 0;
+    background: none;
+    border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 1.3rem;
+    cursor: pointer;
+  }
+  #valikkovihje { display: none; }
+  #ylapalkki-valikko {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: calc(100dvh - var(--otsikkokorkeus, 3.5rem));
+    overflow-y: auto;
+    padding: 0.25rem 1rem 1rem;
+    background: #0e214b;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+  }
+  header.valikko-auki #ylapalkki-valikko { display: block; }
+  #yhteistyo-alue {
+    position: static;
+    flex-wrap: wrap;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+  #oma-alue { flex: 1 1 100%; }
+  #nimimerkki-kentta { flex: 1; min-width: 0; width: auto; }
+
+  main { padding: 0.75rem 0.5rem; }
+  th, td { padding: 0.5rem 0.4rem; }
+  .mobiili-tiedot .ops-linkki { margin-left: 0.2em; }
+  td.perustelu button { white-space: nowrap; }
+  #kurssit-rungot td:last-child, .vuosivalinta { font-size: 0.8rem; }
+  .vuosivalinta { max-width: 5.6rem; padding: 0; }
+  .kurssi-rivi td:first-child { overflow-wrap: anywhere; }  /* pitkä oppiaine ei levennä listaa */
+
+  .vain-tyopoyta { display: none; }
+  .vain-mobiili { display: revert; }
+  .mobiili-tiedot { white-space: nowrap; }
+
+  /* Kurssilistat gridinä, ei taulukkona: rivit ovat itsenäisiä, joten ruudun ulkopuolisia
+     ei asetella, piirretä eikä osumatestata (content-visibility). Taulukkona tuhansien
+     rivien lista teki jokaisesta napautuksesta ja tagin avauksesta ~100 ms hitaan
+     (osumatesti käy rivit läpi, solun muutos asettelee koko taulukon). Näkyvyys erittäin
+     (300 riviä / tbody, kurssit.js), ei riveittäin: rivikohtainen tarkistus maksoi
+     vierityksessä enemmän kuin säästi (8 700 havaintoa joka ruudulla). */
+  .kurssilista, .kurssilista thead, .kurssilista tbody { display: block; }
+  .kurssilista tr { display: grid; grid-template-columns: minmax(0, 1fr) 6.2rem 5.8rem; }
+  .kurssilista tbody { content-visibility: auto; contain-intrinsic-size: auto 22000px; }
+  .kurssilista td[colspan] { grid-column: 1 / -1; }
+  .kurssilista thead {  /* sticky koko otsikkorivi: gridin solu ei voi irrota omasta rivistään */
+    position: sticky;
+    top: calc(var(--otsikkokorkeus, 0px) + var(--ohjainkorkeus, 0px));
+    z-index: 5;
+  }
+  .kurssilista thead th { position: static; }
+}
