@@ -223,3 +223,12 @@ def test_raportti_mahtuu_ja_muokkaus_aukeaa(kayttaja):
     sisalto = s.locator(".modaali:not(.piilotettu) .modaali-sisalto")
     expect(sisalto).to_be_visible()
     assert sisalto.bounding_box()["x"] + sisalto.bounding_box()["width"] <= PUHELIN["leveys"]
+
+
+def test_modaalin_pitka_sana_ei_levenna(kayttaja):
+    """Pitkä katkeamaton sana (yhdyssana, URL) kurssimodaalin otsikossa rivittyy."""
+    s = kayttaja("/kurssit", KURSSIT_RIVI, **PUHELIN)
+    s.locator(f"{KURSSIT_RIVI} td").first.click()
+    s.wait_for_selector("#modaali:not(.piilotettu) #modaali-otsikko")
+    s.evaluate("document.getElementById('modaali-otsikko').append('Tietoturvallisuusjohtamisjärjestelmäkokonaisuus'.repeat(3))")
+    assert s.evaluate("document.getElementById('modaali').scrollWidth") <= PUHELIN["leveys"]

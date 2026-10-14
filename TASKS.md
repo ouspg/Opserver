@@ -116,11 +116,3 @@ raporttigeneroinnilla. Väärin hyväksytyn yhdistämisen (tai turhaan hylätyn)
 voi nyt korjata vain SQL:llä. Tarvitaan CLIUI-näkymä: listaa päätökset
 kysymyksittäin, salli peruminen (palauttaa raaka-arvot? → vaatii alkuperäisten
 arvojen säilytyksen, nyt Lista kirjoitetaan yli — päätä ensin).
-
-## 34. WebUI:n mobiilinäkymä: loput sivut
-
-Mobiilinäkymän perusta (≤ 600 px) on tehty: yläpalkissa logo + hampurilaisvalikko
-(navigointi, läsnäolo, nimimerkki), Kurssit- ja valittujen kurssien listat yhdistetyllä
-"6op [A] 🌐" -sarakkeella. Suunnittelematta puhelimelle: Arvioinnit-matriisi
-(kysymyssarakkeet), Raportti, Korkeakoulut- ja Tutkimukset-taulukot, modaalit (HITL,
-arviokorjaus, kurssin tiedot). Suorituskyky mitataan test_mobiili_suorituskyky.py:llä.

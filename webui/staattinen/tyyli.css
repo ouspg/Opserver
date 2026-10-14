@@ -1428,4 +1428,6 @@ tr.paikannettu > td { animation: paikannettu 2.5s ease-out; }
   .tilastot-osio { padding: 0.5rem; }
   .tilasto-taulu { display: block; max-width: 100%; overflow-x: auto; }
   .tilasto-taulu th, .tilasto-taulu td { padding: 0.15rem 0.3rem; }
+
+  .modaali-sisalto { overflow-wrap: anywhere; }  /* pitkä yhdyssana / URL ei levennä modaalia */
 }
