@@ -235,7 +235,7 @@ function renderArvioinnitTaulu() {
       <td class="op vain-tyopoyta">${escapeHtml(k.Opintopisteet ?? "—")}</td>${mobiiliTiedotSolu(k)}${solut}</tr>`;
   });
   // Erittäin omiin tbodyihin: mobiilissa ruudun ulkopuolisia eriä ei asetella (content-visibility,
-  // tyyli.css) — koko taulun asettelu oli ~300 ms hidastetulla puhelimella joka päivityksellä.
+  // mobiili.css) — koko taulun asettelu oli ~300 ms hidastetulla puhelimella joka päivityksellä.
   // Uusi erä saa vanhan erän korkeuden arviokseen: muuten pollauksen uudelleenrakennus siirtäisi
   // vierityskohtaa (asettelemattomat erät yläpuolella = oletusarvio, ei todellinen korkeus).
   const vanhat = [...sisalto.getElementsByTagName("tbody")].map((t) => t.getBoundingClientRect().height);

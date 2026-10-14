@@ -1,0 +1,121 @@
+/* --- Suodatinnäkymien välilehtinauha (nakymat.js) --- */
+#kurssit-suodatin:not(.piilotettu) { display: contents; }
+
+.nakyma-nauha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.25rem;
+  border-bottom: 1px solid #ccc;
+  margin-bottom: 1rem;
+}
+
+.nakyma-valilehti {
+  position: relative;
+  background: #ececf4;
+  border: 1px solid #ccc;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  padding: 0.35rem 0.9rem;
+  margin-bottom: -1px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.nakyma-valilehti:hover { background: #dfe0ee; }
+
+.nakyma-valilehti.aktiivinen {
+  background: #f4f4f8;
+  border-bottom: 1px solid #f4f4f8;
+  font-weight: 600;
+}
+
+.nakyma-pallura {
+  vertical-align: middle;
+  margin-left: 3px;
+  border-radius: 50%;
+}
+
+/* "+"-välilehti: vain suodatinvalinnat + Luo-nappi, muu osion sisältö piiloon */
+.nakyma-luonti > :not(h2):not(.nakyma-nauha):not(.luonti-sailyta):not(.nakyma-luo) { display: none !important; }
+.nakyma-luonti .lkm { display: none; }
+.nakyma-luo { display: block; margin: 0 0 1rem; }
+
+/* Lähetysanimaatio napissa (lahetys.js): tasalevyinen, ettei nappi hypi; pre säilyttää rullan välilyönnit */
+.lahetys-kaynnissa { font-family: ui-monospace, monospace; white-space: pre; cursor: progress; }
+
+/* Jaettu korjauslomake (lomakesessio.js) */
+.lomake-muokkaajat:empty { display: none; }
+.lomake-muokkaaja { display: inline-flex; align-items: center; gap: 0.2rem; }
+.lomake-muokkaaja canvas { border-radius: 50%; }
+.lomake-kursorit { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.lomake-kursori { position: absolute; width: 0; border-left: 2px solid; }
+.lomake-kursori canvas { position: absolute; top: -13px; left: -7px; border-radius: 50%; }
+/* Muille: joku on avannut tämän napin lomakkeen → pallurat napin alle + sykkivä korostus */
+.lomake-pallurat { display: inline-block; margin-left: 3px; line-height: 0; vertical-align: middle; }
+.lomake-pallurat canvas { border-radius: 50%; margin-right: 2px; }
+.lomake-auki { animation: lomake-syke 1.4s ease-in-out infinite; }
+@keyframes lomake-syke {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(243, 156, 18, 0.9); background-color: #fff3d6; }
+  50% { box-shadow: 0 0 0 5px rgba(243, 156, 18, 0); background-color: #ffd98a; }
+}
+
+/* Opserver-infomodaali (logon klikkaus) */
+.logo-nappi { background: none; border: 0; padding: 0; margin: 0; cursor: pointer; line-height: 0; }
+.logo-nappi:focus-visible { outline: 2px solid #fff; outline-offset: 3px; border-radius: 4px; }
+/* Yläkaista headerin värinen: logon oma tausta (#0e204b) sulautuu siihen. */
+.info-yla { background: #0e214b; margin: -1.5rem -1.5rem 1rem; padding: 1rem; border-radius: 6px 6px 0 0; }
+.info-yla .modaali-sulje { color: #ccd; }
+.info-logo { display: block; height: 3.5rem; width: auto; margin: 0 auto; }
+.info-teksti { line-height: 1.6; }
+.info-teksti h1 { font-size: 1.4rem; }
+.info-teksti h2 { font-size: 1.1rem; margin-top: 1.5rem; }
+.info-teksti ul, .info-teksti ol { padding-left: 1.4rem; }
+.info-teksti li { margin: 0.25rem 0; }
+.info-versio { margin: 1.5rem 0 0; padding-top: 0.75rem; border-top: 1px solid #ddd; font-size: 0.8rem; color: #666; text-align: center; }
+
+/* Modaali auki → vain modaali vierittyy (kaikki modaalit); gutter estää sisällön hypähdyksen. */
+html { scrollbar-gutter: stable; }
+html:has(.modaali:not(.piilotettu)) { overflow: hidden; }
+.modaali { overscroll-behavior: contain; }
+/* Katselumodaalin ankkurit (kurssin nimi, logo) sykkivät kuten HITL-napit (.lomake-auki). */
+span.lomake-auki { border-radius: 3px; padding: 0 2px; }
+.logo-nappi.lomake-auki { border-radius: 6px; padding: 3px; margin: -3px; }  /* tausta näkyy kuvan ympärillä kehyksenä */
+
+/* Yläpalkin muiden pallurat: klikkaus siirtää käyttäjän luo. */
+#muut-ympyrat canvas { cursor: pointer; }
+#muut-ympyrat canvas:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* Kurssin paikannus (paikannus.js): kenttä + autocomplete-lista; löydetty rivi välähtää. */
+.paikannus { margin: 0.25rem 0 0.75rem; font-size: 0.9rem; }
+.paikannus-kentta { position: relative; display: inline-block; }
+.paikannus input { width: min(28rem, 70vw); padding: 0.35rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
+.paikannus-lista {
+  position: absolute; left: 0; top: 100%; z-index: 20; min-width: 100%; max-width: 90vw;
+  margin: 2px 0 0; padding: 0.2rem 0; list-style: none; background: #fff;
+  border: 1px solid #c0cce0; border-radius: 4px; box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+}
+.paikannus-lista li { padding: 0.3rem 0.6rem; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.paikannus-lista li.valittu, .paikannus-lista li:hover { background: #e8eefb; }
+.paikannus-lisa { color: #777; font-size: 0.8rem; margin-left: 0.4rem; }
+tr.paikannettu > td { animation: paikannettu 2.5s ease-out; }
+@keyframes paikannettu { 0%, 30% { background-color: #ffe08a; } 100% { background-color: transparent; } }
+
+/* Yhteysilmoitus (yhteysilmoitus.js): katko / uusi versio, ei estä käyttöä */
+
+#yhteysilmoitus {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  z-index: 300;  /* modaalien ja profiilimuokkauksen yläpuolella */
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+  font-size: 0.9rem;
+  pointer-events: none;
+  max-width: 90vw;
+}
+#yhteysilmoitus.katko { background: #fff3cd; color: #664d03; }
+#yhteysilmoitus.uusi-versio { background: #1f4e79; color: #fff; }
+#yhteysilmoitus button { pointer-events: auto; margin-left: 0.6rem; }

@@ -1,0 +1,285 @@
+/* Modaali */
+.modaali {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.piilotettu { display: none; }
+
+.modaali-sisalto {
+  background: #fff;
+  border-radius: 6px;
+  padding: 1.5rem;
+  max-width: 720px;
+  width: 100%;
+  position: relative;
+}
+
+.modaali-sulje {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #666;
+}
+
+.modaali-meta { width: auto; margin-bottom: 1rem; box-shadow: none; }
+.modaali-meta th { background: none; color: #555; font-weight: 600; padding: 0.3rem 1rem 0.3rem 0; }
+.modaali-meta td { padding: 0.3rem 0; border: none; }
+
+.ops-kuvaus { line-height: 1.6; font-size: 0.95rem; }
+.ops-kuvaus hr { border: none; border-top: 1px solid #eee; margin: 1rem 0; }
+
+.tulossa { color: #888; font-style: italic; }
+
+/* Toimintonapit saavat rivittyä, ettei taulukko leviä sivun yli (vrt. /kurssit). */
+.tutkimus-toiminnot .nappi-pieni { margin-bottom: 0.25rem; }
+
+.nappi-pieni {
+  background: #ececf4;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  margin-right: 0.25rem;
+}
+
+.nappi-pieni:hover { background: #dde; }
+
+.tila-nappi {
+  background: #ececf4;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.tila-nappi.aktiivinen {
+  background: #16213e;
+  color: #fff;
+  border-color: #16213e;
+}
+
+td.perustelu {
+  font-size: 0.82rem;
+  color: #555;
+  max-width: 280px;
+  word-break: break-word;
+}
+
+/* Perustelu-pylpyrät: kompakti lähde-merkki (meta/LLM/HITL), väri = tila
+   (vihreä mukana / punainen hylätty / harmaa ohitettu tai odottaa). Tarkat
+   perusteet auki hoverilla, fokuksella tai klikkauksella (.auki, kosketus). */
+.perustelu-pylpyra {
+  position: relative;
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  border-radius: 10px;
+  margin: 0.1rem 0.2rem 0.1rem 0;
+  color: #fff;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.perustelu-pylpyra.punainen { background: #b23b3b; }
+.perustelu-pylpyra.vihrea   { background: #2e7d4f; }
+.perustelu-pylpyra.harmaa   { background: #888; }
+.perustelu-detalji {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 20;
+  margin-top: 0.25rem;
+  width: max-content;
+  max-width: 320px;
+  background: #16213e;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1.35;
+  padding: 0.5rem 0.6rem;
+  border-radius: 5px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+  white-space: normal;
+  text-align: left;
+}
+.perustelu-pylpyra:hover .perustelu-detalji,
+.perustelu-pylpyra:focus .perustelu-detalji,
+.perustelu-pylpyra:focus-within .perustelu-detalji,
+.perustelu-pylpyra.auki .perustelu-detalji { display: block; }
+
+.tutkimus-nimi-solu { cursor: pointer; }
+.tutkimus-nimi-solu:hover { text-decoration: underline; color: #16213e; }
+
+/* Oppiainerajaus voi olla pitkä lista — rajaa leveys, katkaise ellipsillä,
+   koko sisältö näkyy hover-title:ssä. */
+.tutkimus-oppiaine-solu {
+  max-width: 320px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: help;
+}
+
+.vuosivalinta {
+  padding: 0.1rem 0.3rem;
+  font-size: 0.85rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+
+th.kysymys-sarake {
+  max-width: 180px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: help;
+  font-size: 0.82rem;
+}
+
+td.arviointi-vastaus {
+  font-size: 0.85rem;
+  color: #333;
+  max-width: 220px;
+  word-break: break-word;
+}
+
+/* HITL-lomake */
+.lomake-kentta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+}
+
+.lomake-kentta label { font-size: 0.9rem; font-weight: 600; color: #555; }
+
+.lomake-kentta input, .lomake-kentta textarea {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.lomake-kentta textarea { resize: vertical; }
+
+.nappi-toiminto {
+  background: #e94560;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1.2rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.nappi-toiminto:hover { background: #c73050; }
+.nappi-toiminto:disabled { background: #aaa; cursor: not-allowed; }
+
+.hitl-ai-perustelu {
+  background: #f4f4f8;
+  border-left: 3px solid #ccc;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.88rem;
+  color: #555;
+  border-radius: 0 4px 4px 0;
+}
+
+/* Raportin tuoreuspalkki (generointiaika + ajan tasalla / vanhentunut). */
+.tuoreus-palkki {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.2rem;
+  align-items: center;
+  padding: 0.5rem 0.9rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.88rem;
+  border-left: 4px solid #ccc;
+  background: #f4f4f8;
+}
+.tuoreus-palkki .tuoreus-tila { font-weight: 600; }
+.tuoreus-palkki .tuoreus-aika,
+.tuoreus-palkki .tuoreus-tarkistettu,
+.tuoreus-palkki .tuoreus-muutokset { color: #555; }
+.tuoreus-ok { border-left-color: #2e7d32; background: #edf7ee; }
+.tuoreus-ok .tuoreus-tila { color: #2e7d32; }
+.tuoreus-vanha { border-left-color: #e08600; background: #fdf3e3; }
+.tuoreus-vanha .tuoreus-tila { color: #b56a00; }
+.tuoreus-tuntematon { border-left-color: #999; }
+.tuoreus-tuntematon .tuoreus-tila { color: #666; }
+
+/* HITL-juurisyyn radiovalinta (virhetaksonomia). */
+.hitl-juurisyy { border: 1px solid #ddd; border-radius: 4px; padding: 0.6rem 0.75rem; }
+.hitl-juurisyy legend { font-size: 0.9rem; font-weight: 600; color: #555; padding: 0 0.3rem; }
+.hitl-juurisyy-valinta {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: #333;
+  margin: 0.3rem 0;
+  cursor: pointer;
+}
+.hitl-juurisyy-valinta input {
+  width: auto;
+  margin-top: 0.15rem;
+  padding: 0;
+  border-radius: 0;
+  flex: none;
+}
+
+/* HITL-toimintonappi Perustelu-sarakkeessa pylpyröiden alla. */
+.perustelu-toiminto { margin-top: 0.15rem; }
+
+.nappi-vaara {
+  background: #fff0f0;
+  border-color: #e94560;
+  color: #c73050;
+}
+
+.nappi-vaara:hover { background: #ffe0e4; }
+
+.nappi-hyva {
+  background: #f0fff4;
+  border-color: #27ae60;
+  color: #1e8449;
+}
+
+.nappi-hyva:hover { background: #d4f5e0; }
+
+/* LLM-päätöksen hyväksyntä (peukutus): vaaleanvihreä rivi, haalea Hylkää. */
+.kurssi-rivi.hyvaksytty, td.hyvaksytty { background: #e8f8ee; }
+.kurssi-rivi.hyvaksytty:hover { background: #d4f5e0; }
+.nappi-haalea, .arvio-korjaa-nappi.nappi-haalea { background: #f4f4f4; border-color: #ccc; color: #999; }
+.arvio-korjaa-nappi.nappi-hyva { background: #f0fff4; border-color: #27ae60; }
+.peukku { cursor: help; }
+
+.kehote-teksti {
+  background: #f4f4f8;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  font-size: 0.88rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0.5rem 0 1rem;
+}

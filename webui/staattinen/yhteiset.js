@@ -197,9 +197,9 @@ function tasoTeksti(taso) {
   return taso ? escapeHtml(tasoNimi(taso)) : "—";
 }
 
-const MOBIILI = matchMedia("(max-width: 600px)");  // = tyyli.css:n mobiiliraja
+const MOBIILI = matchMedia("(max-width: 600px)");  // = mobiili.css:n raja
 
-// Mobiilissa pitkä teksti (.avattava) rajataan muutamaan riviin (tyyli.css); napautus avaa ja
+// Mobiilissa pitkä teksti (.avattava) rajataan muutamaan riviin (mobiili.css); napautus avaa ja
 // sulkee. Capture: rajatun tekstin napautus ei avaa riviä; rajaamaton toimii kuten ennen.
 document.addEventListener("click", (e) => {
   const el = e.target.closest?.(".avattava");
