@@ -23,12 +23,13 @@ KURSORI = """() => { const el = document.querySelector('#kursori-kerros .vieras-
 
 def _odota_kursori(b, ehto):
     """Odottaa, että A:n kursori B:llä (k) täyttää JS-ehdon; palauttaa sen tiedot (vasta kun
-    left/top-liukuma on päättynyt — muuten klikkaus osuu ohi, #115)."""
+    left/top-liukuma on päättynyt — muuten klikkaus osuu ohi, #115). Tiedot samasta
+    tarkistuksesta, joka täytti ehdon: erillinen uusi luku osui joskus uuteen liukumaan (None)."""
     try:
-        b.wait_for_function(f"() => {{ const k = ({KURSORI})(); return k && ({ehto}); }}", timeout=10000)
+        return b.wait_for_function(f"() => {{ const k = ({KURSORI})(); return k && ({ehto}) ? k : null; }}",
+                                   timeout=10000).json_value()
     except Aikakatkaisu:
         pytest.fail(f"ehto {ehto} ei täyttynyt: {b.evaluate(KURSORI)}")
-    return b.evaluate(KURSORI)
 
 
 def _vierita(sivu, y):
