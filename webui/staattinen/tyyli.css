@@ -1359,4 +1359,27 @@ tr.paikannettu > td { animation: paikannettu 2.5s ease-out; }
   .korkeakoulut-taulu .kk-kurssit-otsikko, .korkeakoulut-taulu .kk-vuosi { white-space: normal; font-size: 0.8rem; }
   .korkeakoulut-taulu td.kk-solu { padding: 0.25rem 0.1rem; }
   .kk-tiili { padding: 0.35rem 0.15rem; font-size: 0.75rem; white-space: normal; }  /* 3+ vuotta mahtuu */
+
+  /* Pitkä teksti muutamaan riviin, napautus avaa (yhteiset.js). !important: voittaa
+     sivukohtaiset display-säännöt (esim. kortin solu display: block). */
+  .avattava:not(.auki) {
+    display: -webkit-box !important;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+    overflow-wrap: anywhere;  /* esim. oppiainerajaus: pilkuilla ilman välilyöntejä */
+    padding-bottom: 0 !important;  /* muuten seuraavan rivin yläosa näkyy alatäytteessä */
+    cursor: pointer;
+  }
+
+  /* Tutkimukset korttina: nimi, tiedot otsikoineen allekkain, napit vierekkäin. */
+  #s-tutkimukset thead { display: none; }
+  #s-tutkimukset table, #s-tutkimukset tbody, #s-tutkimukset tr, #s-tutkimukset td { display: block; }
+  #s-tutkimukset tr { padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+  #s-tutkimukset td { border: none; padding: 0.15rem 0.75rem; }
+  #s-tutkimukset .tutkimus-nimi-solu { font-weight: 600; padding-bottom: 0.4rem; }
+  #s-tutkimukset td[data-otsikko]::before { content: attr(data-otsikko) ": "; color: #666; font-size: 0.85rem; }
+  #s-tutkimukset .tutkimus-oppiaine-solu { max-width: none; white-space: normal; }
+  #s-tutkimukset .tutkimus-toiminnot { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; padding-top: 0.5rem; }
+  #s-tutkimukset .tutkimus-toiminnot .nappi-pieni { margin: 0; }
 }

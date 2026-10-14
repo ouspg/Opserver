@@ -18,9 +18,9 @@ async function laataaTutkimukset() {
     const slug = escapeHtml(t.Slug);
     rivi.innerHTML = `
       <td class="kurssi-rivi tutkimus-nimi-solu">${escapeHtml(t.LuokittelunNimi)}</td>
-      <td>${escapeHtml(t.Lukuvuosi || "—")}</td>
-      <td>${escapeHtml(t.Tasorajaus || "—")}</td>
-      <td class="tutkimus-oppiaine-solu" title="${escapeHtml(t.Oppiainerajaus)}">${escapeHtml(t.Oppiainerajaus || "—")}</td>
+      <td data-otsikko="Kohdelukuvuosi">${escapeHtml(t.Lukuvuosi || "—")}</td>
+      <td data-otsikko="Tasorajaus">${escapeHtml(t.Tasorajaus || "—")}</td>
+      <td class="tutkimus-oppiaine-solu avattava" data-otsikko="Oppiainerajaus" title="${escapeHtml(t.Oppiainerajaus)}">${escapeHtml(t.Oppiainerajaus || "—")}</td>
       <td class="tutkimus-toiminnot">
         ${verkkosivuIkoni(t.Verkkosivu)}
         <button class="nappi-pieni" data-slug="${slug}" data-alasivu="kurssit">Valitut kurssit (${escapeHtml(lkm)})</button>

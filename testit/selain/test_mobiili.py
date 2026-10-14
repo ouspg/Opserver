@@ -105,3 +105,24 @@ def test_korkeakoulut(kayttaja):
     expect(rivi.locator(".kk-nimi a.ops-linkki")).to_be_visible()
     expect(rivi.locator(".kk-opas")).to_be_hidden()
     _ei_vaakavieritysta(s)
+
+
+def test_tutkimukset_korttina_ja_pitka_teksti_avautuu(kayttaja):
+    """Rivi korttina: nimi, tiedot otsikoineen allekkain, napit vierekkäin. Pitkä oppiaine-
+    rajaus rajattu muutamaan riviin; napautus avaa ja sulkee (ei hover-titleä puhelimessa)."""
+    s = kayttaja("/tutkimukset", "#tutkimukset-rungot tr", **PUHELIN)
+    s.evaluate("""() => { const td = document.querySelector('.tutkimus-oppiaine-solu');
+      td.textContent = Array.from({length: 120}, (_, i) => 'Oppiaine ' + i).join(','); }""")
+    expect(s.locator("#s-tutkimukset thead")).to_be_hidden()
+    _ei_vaakavieritysta(s)
+    napit = s.locator("#tutkimukset-rungot .nappi-pieni")
+    assert len({round(napit.nth(i).bounding_box()["y"]) for i in range(3)}) == 1  # samalla rivillä
+    rajaus = s.locator(".tutkimus-oppiaine-solu")
+    korkeus = rajaus.bounding_box()["height"]
+    assert korkeus < 80
+    rajaus.click()
+    expect(rajaus).to_have_class(re.compile("auki"))
+    assert rajaus.bounding_box()["height"] > 3 * korkeus
+    expect(s).to_have_url(re.compile("/tutkimukset$"))
+    rajaus.click()
+    expect(rajaus).not_to_have_class(re.compile("auki"))

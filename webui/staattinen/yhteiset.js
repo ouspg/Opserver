@@ -194,6 +194,18 @@ function tasoTeksti(taso) {
   return taso ? escapeHtml(tasoNimi(taso)) : "—";
 }
 
+const MOBIILI = matchMedia("(max-width: 600px)");  // = tyyli.css:n mobiiliraja
+
+// Mobiilissa pitkä teksti (.avattava) rajataan muutamaan riviin (tyyli.css); napautus avaa ja
+// sulkee. Capture: rajatun tekstin napautus ei avaa riviä; rajaamaton toimii kuten ennen.
+document.addEventListener("click", (e) => {
+  const el = e.target.closest?.(".avattava");
+  if (!el || !MOBIILI.matches || e.target.closest("a, button")) return;
+  if (!el.classList.contains("auki") && el.scrollHeight <= el.clientHeight + 1) return;
+  el.classList.toggle("auki");
+  e.stopPropagation();
+}, true);
+
 // Tasotagi [A] mobiilin kurssilistaan; napautus näyttää selitteen (kytketty alla).
 function tasoTagi(taso) {
   if (!taso) return "";

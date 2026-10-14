@@ -224,7 +224,6 @@ function luoHeaderElementit() {
 // Kapea ikkuna (#94): yhteistyöalue ei saa mennä logon päälle. Ensin piilotetaan
 // "Nimimerkkisi:", sitten muiden ympyrät omalle rivilleen logon alle. Mitataan,
 // koska tarvittava leveys riippuu ympyröiden määrästä (ei kiinteää media-rajaa).
-const MOBIILI = matchMedia("(max-width: 600px)");  // = tyyli.css:n mobiiliraja
 function sovitaYlapalkki() {
   const header = document.querySelector("header");
   const logo = header.querySelector("h1.logo img");
