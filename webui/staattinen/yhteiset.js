@@ -223,9 +223,10 @@ function kytkeSulkeminen(modaali, sulje) {
 // ankkurin data-lomake (kurssin nimi, logo): muut samalla sivulla ja näkymässä näkevät
 // avaajan sen kohdalla kuten HITL-napilla (sykkivä kehys, pallurat, reunakursori).
 // kuvaus = mitä avaaja tekee (yläpalkin pallura muilla, esim. 'Katsoo kurssia "X"').
-function naytaKatselumodaali(modaali, avain, kuvaus) {
+// kohde = mitä ankkurin takaa katsotaan, jos se voi vaihdella (kurssilistan rivin vuosiversion KID).
+function naytaKatselumodaali(modaali, avain, kuvaus, kohde = null) {
   modaali.classList.remove("piilotettu");
-  window.asetaKatselu?.(avain, kuvaus);
+  window.asetaKatselu?.(avain, kuvaus, kohde);
 }
 
 function kytkeKatselumodaali(modaali) {

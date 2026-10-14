@@ -160,8 +160,11 @@ function merkitseAktiiviseksi() {
 
 // Avoin katselumodaali (kurssin tiedot, Opserver-info; yhteiset.js): läsnäolo kuten jaetulla
 // lomakkeella — muut näkevät pallurat avainta vastaavan data-lomake-ankkurin kohdalla.
-let omaKatselu = null;  // { avain, kuvaus }
-window.asetaKatselu = (avain, kuvaus = null) => { omaKatselu = avain ? { avain, kuvaus } : null; lahetaTila(); };
+let omaKatselu = null;  // { avain, kuvaus, kohde }
+window.asetaKatselu = (avain, kuvaus = null, kohde = null) => {
+  omaKatselu = avain ? { avain, kuvaus, kohde } : null;
+  lahetaTila();
+};
 const omaModaali = () => window.omaLomake?.() ?? omaKatselu?.avain ?? null;
 window.omaModaali = omaModaali;
 
@@ -190,6 +193,7 @@ function lahetaTila() {
     sivunumero: window.omaSivunumero?.() ?? null,  // valittujen kurssien sivutussivu
     lomake: window.omaLomake?.() ?? null,  // avoin korjauslomake (lomakesessio.js)
     katselu: omaKatselu?.avain ?? null,  // avoin katselumodaali
+    katseluKohde: omaKatselu?.kohde ?? null,  // sen takana katsottu versio (naytaKatselumodaali)
     // Mitä käyttäjä tekee (yläpalkin pallurassa muilla): avoin modaali, muuten sivu (sovellus.js).
     tekeminen: window.omaLomakeKuvaus?.() ?? omaKatselu?.kuvaus ?? window.omaSivuKuvaus?.() ?? null,
   });
@@ -314,9 +318,10 @@ function paivitaKursorit() {
         if (!sisalto) continue;
         const r = sisalto.getBoundingClientRect();
         vx = r.left + s.x; vy = r.top + s.y;
+      } else if (ylapalkissa) {
+        vx = s.x; vy = s.y;
       } else {
-        vx = s.x - (ylapalkissa ? 0 : window.scrollX);
-        vy = s.y - (ylapalkissa ? 0 : window.scrollY);
+        ({ x: vx, y: vy } = rivinKohta(s) ?? { x: s.x - window.scrollX, y: s.y - window.scrollY });
       }
     } else if (lomake && !omaLomake) {
       const nappi = document.querySelector(`[data-lomake="${CSS.escape(lomake)}"]`);
@@ -370,13 +375,14 @@ function paivitaKursorit() {
     el.style.left = `${x}px`;
     el.style.top = `${y}px`;
   }
+  window.paivitaTooltip?.();
 }
 
 // Osoittimen sijainti muille (x, y = näkymän koordinaatit, el = elementti osoittimen alla):
 // - modaalissa modaalin sisältölaatikon suhteen: muut lisäävät oman laatikkonsa paikan,
 //   joka sisältää modaalin vierityksen ja keskityksen (sivu on lukittu, modaali vierittyy)
 // - kiinteässä yläpalkissa näkymän koordinaateissa (muut piirtävät yläpalkkiinsa)
-// - muuten sivun koordinaateissa.
+// - muuten sivun koordinaateissa; kurssirivin päällä lisäksi rivin suhteen (rivinKohta).
 // Näkyvän näkymän kiinnitetty sivutus-/paikannuspalkki (kurssilistat), tai undefined.
 function kiinnitettyPalkki() {
   return [...document.querySelectorAll(".kiinnitetyt")].find((e) => e.offsetParent);
@@ -392,8 +398,23 @@ function osoittimenSijainti(x, y, el) {
   // Kiinnitetty palkki on eri kohdassa eri vierityksellä → palkin yläreunan suhteen.
   const palkki = el?.closest?.(".kiinnitetyt");
   if (palkki) return { x, y: y - palkki.getBoundingClientRect().top, kiinnitetty: true };
-  return { x: x + window.scrollX, y: y + window.scrollY };
+  const sivulla = { x: x + window.scrollX, y: y + window.scrollY };
+  const rivi = el?.closest?.("tr[data-kid]");
+  if (!rivi) return sivulla;
+  const r = rivi.getBoundingClientRect();
+  return { ...sivulla, rivi: rivi.dataset.kid, rx: (x - r.left) / r.width, ry: (y - r.top) / r.height };
 }
+
+// Kurssirivin päällä olleen osoittimen kohta näkymän koordinaateissa, jos sama rivi näkyy
+// itsellä: eri ikkunaleveydellä rivitys siirtää rivejä, sivun koordinaatit eivät osu (#101).
+function rivinKohta(s) {
+  if (!s.rivi) return null;
+  const rivi = [...document.querySelectorAll(`tr[data-kid="${CSS.escape(s.rivi)}"]`)].find((e) => e.offsetParent);
+  if (!rivi) return null;
+  const r = rivi.getBoundingClientRect();
+  return { x: r.left + s.rx * r.width, y: r.top + s.ry * r.height };
+}
+window.rivinKohta = rivinKohta;
 
 let osoitin = null;  // viimeisin { x, y } näkymän koordinaateissa
 

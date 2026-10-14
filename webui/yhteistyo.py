@@ -107,6 +107,7 @@ _TILAKENTAT = {
     "sivunumero": _kelpo_sivunumero,
     "lomake": _teksti(100),
     "katselu": _teksti(100),
+    "katseluKohde": _teksti(100),
     "tekeminen": _teksti(200),
 }
 
@@ -118,6 +119,9 @@ def _siivottu_tila(data: dict) -> dict:
         s = tila["sijainti"]
         tila["sijainti"] = {"x": s["x"], "y": s["y"],
                             **{k: True for k in ("modaali", "ylapalkki", "kiinnitetty") if s.get(k) is True}}
+        # Kurssirivin suhteellinen kohta (rivinKohta, yhteistyo.js) — vain kokonaisena.
+        if _teksti(20, False)(s.get("rivi")) and _luku(s.get("rx"), 10) and _luku(s.get("ry"), 10):
+            tila["sijainti"].update(rivi=s["rivi"], rx=s["rx"], ry=s["ry"])
     return tila
 
 
