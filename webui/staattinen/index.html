@@ -6,13 +6,17 @@
   <meta name="opserver-versio" content="__OPSERVER_VERSIO__">
   <title>Opserver</title>
   <link rel="icon" href="/staattinen/Opserver.ico" sizes="any">
-  <link rel="stylesheet" href="/staattinen/tyyli.css?v=62">
+  <link rel="stylesheet" href="/staattinen/tyyli.css?v=65">
 </head>
 <body>
   <header>
     <h1 class="logo"><button type="button" id="info-nappi" class="logo-nappi" title="Tietoa Opserverista" data-lomake="info"
         aria-haspopup="dialog"><img src="/staattinen/Opserver.webp" alt="Opserver"></button></h1>
+    <button type="button" id="mobiilivalikko-nappi" aria-label="Valikko" aria-expanded="false"
+        aria-controls="ylapalkki-valikko">☰</button>
     <span id="paivitysaika" class="paivitysaika"></span>
+    <!-- Työpöydällä display: contents (ei vaikuta asetteluun); mobiilissa hampurilaisvalikko. -->
+    <div id="ylapalkki-valikko">
     <nav id="paanav">
       <button data-polku="/korkeakoulut">Korkeakoulut</button>
       <button data-polku="/kurssit">Kurssit</button>
@@ -30,6 +34,7 @@
         <button class="tila-nappi-nav" data-tila="hylätty" data-alasivu="kurssit-hylatty">Hylätty</button>
       </span>
     </nav>
+    </div>
     <button id="valikkovihje" type="button" title="Piilota valikko" aria-label="Piilota valikko" aria-expanded="true">^</button>
   </header>
 
@@ -53,14 +58,15 @@
         <span id="kurssit-lkm" class="lkm"></span>
       </div>
       <div class="kiinnitetyt"><div id="kurssit-paikannus" class="paikannus"></div></div>
-      <table>
+      <!-- Jokainen renderöintierä omana tbodynaan (kurssit.js): mobiilissa näkyvyys erittäin. -->
+      <table class="kurssilista" id="kurssit-rungot">
         <thead>
           <tr>
-            <th data-jarjesta="nimi">Nimi</th><th data-jarjesta="koodi">Koodi</th><th data-jarjesta="taso">Taso</th>
-            <th data-jarjesta="oppiaine">Oppiaine</th><th data-jarjesta="op">op</th><th>Vuosi</th>
+            <th data-jarjesta="nimi">Nimi</th><th data-jarjesta="koodi" class="vain-tyopoyta">Koodi</th>
+            <th data-jarjesta="taso" class="vain-tyopoyta">Taso</th><th data-jarjesta="oppiaine" class="vain-tyopoyta">Oppiaine</th>
+            <th data-jarjesta="op" class="vain-tyopoyta">op</th><th class="vain-mobiili">Tiedot</th><th>Vuosi</th>
           </tr>
         </thead>
-        <tbody id="kurssit-rungot"></tbody>
       </table>
     </section>
 
@@ -91,9 +97,11 @@
         <div id="tutkimus-kurssit-paikannus" class="paikannus"></div>
         <div class="sivutus tutkimus-kurssit-sivutus"></div>
       </div>
-      <table>
+      <table class="kurssilista">
         <thead>
-          <tr><th data-jarjesta="nimi">Nimi</th><th data-jarjesta="koodi">Koodi</th><th data-jarjesta="taso">Taso</th><th data-jarjesta="oppiaine">Oppiaine</th><th data-jarjesta="op">op</th><th>Perustelu</th></tr>
+          <tr><th data-jarjesta="nimi">Nimi</th><th data-jarjesta="koodi" class="vain-tyopoyta">Koodi</th>
+            <th data-jarjesta="taso" class="vain-tyopoyta">Taso</th><th data-jarjesta="oppiaine" class="vain-tyopoyta">Oppiaine</th>
+            <th data-jarjesta="op" class="vain-tyopoyta">op</th><th class="vain-mobiili">Tiedot</th><th>Perustelu</th></tr>
         </thead>
         <tbody id="tutkimus-kurssit-rungot"></tbody>
       </table>
@@ -171,22 +179,22 @@
 
   <script src="/staattinen/yhteysilmoitus.js?v=2"></script>
   <script src="/staattinen/lahetys.js?v=2"></script>
-  <script src="/staattinen/lomakesessio.js?v=10"></script>
+  <script src="/staattinen/lomakesessio.js?v=11"></script>
   <script src="/staattinen/nakymat.js?v=6"></script>
   <!-- Jaetut apurit ennen näkymiä; sovellus.js (reititys + käynnistys) näkymien jälkeen. -->
-  <script src="/staattinen/yhteiset.js?v=6"></script>
+  <script src="/staattinen/yhteiset.js?v=8"></script>
   <script src="/staattinen/suodatinpalkki.js?v=1"></script>
   <script src="/staattinen/paikannus.js?v=1"></script>
   <script src="/staattinen/korkeakoulut.js?v=1"></script>
-  <script src="/staattinen/kurssit.js?v=4"></script>
+  <script src="/staattinen/kurssit.js?v=6"></script>
   <script src="/staattinen/kurssimodaali.js?v=4"></script>
   <script src="/staattinen/tutkimukset.js?v=1"></script>
-  <script src="/staattinen/luokitukset.js?v=5"></script>
+  <script src="/staattinen/luokitukset.js?v=6"></script>
   <script src="/staattinen/arvioinnit.js?v=2"></script>
   <script src="/staattinen/raportti.js?v=2"></script>
-  <script src="/staattinen/sovellus.js?v=69"></script>
-  <script src="/staattinen/profiili.js?v=5"></script>
-  <script src="/staattinen/yhteistyo.js?v=31"></script>
+  <script src="/staattinen/sovellus.js?v=70"></script>
+  <script src="/staattinen/profiili.js?v=7"></script>
+  <script src="/staattinen/yhteistyo.js?v=33"></script>
   <script src="/staattinen/arviointimuokkaus.js?v=12"></script>
   <script src="/staattinen/raporttimuokkaus.js?v=7"></script>
   <script src="/staattinen/info.js?v=3"></script>

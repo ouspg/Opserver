@@ -117,10 +117,10 @@ voi nyt korjata vain SQL:llä. Tarvitaan CLIUI-näkymä: listaa päätökset
 kysymyksittäin, salli peruminen (palauttaa raaka-arvot? → vaatii alkuperäisten
 arvojen säilytyksen, nyt Lista kirjoitetaan yli — päätä ensin).
 
-## 34. WebUI:n mobiilinäkymä (puhelinleveys)
+## 34. WebUI:n mobiilinäkymä: loput sivut
 
-PR #131 (#94) sovittaa yläpalkin kapeaan ikkunaan noin 520 px:iin asti: ensin
-"Nimimerkkisi:" pois, sitten muiden ympyrät logon alle. Sitä kapeammalla oma alue
-(ympyrä + nimimerkkikenttä + Nollaa, ~380 px) menee yhä logon päälle, eikä muuta
-näkymää (navigaatio, kurssitaulukot, modaalit) ole suunniteltu puhelimelle.
-Käyttäjän linjaus: mobiilinäkymä hoidetaan erikseen, kokonaisuutena.
+Mobiilinäkymän perusta (≤ 600 px) on tehty: yläpalkissa logo + hampurilaisvalikko
+(navigointi, läsnäolo, nimimerkki), Kurssit- ja valittujen kurssien listat yhdistetyllä
+"6op [A] 🌐" -sarakkeella. Suunnittelematta puhelimelle: Arvioinnit-matriisi
+(kysymyssarakkeet), Raportti, Korkeakoulut- ja Tutkimukset-taulukot, modaalit (HITL,
+arviokorjaus, kurssin tiedot). Suorituskyky mitataan test_mobiili_suorituskyky.py:llä.
