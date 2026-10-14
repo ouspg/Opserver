@@ -568,6 +568,11 @@ td.arviointi-vastaus {
   gap: 3px;
 }
 
+/* Kapea ikkuna (sovitaYlapalkki, profiili.js): ensin ohje pois, sitten ympyrät logon alle. */
+header.ei-nimimerkkiohjetta .nimimerkki-ohje { display: none; }
+header > #muut-ympyrat { flex-wrap: wrap; justify-content: flex-end; margin-bottom: 0.5rem; }
+header > #muut-ympyrat:empty { display: none; }
+
 .vieras-ympyra-pieni {
   border-radius: 50%;
   display: block;

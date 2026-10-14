@@ -271,6 +271,7 @@ function paivitaMuutYmpyrat() {
     c.dataset.id = k.id;
     div.appendChild(c);
   }
+  sovitaYlapalkki();
 }
 
 const kursorielementit = {};
