@@ -36,7 +36,14 @@ docker compose version >/dev/null || { echo "docker compose -plugin puuttuu"; ex
 # Debianin/Ubuntun python3-venv EI sisällä pippiä (ensurepipin bootstrap-wheel
 # on karsittu paketista) — ilman python3-pip:iä venv syntyy mutta .venv/bin/pip
 # jää tulematta, ilman virhettä. Siksi molemmat aina, ei vain jos venv puuttuu.
-sudo apt-get update -qq && sudo apt-get install -y python3-venv python3-pip >/dev/null
+# Puuttuvat paketit; unattended-upgrades voi pitää apt-lukkoa juuri nyt (#127):
+# install odottaa lukkoa, update ei osaa (apt 2.8) → yritetään uudelleen.
+asenna_paketit() {
+  dpkg -s "$@" >/dev/null 2>&1 && return
+  for _ in {1..60}; do sudo apt-get update -qq && break; sleep 10; done
+  sudo apt-get -o DPkg::Lock::Timeout=600 install -y "$@" >/dev/null
+}
+asenna_paketit python3-venv python3-pip
 [[ -x .venv/bin/pip ]] || { rm -rf .venv; python3 -m venv .venv; }
 .venv/bin/pip install -q --upgrade pip
 .venv/bin/pip install -q -r requirements.txt
@@ -189,7 +196,7 @@ CRON
 
 # Tietoturvapäivitykset automaattisesti; uudelleenkäynnistys klo 4.30 jos päivitys
 # vaatii (kontit nousevat itse: restart unless-stopped). Oma tiedosto voittaa 20auto-upgrades:n.
-sudo apt-get install -y unattended-upgrades >/dev/null
+asenna_paketit unattended-upgrades
 sudo tee /etc/apt/apt.conf.d/52opserver >/dev/null <<'APT'
 APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
