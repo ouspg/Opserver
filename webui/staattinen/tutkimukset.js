@@ -66,14 +66,14 @@ function renderTutkimusTiedot(t) {
       <tr><th>Slug</th><td>${escapeHtml(t.Slug)}</td></tr>
       <tr><th>Verkkosivu</th><td>${verkkosivuLinkki(t.Verkkosivu)}</td></tr>
       <tr><th>Tasorajaus</th><td>${escapeHtml(t.Tasorajaus || "—")}</td></tr>
-      <tr><th>Oppiainerajaus</th><td>${escapeHtml(t.Oppiainerajaus || "—")}</td></tr>
+      <tr><th>Oppiainerajaus</th><td class="avattava">${escapeHtml(t.Oppiainerajaus || "—")}</td></tr>
     </table>
     <h3>Valintakehote</h3>
-    <pre class="kehote-teksti">${escapeHtml(t.Luokittelukehote)}</pre>
+    <pre class="kehote-teksti avattava">${escapeHtml(t.Luokittelukehote)}</pre>
     <h3>Arviointikehote</h3>
-    <pre class="kehote-teksti">${escapeHtml(t.Arviointikehote)}</pre>
+    <pre class="kehote-teksti avattava">${escapeHtml(t.Arviointikehote)}</pre>
     <h3>Raportointikehote</h3>
-    <pre class="kehote-teksti">${escapeHtml(t.Raportointikehote || "—")}</pre>
+    <pre class="kehote-teksti avattava">${escapeHtml(t.Raportointikehote || "—")}</pre>
     <h3>Arviointikysymykset</h3>
     ${kysymysLista}`;
 }

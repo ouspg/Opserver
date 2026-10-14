@@ -1371,6 +1371,8 @@ tr.paikannettu > td { animation: paikannettu 2.5s ease-out; }
     padding-bottom: 0 !important;  /* muuten seuraavan rivin yläosa näkyy alatäytteessä */
     cursor: pointer;
   }
+  /* Rajattu kehote: alatäyte reunuksena (sama tausta). */
+  .kehote-teksti.avattava:not(.auki) { border-bottom: 0.75rem solid #f4f4f8; box-shadow: 0 1px 0 #ddd; }
 
   /* Tutkimukset korttina: nimi, tiedot otsikoineen allekkain, napit vierekkäin. */
   #s-tutkimukset thead { display: none; }

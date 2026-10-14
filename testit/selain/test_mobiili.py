@@ -126,3 +126,23 @@ def test_tutkimukset_korttina_ja_pitka_teksti_avautuu(kayttaja):
     expect(s).to_have_url(re.compile("/tutkimukset$"))
     rajaus.click()
     expect(rajaus).not_to_have_class(re.compile("auki"))
+
+
+def test_tutkimuskuvauksen_kehotteet_avautuvat(kayttaja):
+    """Kehotteet ja oppiainerajaus rajattu muutamaan riviin, napautus avaa; työpöydällä kokonaan."""
+    s = kayttaja(f"/tutkimukset/{SLUG}", "#tutkimus-tiedot-sisalto .kehote-teksti", **PUHELIN)
+    s.evaluate("""() => document.querySelectorAll('#tutkimus-tiedot-sisalto .avattava').forEach((el) => {
+      el.textContent = 'Pitkä kehote. '.repeat(100); })""")
+    # Tuotannon oppiainerajaus: pilkuilla ilman välilyöntejä → ei luonnollisia rivityskohtia
+    s.evaluate("document.querySelector('#tutkimus-tiedot-sisalto td.avattava').textContent = 'Oppiaine,'.repeat(200)")
+    avattavat = s.locator("#tutkimus-tiedot-sisalto .avattava")
+    expect(avattavat).to_have_count(4)  # 3 kehotetta + oppiainerajaus
+    _ei_vaakavieritysta(s)
+    kehote = s.locator(".kehote-teksti").first
+    korkeus = kehote.bounding_box()["height"]
+    assert korkeus < 100
+    kehote.click()
+    assert kehote.bounding_box()["height"] > 3 * korkeus
+    s.set_viewport_size({"width": 1280, "height": 900})
+    s.evaluate("document.querySelectorAll('.avattava.auki').forEach((el) => el.classList.remove('auki'))")
+    assert kehote.evaluate("(el) => el.scrollHeight <= el.clientHeight + 1")  # ei rajausta
