@@ -1352,4 +1352,11 @@ tr.paikannettu > td { animation: paikannettu 2.5s ease-out; }
     z-index: 5;
   }
   .kurssilista thead th { position: static; }
+
+  /* Korkeakoulut: opinto-opas nimen alla, vuosiotsikot rivittyvät. */
+  .korkeakoulut-taulu .kk-nimi { width: auto; overflow-wrap: anywhere; }
+  .korkeakoulut-taulu .kk-nimi .ops-linkki { font-weight: normal; font-size: 0.75rem; }
+  .korkeakoulut-taulu .kk-kurssit-otsikko, .korkeakoulut-taulu .kk-vuosi { white-space: normal; font-size: 0.8rem; }
+  .korkeakoulut-taulu td.kk-solu { padding: 0.25rem 0.1rem; }
+  .kk-tiili { padding: 0.35rem 0.15rem; font-size: 0.75rem; white-space: normal; }  /* 3+ vuotta mahtuu */
 }

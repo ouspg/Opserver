@@ -91,3 +91,17 @@ def test_tyopoydalla_ennallaan(kayttaja):
     expect(s.locator("#nimimerkki-kentta")).to_be_visible()
     expect(s.locator(f"{KURSSIT_RIVI}").first.locator("td:visible")).to_have_count(6)
     expect(s.locator(".vain-mobiili:visible")).to_have_count(0)
+
+
+def _ei_vaakavieritysta(s):
+    assert s.evaluate("document.documentElement.scrollWidth") <= PUHELIN["leveys"]
+
+
+def test_korkeakoulut(kayttaja):
+    """Opinto-opas nimen alla (oma sarake piilossa), vuosisarakkeet mahtuvat ruutuun."""
+    s = kayttaja("/korkeakoulut", "#korkeakoulut-rungot tr", **PUHELIN)
+    expect(s.locator("#korkeakoulut-otsikko th", has_text="Opinto-opas")).to_be_hidden()
+    rivi = s.locator("#korkeakoulut-rungot tr").first
+    expect(rivi.locator(".kk-nimi a.ops-linkki")).to_be_visible()
+    expect(rivi.locator(".kk-opas")).to_be_hidden()
+    _ei_vaakavieritysta(s)
