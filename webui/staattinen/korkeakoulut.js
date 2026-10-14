@@ -81,11 +81,11 @@ async function lataaKorkeakoulut() {
   // Otsikko (kaksirivinen kun vuosisarakkeita on)
   if (onVuosia) {
     otsikko.innerHTML =
-      `<tr><th rowspan="2">Nimi</th><th rowspan="2">Opinto-opas</th>`
+      `<tr><th rowspan="2">Nimi</th><th rowspan="2" class="vain-tyopoyta">Opinto-opas</th>`
       + `<th colspan="${vuodet.length}" class="kk-kurssit-otsikko">Järjestelmään haetut kurssit</th></tr>`
-      + `<tr>${vuodet.map((s) => `<th class="kk-vuosi">${s}-${s + 1}</th>`).join("")}</tr>`;
+      + `<tr>${vuodet.map((s) => `<th class="kk-vuosi">${s}-<wbr>${s + 1}</th>`).join("")}</tr>`;
   } else {
-    otsikko.innerHTML = `<tr><th>Nimi</th><th>Opinto-opas</th></tr>`;
+    otsikko.innerHTML = `<tr><th>Nimi</th><th class="vain-tyopoyta">Opinto-opas</th></tr>`;
   }
 
   // Rungot
@@ -96,8 +96,9 @@ async function lataaKorkeakoulut() {
   }
   for (const k of koulut) {
     const rivi = document.createElement("tr");
-    rivi.innerHTML = `<td class="kk-nimi">${escapeHtml(k.KouluNimi)}</td>`
-      + `<td class="kk-opas">${opasLinkki(k)}</td>`
+    // Mobiilissa opinto-opas nimen alla (oma sarake piilossa).
+    rivi.innerHTML = `<td class="kk-nimi">${escapeHtml(k.KouluNimi)}<div class="vain-mobiili">${opasLinkki(k)}</div></td>`
+      + `<td class="kk-opas vain-tyopoyta">${opasLinkki(k)}</td>`
       + (onVuosia ? vuosiSolut(k._kaudet, minV, maxV) : "");
     runko.appendChild(rivi);
   }

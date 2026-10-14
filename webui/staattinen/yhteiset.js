@@ -179,12 +179,15 @@ function koodiJaOpasLinkki(kurssi) {
   return `${escapeHtml(kurssi.Koodi)}${linkki ? `<br>${linkki}` : ""}`;
 }
 
-// Nimi + opas-linkki samassa solussa (näkymät joissa ei ole Koodi-saraketta).
+// Nimi + opas-linkki samassa solussa (näkymät joissa ei ole Koodi-saraketta); mobiilissa
+// linkin tilalla oppiaine (🌐 on yhdistetyssä sarakkeessa, mobiiliTiedotSolu).
 function kurssiLinkki(kurssi) {
   const linkki = kurssiOpasLinkki(kurssi);
-  const nimi = kurssiNimiHtml(kurssi);
-  return linkki ? `${nimi} ${linkki}` : nimi;
+  return kurssiNimiHtml(kurssi) + (linkki ? `<span class="vain-tyopoyta"> ${linkki}</span>` : "") + oppiaineMobiili(kurssi);
 }
+
+// Mobiilissa oppiaine sulkeissa nimen perässä (oma sarake piilossa).
+const oppiaineMobiili = (k) => k.Oppiaine ? `<span class="vain-mobiili"> (${escapeHtml(k.Oppiaine)})</span>` : "";
 
 // Taso suomeksi, tai raakana jos tuntematon muoto.
 const tasoNimi = (taso) => TASO_SUOMI[taso] || taso;
@@ -193,6 +196,18 @@ const tasoNimi = (taso) => TASO_SUOMI[taso] || taso;
 function tasoTeksti(taso) {
   return taso ? escapeHtml(tasoNimi(taso)) : "—";
 }
+
+const MOBIILI = matchMedia("(max-width: 600px)");  // = tyyli.css:n mobiiliraja
+
+// Mobiilissa pitkä teksti (.avattava) rajataan muutamaan riviin (tyyli.css); napautus avaa ja
+// sulkee. Capture: rajatun tekstin napautus ei avaa riviä; rajaamaton toimii kuten ennen.
+document.addEventListener("click", (e) => {
+  const el = e.target.closest?.(".avattava");
+  if (!el || !MOBIILI.matches || e.target.closest("a, button")) return;
+  if (!el.classList.contains("auki") && el.scrollHeight <= el.clientHeight + 1) return;
+  el.classList.toggle("auki");
+  e.stopPropagation();
+}, true);
 
 // Tasotagi [A] mobiilin kurssilistaan; napautus näyttää selitteen (kytketty alla).
 function tasoTagi(taso) {
@@ -216,20 +231,24 @@ document.addEventListener("keydown", (e) => {
 
 // Kurssirivin nimisolu: mobiilissa oppiaine sulkeissa nimen perässä (oma sarake piilossa).
 function kurssiNimiSolu(k, kid = k.KID) {
-  const oppiaine = k.Oppiaine ? `<span class="vain-mobiili"> (${escapeHtml(k.Oppiaine)})</span>` : "";
-  return `<td>${kurssiNimiHtml(k, kid)}${oppiaine}</td>`;
+  return `<td>${kurssiNimiHtml(k, kid)}${oppiaineMobiili(k)}</td>`;
 }
 
 // Kurssirivin taso-, oppiaine- ja op-solut (kurssilista ja tutkimuksen kurssit) + mobiilin
 // yhdistetty sarake "6op [A] 🌐" (koodi-, taso-, oppiaine- ja op-sarakkeiden tilalla).
 function kurssiMetaSolut(k) {
-  const url = kurssiUrl(k);
-  const op = k.Opintopisteet ? `${escapeHtml(k.Opintopisteet)}op ` : "";
-  const opas = url ? ` <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="ops-linkki" aria-label="Opinto-opas">🌐</a>` : "";
   return `<td class="vain-tyopoyta">${tasoTeksti(k.Taso)}</td>
       <td class="vain-tyopoyta">${escapeHtml(k.Oppiaine || "—")}</td>
       <td class="op vain-tyopoyta">${escapeHtml(k.Opintopisteet ?? "—")}</td>
-      <td class="vain-mobiili mobiili-tiedot">${op}${tasoTagi(k.Taso)}${opas}</td>`;
+      ${mobiiliTiedotSolu(k)}`;
+}
+
+// Mobiilin yhdistetty sarake "6op [A] 🌐" (koodi/taso/oppiaine/op-sarakkeet piilossa).
+function mobiiliTiedotSolu(k) {
+  const url = kurssiUrl(k);
+  const op = k.Opintopisteet ? `${escapeHtml(k.Opintopisteet)}op ` : "";
+  const opas = url ? ` <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="ops-linkki" aria-label="Opinto-opas">🌐</a>` : "";
+  return `<td class="vain-mobiili mobiili-tiedot">${op}${tasoTagi(k.Taso)}${opas}</td>`;
 }
 
 const OSARENDER_VALI_MS = 2000;

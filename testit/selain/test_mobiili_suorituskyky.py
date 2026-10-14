@@ -124,3 +124,19 @@ def test_pitka_lista_vierittyy_sujuvasti(puhelin):
           f"vieritetty {s.evaluate('scrollY'):.0f} px")
     assert s.evaluate("scrollY") > 1000
     assert p95 <= 50
+
+
+ARVIOINTI_RIVI = "#tutkimus-arvioinnit-sisalto tr.kurssi-rivi"
+
+
+def test_arvioinnit_rakentuu_ja_vastaus_avautuu_heti(puhelin):
+    """Arviointikortit (kurssit × kysymykset): ei pitkiä jumeja, rajatun vastauksen avaus ≤ 100 ms."""
+    s = puhelin("/tutkimukset/esr_kyber/arvioinnit", ARVIOINTI_RIVI)
+    s.wait_for_function("!arvioinnit_kesken && arvioinnit_data", timeout=120000, polling=500)
+    jumit = s.evaluate("__jumit")
+    solut = s.evaluate(f'document.querySelectorAll("{ARVIOINTI_RIVI} td.arviointi-vastaus").length')
+    rajattu = s.locator(".arvio-teksti.avattava").filter(has=s.locator("em")).first
+    vaste = _vaste(s, lambda: rajattu.tap())
+    print(f"\n[arvioinnit] {solut} vastausta, pisin jumi {max(jumit, default=0):.0f} ms, avaus {vaste:.0f} ms")
+    assert max(jumit, default=0) <= PISIN_JUMI_MS
+    assert vaste <= VASTE_MS
