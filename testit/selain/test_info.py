@@ -19,7 +19,7 @@ def test_infomodaali_sisalto_ja_sulkeminen(kayttaja, pohja):
     _avaa_info(s)
     assert s.evaluate("location.pathname") == polku
     assert s.inner_text("#info-teksti h2").strip()
-    assert s.evaluate("document.querySelector('.info-logo').naturalWidth > 0")
+    assert s.evaluate("[...document.querySelectorAll('.logo img, .info-logo')].every((i) => i.naturalWidth > 0)")
     assert s.locator("#info-teksti li").count() > 0
     versio = s.request.get(pohja + "/api/info").json()["versio"]
     assert s.inner_text("#info-versio").startswith(f"Versio {versio}")
