@@ -19,7 +19,7 @@ cat > "$T/bin/sudo" <<'EOF'
 [[ "$1" == -u ]] && shift 2
 exec "$@"
 EOF
-printf '#!/bin/sh\nexit 0\n' > "$T/bin/flock"
+printf '#!/bin/sh\n[ -z "$LUKITTU" ]\n' > "$T/bin/flock"
 printf '#!/bin/sh\nexit 0\n' > "$T/bin/sleep"
 printf '#!/bin/sh\n[ -n "$PIPELINE_KAYNNISSA" ]\n' > "$T/bin/pgrep"
 cat > "$T/bin/curl" <<'EOF'
@@ -57,6 +57,8 @@ echo "2026-09-29 vahtikoira: caddy epäterve" > "$T/tuotanto/vahtikoira.log"
 
 uusi_commit() { (cd "$T/origin" && "$@" && git add -A && git commit -qm "$RANDOM" && git rev-parse HEAD); }
 aja() { : > "$LOKI"; (cd "$T/tuotanto" && ./paivittaja >"$T/ajo.log" 2>&1) || true; }
+# Käsin ajo: stdout on pääte (pty) → hiljaisen poistumisen syy näkyy (#96).
+aja_paatteessa() { : > "$LOKI"; (cd "$T/tuotanto" && python3 -c 'import pty, sys; pty.spawn(sys.argv[1:])' ./paivittaja >"$T/pääte.log" 2>&1) || true; }
 head_() { git -C "$T/tuotanto" rev-parse HEAD; }
 odota() {  # kuvaus, ehto
     if eval "$2"; then echo "[OK]   $1"; else echo "[FAIL] $1"; echo "--- loki:"; cat "$LOKI"; virheita=$((virheita + 1)); fi
@@ -66,6 +68,12 @@ hyva=$(uusi_commit touch uusi_ominaisuus)
 PIPELINE_KAYNNISSA=1 aja
 odota "pipeline käynnissä → lopetetaan heti (ei edes fetchiä)" \
     '[[ ! -s "$LOKI" && $(git -C "$T/tuotanto" rev-parse origin/main) != "$hyva" ]]'
+PIPELINE_KAYNNISSA=1 aja_paatteessa
+odota "pipeline käynnissä, päätteessä → syy näkyy" 'grep -q "pipeline.*käynnissä" "$T/pääte.log"'
+LUKITTU=1 aja
+odota "lukko varattu → ei tulostetta cron-lokiin" '[[ ! -s "$T/ajo.log" ]]'
+LUKITTU=1 aja_paatteessa
+odota "lukko varattu, päätteessä → syy näkyy" 'grep -q "edellinen ajo yhä kesken" "$T/pääte.log"'
 
 aja
 odota "uusi versio asennetaan" '[[ $(head_) == "$hyva" ]] && grep -q "asenna ${hyva:0:7}" "$LOKI"'
@@ -75,6 +83,8 @@ odota "onnistuneesta ei issueta" '! grep -q issue "$LOKI"'
 aja
 odota "ei muutosta → ei asennusta" '! grep -q "^asenna" "$LOKI"'
 odota "ei muutosta → ei tulostetta cron-lokiin" '[[ ! -s "$T/ajo.log" ]]'
+aja_paatteessa
+odota "ei muutosta, päätteessä → syy näkyy" 'grep -q "ajan tasalla (${hyva:0:7})" "$T/pääte.log"'
 
 rikki=$(uusi_commit touch RIKKI)
 aja
@@ -87,7 +97,9 @@ odota "issuessa salaisuudet peitetty" 'grep "^issue:" "$LOKI" | grep -q "salasan
 odota "asennuksen tuloste myös cron-lokissa" 'grep -q "asenna-virhe: migraatio kaatui" "$T/ajo.log"'
 
 aja
-odota "samaa versiota ei yritetä uudelleen" '[[ ! -s "$LOKI" ]]'
+odota "samaa versiota ei yritetä uudelleen" '[[ ! -s "$LOKI" && ! -s "$T/ajo.log" ]]'
+aja_paatteessa
+odota "epäonnistunut versio, päätteessä → syy näkyy" 'grep -q "${rikki:0:7} epäonnistui aiemmin" "$T/pääte.log"'
 
 korjattu=$(uusi_commit rm RIKKI)
 SIVU_RIKKI=1 aja

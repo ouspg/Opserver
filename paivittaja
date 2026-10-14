@@ -8,15 +8,17 @@ set -uo pipefail
 # Koko runko lohkossa: git vaihtaa tämän tiedoston kesken ajon, bash lukee sen siis ensin kokonaan.
 {
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
-exec 9<"$0"; flock -n 9 || exit 0   # edellinen ajo yhä kesken
+# Ei päivitettävää: cronissa hiljaa (ajo 5 min välein), käsin ajettaessa syy näkyviin (#96).
+exec 3>&1
+ohita() { [[ -t 3 ]] && echo "paivittaja: $* — ei päivitetä" >&3; exit 0; }
+exec 9<"$0"; flock -n 9 || ohita "edellinen ajo yhä kesken"
 # Pipeline-ajo (cliui) käynnissä → lopetetaan heti, ei edes fetchiä: asenna ja
 # kannan palautus katkaisisivat sen. Hiljaa — ajo voi kestää tunteja.
-pgrep -f 'cliui[.]valikko' >/dev/null && exit 0   # ./run; ei osu esim. editoriin cliui/…-tiedostossa
+pgrep -f 'cliui[.]valikko' >/dev/null && ohita "pipeline (cliui.valikko) käynnissä"   # ./run; ei osu esim. editoriin cliui/…-tiedostossa
 
 EPAONNISTUNUT=.paivitys_epaonnistui
 # Ajon tuloste talteen issueta varten (issue ilman lokia ei kerro juurisyytä, ja
-# loki on vain tuotantokoneella). Kirjoitetaan cron-lokiin ajon lopussa.
-exec 3>&1
+# loki on vain tuotantokoneella). Kirjoitetaan cron-lokiin (fd 3) ajon lopussa.
 ajo=$(mktemp)
 exec >>"$ajo" 2>&1
 trap 'cat "$ajo" >&3; rm -f "$ajo"' EXIT
@@ -65,7 +67,8 @@ ilmoita() {  # otsikko runko — issue GitHubiin (token: fine-grained PAT, vain 
 git_ fetch -q origin main || { loki "git fetch epäonnistui"; exit 1; }
 vanha=$(git_ rev-parse HEAD)
 uusi=$(git_ rev-parse origin/main)
-[[ "$vanha" == "$uusi" || "$uusi" == "$(cat "$EPAONNISTUNUT" 2>/dev/null)" ]] && exit 0
+[[ "$vanha" == "$uusi" ]] && ohita "ajan tasalla (${uusi:0:7})"
+[[ "$uusi" == "$(cat "$EPAONNISTUNUT" 2>/dev/null)" ]] && ohita "${uusi:0:7} epäonnistui aiemmin ($EPAONNISTUNUT), odotetaan seuraavaa committia"
 if ! tulos=$(savutesti 2>&1); then
     loki "sivu ei toimi jo ennen päivitystä — ei päivitetä (${uusi:0:7}): $(grep FAIL <<<"$tulos" | tr "\n" " ")"
     # Korjaava commit ei asennu itsestään → ihmiselle tieto, kerran per versio (ajo 5 min välein).
