@@ -208,3 +208,18 @@ def test_arviointien_paivitys_ei_siirra_vierityskohtaa(kayttaja):
     s.wait_for_timeout(300)
     jalkeen = s.evaluate(kohta)
     assert jalkeen[0] == ennen[0] and abs(jalkeen[1] - ennen[1]) <= 1
+
+
+def test_raportti_mahtuu_ja_muokkaus_aukeaa(kayttaja):
+    """Raportti ilman vaakavieritystä (leveä tilastotaulu vierii omassa laatikossaan);
+    osion Muokkaa-lomake mahtuu ruutuun."""
+    s = kayttaja(f"/tutkimukset/{SLUG}/raportti", "#raportti-sisalto .raportti-osio", **PUHELIN)
+    s.wait_for_selector("#raportti-sisalto .tilasto-taulu")
+    _ei_vaakavieritysta(s)
+    for laatikko in s.locator("#raportti-sisalto .tilasto-taulu").evaluate_all(
+            "(t) => t.map((el) => el.getBoundingClientRect().right)"):
+        assert laatikko <= PUHELIN["leveys"]
+    s.locator(".raportti-muokkaa-nappi").first.click()
+    sisalto = s.locator(".modaali:not(.piilotettu) .modaali-sisalto")
+    expect(sisalto).to_be_visible()
+    assert sisalto.bounding_box()["x"] + sisalto.bounding_box()["width"] <= PUHELIN["leveys"]

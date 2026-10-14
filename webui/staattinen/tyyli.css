@@ -1420,4 +1420,12 @@ tr.paikannettu > td { animation: paikannettu 2.5s ease-out; }
   .arvioinnit-taulu .arvio-korjaa-nappi { grid-row: 2; margin-top: 0; padding: 0.3rem 0.6rem; font-size: 0.8rem; }  /* kosketuskohde */
   .arvioinnit-taulu .arvio-teksti:not(.auki) :is(.arvio-lista, .arvio-lista li, .arvio-perustelu) { display: inline; padding: 0; }
   .arvioinnit-taulu .arvio-teksti:not(.auki) .arvio-lista li:not(:last-child)::after { content: "; "; }
+
+  /* Raportti: ohuemmat kehykset; leveä tilastotaulu vierii omassa laatikossaan, ei koko sivu. */
+  .raportti-toiminnot { margin-bottom: 0.75rem; }
+  .raportti-osio { padding: 0.75rem; margin-bottom: 0.75rem; }
+  .raportti-osio-teksti { line-height: 1.6; overflow-wrap: anywhere; }
+  .tilastot-osio { padding: 0.5rem; }
+  .tilasto-taulu { display: block; max-width: 100%; overflow-x: auto; }
+  .tilasto-taulu th, .tilasto-taulu td { padding: 0.15rem 0.3rem; }
 }
