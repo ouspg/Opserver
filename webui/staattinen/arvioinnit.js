@@ -55,6 +55,7 @@ const ARVIOINNIT_OSA = 25;
 // Hiljainen päivitys (pollaus 15 s) hakee kaiken uudelleen: isommat osat = vähemmän
 // pyyntöjä (palvelin hakee tutkimuksen vastaukset jokaiselle osalle).
 const ARVIOINNIT_POLLAUS_OSA = 200;
+const ARVIOINNIT_ERA = 20;  // kurssikorttia / tbody
 let arvioinnit_lataus = 0;
 let arvioinnit_kesken = false;
 
@@ -130,6 +131,12 @@ function _arvioinnitSuodatetut() {
 
 const ARVIOINTI_SARAKKEET = { Nimi: "nimi", Taso: "taso", op: "op" };
 
+// Sarakeotsikko (ja mobiilin vastausotsikko): kysymys lyhennettynä + tyyppimerkki.
+function _kysymysLyhyt(k) {
+  const tyyppiMerkki = k.Luokittelu === "luokittelu" ? " [L]" : k.Luokittelu === "asteikko" ? " [A]" : k.Luokittelu === "lista" ? " [Li]" : "";
+  return (k.Kysymys.length > 48 ? k.Kysymys.slice(0, 45) + "…" : k.Kysymys) + tyyppiMerkki;
+}
+
 // Arviointitaulun delegoitu klikkaus: Korjaa / Hyväksy solun kysymykselle, muu rivin
 // klikkaus avaa kurssin. Kurssi haetaan klikkaushetken datasta (pollaus vaihtaa sen).
 document.getElementById("tutkimus-arvioinnit-sisalto").addEventListener("click", async (e) => {
@@ -174,6 +181,7 @@ function renderArvioinnitTaulu() {
   }
 
   const taulu = document.createElement("table");
+  taulu.className = "arvioinnit-taulu";
 
   const thead = taulu.createTHead();
   const otsikkorivi = thead.insertRow();
@@ -186,17 +194,17 @@ function renderArvioinnitTaulu() {
   for (const k of kysymykset) {
     const th = document.createElement("th");
     th.className = "kysymys-sarake";
-    const tyyppiMerkki = k.Luokittelu === "luokittelu" ? " [L]" : k.Luokittelu === "asteikko" ? " [A]" : k.Luokittelu === "lista" ? " [Li]" : "";
-    th.textContent = (k.Kysymys.length > 48 ? k.Kysymys.slice(0, 45) + "…" : k.Kysymys) + tyyppiMerkki;
+    th.textContent = _kysymysLyhyt(k);
     th.title = k.Kysymys;
     otsikkorivi.appendChild(th);
   }
   varustaJarjestys(thead, arvioinnit_jarjestys, renderArvioinnitTaulu);
 
   const tid = aktiivinen_tutkimus?.TID;
+  const lyhyet = kysymykset.map((kys) => escapeHtml(_kysymysLyhyt(kys)));
   // Merkkijonona ja delegoidulla kuuntelijalla (alla): rivit × kysymykset soluja,
   // joissa kussakin oli 3–4 omaa kuuntelijaa.
-  taulu.createTBody().innerHTML = kurssit.map((k) => {
+  const rivit = kurssit.map((k) => {
     const solut = kysymykset.map((kys, i) => {
       const v = k.vastaukset[i];
       const korjaus = k.korjaukset?.[kys.KysID] || null;
@@ -216,16 +224,35 @@ function renderArvioinnitTaulu() {
       } else if (!korjaus && _vastusOnAnnettu(v)) {
         hyvaksyHtml = `<button class="arvio-korjaa-nappi arvio-hyvaksy-nappi" title="Hyväksy LLM:n tekemä arvio tästä">Hyväksy</button> `;
       }
-      return `<td class="arviointi-vastaus${hyvaksytty ? " hyvaksytty" : ""}" data-i="${i}">` +
-        `<span class="arvio-teksti">${_renderArviointiSolu(kys, v)}</span>` + korjausHtml + hyvaksyHtml +
+      // data-kysymys: mobiilin kortissa kysymys vastauksen otsikkona (sarakeotsikot piilossa).
+      return `<td class="arviointi-vastaus${hyvaksytty ? " hyvaksytty" : ""}" data-i="${i}" data-kysymys="${lyhyet[i]}">` +
+        `<span class="arvio-teksti avattava">${_renderArviointiSolu(kys, v)}</span>` + korjausHtml + hyvaksyHtml +
         `<button class="arvio-korjaa-nappi${hyvaksytty ? " nappi-haalea" : ""}" data-lomake="arvio:${tid}:${k.KID}:${kys.KysID}">Korjaa</button></td>`;
     }).join("");
     return `<tr class="kurssi-rivi" data-kid="${k.KID}">
       <td>${kurssiLinkki(k)}</td>
-      <td>${tasoTeksti(k.Taso)}</td>
-      <td class="op">${escapeHtml(k.Opintopisteet ?? "—")}</td>${solut}</tr>`;
-  }).join("");
+      <td class="vain-tyopoyta">${tasoTeksti(k.Taso)}</td>
+      <td class="op vain-tyopoyta">${escapeHtml(k.Opintopisteet ?? "—")}</td>${mobiiliTiedotSolu(k)}${solut}</tr>`;
+  });
+  // Erittäin omiin tbodyihin: mobiilissa ruudun ulkopuolisia eriä ei asetella (content-visibility,
+  // tyyli.css) — koko taulun asettelu oli ~300 ms hidastetulla puhelimella joka päivityksellä.
+  // Uusi erä saa vanhan erän korkeuden arviokseen: muuten pollauksen uudelleenrakennus siirtäisi
+  // vierityskohtaa (asettelemattomat erät yläpuolella = oletusarvio, ei todellinen korkeus).
+  const vanhat = [...sisalto.getElementsByTagName("tbody")].map((t) => t.getBoundingClientRect().height);
+  // Avatut (napautetut) vastaukset pysyvät auki uudelleenrakennuksessa.
+  const auki = new Set([...sisalto.getElementsByClassName("arvio-teksti auki")]
+    .map((el) => `${el.closest("tr").dataset.kid}:${el.closest("td").dataset.i}`));
+  for (let i = 0; i < rivit.length; i += ARVIOINNIT_ERA) {
+    const era = taulu.createTBody();
+    const korkeus = vanhat[i / ARVIOINNIT_ERA];
+    if (korkeus) era.style.containIntrinsicSize = `auto ${korkeus}px`;
+    era.innerHTML = rivit.slice(i, i + ARVIOINNIT_ERA).join("");
+  }
 
+  for (const avain of auki) {
+    const [kid, i] = avain.split(":");
+    taulu.querySelector(`tr[data-kid="${kid}"] td[data-i="${i}"] .arvio-teksti`)?.classList.add("auki");
+  }
   sisalto.innerHTML = "";
   sisalto.appendChild(taulu);
 }

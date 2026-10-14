@@ -1384,4 +1384,40 @@ tr.paikannettu > td { animation: paikannettu 2.5s ease-out; }
   #s-tutkimukset .tutkimus-oppiaine-solu { max-width: none; white-space: normal; }
   #s-tutkimukset .tutkimus-toiminnot { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; padding-top: 0.5rem; }
   #s-tutkimukset .tutkimus-toiminnot .nappi-pieni { margin: 0; }
+
+  /* Arvioinnit kurssikortteina: "Nimi (Oppiaine) | 6op [A] 🌐", alla kukin kysymys otsikkona
+     (data-kysymys) ja vastaus, Hyväksy/Korjaa sen vieressä. Otsikkorivistä vain järjestys. */
+  .arvioinnit-taulu, .arvioinnit-taulu thead, .arvioinnit-taulu tbody { display: block; }
+  .arvioinnit-taulu tbody { content-visibility: auto; contain-intrinsic-size: auto 5000px; }  /* 20 korttia, arvioinnit.js */
+  .arvioinnit-taulu thead tr { display: flex; }
+  .arvioinnit-taulu thead th { flex: 1; }
+  .arvioinnit-taulu th.kysymys-sarake { display: none; }
+  .arvioinnit-taulu tr.kurssi-rivi {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    border-bottom: 2px solid #d6dbe8;
+    padding-bottom: 0.4rem;
+  }
+  .arvioinnit-taulu tr.kurssi-rivi > td { border: none; }
+  .arvioinnit-taulu tr.kurssi-rivi > td:first-child { font-weight: 600; }
+  .arvioinnit-taulu td.arviointi-vastaus {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: 0.4rem;
+    align-items: start;
+    max-width: none;
+    padding: 0.3rem 0.4rem 0.3rem 0.9rem;
+  }
+  .arvioinnit-taulu td.arviointi-vastaus::before {
+    content: attr(data-kysymys);
+    grid-column: 1 / -1;
+    font-size: 0.75rem;
+    color: #666;
+  }
+  .arvioinnit-taulu .arvio-teksti { grid-area: 2 / 1; }
+  .arvioinnit-taulu .arvio-korjaus { grid-area: 3 / 1 / 4 / -1; }
+  .arvioinnit-taulu .arvio-korjaa-nappi { grid-row: 2; margin-top: 0; padding: 0.3rem 0.6rem; font-size: 0.8rem; }  /* kosketuskohde */
+  .arvioinnit-taulu .arvio-teksti:not(.auki) :is(.arvio-lista, .arvio-lista li, .arvio-perustelu) { display: inline; padding: 0; }
+  .arvioinnit-taulu .arvio-teksti:not(.auki) .arvio-lista li:not(:last-child)::after { content: "; "; }
 }
