@@ -1,10 +1,12 @@
 """Opserver web-käyttöliittymän FastAPI-palvelin: kokoaa reitit (webui/reitit_*.py,
 webui/yhteistyo.py), middlewaret ja staattiset tiedostot. Käynnistys:
 uvicorn webui.palvelin:sovellus."""
+import functools
+import html
 import os
 from fastapi import FastAPI
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from webui import yhteistyo, reitit_katalogi, reitit_luokitukset, reitit_arvioinnit, reitit_raportti, reitit_info
@@ -35,9 +37,17 @@ def tyhjenna_valimuistit() -> None:
         f.tyhjenna()
 
 
+@functools.cache
+def _index_html() -> str:
+    """index.html, johon upotettu ajossa oleva versio: SPA:n versiotarkistuksen lähtötaso on
+    aina se versio, jonka JS oikeasti ladattiin (ei erillistä /api/info-hakua, #117)."""
+    with open(_INDEX, encoding="utf-8") as f:
+        return f.read().replace("__OPSERVER_VERSIO__", html.escape(reitit_info._versio()[0]))
+
+
 @sovellus.get("/")
 def juuri():
-    return FileResponse(_INDEX, headers=_NO_STORE)
+    return HTMLResponse(_index_html(), headers=_NO_STORE)
 
 
 sovellus.mount("/staattinen", StaticFiles(directory=STAATTINEN), name="staattinen")
@@ -46,4 +56,4 @@ sovellus.mount("/staattinen", StaticFiles(directory=STAATTINEN), name="staattine
 # Catch-all: SPA-reititys — palautetaan index.html kaikille ei-API -poluille
 @sovellus.get("/{polku:path}")
 def spa_reitti(polku: str):
-    return FileResponse(_INDEX, headers=_NO_STORE)
+    return juuri()

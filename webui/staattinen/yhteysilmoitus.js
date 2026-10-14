@@ -4,8 +4,8 @@
 // (haeJson, lahetaNapilla, WebSocket) ja päivityksen jälkeiselle uudelle versiolle.
 //   - yhteysKatkennut(avain, syy) / yhteysPalautui(avain): katkolähteet avaimittain;
 //     palkki näkyy, kun yksikin lähde on katki (syy "huolto" = palvelin päivittyy).
-//   - tarkistaVersio(): ensimmäinen kutsu muistaa latausaikaisen version (/api/info),
-//     myöhemmät vertaavat siihen. Uusi versio → automaattinen uudelleenlataus vain, jos
+//   - tarkistaVersio(): vertaa /api/info:n versiota latausaikaiseen versioon (palvelin
+//     upottaa sen index.html:ään, #117). Uusi versio → automaattinen uudelleenlataus vain, jos
 //     mikään modaali, jaettu lomake tai lähetys ei ole kesken; muuten ilmoitus + Lataa.
 {
   // Ajastimet; selaintestit lyhentävät ne asettamalla window.YHTEYS ennen latausta.
@@ -22,7 +22,7 @@
   };
   const katkot = new Map();  // avain → syy (lisäysjärjestys: uusin syy näytetään)
   let uusiVersio = false;
-  let latausVersio = null;
+  const latausVersio = document.querySelector('meta[name="opserver-versio"]')?.content ?? null;
 
   function piirra() {
     let palkki = document.getElementById("yhteysilmoitus");
@@ -71,9 +71,7 @@
     } catch (_) {
       return;
     }
-    if (latausVersio === null) {
-      latausVersio = versio;
-    } else if (versio !== latausVersio && !uusiVersio) {
+    if (versio !== latausVersio && !uusiVersio) {
       if (!kesken()) { location.reload(); return; }
       uusiVersio = true;
       piirra();
@@ -81,5 +79,4 @@
   }
   window.tarkistaVersio = tarkistaVersio;
   window.latausVersio = () => latausVersio;
-  tarkistaVersio();
 }

@@ -71,8 +71,15 @@ def test_uusi_versio_lataa_sivun_kun_modaali_ei_auki(kayttaja):
     _yhdista_uudelleen(s)
     s.wait_for_function("!window.__ennen_latausta", timeout=10000)  # sivu latautui
     s.wait_for_selector(RIVI)
-    s.wait_for_function("latausVersio() === 'uusi-versio'")
     assert not s.is_visible(ILMOITUS)
+
+
+def test_uusi_versio_huomataan_vaikka_info_ei_vastannut_latauksessa(kayttaja):
+    """/api/info alhaalla sivun latautuessa → lähtötaso silti index.html:stä (#117)."""
+    s = kayttaja(TUTKIMUKSET, RIVI, alustus=lambda k: (_nopea(k), k.route("**/api/info", lambda r: r.abort())))
+    s.context.unroute("**/api/info")
+    _yhdista_uudelleen(s)
+    s.wait_for_function("!window.__ennen_latausta", timeout=10000)
 
 
 def test_uusi_versio_vain_ilmoitus_kun_modaali_auki(kayttaja):

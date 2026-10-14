@@ -17,6 +17,18 @@ def test_info_palauttaa_infosivun_ja_kuvaan_kaannetyn_version(monkeypatch):
     assert data["versio"] == "abc1234" and data["paiva"] == "2026-09-29"
 
 
+def test_index_html_upottaa_version(monkeypatch):
+    # SPA:n versiotarkistuksen lähtötaso tulee sivun mukana, ei erillisestä /api/info-hausta (#117).
+    from webui import palvelin
+    monkeypatch.setenv("OPSERVER_VERSIO", "abc1234 2026-09-29")
+    reitit_info._versio.cache_clear()
+    palvelin._index_html.cache_clear()
+    for polku in ("/", "/kurssit"):
+        assert '<meta name="opserver-versio" content="abc1234">' in asiakas.get(polku).text
+    reitit_info._versio.cache_clear()
+    palvelin._index_html.cache_clear()
+
+
 def test_versio_tyokopiosta_ja_tuntematon_ilman_gitia(monkeypatch):
     # Kehityksessä (uvicorn .venv:llä) versio luetaan työkopion gitistä; jos sekään
     # ei onnistu, näytetään "tuntematon" eikä reitti kaadu.
