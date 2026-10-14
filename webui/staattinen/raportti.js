@@ -65,7 +65,7 @@ function _renderTilastotTaulukko(tilastot) {
 // suunta (lisätty/poistettu) × kumottu vaihe (LLM/meta), LLM:n alkuperäinen valinta
 // vs. lopullinen lista, kumottujen osuudet ja juurisyyt suunnittain. Auktoritatiivinen
 // rakenteellinen luku — erillään LLM-generoidusta proosasta.
-// Näkymässä (tyyli.css) ja tulosteessa (oma <style>).
+// Näkymässä (arvioinnit.css) ja tulosteessa (oma <style>).
 function _hitlMittaritHtml(hitl) {
   const p = (x) => (x ?? 0).toFixed(1);
   const n = (x) => escapeHtml(x ?? 0);

@@ -1,0 +1,331 @@
+/* Arviointi-taulukko */
+
+.arvio-teksti { display: block; }
+
+.arvio-korjaus {
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  color: #1a5c4a;
+  background: #e8f5f0;
+  border-left: 3px solid #27ae60;
+  padding: 0.2rem 0.4rem;
+  border-radius: 2px;
+}
+
+.arvio-korjaa-nappi {
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  padding: 0.1rem 0.45rem;
+  background: #eef2ff;
+  border: 1px solid #b0bfff;
+  border-radius: 3px;
+  color: #2c3e90;
+  cursor: pointer;
+}
+
+.arvio-korjaa-nappi:hover { background: #d9e2ff; }
+
+.luokka-badge {
+  display: inline-block;
+  background: #193764;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  margin-bottom: 0.15rem;
+}
+
+.pisteet-arvo {
+  display: inline-block;
+  font-weight: 700;
+  color: #193764;
+  font-size: 1rem;
+  margin-bottom: 0.1rem;
+}
+
+.arvio-perustelu {
+  display: block;
+  font-size: 0.78rem;
+  color: #555;
+  margin-top: 0.15rem;
+}
+
+.arvio-lista {
+  margin: 0.1rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+}
+
+.arvio-lista li {
+  margin-bottom: 0.1rem;
+}
+
+.vanha-merkki {
+  display: inline-block;
+  background: #fff3cd;
+  color: #8a6100;
+  border: 1px solid #ffe08a;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+  margin-bottom: 0.2rem;
+  cursor: help;
+}
+
+.tilastot-osio {
+  background: #f4f6fb;
+  border: 1px solid #d0d9ee;
+  border-radius: 4px;
+  padding: 0.8rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.tilastot-osio h3 {
+  margin: 0 0 0.6rem 0;
+  font-size: 0.9rem;
+  color: #193764;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tilasto-kysymys {
+  margin-bottom: 0.8rem;
+  font-size: 0.85rem;
+}
+
+.tilasto-taulu {
+  margin-top: 0.3rem;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.tilasto-taulu th {
+  background: #193764;
+  color: #fff;
+  padding: 0.15rem 0.5rem;
+  text-align: left;
+  font-weight: 600;
+}
+
+.tilasto-taulu td {
+  padding: 0.15rem 0.5rem;
+  border-bottom: 1px solid #dde3f0;
+  vertical-align: top;
+}
+
+.tilasto-pylvas {
+  display: inline-block;
+  height: 8px;
+  background: #193764;
+  border-radius: 2px;
+  margin-right: 0.3rem;
+  vertical-align: middle;
+  min-width: 2px;
+}
+
+/* Arviointimuokkaus-modaali */
+
+.arviointimuokkaus-sisalto {
+  max-width: 640px;
+  width: 95vw;
+}
+
+.arviointimuokkaus-ai {
+  background: #f7f8fa;
+  border-left: 3px solid #193764;
+  padding: 0.6rem 0.8rem;
+  border-radius: 3px;
+  font-size: 0.88rem;
+  margin-bottom: 1rem;
+  max-height: 10rem;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+.arviointimuokkaus-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.arviointimuokkaus-kommentti-alue { margin-bottom: 1rem; }
+
+#arviointimuokkaus-tekstialue {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  border: 1px solid #c0cce0;
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  display: block;
+}
+
+/* Jaettu korjauslomake (lomakesessio.js): muokkaajarivi modaalissa */
+.lomake-muokkaajat {
+  font-size: 0.78rem;
+  color: #555;
+  margin-top: 0.3rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.muokkaaja-rivi {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.modaali-napit {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+/* --- Raportti --- */
+
+.raportti-toiminnot {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1.5rem;
+}
+
+.raportti-osio {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.raportti-osio-otsikkorivi {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.raportti-osio-otsikko {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #16213e;
+}
+
+.raportti-muokkaa-nappi {
+  flex-shrink: 0;
+}
+
+.raportti-osio-teksti {
+  line-height: 1.75;
+  color: #2a2a3a;
+  font-size: 0.95rem;
+}
+
+#raporttimuokkaus-tekstialue {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  border: 1px solid #c0cce0;
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  display: block;
+}
+
+@media print {
+  header, #hitl-modaali, #modaali, #arviointimuokkaus-modaali,
+  #raporttimuokkaus-modaali, .raportti-toiminnot, .raportti-muokkaa-nappi,
+  .lomake-pallurat { display: none !important; }
+  .raportti-osio { box-shadow: none; border: none; padding: 0; }
+}
+
+/* Ihmisen korjauksen tekijä ja juurisyy korjatun arvon alla */
+.arvio-korjaaja {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: #4a6b60;
+  font-style: italic;
+}
+
+/* Korjausikkunan tyyppikohtaiset kentät */
+#arviointimuokkaus-kentat { margin-bottom: 1rem; }
+
+#arvio-luokka,
+#arvio-pisteet,
+#arvio-nimi,
+#arvio-sahkoposti,
+.arvio-lista-kentta {
+  font-family: inherit;
+  font-size: 0.9rem;
+  border: 1px solid #c0cce0;
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+  box-sizing: border-box;
+}
+
+#arvio-luokka { width: 100%; }
+#arvio-pisteet { width: 6rem; }
+#arvio-nimi, #arvio-sahkoposti { width: 100%; margin-bottom: 0.5rem; }
+
+/* Luokkien ja pisteiden selitteet: sama tieto jonka LLM sai kehotteessa */
+.arvio-luokkaselitteet {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.78rem;
+  color: #55606e;
+}
+
+.arvio-lista-rivi {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
+}
+
+.arvio-lista-kentta { flex: 1; }
+
+.arvio-lista-poista,
+.arvio-lista-nappi {
+  font-family: inherit;
+  font-size: 0.82rem;
+  border: 1px solid #c0cce0;
+  background: #f7f8fa;
+  border-radius: 4px;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+}
+
+.arvio-lista-poista { color: #a03024; }
+.arvio-lista-poista:hover { background: #fdecea; }
+.arvio-lista-nappi:hover { background: #eef2f8; }
+.arvio-lista-nappi:disabled { opacity: 0.45; cursor: default; }
+
+.arvio-lista-raja {
+  font-size: 0.74rem;
+  color: #78838f;
+  margin-top: 0.25rem;
+}
+
+.arviointimuokkaus-juurisyy,
+.arviointimuokkaus-tunnistus { margin-bottom: 1rem; }
+
+.arviointimuokkaus-juurisyy label {
+  display: block;
+  font-size: 0.82rem;
+  margin-bottom: 0.25rem;
+}
+
+.arviointimuokkaus-virhe {
+  color: #a03024;
+  font-size: 0.82rem;
+  min-height: 1.1rem;
+  margin-bottom: 0.4rem;
+}

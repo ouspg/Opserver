@@ -165,7 +165,7 @@ function renderKurssit() {
   });
   // DOMiin erissä: koko listan asettelu kerralla jumitti sivun ~1 s (8 700 riviä),
   // erä ~50 ms. Kaikki rivit päätyvät lopulta DOMiin (selaimen haku toimii). Erä omaan
-  // tbodyyn: mobiilissa ruudun ulkopuolisia eriä ei asetella eikä piirretä (tyyli.css).
+  // tbodyyn: mobiilissa ruudun ulkopuolisia eriä ei asetella eikä piirretä (mobiili.css).
   let i = 0;
   const era = () => {
     if (kierros !== kurssit_renderointi) return;

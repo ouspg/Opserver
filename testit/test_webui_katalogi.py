@@ -161,3 +161,15 @@ def test_webui_index_lataa_kaikki_skriptit_versioituina():
     ladatut = re.findall(r'<script src="/staattinen/([\w.]+\.js)\?v=\d+"></script>', index)
     assert sorted(ladatut) == sorted(p.name for p in Path("webui/staattinen").glob("*.js"))
     assert len(ladatut) == index.count("<script")
+
+
+def test_webui_index_lataa_kaikki_tyylit_versioituina_mobiili_viimeisena():
+    # Tyylit on jaettu aihepiireittäin; latausjärjestys = kaskadi, joten mobiilin
+    # @media-ohitukset (mobiili.css) ladataan viimeisenä.
+    import re
+    from pathlib import Path
+    index = Path("webui/staattinen/index.html").read_text()
+    ladatut = re.findall(r'<link rel="stylesheet" href="/staattinen/([\w.]+\.css)\?v=\d+">', index)
+    assert sorted(ladatut) == sorted(p.name for p in Path("webui/staattinen").glob("*.css"))
+    assert len(ladatut) == index.count('rel="stylesheet"')
+    assert ladatut[-1] == "mobiili.css"

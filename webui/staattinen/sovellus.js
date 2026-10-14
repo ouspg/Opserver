@@ -214,7 +214,7 @@ function asetaYlapalkkiKoottu(koottu) {
 _valikkovihje.addEventListener("click", () => asetaYlapalkkiKoottu(!_ylapalkki.classList.contains("koottu")));
 asetaYlapalkkiKoottu(!!localStorage.getItem("ylapalkki_koottu"));  // tila säilyy uudelleenlatauksessa
 
-// Mobiilin hampurilaisvalikko (tyyli.css): navigointi valikosta ja Esc sulkevat sen.
+// Mobiilin hampurilaisvalikko (mobiili.css): navigointi valikosta ja Esc sulkevat sen.
 const _mobiilinappi = document.getElementById("mobiilivalikko-nappi");
 function asetaMobiilivalikko(auki) {
   _ylapalkki.classList.toggle("valikko-auki", auki);

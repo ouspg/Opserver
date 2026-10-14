@@ -1,0 +1,248 @@
+/* --- Yhteistyö: nimimerkki + profiili --- */
+
+#yhteistyo-alue {
+  position: absolute;
+  top: 1rem;
+  right: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  flex-wrap: nowrap;
+}
+
+#muut-ympyrat {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Kapea ikkuna (sovitaYlapalkki, profiili.js): ensin ohje pois, sitten ympyrät logon alle. */
+header.ei-nimimerkkiohjetta .nimimerkki-ohje { display: none; }
+header > #muut-ympyrat { flex-wrap: wrap; justify-content: flex-end; margin-bottom: 0.5rem; }
+header > #muut-ympyrat:empty { display: none; }
+
+.vieras-ympyra-pieni {
+  border-radius: 50%;
+  display: block;
+  flex-shrink: 0;
+}
+
+#oma-alue {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+#oma-ympyra {
+  border-radius: 50%;
+  cursor: pointer;
+  display: block;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+#oma-ympyra:hover { opacity: 0.85; }
+
+.nimimerkki-ohje {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.55);
+  white-space: nowrap;
+}
+
+#nimimerkki-kentta {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  color: #fff;
+  padding: 0.22rem 0.5rem;
+  font-size: 0.88rem;
+  width: 200px;
+}
+
+#nimimerkki-kentta:focus {
+  outline: none;
+  border-color: rgba(255,255,255,0.45);
+  background: rgba(255,255,255,0.15);
+}
+
+#nollaa-nimimerkki {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  color: rgba(255,255,255,0.65);
+  padding: 0.2rem 0.5rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#nollaa-nimimerkki:hover {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}
+
+/* Profiilimuokkaus-popup */
+
+#profiili-muokkaus {
+  position: fixed;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  padding: 0.9rem 1rem;
+  z-index: 200;
+  min-width: 220px;
+}
+
+.profiili-esikatselu-rivi {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.7rem;
+}
+
+#profiili-esikatselu {
+  border-radius: 50%;
+  display: block;
+}
+
+.vari-otsikko {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.3rem;
+}
+
+.vari-ruudukko {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 0.65rem;
+}
+
+.vari-nappula {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.vari-nappula:hover { opacity: 0.8; }
+.vari-nappula.valittu { border-color: #333; }
+
+.profiili-napit {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.profiili-napit button {
+  flex: 1;
+  background: #ececf4;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.profiili-napit button:hover { background: #dde; }
+
+/* Leijuvat kursorit */
+
+#kursori-kerros {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 150;  /* modaalien (100) yläpuolella, profiilimuokkauksen (200) alla */
+  overflow: hidden;
+}
+
+.vieras-kursori {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  transition: left 0.15s ease-out, top 0.15s ease-out;
+}
+
+.vieras-kursori canvas {
+  display: block;
+  border-radius: 50%;
+}
+
+/* Ruudun ulkopuolella oleva käyttäjä: pallura reunassa, nuoli osoittaa suunnan. */
+.kursori-nuoli {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 9px solid #0e214b;
+  transform: translate(-50%, -50%) rotate(var(--kulma, 0rad)) translateX(19px);
+  filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff);  /* näkyy myös tummaa yläpalkkia vasten */
+}
+
+.vieras-kursori.ulkona .kursori-nuoli { display: block; }
+.vieras-kursori.ulkona canvas { opacity: 0.85; }
+/* "Tuollapäin"-reunapallura: klikkaus siirtää käyttäjän luo (muut kursorit päästävät klikit läpi). */
+.vieras-kursori.ulkona { pointer-events: auto; cursor: pointer; }
+
+/* Uutispalkki */
+
+#uutispalkki {
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  font-size: 0.76rem;
+  color: rgba(255,255,255,0.55);
+  padding: 0.1rem 0 0.2rem;
+  min-height: 1.3rem;
+}
+
+#uutispalkki:empty { display: none; }
+#uutispalkki::-webkit-scrollbar { display: none; }
+
+.uutinen-item { flex-shrink: 0; white-space: nowrap; }
+
+.uutinen-item + .uutinen-item::before {
+  content: "·";
+  color: rgba(255,255,255,0.22);
+  padding: 0 0.55rem;
+}
+
+.uutinen-aika {
+  color: rgba(255,255,255,0.28);
+  margin-right: 0.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Nav-indikaattorit */
+
+/* Pallurakerros peittää koko valikon; pallurat sijoitetaan kunkin napin alareunaan
+   (yhteistyo.js), joten ne pysyvät oikeassa kohdassa vaikka valikko rivittyisi.
+   Tila palluroille: jokaisen napin alle 12 px (myös rivittyneiden rivien väliin). */
+#paanav, #tutkimus-nav { position: relative; }
+#nav-indikaattorit, #tutkimus-nav-indikaattorit {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+#paanav button, #tutkimus-nav button { margin-bottom: 12px; }
+
+/* Tooltip */
+
+#nimis-tooltip {
+  position: fixed;
+  background: rgba(0,0,0,0.78);
+  color: #fff;
+  font-size: 0.78rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 999;
+  white-space: nowrap;
+}

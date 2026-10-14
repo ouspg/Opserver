@@ -1,0 +1,267 @@
+* { box-sizing: border-box; }
+
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0;
+  color: #1a1a2e;
+  background: #f4f4f8;
+}
+
+header {
+  background: #0e214b;
+  color: #fff;
+  padding: 1rem 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+header h1 { margin: 0 0 0.5rem; font-size: 1.4rem; }
+header h1.logo { line-height: 0; }
+header h1.logo img { height: 2.5rem; width: auto; display: block; }
+
+.paivitysaika { display: none; }
+
+/* Navigaation käsin piilotus: yläpalkin alalaidan keskellä oleva ympyränappi
+   (#valikkovihje) piilottaa valikkorivit (^) ja tuo ne takaisin (☰).
+   Ympyrä on puoliksi navipalkin ja puoliksi sisältöalueen päällä. Ei mobiilissa
+   (siellä hampurilaisvalikko, ks. mobiili.css). */
+@media (min-width: 601px) {
+  header.koottu #paanav,
+  header.koottu #tutkimus-nav,
+  header.koottu #uutispalkki {
+    display: none;
+  }
+}
+
+#valikkovihje {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 50%);
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  border-radius: 50%;
+  background: #0e214b;
+  border: 2px solid #fff;
+  color: #fff;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 11;
+}
+
+#paanav button, #tutkimus-nav button {
+  background: transparent;
+  border: none;
+  color: #aab;
+  padding: 0.4rem 0.9rem;
+  font-size: 1rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+#paanav button.aktiivinen, #tutkimus-nav button.aktiivinen {
+  color: #fff;
+  border-bottom-color: #e94560;
+}
+
+#tutkimus-nav {
+  margin-top: 0.25rem;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  padding-top: 0.25rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#tutkimus-nav:not(.piilotettu) {
+  display: flex;
+}
+
+.nav-erotin {
+  color: rgba(255,255,255,0.2);
+  margin: 0 0.4rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.tila-nappi-nav {
+  background: transparent;
+  border: none;
+  color: #aab;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tila-nappi-nav.aktiivinen {
+  color: #fff;
+  border-bottom-color: #e94560;
+}
+
+.tila-nappi-nav:hover { color: #ddf; }
+
+#tutkimus-nav #tutkimus-nav-nimi {
+  color: #fff;
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+main { padding: 1.5rem; }
+
+.nakyma { display: none; }
+.nakyma.aktiivinen { display: block; }
+
+/* Suodattimet */
+.suodattimet {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.suodattimet select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  background: #fff;
+}
+
+.lkm { color: #666; font-size: 0.9rem; }
+.lataus-rivi td { color: #666; font-style: italic; padding: 1.5rem; text-align: center; animation: lataus-syke 1.2s ease-in-out infinite; }
+@keyframes lataus-syke { 50% { opacity: 0.35; } }
+
+.suodattimet input.suod-haku {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  background: #fff;
+  min-width: 16rem;
+}
+
+/* Tutkimuksen tiedot: arviointikysymysten tyyppi + määrittely */
+.kys-lista li { margin-bottom: 0.75rem; }
+.kys-teksti { font-weight: 600; }
+.kys-tyyppi {
+  display: inline-block;
+  font-size: 0.8rem;
+  color: #555;
+  background: #eef;
+  border-radius: 4px;
+  padding: 0.05rem 0.4rem;
+  margin: 0.15rem 0;
+}
+.kys-maar { font-size: 0.9rem; color: #444; margin: 0.2rem 0 0 0.5rem; }
+.kys-maar ul { margin: 0.2rem 0 0 1rem; }
+
+/* Taulukot */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+th, td {
+  text-align: left;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid #e0e0ec;
+}
+
+th { background: #ececf4; }
+
+/* Taulukoiden otsikkorivit pysyvät näkyvissä selattaessa. Yläpalkki on sticky ja
+   sen korkeus vaihtelee (navin piilotus), joten offset luetaan JS:n asettamasta
+   muuttujasta. box-shadow, koska border katoaa position:sticky + border-collapse. */
+thead th {
+  position: sticky;
+  top: calc(var(--otsikkokorkeus, 0px) + var(--ohjainkorkeus, 0px));
+  z-index: 5;
+  box-shadow: inset 0 -1px 0 #e0e0ec;
+}
+
+/* Kurssilistojen paikannus + sivutus pysyvät yläpalkin alla otsikkorivin yläpuolella;
+   --ohjainkorkeus asetetaan JS:llä näkymä-sectioniin (sovellus.js). flow-root pitää
+   lasten marginaalit sisällä, ettei sisältö näy raosta. */
+.kiinnitetyt {
+  position: sticky;
+  top: var(--otsikkokorkeus, 0px);
+  z-index: 6;
+  display: flow-root;
+  background: #f4f4f8;
+}
+
+/* Järjestysnapit sarakeotsikoissa (▲ nouseva / ▼ laskeva). */
+.jarjesta-napit {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: middle;
+  margin-left: 0.3rem;
+  line-height: 0.7;
+}
+.jarjesta-nappi {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #aab;
+  font-size: 0.6rem;
+  padding: 0;
+  line-height: 0.85;
+}
+.jarjesta-nappi:hover { color: #555; }
+.jarjesta-nappi.aktiivinen { color: #16213e; }
+
+/* Korkeakoulut-taulu: 2 ensimmäistä saraketta yhteensä alle puolet leveydestä,
+   vuosisarakkeet keskitettyinä oikealla. */
+.korkeakoulut-taulu .kk-nimi { width: 22%; font-weight: 600; }
+.korkeakoulut-taulu .kk-opas { width: 22%; white-space: nowrap; }
+.korkeakoulut-taulu .kk-kurssit-otsikko,
+.korkeakoulut-taulu .kk-vuosi { text-align: center; white-space: nowrap; }
+.korkeakoulut-taulu td.kk-solu { padding: 0.25rem; text-align: center; }
+
+/* Vuosikausi-tiilet: pastelli = todennäk. kaikki haettu, harmaa = vajaa/ei haettu */
+.kk-tiili {
+  display: block;
+  padding: 0.45rem 0.6rem;
+  border-radius: 7px;
+  font-size: 0.92rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.kk-tiili-vajaa { background: #d6d8e0; color: #555; }
+.kk-tiili-eihaettu { background: #eef0f4; color: #9a9aa5; font-style: italic; }
+
+/* Sivutus (tutkimuksen kurssilista) */
+.sivutus { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; justify-content: center; padding: 0.5rem 0; }
+.sivutus:empty { display: none; }
+.sivutus button[disabled] { opacity: 0.4; cursor: default; }
+.sivutus .sivu-numero { min-width: 2.2rem; }
+.sivutus .sivu-vali { color: #777; }
+.sivutus .sivu-numero.aktiivinen { opacity: 1; background: #16213e; color: #fff; font-weight: 600; }
+
+td a { color: #16213e; text-underline-offset: 2px; }
+td a:hover { color: #e94560; }
+
+.ops-linkki {
+  margin-left: 0.4em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 0.76em;
+  background: #eef2ff;
+  color: #2c4a9a;
+  text-decoration: none;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.ops-linkki:hover { background: #c5d5ff; color: #2c4a9a; }
+
+td.koodi { font-family: monospace; color: #555; }
+td.op { text-align: right; }
+
+.kurssi-rivi { cursor: pointer; }
+.kurssi-rivi:hover { background: #f0f0ff; }
