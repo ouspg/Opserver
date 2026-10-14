@@ -216,7 +216,29 @@ function luoHeaderElementit() {
   const kerros = document.createElement("div");
   kerros.id = "kursori-kerros";
   document.body.appendChild(kerros);
+
+  h1.querySelector("img").addEventListener("load", sovitaYlapalkki);  // logon leveys tiedossa vasta latautuneena
+  sovitaYlapalkki();
 }
+
+// Kapea ikkuna (#94): yhteistyöalue ei saa mennä logon päälle. Ensin piilotetaan
+// "Nimimerkkisi:", sitten muiden ympyrät omalle rivilleen logon alle. Mitataan,
+// koska tarvittava leveys riippuu ympyröiden määrästä (ei kiinteää media-rajaa).
+function sovitaYlapalkki() {
+  const header = document.querySelector("header");
+  const logo = header.querySelector("h1.logo img");
+  const alue = document.getElementById("yhteistyo-alue");
+  const ympyrat = document.getElementById("muut-ympyrat");
+  const mahtuu = () => alue.getBoundingClientRect().left >= logo.getBoundingClientRect().right + 16;
+  header.classList.remove("ei-nimimerkkiohjetta");
+  if (ympyrat.parentNode !== alue) alue.prepend(ympyrat);
+  if (mahtuu()) return;
+  header.classList.add("ei-nimimerkkiohjetta");
+  if (mahtuu()) return;
+  header.querySelector("h1").after(ympyrat);
+}
+window.sovitaYlapalkki = sovitaYlapalkki;
+window.addEventListener("resize", sovitaYlapalkki);
 
 // Oma profiili muuttui: tallenna, piirrä omat ympyrät ja kerro muille.
 function profiiliMuuttui() {

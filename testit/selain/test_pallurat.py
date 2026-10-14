@@ -225,3 +225,33 @@ def test_siirtyminen_kurssit_sivun_suodatettuun_nakymaan(kayttaja):
     assert a.evaluate(suodattimet)[1]
     expect(b.locator("#kurssit-lkm")).to_have_text(a.inner_text("#kurssit-lkm"))
     assert b.evaluate(suodattimet) == a.evaluate(suodattimet)
+
+
+def test_kapea_ylapalkki_piilottaa_ohjeen_ja_siirtaa_ympyrat_logon_alle(kayttaja):
+    """#94: ikkunan kaventuessa ensin "Nimimerkkisi:" pois, sitten muiden ympyrät omalle
+    rivilleen logon alle — ympyrät eivät koskaan logon päällä."""
+    for _ in range(4):
+        kayttaja(TUTKIMUS, "#oma-ympyra")
+    s = kayttaja(TUTKIMUS, "#oma-ympyra")
+    expect(s.locator(YLAPALKKI)).to_have_count(4, timeout=15000)
+    tilat = []
+    for leveys in range(1280, 340, -20):
+        s.set_viewport_size({"width": leveys, "height": 800})
+        s.evaluate("new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))")  # resize käsitelty
+        tila = s.evaluate("""() => {
+            const r = (el) => el.getBoundingClientRect();
+            const logo = r(document.querySelector("header h1.logo img"));
+            const ympyrat = document.getElementById("muut-ympyrat");
+            const ohje = document.querySelector(".nimimerkki-ohje");
+            return {alas: ympyrat.parentNode.tagName === "HEADER", ohje: ohje.offsetParent !== null,
+                    ympyratLogonPaalla: r(ympyrat).left < logo.right && r(ympyrat).top < logo.bottom,
+                    alueLogonPaalla: r(document.getElementById("oma-alue")).left < logo.right};
+        }""")
+        assert not tila["ympyratLogonPaalla"], (leveys, tila)
+        tilat.append((leveys, 0 if tila["ohje"] else 2 if tila["alas"] else 1, tila["alueLogonPaalla"]))
+    vaiheet = [v for _, v, _ in tilat]
+    assert vaiheet == sorted(vaiheet), tilat       # 0 = kaikki, 1 = ohje pois, 2 = ympyrät alas
+    assert {0, 1, 2} <= set(vaiheet), tilat
+    s.set_viewport_size({"width": 1280, "height": 800})
+    expect(s.locator("#yhteistyo-alue > #muut-ympyrat")).to_have_count(1)
+    expect(s.locator(".nimimerkki-ohje")).to_be_visible()
