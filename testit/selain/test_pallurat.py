@@ -225,3 +225,48 @@ def test_siirtyminen_kurssit_sivun_suodatettuun_nakymaan(kayttaja):
     assert a.evaluate(suodattimet)[1]
     expect(b.locator("#kurssit-lkm")).to_have_text(a.inner_text("#kurssit-lkm"))
     assert b.evaluate(suodattimet) == a.evaluate(suodattimet)
+
+
+def test_siirtyminen_avaa_saman_vuosiversion(kayttaja):
+    """#101: A katsoo Kurssit-sivulla rivin vanhempaa vuosiversiota → B:lle aukeaa sama versio."""
+    a = kayttaja("/kurssit", "#kurssit-rungot .vuosivalinta")
+    rivi = a.locator("#kurssit-rungot tr.kurssi-rivi", has=a.locator(".vuosivalinta")).first
+    rivi.locator(".vuosivalinta").select_option(label="2025-2027")
+    rivi.locator("td").first.click(position={"x": 5, "y": 5})
+    expect(a.locator("#modaali .modaali-meta")).to_contain_text("2025-2027")
+    b = kayttaja("/tutkimukset", "#paanav")
+    _siirry(a, b)
+    expect(b.locator("#modaali .modaali-meta")).to_contain_text("2025-2027")
+
+
+def test_tooltip_kun_pallura_liukuu_paikallaan_olevan_osoittimen_alle(kayttaja):
+    """#101: B:n hiiri paikallaan, A:n pallura liukuu sen alle → tooltip ilman B:n liikettä."""
+    a, b = kayttaja(VALITUT, RIVI), kayttaja(VALITUT, RIVI)
+    a.mouse.move(600, 400)
+    a.mouse.move(610, 410)
+    kursori = "#kursori-kerros .vieras-kursori canvas"
+    b.wait_for_selector(kursori, timeout=10000)
+    b.wait_for_timeout(600)  # liuku perille
+    r = b.locator(kursori).bounding_box()
+    b.mouse.move(r["x"] + r["width"] / 2, r["y"] + r["height"] / 2 + 150)  # pallurasta alaspäin
+    expect(b.locator("#nimis-tooltip")).to_be_hidden()
+    a.mouse.move(610, 560)  # pallura B:n osoittimen alle
+    expect(b.locator("#nimis-tooltip")).to_have_text(_nimi(a), timeout=10000)
+
+
+def test_siirtyminen_eri_leveydella_samalle_riville(kayttaja):
+    """#101: kapeampi B (rivit rivittyvät korkeammiksi) vierittyy sille riville, jonka päällä A:n hiiri on."""
+    a, b = kayttaja(VALITUT, RIVI), kayttaja(VALITUT, RIVI, leveys=700)
+    a.evaluate("scrollTo(0, 2500)")
+    a.mouse.move(640, 400)
+    a.mouse.move(650, 410)
+    kid = a.evaluate("document.elementFromPoint(650, 410).closest('tr[data-kid]').dataset.kid")
+    b.wait_for_function("(kid) => muutKayttajat.some((k) => k.sijainti?.rivi === kid)", arg=kid, timeout=10000)
+    b.locator(YLAPALKKI).click()
+    b.wait_for_function("""(kid) => document.elementFromPoint(innerWidth / 2, innerHeight / 2)
+        ?.closest('tr[data-kid]')?.dataset.kid === kid""", arg=kid, timeout=10000)
+    # A:n kursori piirtyy B:llä samalle riville
+    b.wait_for_function("""(kid) => { const c = document.querySelector('#kursori-kerros .vieras-kursori:not(.ulkona) canvas');
+        if (!c) return false; const r = c.getBoundingClientRect();
+        const rivi = document.querySelector(`tr[data-kid="${kid}"]`).getBoundingClientRect();
+        const y = r.top + r.height / 2; return y >= rivi.top - r.height && y <= rivi.bottom + r.height; }""", arg=kid, timeout=10000)

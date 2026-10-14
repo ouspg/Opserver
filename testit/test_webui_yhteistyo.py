@@ -118,7 +118,8 @@ _PROFIILI = {"taustavari": "#c0392b", "etualavari": "#ffffff",
 _TILA = {"nimimerkki": "Aino", "profiili": _PROFIILI,
          "sijainti": {"x": 120.5, "y": 3400, "modaali": True}, "taso": "aktiivinen",
          "sivu": "/tutkimukset/kyber/kurssit", "nakyma": "abc", "sivunumero": 2,
-         "lomake": "hitl:1:7", "katselu": None, "tekeminen": 'Muokkaa luokittelua kurssille "X"'}
+         "lomake": "hitl:1:7", "katselu": None, "katseluKohde": None,
+         "tekeminen": 'Muokkaa luokittelua kurssille "X"'}
 
 
 @pytest.fixture
@@ -150,6 +151,13 @@ def test_lasnaolon_tuntemattomat_ja_virheelliset_kentat_pudotetaan(kootusti):
         # Sijainnin tuntemattomat avaimet pudotetaan, liput vain totuusarvoina
         a.send_json({**_TILA, "sijainti": {"x": 1, "y": 2, "ylapalkki": True, "kiinnitetty": True, "modaali": "x", "z": 5}})
         assert _kayttajaviesti(a)["data"][0]["sijainti"] == {"x": 1, "y": 2, "ylapalkki": True, "kiinnitetty": True}
+        # Kurssirivin suhteellinen kohta (#101) välittyy vain kokonaisena ja kelvollisena
+        rivilla = {"x": 1, "y": 2, "rivi": "42", "rx": 0.25, "ry": 0.5}
+        a.send_json({**_TILA, "sijainti": rivilla})
+        assert _kayttajaviesti(a)["data"][0]["sijainti"] == rivilla
+        for paha_rivi in ({"rivi": "42", "rx": 0.25}, {"rivi": "4" * 21, "rx": 0, "ry": 0}, {"rivi": 42, "rx": 0, "ry": 0}):
+            a.send_json({**_TILA, "sijainti": {"x": 1, "y": 2, **paha_rivi}})
+            assert _kayttajaviesti(a)["data"][0]["sijainti"] == {"x": 1, "y": 2}, paha_rivi
 
 
 def test_ylisuuri_lasnaoloviesti_hylataan_kokonaan(kootusti):

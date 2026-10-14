@@ -95,12 +95,21 @@ window.siirryKayttajanLuo = async (k) => {
     }
   } else if (avain) {
     const ankkuri = await odotaEhtoa(() => document.querySelector(`[data-lomake="${CSS.escape(avain)}"]`));
+    // Kurssit-sivun rivi: sama vuosiversio kuin hänellä (rivin klikkaus avaa valitun).
+    const valinta = ankkuri?.closest("tr")?.querySelector(".vuosivalinta");
+    if (valinta && [...valinta.options].some((o) => o.value === k.katseluKohde)) valinta.value = k.katseluKohde;
     ankkuri?.scrollIntoView({ block: "center" });
     ankkuri?.click();
   } else if (k.sijainti && !k.sijainti.ylapalkki && !k.sijainti.kiinnitetty) {  // palkeissa: ei vieritettävää
-    const { x, y } = k.sijainti;  // sivun koordinaatit; odota että sisältö on niin pitkä
-    await odotaEhtoa(() => document.documentElement.scrollHeight >= y, 5000);
-    window.scrollTo(x - innerWidth / 2, y - innerHeight / 2);
+    // Kurssirivi (osissa renderöityvä lista) ensisijaisesti, muuten sivun koordinaatit.
+    const rivilla = k.sijainti.rivi && await odotaEhtoa(() => window.rivinKohta(k.sijainti), 5000);
+    if (rivilla) {
+      window.scrollBy(rivilla.x - innerWidth / 2, rivilla.y - innerHeight / 2);
+    } else {
+      const { x, y } = k.sijainti;  // odota että sisältö on niin pitkä
+      await odotaEhtoa(() => document.documentElement.scrollHeight >= y, 5000);
+      window.scrollTo(x - innerWidth / 2, y - innerHeight / 2);
+    }
   }
 };
 

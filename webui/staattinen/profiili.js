@@ -314,9 +314,12 @@ function alustaHeaderTapahtumat() {
 // välilehdet, sivutus, lomakkeet). Osuma lasketaan geometriasta, koska kursori- ja
 // nav-kerrokset ovat pointer-events: none — pallurat eivät saa estää alla olevan napin
 // klikkausta. Modaalin ollessa auki vain modaalin omat pallurat ja leijuvat kursorit.
+// Tarkistus myös kun vieraspallura liikkuu paikallaan olevan osoittimen alle (paivitaTooltip).
 function kytkeTooltipit() {
   const tt = document.getElementById("nimis-tooltip");
-  document.addEventListener("mousemove", (e) => {
+  let viimeisin = null;  // viimeisin hiiren tapahtuma (clientX/Y)
+  const tarkista = (e) => {
+    viimeisin = e;
     const modaali = document.querySelector(".modaali:not(.piilotettu)");
     const osuma = [...document.querySelectorAll("canvas[data-tooltip]")].find((c) => {
       if (modaali && !modaali.contains(c) && !c.closest("#kursori-kerros")) return false;
@@ -328,5 +331,8 @@ function kytkeTooltipit() {
     tt.textContent = osuma.dataset.tooltip;
     tt.style.left = (e.clientX + 10) + "px";
     tt.style.top = (e.clientY - 30) + "px";
-  }, { passive: true });
+  };
+  document.addEventListener("mousemove", tarkista, { passive: true });
+  window.paivitaTooltip = () => { if (viimeisin) tarkista(viimeisin); };
+  document.getElementById("kursori-kerros").addEventListener("transitionend", window.paivitaTooltip);  // liuku perillä
 }
