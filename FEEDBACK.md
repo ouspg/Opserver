@@ -1,4 +1,4 @@
-= PALAUTE 1 =
+# PALAUTE 1
 
 Keräsin huomioita/sekavaa sepostusta tuosta opserveristä kurssien luokittelun vahvistamisen lomassa. En tiedä oliko näitä tarkoitus koota johonkin mutta tässä nyt on :D (ja Piia projektin vetäjänä cc:nä)
 
@@ -18,12 +18,12 @@ Tekoälyn syötteessä luokittelulle ei oltu määritelty kovinkaan tarkkaa krit
 6. Työkalu ei huomioi käsillä olevan kurssin laajuutta minkä ihminen ottaisi huomioon kurssin joustavuuden osalta. Esim 1op kurssi on itsessään joustava kokonaisuus mutta rakenne ei välttämättä (esim projektikurssien osalta) ole modulaarinen. Tämän kohdan osalta eritoten opinto-oppaissa oli paljon puutteita mutta tekoälytulkinnan virheitä oli myös > esimerkiksi kurssi on modulaarinen koska se voidaan jakaa kurssiin ja kurssikokeeseen?
 
 
-= PALAUTE 2 =
+# PALAUTE 2
 
 Huomasimme, että AI:n arvioinnissa oli virheitä, koska se ei tarkisti ruotsinkieliset kurssikuvaukset. Joidenkin kurssien osalta jouduimme arvioimaan teittyjä asioita oman asiantuntemuksemme perusteella, koska niitä ei ollut kuvattu selkeästi studiehandbokenissamme.
 
 
-= PALAUTE 3 =
+# PALAUTE 3
 
 Kävin JYU:n kurssit läpi työkalulla, pääosin työkalu toimi erinomaisesti, muutamaa poikkeusta lukuun ottamatta.
 
