@@ -116,3 +116,7 @@ raporttigeneroinnilla. Väärin hyväksytyn yhdistämisen (tai turhaan hylätyn)
 voi nyt korjata vain SQL:llä. Tarvitaan CLIUI-näkymä: listaa päätökset
 kysymyksittäin, salli peruminen (palauttaa raaka-arvot? → vaatii alkuperäisten
 arvojen säilytyksen, nyt Lista kirjoitetaan yli — päätä ensin).
+
+## 34. Palaute FEEDBACK.md:ssä
+
+Läpikäytävä ja reagoitava
