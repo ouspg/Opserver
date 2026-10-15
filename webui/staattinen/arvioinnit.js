@@ -101,6 +101,9 @@ async function renderTutkimusArvioinnit(slug, nimi, sailyta = false) {
       if (valmis) arvioinnit_kesken = false;
       // Koko taulun uudelleenrakennus joka osalla olisi O(n²): korkeintaan OSARENDER_VALI_MS välein.
       if (valmis || (!sailyta && Date.now() - renderoity > OSARENDER_VALI_MS)) {
+        // Pollaus samalla datalla: ei uudelleenrakennusta (työpöydän <table> ~240 ms asettelua, #135).
+        // ponytail: koko taulu rakennetaan, kun mikä tahansa solu muuttui; rivikohtainen päivitys, jos sekin nykii.
+        if (sailyta && valmis && JSON.stringify(koottu) === JSON.stringify(arvioinnit_data)) return;
         arvioinnit_data = koottu;
         renderArvioinnitTaulu();
         renderoity = Date.now();
