@@ -119,4 +119,15 @@ arvojen säilytyksen, nyt Lista kirjoitetaan yli — päätä ensin).
 
 ## 34. Palaute FEEDBACK.md:ssä
 
-Läpikäytävä ja reagoitava
+Läpikäyty 2026-10-16: korjaukset issueina #140–#145, koonti FEEDBACK.md:n lopussa
+(TOIMENPITEET). Avoinna tutkimusryhmälle: luokittelukriteerit, asteikot ja listojen
+valmiit labelit (palaute 1 kohdat 1–6, vrt. #31). Uusi palaute → käy läpi samoin.
+
+## 35. Sisun toteutusten (realisation) tiedot puuttuvat — tarkkailtava
+
+FEEDBACK.md palaute 3: JYU:lla osan kursseista suoritustavat/sisältö selviää vasta
+Sisun aktiivisen toteutuksen alasivulta; Opserver hakee vain opintojakson (KORI
+course unit), joten LLM ei näe niitä. Vaatisi uuden haun (toteutukset per
+opintojakso, kohteliaasti) ja tallennuksen. Ennen toteutusta: selvitä, montako
+kurssia asia koskee (esim. HITL-korjaukset juurisyyllä `riittamaton_opas` Sisu-
+korkeakouluissa) ja kuinka vakaata toteutusdata on (vaihtuu lukukausittain).

@@ -43,3 +43,18 @@ Toisinaan luokituksissa käytetyt perustelut vaikuttivat ainakin osittain LLM ha
 Raportin huomiot:
 Raportti itsessään onnistuu hyvin ansiokkaasti kuvaamaan luokittelun tuloksia.
 Allekirjoittaneelle generoitu teksti oli kuitenkin paikoin hieman vaikealukuista/tönkköä.
+
+
+# TOIMENPITEET
+
+| Havainto | Palaute | Seuranta |
+|---|---|---|
+| Tekstin maalaaminen sulkee modaalin (muutokset katoavat, rivi voi vaihtua) | 1, 3 | #140 |
+| Ruotsinkieliset kuvaukset eivät mene LLM:lle | 2 | #141 |
+| Opintopisteet (ja vaihteleva laajuus, esim. 3–5 op) puuttuvat LLM:ltä | 1 (kohta 6), 3 | #142 |
+| HY:n linkitetyt esitietokurssit puuttuvat | 1 | #143 |
+| Saman/samankaltaisen kurssin epäjohdonmukaiset arviot | 1, 3 | #144 |
+| Hallusinoidut perustelut | 3 | #145 |
+| Suoritustavat vain Sisun toteutuksen sivulla (JYU) | 3 | TASKS.md #35 |
+| Luokittelukriteerit, asteikot ja listojen valmiit labelit (kohdat 1–6) | 1 | tutkimusryhmän päätös; vrt. TASKS.md #31 |
+| Raportin teksti paikoin tönkköä | 3 | `kehotteet/raporttijarjestelma.txt` |
