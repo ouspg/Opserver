@@ -24,19 +24,31 @@ _SUORITUS_TYYPPI = {
 }
 
 
-def _monikielinen_teksti(arvo) -> str:
-    """Sisun monikielinen kenttä ({fi/en: html}) → suomenkielinen teksti ilman HTML:ää."""
+SISU_KIELET = ("fi", "sv", "en")
+PEPPI_KIELET = ("valueFi", "valueSv", "valueEn")
+
+
+def kieliketju(arvo, avaimet) -> str:
+    """Monikielinen kenttä → ensimmäinen ei-tyhjä kieliversio järjestyksessä fi → sv → en.
+
+    Åbo Akademi kuvaa kurssit usein vain ruotsiksi ja osa kursseista on vain
+    englanniksi — ilman ketjua ne päätyisivät LLM:lle tyhjinä (#141).
+    """
     if not isinstance(arvo, dict):
         return ""
-    teksti = arvo.get("fi") or arvo.get("en") or ""
-    return re.sub(r"<[^>]+>", " ", teksti).strip()
+    return next((t.strip() for a in avaimet if isinstance(t := arvo.get(a), str) and t.strip()), "")
+
+
+def _monikielinen_teksti(arvo) -> str:
+    """Sisun monikielinen kenttä ({fi/sv/en: html}) → teksti ilman HTML:ää."""
+    return re.sub(r"<[^>]+>", " ", kieliketju(arvo, SISU_KIELET)).strip()
 
 
 def _peppi_kuvaus(data: dict) -> str:
     osat = []
     for osio in data.get("contentList", []):
-        otsikko = (osio.get("title") or {}).get("valueFi", "")
-        teksti = ((osio.get("content") or {}).get("valueFi") or "").strip()
+        otsikko = kieliketju(osio.get("title"), PEPPI_KIELET)
+        teksti = kieliketju(osio.get("content"), PEPPI_KIELET)
         if teksti:
             osat.append(f"{otsikko}: {teksti}" if otsikko else teksti)
     return "\n".join(osat)

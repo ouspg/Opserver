@@ -63,6 +63,24 @@ class TestKuvausTekstina:
         ops = json.dumps({"content": {"en": "Basics of cryptography."}})
         assert "Sisältö: Basics of cryptography." in kurssimuoto.kuvaus_tekstina(ops)
 
+    def test_sisu_kayttaa_ruotsia_ennen_englantia(self):
+        ops = json.dumps({"content": {"sv": "Grunderna i kryptografi.", "en": "Basics."}})
+        assert "Sisältö: Grunderna i kryptografi." in kurssimuoto.kuvaus_tekstina(ops)
+
+    def test_peppi_kieliketju_fi_sv_en_osioittain(self):
+        """Åbo Akademi: osioiden sisältö vain ruotsiksi (tai englanniksi), otsikot suomeksi."""
+        ops = json.dumps({"contentList": [
+            {"title": {"valueFi": "Sisältö", "valueSv": "Innehåll"},
+             "content": {"valueFi": "", "valueSv": "Kryptografi.", "valueEn": "Cryptography."}},
+            {"title": {"valueFi": "", "valueEn": "Objectives"},
+             "content": {"valueFi": "", "valueSv": "", "valueEn": "Student knows X."}},
+            {"title": {"valueFi": "Kielet"}, "content": {"valueFi": "ruotsi", "valueSv": "svenska"}},
+        ]})
+        teksti = kurssimuoto.kuvaus_tekstina(ops)
+        assert "Sisältö: Kryptografi." in teksti
+        assert "Objectives: Student knows X." in teksti
+        assert "Kielet: ruotsi" in teksti
+
     def test_sisu_ilman_tekstikenttia_palauttaa_tyhjan(self):
         # Aidosti kuvaukseton Sisu-kurssi (riittämätön opinto-opas) → tyhjä, ei raaka JSON
         ops = json.dumps({"code": "X", "credits": {"min": 5}, "outcomes": None})
