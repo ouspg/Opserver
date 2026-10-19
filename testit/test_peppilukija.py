@@ -43,6 +43,15 @@ def test_jasenna_kurssi_lukee_oppiaineen():
     assert _lukija()._jasenna_kurssi(_fixture("peppi_kurssi_45690.json"))["oppiaine"] == "Tietotekniikka"
 
 
+def test_jasenna_kurssi_kieliketju_ruotsiin():
+    data = {"name": {"valueFi": "", "valueSv": "Grundkurs"}, "code": "X", "contentList": [
+        {"title": {"valueFi": "Taso"}, "content": {"valueFi": "", "valueSv": "Grundstudier"}},
+        {"title": {"valueFi": "Oppiaine"}, "content": {"valueFi": "", "valueEn": "Mathematics"}},
+    ]}
+    kurssi = _lukija()._jasenna_kurssi(data)
+    assert (kurssi["kurssi_nimi"], kurssi["taso"], kurssi["oppiaine"]) == ("Grundkurs", "Grundstudier", "Mathematics")
+
+
 # --- kausilista JS-bundlesta ---
 
 def test_generoi_kaudet_yhden_vuoden_jakso():

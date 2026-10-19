@@ -12,6 +12,7 @@ import re
 import requests
 
 from tietokanta import mallit
+from llm.kurssimuoto import SISU_KIELET, kieliketju
 from tiedonhaku.opslukija import OpsLukija
 
 TASO_KARTTA = {
@@ -29,9 +30,7 @@ def _muunna_taso(study_level_urn: str | None) -> str | None:
 
 
 def _fi(monikielinen: dict | None) -> str:
-    if not monikielinen:
-        return ""
-    return (monikielinen.get("fi") or monikielinen.get("en") or "").strip()
+    return kieliketju(monikielinen, SISU_KIELET)
 
 
 class SisuLukija(OpsLukija):

@@ -8,6 +8,7 @@ import re
 import requests
 
 from tietokanta import mallit
+from llm.kurssimuoto import PEPPI_KIELET, kieliketju
 from tiedonhaku.opslukija import OpsLukija
 
 # Kursseja per tietokantakierros. Keskeytys menettää enintään tämän verran jo
@@ -15,9 +16,7 @@ from tiedonhaku.opslukija import OpsLukija
 _TALLENNUSERA = 20
 
 def _fi(monikielinen: dict | None) -> str:
-    if not monikielinen:
-        return ""
-    return (monikielinen.get("valueFi") or monikielinen.get("valueEn") or "").strip()
+    return kieliketju(monikielinen, PEPPI_KIELET)
 
 
 def _hae_bundle_js(ops_osoite: str) -> str:
@@ -183,7 +182,7 @@ class PeppiLukija(OpsLukija):
 
     def _jasenna_kurssi(self, data: dict) -> dict:
         sisalto = {
-            _fi(osio.get("title")): (osio.get("content") or {}).get("valueFi", "") or ""
+            _fi(osio.get("title")): _fi(osio.get("content"))
             for osio in data.get("contentList", [])
         }
         credits = data.get("credits")

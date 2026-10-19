@@ -62,6 +62,9 @@ def test_fi_palauttaa_suomen():
 def test_fi_fallback_englantiin():
     assert _fi({"en": "Test"}) == "Test"
 
+def test_fi_ruotsi_ennen_englantia():
+    assert _fi({"sv": "Test sv", "en": "Test"}) == "Test sv"
+
 def test_fi_none_on_tyhja():
     assert _fi(None) == ""
 
