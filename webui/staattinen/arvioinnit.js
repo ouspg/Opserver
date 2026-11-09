@@ -174,7 +174,9 @@ function renderArvioinnitTaulu() {
   const sisalto = document.getElementById("tutkimus-arvioinnit-sisalto");
   const lkm = document.getElementById("tutkimus-arvioinnit-lkm");
 
-  const arvioitu = kurssit.filter((k) => k.vastaukset.some(_vastusOnAnnettu)).length;
+  // Ihmisen korjaus lasketaan arvioinniksi (kuten CLIUI:n laske_arvioimattomat).
+  const arvioitu = kurssit.filter((k) => k.vastaukset.some(_vastusOnAnnettu)
+    || Object.values(k.korjaukset || {}).some(_vastusOnAnnettu)).length;
   lkm.textContent = `${arvioitu} / ${kurssit.length} kurssia arvioitu`
     + (arvioinnit_kesken ? ` — ladattu ${arvioinnit_data.kurssit.length} / ${arvioinnit_data.yhteensa}…` : "");
 
